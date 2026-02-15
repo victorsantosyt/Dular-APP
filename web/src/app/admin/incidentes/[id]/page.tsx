@@ -3,6 +3,7 @@ import { StatusPill } from "../_components/StatusPill";
 import { signGetUrl } from "@/lib/s3Objects";
 import { recomputeRiskForUser } from "@/lib/risk";
 import { revalidatePath } from "next/cache";
+import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
@@ -46,9 +47,9 @@ export default async function AdminIncidenteDetalhePage({
   if (!incident) {
     return (
       <main className="mx-auto w-full max-w-5xl px-4 py-6">
-        <a href="/admin/incidentes" className="text-sm underline text-gray-700">
+        <Link href="/admin/incidentes" className="text-sm underline text-gray-700">
           ← Voltar
-        </a>
+        </Link>
         <div className="mt-4 rounded-2xl border bg-white p-4 text-sm text-red-700">Não encontrado.</div>
       </main>
     );
@@ -63,9 +64,9 @@ export default async function AdminIncidenteDetalhePage({
 
   return (
     <main className="mx-auto w-full max-w-5xl px-4 py-6">
-      <a href="/admin/incidentes" className="text-sm underline text-gray-700">
+      <Link href="/admin/incidentes" className="text-sm underline text-gray-700">
         ← Voltar
-      </a>
+      </Link>
 
       <header className="mt-4 rounded-2xl border bg-white p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">

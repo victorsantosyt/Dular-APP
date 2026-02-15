@@ -73,11 +73,6 @@ export default async function ServicoDetalhePage({ params }: Props) {
     return notFound();
   }
 
-  async function ActionButtons() {
-    "use server";
-    // Este bloco server action é apenas para satisfazer TS ao usar form action.
-  }
-
   const statusLabel = STATUS_LABEL[servico.status] ?? servico.status;
 
   return (

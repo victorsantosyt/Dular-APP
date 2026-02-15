@@ -51,6 +51,7 @@ export default function Topbar() {
   }
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadMe();
     const onRefresh = () => loadMe();
     window.addEventListener("dular:me-updated", onRefresh);

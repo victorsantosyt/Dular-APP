@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useRef, ReactNode, RefObject, InputHTMLAttributes } from "react";
-import { Mail, Phone, Lock, Eye, EyeOff } from "lucide-react";
+import { Mail, Lock, Eye, EyeOff } from "lucide-react";
 
 type LoginInputProps = {
   icon: ReactNode;

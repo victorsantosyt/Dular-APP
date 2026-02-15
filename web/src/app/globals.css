@@ -1,0 +1,95 @@
+@import "tailwindcss";
+
+:root {
+  --bg: 220 30% 98%;
+  --surface: 0 0% 100%;
+  --surface-2: 210 25% 96%;
+  --text: 222 25% 12%;
+  --muted: 215 16% 46%;
+  --border: 215 20% 90%;
+  --ring: 165 70% 40%;
+  --primary: 165 70% 38%;
+  --primary-2: 190 80% 40%;
+  --danger: 0 78% 55%;
+  --warn: 38 92% 50%;
+  --ok: 155 70% 40%;
+  --radius: 18px;
+  --shadow: 0 10px 28px rgba(12, 24, 32, 0.08);
+
+  /* Tokens mint/ink para login/admin */
+  --mint-50: #f7faf9;
+  --mint-100: #e6f3ef;
+  --mint-200: #cfe9e2;
+  --mint-400: #6ad1b7;
+  --mint-600: #1fa88b;
+  --ink-950: #0f1a21;
+  --ink-800: #1f2933;
+  --ink-700: #3f4a55;
+
+  --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Display",
+    "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji",
+    "Segoe UI Symbol";
+}
+
+.dark {
+  --bg: 222 30% 8%;
+  --surface: 222 26% 12%;
+  --surface-2: 222 22% 16%;
+  --text: 0 0% 98%;
+  --muted: 215 12% 70%;
+  --border: 222 18% 22%;
+  --shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background: radial-gradient(1200px 700px at 20% 10%, rgba(15, 180, 150, 0.35), transparent 60%),
+    radial-gradient(900px 600px at 80% 20%, rgba(90, 180, 120, 0.28), transparent 55%),
+    radial-gradient(1000px 700px at 60% 90%, rgba(60, 140, 200, 0.2), transparent 60%),
+    linear-gradient(135deg, rgba(238, 245, 244, 1), rgba(230, 243, 240, 1));
+  color: hsl(var(--text));
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.card {
+  background: hsl(var(--surface));
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.btn-primary {
+  background: linear-gradient(120deg, hsl(var(--primary)) 0%, hsl(var(--primary-2)) 100%);
+  color: #fff;
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-weight: 600;
+  border: 1px solid hsl(var(--primary));
+  transition: transform 120ms ease, box-shadow 120ms ease, opacity 120ms ease;
+}
+.btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.08);
+}
+.btn-ghost {
+  background: hsl(var(--surface));
+  color: hsl(var(--text));
+  border: 1px solid hsl(var(--border));
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-weight: 600;
+}
+
+.input {
+  width: 100%;
+  border-radius: 12px;
+  padding: 10px 12px;
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--surface-2));
+  color: hsl(var(--text));
+}

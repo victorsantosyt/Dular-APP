@@ -1,0 +1,310 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  CLIENTE
+  DIARISTA
+  ADMIN
+}
+
+enum UserStatus {
+  ATIVO
+  BLOQUEADO
+}
+
+enum VerificacaoStatus {
+  PENDENTE
+  VERIFICADO
+  REPROVADO
+}
+
+enum SafetyEventType {
+  CHECKIN_OK
+  SOS_SILENT
+}
+
+enum IncidentType {
+  ASSEDIO
+  IMPORTUNACAO
+  VIOLENCIA
+  AMEACA
+  OUTRO
+}
+
+enum IncidentStatus {
+  ABERTO
+  EM_ANALISE
+  CONFIRMADO
+  ENCERRADO
+}
+
+enum IncidentSeverity {
+  BAIXA
+  MEDIA
+  ALTA
+}
+
+enum Turno {
+  MANHA
+  TARDE
+}
+
+enum ServicoTipo {
+  FAXINA
+  BABA
+  COZINHEIRA
+  PASSA_ROUPA
+}
+
+enum ServicoCategoria {
+  FAXINA_LEVE
+  FAXINA_PESADA
+  FAXINA_COMPLETA
+  BABA_DIURNA
+  BABA_NOTURNA
+  BABA_INTEGRAL
+  COZINHEIRA_DIARIA
+  COZINHEIRA_EVENTO
+  PASSA_ROUPA_BASICO
+  PASSA_ROUPA_COMPLETO
+}
+
+enum ServicoStatus {
+  RASCUNHO
+  SOLICITADO
+  ACEITO
+  RECUSADO
+  CANCELADO
+  EM_ANDAMENTO
+  CONCLUIDO
+  CONFIRMADO
+  FINALIZADO
+}
+
+model User {
+  id        String     @id @default(cuid())
+  nome      String
+  telefone  String     @unique
+  email     String?    @unique
+  senhaHash String
+  role      UserRole   @default(CLIENTE)
+  status    UserStatus @default(ATIVO)
+  riskScore Int        @default(0)
+  riskTier  Int        @default(0)
+  avatarUrl String?
+
+  diaristaProfile      DiaristaProfile?
+  servicosComoCliente  Servico[] @relation("ServicoCliente")
+  servicosComoDiarista Servico[] @relation("ServicoDiarista")
+  safetyEvents         SafetyEvent[]
+  incidentsReported    IncidentReport[] @relation("ReportedBy")
+  incidentsReceived    IncidentReport[] @relation("ReportedUser")
+  habilidades          DiaristaHabilidade[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model DiaristaProfile {
+  id          String            @id @default(cuid())
+  userId      String            @unique
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  verificacao VerificacaoStatus @default(PENDENTE)
+  ativo       Boolean           @default(true)
+  fotoUrl     String?
+  docUrl      String?
+  bio         String?
+
+  precoLeve   Int
+  precoPesada Int
+
+  notaMedia     Float @default(0)
+  totalServicos Int   @default(0)
+
+  bairros DiaristaBairro[]
+  agenda  Disponibilidade[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Bairro {
+  id     String @id @default(cuid())
+  nome   String
+  cidade String
+  uf     String
+
+  diaristas DiaristaBairro[]
+
+  @@unique([nome, cidade, uf])
+  @@index([cidade, uf])
+}
+
+model DiaristaBairro {
+  id         String @id @default(cuid())
+  diaristaId String
+  bairroId   String
+
+  diarista DiaristaProfile @relation(fields: [diaristaId], references: [id], onDelete: Cascade)
+  bairro   Bairro          @relation(fields: [bairroId], references: [id], onDelete: Cascade)
+
+  @@unique([diaristaId, bairroId])
+  @@index([bairroId])
+  @@index([diaristaId])
+}
+
+model Disponibilidade {
+  id         String @id @default(cuid())
+  diaristaId String
+  diarista   DiaristaProfile @relation(fields: [diaristaId], references: [id], onDelete: Cascade)
+
+  diaSemana Int
+  turno     Turno
+  ativo     Boolean @default(true)
+
+  @@unique([diaristaId, diaSemana, turno])
+  @@index([diaristaId])
+}
+
+model Servico {
+  id     String        @id @default(cuid())
+  status ServicoStatus @default(SOLICITADO)
+
+  tipo  ServicoTipo
+  categoria ServicoCategoria?
+  data  DateTime
+  turno Turno
+
+  cidade String
+  uf     String
+  bairro String
+
+  enderecoCompleto String?
+  observacoes      String?
+
+  temPet         Boolean @default(false)
+  quartos3Mais   Boolean @default(false)
+  banheiros2Mais Boolean @default(false)
+
+  precoFinal Int
+
+  clientId   String
+  diaristaId String
+
+  cliente  User @relation("ServicoCliente", fields: [clientId], references: [id], onDelete: Restrict)
+  diarista User @relation("ServicoDiarista", fields: [diaristaId], references: [id], onDelete: Restrict)
+
+  avaliacao Avaliacao?
+  eventos   ServicoEvento[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([data, turno])
+  @@index([status])
+  @@index([cidade, uf, bairro])
+  @@index([diaristaId])
+  @@index([clientId])
+}
+
+model DiaristaHabilidade {
+  id         String            @id @default(cuid())
+  diaristaId String
+  tipo       ServicoTipo
+  categoria  ServicoCategoria?
+  createdAt  DateTime @default(now())
+
+  diarista User @relation(fields: [diaristaId], references: [id], onDelete: Cascade)
+
+  @@unique([diaristaId, tipo, categoria])
+  @@index([tipo, categoria])
+  @@index([diaristaId])
+}
+
+model ServicoEvento {
+  id         String        @id @default(cuid())
+  servicoId  String
+  servico    Servico       @relation(fields: [servicoId], references: [id], onDelete: Cascade)
+  fromStatus ServicoStatus
+  toStatus   ServicoStatus
+  actorRole  UserRole
+  actorId    String
+  createdAt  DateTime      @default(now())
+
+  @@index([servicoId])
+  @@index([actorId])
+}
+
+model Avaliacao {
+  id        String  @id @default(cuid())
+  servicoId String  @unique
+  servico   Servico @relation(fields: [servicoId], references: [id], onDelete: Cascade)
+
+  clientId   String
+  diaristaId String
+
+  notaGeral    Int
+  pontualidade Int
+  qualidade    Int
+  comunicacao  Int
+  comentario   String?
+
+  createdAt DateTime @default(now())
+
+  @@index([diaristaId])
+  @@index([clientId])
+}
+
+model SafetyEvent {
+  id        String           @id @default(cuid())
+  type      SafetyEventType
+  userId    String
+  serviceId String?
+  lat       Float?
+  lng       Float?
+  meta      Json?
+  createdAt DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model IncidentReport {
+  id             String          @id @default(cuid())
+  reportedById   String
+  reportedUserId String
+  serviceId      String?
+  type           IncidentType
+  severity       IncidentSeverity @default(MEDIA)
+  description    String
+  status         IncidentStatus   @default(ABERTO)
+
+  attachments IncidentAttachment[]
+
+  reportedBy    User @relation("ReportedBy", fields: [reportedById], references: [id])
+  reportedUser  User @relation("ReportedUser", fields: [reportedUserId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([reportedUserId])
+  @@index([status])
+}
+
+model IncidentAttachment {
+  id         String @id @default(cuid())
+  incidentId String
+  key        String
+  mime       String
+  size       Int
+  createdAt  DateTime @default(now())
+
+  incident IncidentReport @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+
+  @@index([incidentId])
+}

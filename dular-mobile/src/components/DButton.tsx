@@ -1,52 +1,137 @@
-import { Pressable, Text, ActivityIndicator, ViewStyle } from "react-native";
-import { colors, radius, spacing } from "../theme/theme";
+/**
+ * DButton — Botão primário Dular (substitui DButton + DularButton)
+ *
+ * Variantes:
+ *   primary  → verde sólido  (padrão)
+ *   outline  → borda verde, fundo transparente
+ *   ghost    → sem borda, sem fundo
+ *
+ * Migração:
+ *   DularButton variant="primary"  → <DButton />
+ *   DularButton variant="ghost"    → <DButton variant="outline" />
+ *   DButton     variant="secondary" → <DButton variant="outline" />
+ */
 
-type Props = {
+import React from "react";
+import {
+  ActivityIndicator,
+  Pressable,
+  PressableProps,
+  StyleProp,
+  StyleSheet,
+  Text,
+  ViewStyle,
+} from "react-native";
+import { colors, radius, typography } from "@/theme/tokens";
+
+export type DButtonVariant = "primary" | "outline" | "ghost";
+
+type Props = PressableProps & {
   title: string;
-  onPress: () => void;
-  disabled?: boolean;
   loading?: boolean;
-  variant?: "primary" | "secondary" | "ghost";
-  style?: ViewStyle;
+  variant?: DButtonVariant;
+  style?: StyleProp<ViewStyle>;
 };
 
-export function DButton({ title, onPress, disabled, loading, variant = "primary", style }: Props) {
+export function DButton({
+  title,
+  onPress,
+  disabled,
+  loading,
+  variant = "primary",
+  style,
+  ...rest
+}: Props) {
   const isDisabled = disabled || loading;
 
-  const base: ViewStyle = {
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    borderRadius: radius.md,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-  };
-
-  const variants: Record<typeof variant, ViewStyle> = {
-    primary: {
-      backgroundColor: isDisabled ? "#cbd5e1" : colors.primary,
-      borderColor: isDisabled ? "#cbd5e1" : colors.primary,
-    },
-    secondary: {
-      backgroundColor: "transparent",
-      borderColor: colors.border,
-    },
-    ghost: {
-      backgroundColor: "transparent",
-      borderColor: "transparent",
-    },
-  };
-
-  const textColor =
-    variant === "primary" ? (isDisabled ? "#475569" : "#ffffff") : isDisabled ? "#94a3b8" : colors.text;
-
   return (
-    <Pressable onPress={onPress} disabled={isDisabled} style={[base, variants[variant], style]}>
+    <Pressable
+      onPress={onPress}
+      disabled={isDisabled}
+      style={({ pressed }) => [
+        styles.base,
+        styles[variant],
+        isDisabled && styles.disabled,
+        pressed && !isDisabled && styles.pressed,
+        style,
+      ]}
+      {...rest}
+    >
       {loading ? (
-        <ActivityIndicator color={textColor} />
+        <ActivityIndicator
+          color={variant === "primary" ? "#FFFFFF" : colors.green}
+          size="small"
+        />
       ) : (
-        <Text style={{ color: textColor, fontWeight: "600" }}>{title}</Text>
+        <Text
+          style={[
+            styles.label,
+            variant === "primary"  && styles.labelPrimary,
+            variant === "outline"  && styles.labelOutline,
+            variant === "ghost"    && styles.labelGhost,
+            isDisabled             && styles.labelDisabled,
+          ]}
+        >
+          {title}
+        </Text>
       )}
     </Pressable>
   );
 }
+
+const styles = StyleSheet.create({
+  base: {
+    height: 44,
+    borderRadius: radius.btn,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 20,
+    borderWidth: 1.5,
+  },
+
+  // ── Variantes ──────────────────────────────
+  primary: {
+    backgroundColor: colors.green,
+    borderColor: colors.green,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.10,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  outline: {
+    backgroundColor: "transparent",
+    borderColor: colors.green,
+  },
+  ghost: {
+    backgroundColor: "transparent",
+    borderColor: "transparent",
+  },
+
+  // ── Estados ────────────────────────────────
+  disabled: {
+    opacity: 0.45,
+  },
+  pressed: {
+    opacity: 0.82,
+    transform: [{ scale: 0.97 }],
+  },
+
+  // ── Labels ─────────────────────────────────
+  label: {
+    ...typography.btn,
+    letterSpacing: 0.1,
+  },
+  labelPrimary: {
+    color: "#FFFFFF",
+  },
+  labelOutline: {
+    color: colors.green,
+  },
+  labelGhost: {
+    color: colors.green,
+  },
+  labelDisabled: {
+    opacity: 0.7,
+  },
+});

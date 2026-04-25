@@ -3,10 +3,10 @@ import { View, Text, Pressable, TextInput, Alert, ScrollView, Image } from "reac
 import { useNavigation } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { api } from "../../lib/api";
-import { apiMsg } from "../../utils/apiMsg";
+import { api } from "@/lib/api";
+import { apiMsg } from "@/utils/apiMsg";
 import * as ImagePicker from "expo-image-picker";
-import { useAuth } from "../../stores/authStore";
+import { useAuth } from "@/stores/authStore";
 
 const TYPES = ["ASSEDIO", "IMPORTUNACAO", "VIOLENCIA", "AMEACA", "OUTRO"] as const;
 

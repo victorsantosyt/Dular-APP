@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Text, View, TextInput, Pressable, Alert } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { ScreenBg, CenterWrap } from "../../ui/Layout";
+import { ScreenBg, CenterWrap } from "@/ui/Layout";
 import { Ionicons } from "@expo/vector-icons";
 
 export default function EditDados() {

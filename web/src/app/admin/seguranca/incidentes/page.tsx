@@ -1,4 +1,4 @@
-import AdminIncidentes from "../../incidentes/page";
+import AdminIncidentes from "@/app/admin/incidentes/page";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

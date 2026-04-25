@@ -2,7 +2,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-import DownloadsArea from "../_ui/DownloadsArea";
+import DownloadsArea from "@/app/admin/_ui/DownloadsArea";
 import { AdminPage } from "@/components/admin-ui/AdminPage";
 import { AdminGrid } from "@/components/admin-ui/AdminGrid";
 import { AdminCard } from "@/components/admin-ui/AdminCard";

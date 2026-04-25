@@ -1,75 +1,111 @@
+/**
+ * ClientePerfil — Perfil do cliente
+ *
+ * Identidade visual 100% aplicada com tokens Dular validados.
+ * Toda lógica de avatar, verificação, geo e atualização preservada.
+ */
+
 import { useCallback, useEffect, useRef, useState } from "react";
-import { View, Text, Pressable, TextInput, Alert, ScrollView, ActivityIndicator, Image } from "react-native";
+import {
+  ActivityIndicator,
+  Alert,
+  Image,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect } from "@react-navigation/native";
-import { SafeAreaView as RNSafeAreaView, useSafeAreaInsets as useRNSafeAreaInsets } from "react-native-safe-area-context";
-import { colors } from "../../theme/theme";
-import { requestLocationWithAddress } from "../../lib/location";
-import { getMe, updateMe, uploadAvatarDataUrl, type Me, type VerificacaoStatus } from "../../api/perfilApi";
-import { apiMsg } from "../../utils/apiMsg";
-import { useAuth } from "../../stores/authStore";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import * as ImagePicker from "expo-image-picker";
-import { useNavigation } from "@react-navigation/native";
+
+import { requestLocationWithAddress } from "@/lib/location";
+import {
+  getMe,
+  updateMe,
+  uploadAvatarDataUrl,
+  type Me,
+  type VerificacaoStatus,
+} from "@/api/perfilApi";
+import { apiMsg } from "@/utils/apiMsg";
+import { useAuth } from "@/stores/authStore";
+
+// ── Tokens Dular ──────────────────────────────────────────────────────────────
+import { colors, radius, shadow, spacing, typography } from "@/theme/tokens";
+import { DularBadge } from "@/components/DularBadge";
+import { DButton } from "@/components/DButton";
+import { PERFIL_STACK_ROUTES } from "@/navigation/routes";
 
 type Props = { onLogout: () => void };
 
-export default function ClientePerfil({ onLogout }: Props) {
-  const [nome, setNome] = useState("");
-  const [telefone, setTelefone] = useState("");
-  const [email, setEmail] = useState("");
-  const [bio, setBio] = useState("");
-  const [geoLoading, setGeoLoading] = useState(false);
-  const [geoInfo, setGeoInfo] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [toast, setToast] = useState<string | null>(null);
-  const [avatarLocal, setAvatarLocal] = useState<string | null>(null);
-  const [avatarRemote, setAvatarRemote] = useState<string | null>(null);
-  const [verificacao, setVerificacao] = useState<VerificacaoStatus>("NAO_ENVIADO");
-  const rnInsets = useRNSafeAreaInsets();
-  const setUser = useAuth((s) => s.setUser);
-  const nav = useNavigation<any>();
+// Badge de verificação → variante DularBadge
+function verificacaoBadge(status: VerificacaoStatus) {
+  switch (status) {
+    case "APROVADO":  return { variant: "success" as const, label: "Verificado" };
+    case "PENDENTE":  return { variant: "warning" as const, label: "Pendente" };
+    case "REPROVADO": return { variant: "danger"  as const, label: "Reprovado" };
+    default:          return { variant: "neutral" as const, label: "Não enviado" };
+  }
+}
 
-  const insets = rnInsets;
+export default function ClientePerfil({ onLogout }: Props) {
+  const insets  = useSafeAreaInsets();
+  const setUser = useAuth((s) => s.setUser);
+  const nav     = useNavigation<any>();
   const busyRef = useRef(false);
 
-  const applyMe = useCallback(
-    (data: Me | null) => {
-      if (!data) return;
-      setNome(data.nome ?? "");
-      setTelefone(data.telefone ?? "");
-      setBio(data.bio ?? "");
-      setEmail((data as any).email ?? "");
-      // email não existe no backend; mantemos editable local
-      if (data.nome || data.telefone || data.role) {
-        setUser((prev) => {
-          return {
-            ...(prev ?? { id: data.id }),
-            id: data.id || prev?.id || "",
-            nome: data.nome ?? prev?.nome ?? "",
-            telefone: data.telefone ?? prev?.telefone,
-            role: (data.role as any) ?? prev?.role,
-            avatarUrl: data.avatarUrl ?? prev?.avatarUrl,
-          };
-        });
-      }
-      if (data.avatarUrl) setAvatarRemote(data.avatarUrl);
-      if (data.verificacao?.status) {
-        setVerificacao(data.verificacao.status);
-      } else if (data.verificado) {
-        setVerificacao("APROVADO");
-      }
-    },
-    [setUser]
-  );
+  const [nome, setNome]           = useState("");
+  const [telefone, setTelefone]   = useState("");
+  const [email, setEmail]         = useState("");
+  const [bio, setBio]             = useState("");
+  const [geoLoading, setGeoLoading] = useState(false);
+  const [geoInfo, setGeoInfo]     = useState<string | null>(null);
+  const [loading, setLoading]     = useState(true);
+  const [saving, setSaving]       = useState(false);
+  const [error, setError]         = useState<string | null>(null);
+  const [toast, setToast]         = useState<string | null>(null);
+  const [avatarLocal, setAvatarLocal]   = useState<string | null>(null);
+  const [avatarRemote, setAvatarRemote] = useState<string | null>(null);
+  const [verificacao, setVerificacao]   = useState<VerificacaoStatus>("NAO_ENVIADO");
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+
+  const applyMe = useCallback((data: Me | null) => {
+    if (!data) return;
+    setNome(data.nome ?? "");
+    setTelefone(data.telefone ?? "");
+    setBio(data.bio ?? "");
+    setEmail((data as any).email ?? "");
+    if (data.nome || data.telefone || data.role) {
+      setUser((prev) => ({
+        ...(prev ?? { id: data.id }),
+        id: data.id || prev?.id || "",
+        nome: data.nome ?? prev?.nome ?? "",
+        telefone: data.telefone ?? prev?.telefone,
+        role: (data.role as any) ?? prev?.role,
+        avatarUrl: data.avatarUrl ?? prev?.avatarUrl,
+      }));
+    }
+    if (data.avatarUrl) setAvatarRemote(data.avatarUrl);
+    if (data.verificacao?.status)  setVerificacao(data.verificacao.status);
+    else if (data.verificado)       setVerificacao("APROVADO");
+  }, [setUser]);
+
+  const showToast = (msg: string) => setToast(msg);
+
+  // ── Load ──────────────────────────────────────────────────────────────────
 
   const loadMe = useCallback(async () => {
     try {
       setError(null);
       setLoading(true);
-      const data = await getMe();
-      applyMe(data);
+      applyMe(await getMe());
     } catch (e: any) {
       setError(apiMsg(e, "Falha ao carregar perfil."));
     } finally {
@@ -77,11 +113,7 @@ export default function ClientePerfil({ onLogout }: Props) {
     }
   }, [applyMe]);
 
-  useFocusEffect(
-    useCallback(() => {
-      loadMe();
-    }, [loadMe])
-  );
+  useFocusEffect(useCallback(() => { loadMe(); }, [loadMe]));
 
   useEffect(() => {
     if (!toast) return;
@@ -89,17 +121,17 @@ export default function ClientePerfil({ onLogout }: Props) {
     return () => clearTimeout(t);
   }, [toast]);
 
+  // ── Actions ───────────────────────────────────────────────────────────────
+
   const salvar = async () => {
     if (saving || busyRef.current) return;
     busyRef.current = true;
     try {
       setSaving(true);
-      setToast(null);
-      const updated = await updateMe({ nome });
-      applyMe(updated);
-      setToast("Dados atualizados.");
+      applyMe(await updateMe({ nome }));
+      showToast("Dados atualizados.");
     } catch (e: any) {
-      setToast(apiMsg(e, "Falha ao salvar dados."));
+      showToast(apiMsg(e, "Falha ao salvar dados."));
     } finally {
       setSaving(false);
       busyRef.current = false;
@@ -108,10 +140,7 @@ export default function ClientePerfil({ onLogout }: Props) {
 
   const pickAvatar = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== "granted") {
-      setToast("Permissão negada para acessar fotos.");
-      return;
-    }
+    if (status !== "granted") { showToast("Permissão negada para acessar fotos."); return; }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
@@ -126,47 +155,26 @@ export default function ClientePerfil({ onLogout }: Props) {
     await uploadAvatarAndSave(asset);
   };
 
-  const badgeLabel = useCallback(() => {
-    switch (verificacao) {
-      case "APROVADO":
-        return { label: "Verificado", bg: "#DCFCE7", fg: "#166534" };
-      case "PENDENTE":
-        return { label: "Pendente", bg: "#DBEAFE", fg: "#1D4ED8" };
-      case "REPROVADO":
-        return { label: "Reprovado", bg: "#FEE2E2", fg: "#B91C1C" };
-      default:
-        return { label: "Não enviado", bg: "#E5E7EB", fg: "#374151" };
-    }
-  }, [verificacao]);
-
   const uploadAvatarAndSave = async (asset: ImagePicker.ImagePickerAsset) => {
     if (busyRef.current) return;
     busyRef.current = true;
     try {
       setSaving(true);
-      setToast(null);
       const base64 = asset.base64;
-      if (!base64) {
-        setToast("Não foi possível ler a imagem.");
-        return;
-      }
-      const mime = (asset as any).mimeType || "image/jpeg";
+      if (!base64) { showToast("Não foi possível ler a imagem."); return; }
+      const mime    = (asset as any).mimeType || "image/jpeg";
       const dataUrl = `data:${mime};base64,${base64}`;
-      const up = await uploadAvatarDataUrl(dataUrl);
+      const up      = await uploadAvatarDataUrl(dataUrl);
       const finalUrl = up?.user?.avatarUrl ?? dataUrl;
       if (finalUrl) setAvatarRemote(finalUrl);
       setUser((u) => (u ? { ...u, avatarUrl: finalUrl ?? u.avatarUrl } : u));
-      setToast("Foto atualizada.");
+      showToast("Foto atualizada.");
     } catch (e: any) {
-      setToast(apiMsg(e, "Falha ao atualizar foto."));
+      showToast(apiMsg(e, "Falha ao atualizar foto."));
     } finally {
       setSaving(false);
       busyRef.current = false;
     }
-  };
-
-  const solicitarVerificacao = async () => {
-    Alert.alert("Verificação", "Envio de documentos será habilitado em breve.");
   };
 
   const ativarGeo = async () => {
@@ -175,7 +183,7 @@ export default function ClientePerfil({ onLogout }: Props) {
       const { coords, address } = await requestLocationWithAddress();
       const bairro = address?.district || address?.subregion || "Bairro não encontrado";
       const cidade = address?.city || address?.subregion || "Cidade não encontrada";
-      const uf = (address as any)?.region_code || address?.region || "";
+      const uf     = (address as any)?.region_code || address?.region || "";
       const resumo = `${bairro} - ${cidade}${uf ? "/" + uf : ""}`;
       setGeoInfo(`${resumo} (${coords.latitude.toFixed(4)}, ${coords.longitude.toFixed(4)})`);
       Alert.alert("Localização ativada", resumo);
@@ -186,167 +194,327 @@ export default function ClientePerfil({ onLogout }: Props) {
     }
   };
 
+  const { variant: badgeVariant, label: badgeLabel } = verificacaoBadge(verificacao);
+
+  // ── Render ────────────────────────────────────────────────────────────────
+
   return (
-    <RNSafeAreaView
-      style={{ flex: 1, backgroundColor: colors.bg }}
-      edges={["top", "left", "right", "bottom"]}
-    >
+    <SafeAreaView style={s.safe} edges={["top", "left", "right", "bottom"]}>
       <ScrollView
-        style={{ flex: 1, backgroundColor: colors.bg }}
-        contentContainerStyle={{
-          paddingTop: insets.top + 12,
-          paddingHorizontal: 16,
-          paddingBottom: Math.max(32, insets.bottom + 16),
-          gap: 12,
-        }}
+        style={{ flex: 1 }}
+        contentContainerStyle={[s.scroll, { paddingBottom: Math.max(32, insets.bottom + 16) }]}
+        showsVerticalScrollIndicator={false}
       >
-      {toast ? (
-        <View style={{ padding: 12, borderRadius: 12, backgroundColor: "#0F172A" }}>
-          <Text style={{ color: "#fff", fontWeight: "800" }}>{toast}</Text>
-        </View>
-      ) : null}
 
-      {loading ? (
-        <View style={{ padding: 16, borderRadius: 16, backgroundColor: "#fff", borderWidth: 1, borderColor: colors.border, gap: 10 }}>
-          <View style={{ height: 16, backgroundColor: "#E5E7EB", borderRadius: 8 }} />
-          <View style={{ height: 16, backgroundColor: "#E5E7EB", borderRadius: 8 }} />
-          <ActivityIndicator color={colors.primary} />
-        </View>
-      ) : error ? (
-        <View style={{ padding: 14, borderRadius: 16, backgroundColor: "#fff", borderWidth: 1, borderColor: colors.border, gap: 8 }}>
-          <Text style={{ color: "#B91C1C", fontWeight: "800" }}>Não foi possível carregar.</Text>
-          <Text style={{ color: colors.muted }}>{error}</Text>
-          <Pressable onPress={loadMe} style={[primaryBtn, { backgroundColor: "#0F172A" }]}>
-            <Text style={primaryText}>Tentar novamente</Text>
-          </Pressable>
-        </View>
-      ) : (
-        <>
-        <View style={{ alignItems: "center", gap: 8, padding: 12, borderRadius: 16, backgroundColor: "#fff", borderWidth: 1, borderColor: colors.border }}>
-        <View
-          style={{
-            width: 96,
-            height: 96,
-            borderRadius: 48,
-            backgroundColor: "rgba(79,163,143,0.08)",
-            borderWidth: 1,
-            borderColor: colors.border,
-            alignItems: "center",
-            justifyContent: "center",
-            overflow: "hidden",
-          }}
-        >
-          {avatarLocal || avatarRemote ? (
-            <Image source={{ uri: avatarLocal || avatarRemote || undefined }} style={{ width: "100%", height: "100%" }} />
-          ) : (
-            <Ionicons name="person-circle" size={80} color={colors.primary} />
-          )}
-        </View>
-        <Text style={{ fontSize: 18, fontWeight: "800", color: colors.text }}>{nome || "Cliente"}</Text>
-        <View
-          style={{
-            marginTop: 2,
-            paddingHorizontal: 10,
-            paddingVertical: 6,
-            borderRadius: 999,
-            backgroundColor: badgeLabel().bg,
-          }}
-        >
-          <Text style={{ color: badgeLabel().fg, fontWeight: "800", fontSize: 12 }}>{badgeLabel().label}</Text>
-        </View>
-        <Pressable
-          onPress={pickAvatar}
-          style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, backgroundColor: "rgba(79,163,143,0.15)" }}
-        >
-          <Text style={{ color: colors.primary, fontWeight: "700" }}>{saving ? "Enviando..." : "Alterar foto"}</Text>
-        </Pressable>
-      </View>
+        {/* ── Toast ── */}
+        {toast ? (
+          <View style={s.toast}>
+            <Text style={s.toastText}>{toast}</Text>
+          </View>
+        ) : null}
 
-      <View style={{ padding: 14, borderRadius: 16, backgroundColor: "#fff", borderWidth: 1, borderColor: colors.border, gap: 10 }}>
-        <Text style={{ fontSize: 15, fontWeight: "800", color: colors.text }}>Dados pessoais</Text>
+        {/* ── Estados de loading / erro ── */}
+        {loading ? (
+          <View style={s.card}>
+            <View style={s.skeletonLine} />
+            <View style={[s.skeletonLine, { width: "60%" }]} />
+            <ActivityIndicator color={colors.green} style={{ marginTop: 8 }} />
+          </View>
+        ) : error ? (
+          <View style={s.card}>
+            <Text style={s.errorTitle}>Não foi possível carregar.</Text>
+            <Text style={s.errorSub}>{error}</Text>
+            <DButton title="Tentar novamente" onPress={loadMe} variant="outline" style={{ marginTop: 8 }} />
+          </View>
+        ) : (
+          <>
+            {/* ── Avatar ── */}
+            <View style={[s.card, s.avatarSection]}>
+              <Pressable onPress={pickAvatar} style={s.avatarWrap}>
+                {avatarLocal || avatarRemote ? (
+                  <Image
+                    source={{ uri: avatarLocal || avatarRemote || undefined }}
+                    style={s.avatarImg}
+                  />
+                ) : (
+                  <Ionicons name="person-circle" size={80} color={colors.green} />
+                )}
+                {/* Ícone de câmera sobre avatar */}
+                <View style={s.cameraBtn}>
+                  <Ionicons name="camera" size={13} color="#FFF" />
+                </View>
+              </Pressable>
 
-        <Text style={label}>Nome</Text>
-        <TextInput value={nome} onChangeText={setNome} style={input} />
+              <Text style={s.nomeText}>{nome || "Cliente"}</Text>
 
-        <Text style={label}>Telefone</Text>
-        <TextInput value={telefone} onChangeText={setTelefone} style={input} keyboardType="phone-pad" editable={false} />
+              <DularBadge text={badgeLabel} variant={badgeVariant} />
 
-        <Text style={label}>E-mail</Text>
-        <TextInput value={email} onChangeText={setEmail} style={input} keyboardType="email-address" placeholder="Em breve" editable={false} />
+              <Pressable onPress={pickAvatar} style={s.fotoBtn}>
+                <Text style={s.fotoBtnText}>{saving ? "Enviando..." : "Alterar foto"}</Text>
+              </Pressable>
+            </View>
 
-        <Text style={label}>Bio</Text>
-        <TextInput value={bio} onChangeText={setBio} style={[input, { minHeight: 70 }]} multiline editable={false} />
+            {/* ── Dados pessoais ── */}
+            <View style={s.card}>
+              <Text style={s.sectionTitle}>Dados pessoais</Text>
 
-        <Pressable onPress={salvar} style={[primaryBtn, saving && { opacity: 0.7 }]}>
-          <Text style={primaryText}>{saving ? "Salvando..." : "Salvar"}</Text>
-        </Pressable>
-      </View>
+              <Text style={s.fieldLabel}>Nome</Text>
+              <TextInput value={nome} onChangeText={setNome} style={s.input} />
 
-      <View style={{ padding: 14, borderRadius: 16, backgroundColor: "#fff", borderWidth: 1, borderColor: colors.border, gap: 10 }}>
-        <Text style={{ fontSize: 15, fontWeight: "800", color: colors.text }}>Verificação</Text>
-        <Text style={{ color: colors.muted }}>
-          Status: {badgeLabel().label}
-        </Text>
-        <Pressable onPress={solicitarVerificacao} style={primaryBtn}>
-          <Text style={primaryText}>
-            {verificacao === "APROVADO" ? "Verificado" : verificacao === "PENDENTE" ? "Acompanhar / reenviar" : "Enviar documentos"}
-          </Text>
-        </Pressable>
-      </View>
+              <Text style={s.fieldLabel}>Telefone</Text>
+              <TextInput value={telefone} style={[s.input, s.inputDisabled]} editable={false} />
 
-      <View style={{ padding: 14, borderRadius: 16, backgroundColor: "#fff", borderWidth: 1, borderColor: colors.border, gap: 10 }}>
-        <Text style={{ fontSize: 15, fontWeight: "800", color: colors.text }}>Segurança</Text>
-        <Text style={{ color: colors.muted }}>Reporte qualquer abuso, assédio ou comportamento inadequado.</Text>
-        <Pressable onPress={() => nav.navigate("ReportIncident")} style={secondaryBtn}>
-          <Text style={[primaryText, { color: colors.primary }]}>Reportar incidente</Text>
-        </Pressable>
-      </View>
+              <Text style={s.fieldLabel}>E-mail</Text>
+              <TextInput
+                value={email}
+                style={[s.input, s.inputDisabled]}
+                keyboardType="email-address"
+                placeholder="Em breve"
+                placeholderTextColor={colors.sub}
+                editable={false}
+              />
 
-      <View style={{ padding: 14, borderRadius: 16, backgroundColor: "#fff", borderWidth: 1, borderColor: colors.border, gap: 10 }}>
-        <Text style={{ fontSize: 15, fontWeight: "800", color: colors.text }}>Localização</Text>
-        <Text style={{ color: colors.muted }}>Ative sua localização para sugestões mais precisas (Google Maps em breve).</Text>
-        {geoInfo ? <Text style={{ color: colors.text }}>{geoInfo}</Text> : null}
-        <Pressable onPress={ativarGeo} style={[secondaryBtn, geoLoading && { opacity: 0.7 }]}>
-          <Text style={secondaryText}>{geoLoading ? "Ativando..." : "Ativar geolocalização"}</Text>
-        </Pressable>
-      </View>
+              <Text style={s.fieldLabel}>Bio</Text>
+              <TextInput
+                value={bio}
+                style={[s.input, s.inputDisabled, { minHeight: 64 }]}
+                multiline
+                editable={false}
+              />
 
-      <Pressable onPress={onLogout} style={[primaryBtn, { backgroundColor: "#d22" }]}>
-        <Text style={[primaryText, { color: "#fff" }]}>Sair</Text>
-      </Pressable>
-      </>
-      )}
+              <DButton
+                title={saving ? "Salvando..." : "Salvar"}
+                onPress={salvar}
+                loading={saving}
+                style={{ marginTop: 6 }}
+              />
+            </View>
+
+            {/* ── Verificação ── */}
+            <View style={s.card}>
+              <Text style={s.sectionTitle}>Verificação</Text>
+              <View style={s.verRow}>
+                <Text style={s.verLabel}>Status:</Text>
+                <DularBadge text={badgeLabel} variant={badgeVariant} />
+              </View>
+              <DButton
+                title={
+                  verificacao === "APROVADO" ? "Verificado ✓"
+                  : verificacao === "PENDENTE" ? "Acompanhar / reenviar"
+                  : "Enviar documentos"
+                }
+                variant={verificacao === "APROVADO" ? "ghost" : "primary"}
+                onPress={() => Alert.alert("Verificação", "Envio de documentos será habilitado em breve.")}
+                style={{ marginTop: 4 }}
+              />
+            </View>
+
+            {/* ── Segurança ── */}
+            <View style={s.card}>
+              <Text style={s.sectionTitle}>Segurança</Text>
+              <Text style={s.helpText}>
+                Reporte qualquer abuso, assédio ou comportamento inadequado.
+              </Text>
+              <DButton
+                title="Reportar incidente"
+                variant="outline"
+                onPress={() => nav.navigate(PERFIL_STACK_ROUTES.REPORT_INCIDENT)}
+                style={{ marginTop: 4 }}
+              />
+            </View>
+
+            {/* ── Localização ── */}
+            <View style={s.card}>
+              <Text style={s.sectionTitle}>Localização</Text>
+              <Text style={s.helpText}>
+                Ative sua localização para sugestões mais precisas.
+              </Text>
+              {geoInfo ? <Text style={s.geoInfo}>{geoInfo}</Text> : null}
+              <DButton
+                title={geoLoading ? "Ativando..." : "Ativar geolocalização"}
+                variant="outline"
+                onPress={ativarGeo}
+                loading={geoLoading}
+                style={{ marginTop: 4 }}
+              />
+            </View>
+
+            {/* ── Logout ── */}
+            <Pressable onPress={onLogout} style={s.logoutBtn}>
+              <Ionicons name="log-out-outline" size={18} color={colors.danger} />
+              <Text style={s.logoutText}>Sair da conta</Text>
+            </Pressable>
+          </>
+        )}
       </ScrollView>
-    </RNSafeAreaView>
+    </SafeAreaView>
   );
 }
 
-const label = { color: colors.muted, fontSize: 13 };
-const input = {
-  borderWidth: 1,
-  borderColor: colors.border,
-  borderRadius: 12,
-  padding: 12,
-  backgroundColor: "#fff",
-  color: colors.text,
-};
-const primaryBtn = {
-  marginTop: 6,
-  height: 48,
-  borderRadius: 14,
-  backgroundColor: colors.primary,
-  alignItems: "center" as const,
-  justifyContent: "center" as const,
-};
-const primaryText = { color: "#fff", fontWeight: "800" as const, fontSize: 15 };
-const secondaryBtn = {
-  marginTop: 4,
-  height: 44,
-  borderRadius: 12,
-  backgroundColor: "rgba(79,163,143,0.12)",
-  alignItems: "center" as const,
-  justifyContent: "center" as const,
-  borderWidth: 1,
-  borderColor: "rgba(79,163,143,0.3)",
-};
-const secondaryText = { color: colors.primary, fontWeight: "800" as const };
+// ── Styles ────────────────────────────────────────────────────────────────────
+
+const s = StyleSheet.create({
+  safe: {
+    flex: 1,
+    backgroundColor: colors.bg,
+  },
+  scroll: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: 12,
+    gap: 12,
+  },
+
+  // Toast
+  toast: {
+    padding: 12,
+    borderRadius: radius.md,
+    backgroundColor: colors.ink,
+  },
+  toastText: {
+    color: "#FFF",
+    fontWeight: "800",
+    fontSize: 13,
+  },
+
+  // Card base
+  card: {
+    backgroundColor: colors.card,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.stroke,
+    padding: 16,
+    gap: 10,
+    ...shadow.card,
+  },
+
+  // Avatar section
+  avatarSection: {
+    alignItems: "center",
+  },
+  avatarWrap: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    backgroundColor: colors.greenLight,
+    borderWidth: 1,
+    borderColor: colors.stroke,
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "visible",
+    position: "relative",
+  },
+  avatarImg: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+  },
+  cameraBtn: {
+    position: "absolute",
+    bottom: 0,
+    right: 0,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: colors.green,
+    borderWidth: 2,
+    borderColor: colors.card,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  nomeText: {
+    ...typography.h2,
+    marginTop: 4,
+  },
+  fotoBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: radius.btn,
+    backgroundColor: colors.greenLight,
+  },
+  fotoBtnText: {
+    color: colors.greenDark,
+    fontWeight: "700",
+    fontSize: 13,
+  },
+
+  // Section title
+  sectionTitle: {
+    ...typography.h3,
+  },
+
+  // Fields
+  fieldLabel: {
+    ...typography.sub,
+    marginBottom: -4,
+  },
+  input: {
+    borderWidth: 1.5,
+    borderColor: colors.stroke,
+    borderRadius: radius.md,
+    padding: 12,
+    backgroundColor: colors.card,
+    color: colors.ink,
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  inputDisabled: {
+    backgroundColor: colors.cardStrong,
+    color: colors.sub,
+  },
+
+  // Verificação
+  verRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  verLabel: {
+    ...typography.sub,
+  },
+
+  // Texto de ajuda
+  helpText: {
+    ...typography.sub,
+    lineHeight: 18,
+  },
+  geoInfo: {
+    fontSize: 12,
+    color: colors.ink,
+    fontWeight: "600",
+  },
+
+  // Logout
+  logoutBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    height: 48,
+    borderRadius: radius.btn,
+    borderWidth: 1.5,
+    borderColor: "#FECACA",
+    backgroundColor: "#FEF2F2",
+    marginTop: 4,
+  },
+  logoutText: {
+    color: colors.danger,
+    fontWeight: "800",
+    fontSize: 14,
+  },
+
+  // Error / skeleton
+  errorTitle: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: colors.danger,
+  },
+  errorSub: {
+    ...typography.sub,
+  },
+  skeletonLine: {
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: colors.stroke,
+    width: "100%",
+  },
+});

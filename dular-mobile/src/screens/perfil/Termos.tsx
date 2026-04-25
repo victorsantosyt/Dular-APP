@@ -1,7 +1,7 @@
 import React from "react";
 import { Text, View, Pressable } from "react-native";
 import { useNavigation } from "@react-navigation/native";
-import { Screen } from "../../components/Screen";
+import { Screen } from "@/components/Screen";
 import { Ionicons } from "@expo/vector-icons";
 
 export default function Termos() {

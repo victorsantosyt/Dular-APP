@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { StatusPill } from "./StatusPill";
+import { StatusPill } from "@/app/admin/incidentes/_components/StatusPill";
 
 type Item = {
   id: string;

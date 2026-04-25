@@ -86,14 +86,54 @@ enum ServicoStatus {
   FINALIZADO
 }
 
+enum OAuthProvider {
+  GOOGLE
+  APPLE
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  LOCATION
+  SYSTEM
+}
+
+enum SubscriptionPlan {
+  FREE
+  BASIC
+  PREMIUM
+}
+
+enum SubscriptionStatus {
+  TRIAL
+  ACTIVE
+  CANCELED
+  EXPIRED
+}
+
+enum TransactionType {
+  CREDIT
+  DEBIT
+  REFUND
+}
+
+enum FeatureKey {
+  SOLICITACOES_MES
+  CHAT_ATIVO
+  HISTORICO_COMPLETO
+  SUPORTE_PRIORITARIO
+}
+
 model User {
-  id        String     @id @default(cuid())
-  nome      String
-  telefone  String     @unique
-  email     String?    @unique
-  senhaHash String
-  role      UserRole   @default(CLIENTE)
-  status    UserStatus @default(ATIVO)
+  id              String     @id @default(cuid())
+  nome            String
+  telefone        String?    @unique
+  cpf             String?    @unique
+  dataNascimento  DateTime?
+  email           String?    @unique
+  senhaHash       String?
+  role            UserRole?
+  status          UserStatus @default(ATIVO)
   riskScore Int        @default(0)
   riskTier  Int        @default(0)
   avatarUrl String?
@@ -105,6 +145,10 @@ model User {
   incidentsReported    IncidentReport[] @relation("ReportedBy")
   incidentsReceived    IncidentReport[] @relation("ReportedUser")
   habilidades          DiaristaHabilidade[]
+  oauthAccounts        OAuthAccount[]
+  chatMessages         ChatMessage[]
+  subscription         Subscription?
+  creditWallet         CreditWallet?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -202,6 +246,7 @@ model Servico {
 
   avaliacao Avaliacao?
   eventos   ServicoEvento[]
+  chatRoom  ChatRoom?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -307,4 +352,92 @@ model IncidentAttachment {
   incident IncidentReport @relation(fields: [incidentId], references: [id], onDelete: Cascade)
 
   @@index([incidentId])
+}
+
+model OAuthAccount {
+  id         String        @id @default(cuid())
+  userId     String
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider   OAuthProvider
+  providerId String
+  email      String?
+  createdAt  DateTime      @default(now())
+
+  @@unique([provider, providerId])
+  @@index([userId])
+}
+
+model ChatRoom {
+  id        String      @id @default(cuid())
+  servicoId String      @unique
+  servico   Servico     @relation(fields: [servicoId], references: [id], onDelete: Cascade)
+  createdAt DateTime    @default(now())
+
+  messages  ChatMessage[]
+}
+
+model ChatMessage {
+  id        String      @id @default(cuid())
+  roomId    String
+  room      ChatRoom    @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  senderId  String
+  sender    User        @relation(fields: [senderId], references: [id])
+  content   String
+  type      MessageType @default(TEXT)
+  readAt    DateTime?
+  createdAt DateTime    @default(now())
+
+  @@index([roomId, createdAt])
+  @@index([senderId])
+}
+
+model Subscription {
+  id         String             @id @default(cuid())
+  userId     String             @unique
+  user       User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan       SubscriptionPlan   @default(FREE)
+  status     SubscriptionStatus @default(TRIAL)
+  startedAt  DateTime           @default(now())
+  expiresAt  DateTime?
+  canceledAt DateTime?
+  externalId String?
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
+
+  @@index([status])
+}
+
+model CreditWallet {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  balance   Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  transactions CreditTransaction[]
+}
+
+model CreditTransaction {
+  id          String          @id @default(cuid())
+  walletId    String
+  wallet      CreditWallet    @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  type        TransactionType
+  amount      Int
+  description String?
+  servicoId   String?
+  createdAt   DateTime        @default(now())
+
+  @@index([walletId])
+  @@index([servicoId])
+}
+
+model FeatureLimit {
+  id      String           @id @default(cuid())
+  plan    SubscriptionPlan
+  feature FeatureKey
+  limit   Int?
+  enabled Boolean          @default(true)
+
+  @@unique([plan, feature])
 }

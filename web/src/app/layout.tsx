@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { Providers } from "@/components/Providers";
 
 export const metadata: Metadata = {
   title: "Dular Admin",
@@ -12,8 +13,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body className="font-sans bg-[hsl(var(--bg))] text-[hsl(var(--text))]">{children}</body>
+    <html lang="pt-BR">
+      <body className="font-sans bg-[hsl(var(--bg))] text-[hsl(var(--text))]">
+        <Providers>{children}</Providers>
+      </body>
     </html>
   );
 }

@@ -11,7 +11,7 @@ import { AdminCard } from "@/components/admin-ui/AdminCard";
 import { AdminEmpty } from "@/components/admin-ui/AdminEmpty";
 
 type Props = {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 };
 
 const STATUS_LABEL: Record<string, string> = {
@@ -34,7 +34,7 @@ function fmtDate(dt: Date | null | undefined) {
 }
 
 export default async function ServicoDetalhePage({ params }: Props) {
-  const { id } = params;
+  const { id } = await params;
 
   const servico = await prisma.servico.findUnique({
     where: { id },

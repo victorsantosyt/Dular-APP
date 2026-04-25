@@ -1,4 +1,4 @@
-import Card from "./Card";
+import Card from "@/app/admin/_ui/Card";
 
 type Props = {
   icon: React.ReactNode;

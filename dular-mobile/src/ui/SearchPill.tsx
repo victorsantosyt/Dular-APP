@@ -1,6 +1,20 @@
+/**
+ * SearchPill — Campo de busca estilo pill
+ *
+ * Card branco, border-radius 14px, ícone verde à esquerda,
+ * sombra sutil (shadow.card).
+ */
+
 import { Ionicons } from "@expo/vector-icons";
-import { TextInput, View, TouchableOpacity, TextInputProps } from "react-native";
-import { colors, radius, shadow } from "./tokens";
+import React from "react";
+import {
+  StyleSheet,
+  TextInput,
+  TextInputProps,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { colors, radius, shadow } from "@/theme/tokens";
 
 type Props = TextInputProps & {
   onSubmit?: () => void;
@@ -8,44 +22,43 @@ type Props = TextInputProps & {
 
 export function SearchPill({ onSubmit, style, ...rest }: Props) {
   return (
-    <View
-      style={[
-        {
-          flexDirection: "row",
-          alignItems: "center",
-          backgroundColor: colors.card,
-          borderRadius: radius.pill,
-          borderWidth: 1,
-          borderColor: colors.stroke,
-          paddingHorizontal: 14,
-          paddingVertical: 10,
-          gap: 10,
-        },
-        shadow.soft,
-        style,
-      ]}
-    >
-      <Ionicons name="search" size={18} color={colors.muted} />
+    <View style={[styles.box, shadow.card, style as any]}>
+      <Ionicons name="search" size={18} color={colors.green} />
+
       <TextInput
         {...rest}
-        style={[
-          {
-            flex: 1,
-            color: colors.ink,
-            paddingVertical: 2,
-            fontSize: 15,
-          },
-          rest.style,
-        ]}
-        placeholderTextColor={colors.muted}
+        style={styles.input}
+        placeholderTextColor={colors.sub}
         returnKeyType="search"
         onSubmitEditing={onSubmit}
       />
+
       {onSubmit ? (
         <TouchableOpacity onPress={onSubmit} hitSlop={10}>
-          <Ionicons name="arrow-forward" size={18} color={colors.brand} />
+          <Ionicons name="arrow-forward-circle" size={22} color={colors.green} />
         </TouchableOpacity>
       ) : null}
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  box: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.card,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.stroke,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    gap: 10,
+  },
+  input: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: "600",
+    color: colors.ink,
+    paddingVertical: 0,
+  },
+});

@@ -10,9 +10,9 @@ import {
   TouchableWithoutFeedback,
   Keyboard,
 } from "react-native";
-import { setAuthToken } from "../lib/api";
-import { DButton } from "../components/DButton";
-import { DInput } from "../components/DInput";
+import { setAuthToken } from "@/lib/api";
+import { DButton } from "@/components/DButton";
+import { DInput } from "@/components/DInput";
 
 type Props = { onDone: () => void };
 

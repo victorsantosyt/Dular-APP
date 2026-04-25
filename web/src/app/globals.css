@@ -1,34 +1,38 @@
+@import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap");
 @import "tailwindcss";
 
 :root {
-  --bg: 220 30% 98%;
+  --dular-green: #3dc87a;
+  --dular-green-dark: #2db368;
+  --dular-green-deep: #1b7a4a;
+  --dular-green-light: #edf7f2;
+  --dular-teal: #3a9e8e;
+  --dular-ink: #1b2d22;
+  --dular-sub: #90a89b;
+  --dular-stroke: #e6edea;
+  --dular-bg: #eef5f1;
+  --dular-card: #ffffff;
+  --dular-star: #f59e0b;
+
+  /* Compat com telas/admin que usam hsl(var(--*)) */
+  --bg: 145 28% 94%;
   --surface: 0 0% 100%;
-  --surface-2: 210 25% 96%;
-  --text: 222 25% 12%;
-  --muted: 215 16% 46%;
-  --border: 215 20% 90%;
-  --ring: 165 70% 40%;
-  --primary: 165 70% 38%;
-  --primary-2: 190 80% 40%;
-  --danger: 0 78% 55%;
+  --surface-2: 145 29% 96%;
+  --text: 147 24% 14%;
+  --muted: 147 14% 61%;
+  --border: 150 24% 92%;
+  --ring: 143 57% 51%;
+  --primary: 143 57% 51%;
+  --primary-2: 171 47% 42%;
+  --danger: 0 71% 59%;
   --warn: 38 92% 50%;
-  --ok: 155 70% 40%;
-  --radius: 18px;
-  --shadow: 0 10px 28px rgba(12, 24, 32, 0.08);
+  --ok: 143 57% 51%;
+  --radius: 16px;
+  --shadow: 0 2px 12px rgba(0, 0, 0, 0.07);
 
-  /* Tokens mint/ink para login/admin */
-  --mint-50: #f7faf9;
-  --mint-100: #e6f3ef;
-  --mint-200: #cfe9e2;
-  --mint-400: #6ad1b7;
-  --mint-600: #1fa88b;
-  --ink-950: #0f1a21;
-  --ink-800: #1f2933;
-  --ink-700: #3f4a55;
-
-  --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Display",
-    "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji",
-    "Segoe UI Symbol";
+  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    "SF Pro Display", "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, "Apple Color Emoji",
+    "Segoe UI Emoji", "Segoe UI Symbol";
 }
 
 .dark {
@@ -45,15 +49,19 @@
   box-sizing: border-box;
 }
 
+html,
 body {
-  background: radial-gradient(1200px 700px at 20% 10%, rgba(15, 180, 150, 0.35), transparent 60%),
-    radial-gradient(900px 600px at 80% 20%, rgba(90, 180, 120, 0.28), transparent 55%),
-    radial-gradient(1000px 700px at 60% 90%, rgba(60, 140, 200, 0.2), transparent 60%),
-    linear-gradient(135deg, rgba(238, 245, 244, 1), rgba(230, 243, 240, 1));
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background: linear-gradient(145deg, #c8ddd4 0%, #b8d0c4 100%);
   color: hsl(var(--text));
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .card {
@@ -64,17 +72,17 @@ body {
 }
 
 .btn-primary {
-  background: linear-gradient(120deg, hsl(var(--primary)) 0%, hsl(var(--primary-2)) 100%);
+  background: linear-gradient(130deg, var(--dular-green) 0%, var(--dular-teal) 100%);
   color: #fff;
-  border-radius: 12px;
+  border-radius: 22px;
   padding: 10px 14px;
-  font-weight: 600;
-  border: 1px solid hsl(var(--primary));
+  font-weight: 800;
+  border: 1px solid transparent;
   transition: transform 120ms ease, box-shadow 120ms ease, opacity 120ms ease;
 }
 .btn-primary:hover {
   transform: translateY(-1px);
-  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 6px 20px rgba(61, 200, 122, 0.48);
 }
 .btn-ghost {
   background: hsl(var(--surface));
@@ -87,9 +95,32 @@ body {
 
 .input {
   width: 100%;
-  border-radius: 12px;
+  border-radius: 13px;
   padding: 10px 12px;
   border: 1px solid hsl(var(--border));
   background: hsl(var(--surface-2));
   color: hsl(var(--text));
+}
+
+.hide-scrollbar {
+  scrollbar-width: none;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+@keyframes dular-up {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-dular-up {
+  animation: dular-up 0.45s ease both;
 }

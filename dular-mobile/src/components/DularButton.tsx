@@ -1,48 +1,30 @@
-import { LinearGradient } from "expo-linear-gradient";
-import { ActivityIndicator, Pressable, StyleProp, Text, ViewStyle } from "react-native";
-import { dularColors, dularRadius } from "../theme/dular";
+/**
+ * DularButton — Shim de compatibilidade
+ *
+ * Todo o código legado que importa DularButton continua funcionando.
+ * Internamente apenas delega para DButton com o mapeamento de variantes.
+ *
+ * @deprecated Importe DButton diretamente em código novo.
+ */
+
+import React from "react";
+import { StyleProp, ViewStyle } from "react-native";
+import { DButton } from "@/components/DButton";
 
 type Props = {
   title: string;
   onPress: () => void;
   loading?: boolean;
+  /** "primary" → DButton primary | "ghost" → DButton outline */
   variant?: "primary" | "ghost";
   style?: StyleProp<ViewStyle>;
 };
 
-export function DularButton({ title, onPress, loading, variant = "primary", style }: Props) {
-  if (variant === "ghost") {
-    return (
-      <Pressable
-        onPress={onPress}
-        disabled={loading}
-        style={[
-          {
-            borderRadius: dularRadius.md,
-            borderWidth: 1,
-            borderColor: dularColors.border,
-            backgroundColor: dularColors.surface,
-            paddingVertical: 12,
-            paddingHorizontal: 16,
-            alignItems: "center",
-          },
-          style,
-        ]}
-      >
-        {loading ? <ActivityIndicator color={dularColors.text} /> : <Text style={{ color: dularColors.text, fontWeight: "700" }}>{title}</Text>}
-      </Pressable>
-    );
-  }
-
+export function DularButton({ variant = "primary", ...rest }: Props) {
   return (
-    <Pressable onPress={onPress} disabled={loading} style={[{ borderRadius: dularRadius.md, overflow: "hidden" }, style]}>
-      <LinearGradient colors={[dularColors.primary, dularColors.primary2]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ paddingVertical: 12, alignItems: "center" }}>
-        {loading ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <Text style={{ color: "#fff", fontWeight: "700" }}>{title}</Text>
-        )}
-      </LinearGradient>
-    </Pressable>
+    <DButton
+      {...rest}
+      variant={variant === "ghost" ? "outline" : "primary"}
+    />
   );
 }

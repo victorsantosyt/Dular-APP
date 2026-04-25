@@ -1,20 +1,48 @@
-import { LinearGradient } from "expo-linear-gradient";
-import { ReactNode } from "react";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { View } from "react-native";
-import { colors } from "./tokens";
+/**
+ * ScreenBackground — Fundo padrão de tela Dular
+ *
+ * Cor validada: #E6EDEA (sólida, sem gradiente artificial)
+ * SafeAreaView incluso para evitar content sob notch/home indicator.
+ */
 
-export default function ScreenBackground({ children }: { children: ReactNode }) {
+import React, { ReactNode } from "react";
+import { StyleSheet, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { colors, spacing } from "@/theme/tokens";
+
+type Props = {
+  children: ReactNode;
+  /** Remove padding horizontal (útil quando a tela gerencia o próprio padding) */
+  noPadding?: boolean;
+};
+
+export default function ScreenBackground({ children, noPadding = false }: Props) {
   return (
-    <LinearGradient
-      colors={[colors.mintTop, colors.mintBottom]}
-      style={{ flex: 1 }}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-    >
-      <SafeAreaView style={{ flex: 1 }}>
-        <View style={{ flex: 1, paddingHorizontal: 16, paddingBottom: 16 }}>{children}</View>
+    <View style={styles.root}>
+      <SafeAreaView style={styles.safe}>
+        <View style={[styles.inner, noPadding && styles.noPadding]}>
+          {children}
+        </View>
       </SafeAreaView>
-    </LinearGradient>
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: colors.bg, // #E6EDEA — identidade validada
+  },
+  safe: {
+    flex: 1,
+  },
+  inner: {
+    flex: 1,
+    paddingHorizontal: spacing.lg, // 18px
+    paddingBottom: spacing.lg,
+  },
+  noPadding: {
+    paddingHorizontal: 0,
+    paddingBottom: 0,
+  },
+});

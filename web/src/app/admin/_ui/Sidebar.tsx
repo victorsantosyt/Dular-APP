@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Settings } from "lucide-react";
-import { NAV } from "./nav";
+import { NAV } from "@/app/admin/_ui/nav";
 
 export default function Sidebar() {
   const pathname = usePathname();

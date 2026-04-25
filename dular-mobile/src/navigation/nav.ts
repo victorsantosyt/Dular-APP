@@ -1,13 +1,9 @@
-import { createNavigationContainerRef, CommonActions } from "@react-navigation/native";
+import { createNavigationContainerRef } from "@react-navigation/native";
 
 export const navRef = createNavigationContainerRef();
 
 export function resetToAuth() {
-  if (!navRef.isReady()) return;
-  navRef.dispatch(
-    CommonActions.reset({
-      index: 0,
-      routes: [{ name: "Auth" as never }],
-    })
-  );
+  // O app não possui rota "Auth" registrada no navigator.
+  // A tela de autenticação é exibida condicionalmente via estado de sessão (App.tsx).
+  // Mantemos este helper por compatibilidade, sem dispatch de rota inválida.
 }

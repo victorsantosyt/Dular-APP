@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { IncidentCard } from "./_components/IncidentCard";
+import { IncidentCard } from "@/app/admin/incidentes/_components/IncidentCard";
 
 export const dynamic = "force-dynamic";
 
@@ -8,9 +8,10 @@ const STATUS = ["ABERTO", "EM_ANALISE", "CONFIRMADO", "ENCERRADO"];
 export default async function AdminIncidentesPage({
   searchParams,
 }: {
-  searchParams?: { status?: string };
+  searchParams?: Promise<{ status?: string }>;
 }) {
-  const status = (searchParams?.status || "ABERTO").toUpperCase();
+  const params = (await searchParams) ?? {};
+  const status = (params.status || "ABERTO").toUpperCase();
 
   const incidents = await prisma.incidentReport.findMany({
     where: status ? { status: status as any } : undefined,

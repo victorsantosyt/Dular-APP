@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { verifyToken } from "@/lib/auth";
-import AdminShell from "../_ui/AdminShell";
+import AdminShell from "@/app/admin/_ui/AdminShell";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;

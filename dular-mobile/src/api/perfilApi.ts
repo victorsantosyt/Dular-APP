@@ -1,4 +1,4 @@
-import { api } from "../lib/api";
+import { api } from "@/lib/api";
 
 export type VerificacaoStatus = "NAO_ENVIADO" | "PENDENTE" | "APROVADO" | "REPROVADO";
 

@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import * as Location from "expo-location";
-import { ensureLocationPermission } from "../lib/location";
+import { ensureLocationPermission } from "@/lib/location";
 
 type GeoDefaults = {
   loading: boolean;

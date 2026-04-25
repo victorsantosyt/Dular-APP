@@ -1,40 +1,54 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { View, Text, TextInput, Alert, ActivityIndicator } from "react-native";
-import { dularColors } from "../../theme/dular";
-import { DularButton } from "../../components/DularButton";
-import { getMe, updateMe, type Me } from "../../api/perfilApi";
-import { apiMsg } from "../../utils/apiMsg";
-import { useAuth } from "../../stores/authStore";
+/**
+ * EditProfile — Editar dados pessoais
+ * Tokens Dular 100% aplicados. Lógica preservada.
+ */
+
+import { useCallback, useRef, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
-import { Screen } from "../../components/Screen";
+
+import { getMe, updateMe, type Me } from "@/api/perfilApi";
+import { apiMsg } from "@/utils/apiMsg";
+import { useAuth } from "@/stores/authStore";
+import { Screen } from "@/components/Screen";
+import { DButton } from "@/components/DButton";
+import { DInput } from "@/components/DInput";
+import { colors, radius, shadow, spacing, typography } from "@/theme/tokens";
+
+// ── Componente ────────────────────────────────────────────────────────────────
 
 export default function EditProfile({ navigation }: any) {
-  const [nome, setNome] = useState("");
+  const [nome,     setNome]     = useState("");
   const [telefone, setTelefone] = useState("");
-  const [bio, setBio] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [bio,      setBio]      = useState("");
+  const [loading,  setLoading]  = useState(true);
+  const [saving,   setSaving]   = useState(false);
+  const [error,    setError]    = useState<string | null>(null);
   const setUser = useAuth((s) => s.setUser);
   const busyRef = useRef(false);
 
-  const apply = useCallback(
-    (data: Me | null) => {
-      if (!data) return;
-      setNome(data.nome ?? "");
-      setTelefone(data.telefone ?? "");
-      setBio(data.bio ?? "");
-      setUser((prev) => ({
-        ...(prev ?? { id: data.id }),
-        id: data.id || prev?.id || "",
-        nome: data.nome ?? prev?.nome ?? "",
-        telefone: data.telefone ?? prev?.telefone,
-        role: (data.role as any) ?? prev?.role,
-      }));
-    },
-    [setUser]
-  );
+  // ── Apply ─────────────────────────────────────────────────────────────────
+  const apply = useCallback((data: Me | null) => {
+    if (!data) return;
+    setNome(data.nome ?? "");
+    setTelefone(data.telefone ?? "");
+    setBio(data.bio ?? "");
+    setUser((prev) => ({
+      ...(prev ?? { id: data.id }),
+      id: data.id || prev?.id || "",
+      nome: data.nome ?? prev?.nome ?? "",
+      telefone: data.telefone ?? prev?.telefone,
+      role: (data.role as any) ?? prev?.role,
+    }));
+  }, [setUser]);
 
+  // ── Load ──────────────────────────────────────────────────────────────────
   const load = useCallback(async () => {
     try {
       setError(null);
@@ -48,12 +62,9 @@ export default function EditProfile({ navigation }: any) {
     }
   }, [apply]);
 
-  useFocusEffect(
-    useCallback(() => {
-      load();
-    }, [load])
-  );
+  useFocusEffect(useCallback(() => { load(); }, [load]));
 
+  // ── Save ──────────────────────────────────────────────────────────────────
   const save = async () => {
     if (saving || busyRef.current) return;
     busyRef.current = true;
@@ -71,60 +82,70 @@ export default function EditProfile({ navigation }: any) {
     }
   };
 
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <Screen title="Editar dados">
       {loading ? (
-        <ActivityIndicator color={dularColors.primary} />
+        <View style={s.card}>
+          <ActivityIndicator color={colors.green} />
+        </View>
       ) : error ? (
-        <View style={{ gap: 8 }}>
-          <Text style={{ color: dularColors.danger, fontWeight: "800" }}>Não foi possível carregar.</Text>
-          <Text style={{ color: dularColors.muted }}>{error}</Text>
-          <DularButton title="Tentar novamente" onPress={load} />
+        <View style={[s.card, { gap: 10 }]}>
+          <Text style={s.errorTitle}>Não foi possível carregar.</Text>
+          <Text style={s.errorSub}>{error}</Text>
+          <DButton title="Tentar novamente" onPress={load} variant="outline" />
         </View>
       ) : (
-        <>
-          <Text style={{ color: dularColors.muted }}>Nome</Text>
-          <TextInput
+        <View style={s.card}>
+          <DInput
+            label="Nome completo"
             value={nome}
             onChangeText={setNome}
-            style={input}
             placeholder="Seu nome"
-            placeholderTextColor={dularColors.muted}
+            autoCapitalize="words"
           />
-
-          <Text style={{ color: dularColors.muted }}>Telefone</Text>
-          <TextInput
+          <DInput
+            label="Telefone"
             value={telefone}
             onChangeText={setTelefone}
-            style={input}
             keyboardType="phone-pad"
             placeholder="Seu telefone"
-            placeholderTextColor={dularColors.muted}
             editable={false}
+            hint="O telefone não pode ser alterado aqui."
           />
-
-          <Text style={{ color: dularColors.muted }}>Bio</Text>
-          <TextInput
+          <DInput
+            label="Biografia"
             value={bio}
             onChangeText={setBio}
-            style={[input, { minHeight: 80 }]}
+            placeholder="Conte sobre sua experiência..."
             multiline
-            placeholder="Conte sobre sua experiência"
-            placeholderTextColor={dularColors.muted}
+            style={{ minHeight: 88 }}
           />
 
-          <DularButton title={saving ? "Salvando..." : "Salvar"} onPress={save} loading={saving} />
-        </>
+          <DButton
+            title={saving ? "Salvando..." : "Salvar dados"}
+            onPress={save}
+            loading={saving}
+            style={{ marginTop: 4 }}
+          />
+        </View>
       )}
     </Screen>
   );
 }
 
-const input = {
-  borderWidth: 1,
-  borderColor: dularColors.border,
-  borderRadius: 12,
-  padding: 12,
-  backgroundColor: "#fff",
-  color: dularColors.text,
-};
+// ── Styles ────────────────────────────────────────────────────────────────────
+
+const s = StyleSheet.create({
+  card: {
+    backgroundColor: colors.card,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.stroke,
+    padding: 16,
+    gap: 12,
+    ...shadow.card,
+  },
+  errorTitle: { fontSize: 14, fontWeight: "800", color: colors.danger },
+  errorSub:   { ...typography.sub },
+});

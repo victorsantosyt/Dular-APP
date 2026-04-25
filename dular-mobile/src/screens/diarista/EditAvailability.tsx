@@ -1,37 +1,52 @@
-import { useCallback, useRef, useState } from "react";
-import { View, Text, Pressable, Alert } from "react-native";
-import { useFocusEffect } from "@react-navigation/native";
-import { dularColors } from "../../theme/dular";
-import { DularButton } from "../../components/DularButton";
-import { getDiaristaMe, updateDiaristaDisponibilidade } from "../../api/perfilApi";
-import { apiMsg } from "../../utils/apiMsg";
-import { Screen } from "../../components/Screen";
+/**
+ * EditAvailability — Editar disponibilidade da diarista
+ * Tokens Dular 100% aplicados. Lógica preservada.
+ */
 
-const DAYS = ["DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SAB"];
-const TURNOS = ["MANHA", "TARDE"];
+import { useCallback, useRef, useState } from "react";
+import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import { useFocusEffect } from "@react-navigation/native";
+import { Ionicons } from "@expo/vector-icons";
+
+import { getDiaristaMe, updateDiaristaDisponibilidade } from "@/api/perfilApi";
+import { apiMsg } from "@/utils/apiMsg";
+import { Screen } from "@/components/Screen";
+import { DButton } from "@/components/DButton";
+import { colors, radius, shadow, spacing, typography } from "@/theme/tokens";
+
+// ── Constantes ────────────────────────────────────────────────────────────────
+
+const DAYS   = ["DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SAB"];
+const TURNOS = [
+  { key: "MANHA", label: "Manhã",  icon: "sunny-outline"  },
+  { key: "TARDE", label: "Tarde",  icon: "partly-sunny-outline" },
+] as const;
+
+// ── Componente ────────────────────────────────────────────────────────────────
 
 export default function EditAvailability({ navigation }: any) {
-  const [dias, setDias] = useState<string[]>(["SEG", "QUI"]);
+  const [dias,   setDias]   = useState<string[]>(["SEG", "QUI"]);
   const [turnos, setTurnos] = useState<string[]>(["MANHA", "TARDE"]);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [loading,  setLoading]  = useState(true);
+  const [saving,   setSaving]   = useState(false);
+  const [error,    setError]    = useState<string | null>(null);
   const busyRef = useRef(false);
 
+  // ── Load ──────────────────────────────────────────────────────────────────
   const load = useCallback(async () => {
     try {
       setError(null);
       setLoading(true);
-      const data = await getDiaristaMe();
+      const data   = await getDiaristaMe();
       const agenda = Array.isArray(data?.agenda) ? data.agenda : [];
-      const diasSet = new Set<string>();
+      const diasSet   = new Set<string>();
       const turnosSet = new Set<string>();
       agenda.forEach((s: any) => {
         const d = DAYS[s.diaSemana];
         if (d) diasSet.add(d);
         if (s.turno) turnosSet.add(String(s.turno));
       });
-      if (diasSet.size) setDias(Array.from(diasSet));
+      if (diasSet.size)   setDias(Array.from(diasSet));
       if (turnosSet.size) setTurnos(Array.from(turnosSet));
     } catch (e: any) {
       setError(apiMsg(e, "Falha ao carregar disponibilidade."));
@@ -40,16 +55,14 @@ export default function EditAvailability({ navigation }: any) {
     }
   }, []);
 
-  useFocusEffect(
-    useCallback(() => {
-      load();
-    }, [load])
-  );
+  useFocusEffect(useCallback(() => { load(); }, [load]));
 
+  // ── Toggle ────────────────────────────────────────────────────────────────
   const toggle = (list: string[], setList: (v: string[]) => void, value: string) => {
     setList(list.includes(value) ? list.filter((x) => x !== value) : [...list, value]);
   };
 
+  // ── Save ──────────────────────────────────────────────────────────────────
   const save = async () => {
     if (saving || busyRef.current) return;
     busyRef.current = true;
@@ -75,66 +88,148 @@ export default function EditAvailability({ navigation }: any) {
     }
   };
 
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <Screen title="Disponibilidade">
       {loading ? (
-        <Text style={{ color: dularColors.muted }}>Carregando...</Text>
+        <View style={s.card}>
+          <Text style={s.loadingText}>Carregando...</Text>
+        </View>
       ) : error ? (
-        <>
-          <Text style={{ color: dularColors.danger, fontWeight: "800" }}>{error}</Text>
-          <DularButton title="Tentar novamente" onPress={load} />
-        </>
+        <View style={[s.card, { gap: 10 }]}>
+          <Text style={s.errorTitle}>Não foi possível carregar.</Text>
+          <Text style={s.errorSub}>{error}</Text>
+          <DButton title="Tentar novamente" onPress={load} variant="outline" />
+        </View>
       ) : (
         <>
-          <Text style={{ color: dularColors.muted }}>Selecione dias</Text>
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-            {DAYS.map((d) => {
-              const active = dias.includes(d);
-              return (
-                <Pressable
-                  key={d}
-                  onPress={() => toggle(dias, setDias, d)}
-                  style={{
-                    paddingHorizontal: 12,
-                    paddingVertical: 8,
-                    borderRadius: 10,
-                    backgroundColor: active ? dularColors.primary : "#fff",
-                    borderWidth: 1,
-                    borderColor: active ? dularColors.primary : dularColors.border,
-                  }}
-                >
-                  <Text style={{ color: active ? "#fff" : dularColors.text, fontWeight: "700" }}>{d}</Text>
-                </Pressable>
-              );
-            })}
+          {/* ── Dias ── */}
+          <View style={s.card}>
+            <View style={s.sectionHeader}>
+              <Ionicons name="calendar-outline" size={16} color={colors.green} />
+              <Text style={s.sectionTitle}>Dias disponíveis</Text>
+            </View>
+            <View style={s.chipRow}>
+              {DAYS.map((d) => {
+                const active = dias.includes(d);
+                return (
+                  <Pressable
+                    key={d}
+                    onPress={() => toggle(dias, setDias, d)}
+                    style={({ pressed }) => [s.dayChip, active && s.dayChipOn, pressed && { opacity: 0.75 }]}
+                  >
+                    <Text style={[s.dayChipText, active && s.dayChipTextOn]}>{d}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
           </View>
 
-          <Text style={{ color: dularColors.muted, marginTop: 10 }}>Selecione turnos</Text>
-          <View style={{ flexDirection: "row", gap: 10 }}>
-            {TURNOS.map((t) => {
-              const active = turnos.includes(t);
-              return (
-                <Pressable
-                  key={t}
-                  onPress={() => toggle(turnos, setTurnos, t)}
-                  style={{
-                    paddingHorizontal: 12,
-                    paddingVertical: 10,
-                    borderRadius: 10,
-                    backgroundColor: active ? dularColors.primary : "#fff",
-                    borderWidth: 1,
-                    borderColor: active ? dularColors.primary : dularColors.border,
-                  }}
-                >
-                  <Text style={{ color: active ? "#fff" : dularColors.text, fontWeight: "700" }}>{t}</Text>
-                </Pressable>
-              );
-            })}
+          {/* ── Turnos ── */}
+          <View style={s.card}>
+            <View style={s.sectionHeader}>
+              <Ionicons name="time-outline" size={16} color={colors.green} />
+              <Text style={s.sectionTitle}>Turnos</Text>
+            </View>
+            <View style={s.turnoRow}>
+              {TURNOS.map(({ key, label, icon }) => {
+                const active = turnos.includes(key);
+                return (
+                  <Pressable
+                    key={key}
+                    onPress={() => toggle(turnos, setTurnos, key)}
+                    style={({ pressed }) => [s.turnoBtn, active && s.turnoBtnOn, pressed && { opacity: 0.75 }]}
+                  >
+                    <Ionicons name={icon as any} size={20} color={active ? "#FFF" : colors.sub} />
+                    <Text style={[s.turnoBtnText, active && s.turnoBtnTextOn]}>{label}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
           </View>
 
-          <DularButton title={saving ? "Salvando..." : "Salvar"} onPress={save} loading={saving} />
+          {/* ── Resumo ── */}
+          {dias.length > 0 && turnos.length > 0 && (
+            <View style={s.resumoCard}>
+              <Ionicons name="checkmark-circle" size={16} color={colors.greenDark} />
+              <Text style={s.resumoText}>
+                {dias.join(", ")} · {turnos.map((t) => (t === "MANHA" ? "Manhã" : "Tarde")).join(" e ")}
+              </Text>
+            </View>
+          )}
+
+          <DButton
+            title={saving ? "Salvando..." : "Salvar disponibilidade"}
+            onPress={save}
+            loading={saving}
+          />
         </>
       )}
     </Screen>
   );
 }
+
+// ── Styles ────────────────────────────────────────────────────────────────────
+
+const s = StyleSheet.create({
+  card: {
+    backgroundColor: colors.card,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.stroke,
+    padding: 16,
+    gap: 12,
+    ...shadow.card,
+  },
+  loadingText: { ...typography.sub, textAlign: "center" },
+  errorTitle:  { fontSize: 14, fontWeight: "800", color: colors.danger },
+  errorSub:    { ...typography.sub },
+
+  sectionHeader: { flexDirection: "row", alignItems: "center", gap: 8 },
+  sectionTitle:  { fontSize: 13, fontWeight: "700", color: colors.ink },
+
+  // Dias
+  chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  dayChip: {
+    width: 44,
+    height: 44,
+    borderRadius: radius.md,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.cardStrong,
+    borderWidth: 1,
+    borderColor: colors.stroke,
+  },
+  dayChipOn:      { backgroundColor: colors.green, borderColor: colors.green },
+  dayChipText:    { fontSize: 12, fontWeight: "700", color: colors.ink },
+  dayChipTextOn:  { color: "#FFF" },
+
+  // Turnos
+  turnoRow: { flexDirection: "row", gap: 10 },
+  turnoBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    height: 48,
+    borderRadius: radius.btn,
+    backgroundColor: colors.cardStrong,
+    borderWidth: 1,
+    borderColor: colors.stroke,
+  },
+  turnoBtnOn:       { backgroundColor: colors.green, borderColor: colors.green },
+  turnoBtnText:     { fontSize: 14, fontWeight: "700", color: colors.sub },
+  turnoBtnTextOn:   { color: "#FFF" },
+
+  // Resumo
+  resumoCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    padding: 12,
+    borderRadius: radius.md,
+    backgroundColor: colors.greenLight,
+  },
+  resumoText: { fontSize: 13, fontWeight: "600", color: colors.greenDark, flex: 1 },
+});

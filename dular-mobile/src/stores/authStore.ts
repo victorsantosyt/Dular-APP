@@ -1,6 +1,19 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { create } from "zustand";
-import { setAuthToken } from "../lib/api";
+import { setAuthToken, registerClearSession } from "@/lib/api";
+
+function isJwtExpired(token: string): boolean {
+  try {
+    const parts = token.split(".");
+    if (parts.length < 2) return false;
+    const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    const padded = base64 + "==".slice(0, (4 - (base64.length % 4)) % 4);
+    const payload = JSON.parse(atob(padded));
+    return typeof payload.exp === "number" && payload.exp < Date.now() / 1000;
+  } catch {
+    return false;
+  }
+}
 
 type Role = "CLIENTE" | "DIARISTA" | "ADMIN";
 
@@ -62,6 +75,13 @@ export const useAuth = create<AuthState>((set) => ({
     const userId = map["userId"];
 
     if (token && role) {
+      if (isJwtExpired(token)) {
+        await setAuthToken(null);
+        await AsyncStorage.multiRemove(STORAGE_KEYS as unknown as string[]);
+        set({ token: null, role: null, user: null, hydrated: true });
+        return;
+      }
+
       let userObj: User | null = null;
       if (userJson) {
         try {
@@ -97,3 +117,6 @@ export const useAuth = create<AuthState>((set) => ({
     });
   },
 }));
+
+// Registra clearSession no cliente HTTP para limpeza automática em 401/jwt-expired
+registerClearSession(() => useAuth.getState().clearSession());

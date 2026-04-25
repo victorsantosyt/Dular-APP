@@ -1,25 +1,41 @@
-import { View, ViewProps } from "react-native";
-import { colors, radius, spacing } from "../theme/theme";
+/**
+ * DCard — Card Dular (substitui DCard + DularCard)
+ *
+ * Prop elevation:
+ *   "low"    → sombra sutil para cards sobre fundo verde-claro  (padrão)
+ *   "float"  → sombra profunda para modais e drawers
+ */
 
-export function DCard({ style, ...rest }: ViewProps) {
+import React from "react";
+import { StyleSheet, View, ViewProps } from "react-native";
+import { colors, radius, shadow } from "@/theme/tokens";
+
+type Props = ViewProps & {
+  elevation?: "low" | "float";
+};
+
+export function DCard({ elevation = "low", style, ...rest }: Props) {
   return (
     <View
       {...rest}
       style={[
-        {
-          borderWidth: 1,
-          borderColor: colors.border,
-          borderRadius: radius.md,
-          padding: spacing.sm + 2,
-          backgroundColor: colors.card,
-          shadowColor: "#000",
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.08,
-          shadowRadius: 4,
-          elevation: 2,
-        },
+        styles.base,
+        elevation === "float" ? shadow.float : shadow.card,
         style,
       ]}
     />
   );
 }
+
+// Alias de compatibilidade
+export const DularCard = DCard;
+
+const styles = StyleSheet.create({
+  base: {
+    backgroundColor: colors.card,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.stroke,
+    padding: 14,
+  },
+});

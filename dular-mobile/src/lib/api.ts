@@ -67,6 +67,13 @@ if (!API_BASE_URL) {
   console.log("[API] baseURL selecionada:", API_BASE_URL);
 }
 
+type ClearSessionFn = () => Promise<void>;
+let _clearSession: ClearSessionFn | null = null;
+
+export function registerClearSession(fn: ClearSessionFn) {
+  _clearSession = fn;
+}
+
 async function getStoredToken(): Promise<string | null> {
   const pairs = await AsyncStorage.multiGet(TOKEN_KEYS as unknown as string[]);
   for (const [, val] of pairs) if (val) return val;
@@ -94,9 +101,26 @@ export async function setAuthToken(token: string | null) {
 // Interceptor async para inserir Authorization
 api.interceptors.request.use(async (config) => {
   const auth = await getAuthHeaders();
-  config.headers = { ...(config.headers || {}), ...auth };
+  config.headers = { ...(config.headers || {}), ...auth } as any;
   return config;
 });
+
+// Interceptor de resposta: limpa sessão em 401 ou "jwt expired"
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const status = error?.response?.status;
+    const message: string = error?.response?.data?.message ?? error?.message ?? "";
+    const isExpired =
+      status === 401 || message.toLowerCase().includes("jwt expired");
+
+    if (isExpired && _clearSession) {
+      await _clearSession();
+    }
+
+    return Promise.reject(error);
+  }
+);
 
 // Wrapper fetch opcional (se você ainda usar fetch em alguns pontos)
 export async function apiFetch(path: string, options: RequestInit = {}) {

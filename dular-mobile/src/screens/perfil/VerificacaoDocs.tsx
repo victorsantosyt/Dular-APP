@@ -1,10 +1,10 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Text, View, Pressable, Alert, Image } from "react-native";
 import { useNavigation } from "@react-navigation/native";
-import { Screen } from "../../components/Screen";
+import { Screen } from "@/components/Screen";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
-import { apiMsg } from "../../utils/apiMsg";
+import { apiMsg } from "@/utils/apiMsg";
 
 type FileField = "docFrente" | "selfie" | "docVerso";
 

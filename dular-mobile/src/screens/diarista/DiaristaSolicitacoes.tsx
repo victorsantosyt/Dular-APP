@@ -1,39 +1,108 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
-import { View, Text, Pressable, Alert, RefreshControl, Image, ScrollView, Animated, Easing, Linking } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  Alert,
+  Animated,
+  Image,
+  Linking,
+  Modal,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
-import { api } from "../../lib/api";
-import { MinhasResponse, Servico } from "../../types/servico";
 import { Ionicons } from "@expo/vector-icons";
 import * as Location from "expo-location";
-import { logoSource } from "../../lib/logoSource";
-import { dularColors } from "../../theme/dular";
-import { DularBadge } from "../../components/DularBadge";
-import { CenterWrap, useDularContainerWidth } from "../../ui/Layout";
-import { requestLocationWithAddress, startLocationWatcher, type LocationUpdate } from "../../lib/location";
+import { LinearGradient } from "expo-linear-gradient";
+
+import { api } from "@/lib/api";
+import { MinhasResponse, Servico } from "@/types/servico";
+import { startLocationWatcher, type LocationUpdate } from "@/lib/location";
+import { logoSource } from "@/lib/logoSource";
+import { DularBadge } from "@/components/DularBadge";
+import { CenterWrap } from "@/ui/Layout";
+import { DIARISTA_STACK_ROUTES } from "@/navigation/routes";
+import { useSubscription } from "@/hooks/useSubscription";
+import PaywallScreen from "@/screens/PaywallScreen";
+import { colors, radius, shadow, spacing, typography } from "@/theme/tokens";
+
+const FINISHED_STATUS = new Set([
+  "CONCLUIDO",
+  "CONCLUÍDO",
+  "CONFIRMADO",
+  "FINALIZADO",
+  "FINALIZADO_CLIENTE",
+  "PAGO",
+  "AVALIADO",
+]);
+
+function upper(v: unknown) {
+  return String(v ?? "").toUpperCase();
+}
+
+function moneyBRL(value: number) {
+  return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+function dateLabel(dateValue?: string | Date) {
+  const value = dateValue ? new Date(dateValue) : new Date();
+  return value.toLocaleDateString("pt-BR", {
+    weekday: "long",
+    day: "2-digit",
+    month: "long",
+  });
+}
 
 export default function DiaristaSolicitacoes({ navigation }: any) {
+  const insets = useSafeAreaInsets();
+  const { isBlocked, refresh: refreshSubscription } = useSubscription();
+  const [showPaywall, setShowPaywall] = useState(false);
+
   const [items, setItems] = useState<Servico[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [pendenteOpen, setPendenteOpen] = useState(true);
+  const [agendaOpen, setAgendaOpen] = useState(true);
   const [aceitando, setAceitando] = useState(false);
   const [checkinOk, setCheckinOk] = useState(false);
-  const cw = useDularContainerWidth();
-  const LOGO_W = 190;
-  const LOGO_H = 105;
-  const HEADER_BG = "#ECF7F1";
-  const HEADER_H = 190;
-  const cardAnim = useMemo(() => new Animated.Value(0), []);
-  const scrollRef = useRef<ScrollView>(null);
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
+
+  const scrollRef = useRef<ScrollView>(null);
   const locationSub = useRef<Location.LocationSubscription | null>(null);
+
+  const pendingAnim = useRef(new Animated.Value(0)).current;
+  const pendingSlide = useRef(new Animated.Value(24)).current;
+
+  const pending = useMemo(() => items.find((s) => s.status === "SOLICITADO") ?? null, [items]);
+  const pendingCount = useMemo(() => items.filter((s) => s.status === "SOLICITADO").length, [items]);
+  const others = useMemo(() => items.filter((s) => s.id !== pending?.id), [items, pending?.id]);
+
+  const ganhosMes = useMemo(() => {
+    const totalCents = items
+      .filter((item) => FINISHED_STATUS.has(upper(item.status)))
+      .reduce((sum, item) => sum + (item.precoFinal ?? 0), 0);
+    return totalCents / 100;
+  }, [items]);
+
+  const displayName = useMemo(() => {
+    const raw =
+      pending?.diarista?.nome ||
+      pending?.diarista?.name ||
+      pending?.diarista?.fullName ||
+      "Mariana";
+    return raw.trim() || "Mariana";
+  }, [pending]);
+
+  const securityLevel = pending?.securityLevel ?? "NORMAL";
 
   const onLocationUpdate = useCallback((data: LocationUpdate) => {
     const { latitude, longitude } = data.coords;
     setCoords({ lat: latitude, lng: longitude });
   }, []);
 
-  async function load() {
+  const load = useCallback(async () => {
     try {
       setRefreshing(true);
       const res = await api.get<MinhasResponse>("/api/servicos/minhas");
@@ -43,55 +112,11 @@ export default function DiaristaSolicitacoes({ navigation }: any) {
     } finally {
       setRefreshing(false);
     }
-  }
-
-  useEffect(() => {
-    load();
-    Animated.timing(cardAnim, {
-      toValue: 1,
-      duration: 450,
-      easing: Easing.out(Easing.quad),
-      useNativeDriver: true,
-    }).start();
   }, []);
 
-  useFocusEffect(
-    useCallback(() => {
-      load();
-      (async () => {
-        try {
-          locationSub.current = await startLocationWatcher(onLocationUpdate);
-        } catch {
-          // se negar permissão, segue sem localização
-        }
-      })();
-      requestAnimationFrame(() => {
-        scrollRef.current?.scrollTo({ y: 0, animated: false });
-      });
-      return () => {
-        locationSub.current?.remove();
-        locationSub.current = null;
-      };
-    }, [onLocationUpdate])
-  );
-
-  const pending = useMemo(() => items.find((s) => s.status === "SOLICITADO"), [items]);
-  const others = useMemo(() => items.filter((s) => !(pending && s.id === pending.id)), [items, pending]);
-  const securityLevel = pending?.securityLevel ?? "NORMAL";
-  const clienteVerificacao = pending?.clienteVerificacao ?? "NAO_ENVIADO";
-
-  // TODO: trocar por origem real do usuário autenticado (ex.: contexto de auth)
-  const displayName = useMemo(() => {
-    const raw =
-      pending?.diarista?.nome ||
-      pending?.diarista?.name ||
-      pending?.diarista?.fullName ||
-      "";
-    return raw.trim() || "Diarista";
-  }, [pending]);
-
-  async function onAceitar() {
+  const onAceitar = useCallback(async () => {
     if (!pending?.id) return;
+    if (isBlocked) { setShowPaywall(true); return; }
     try {
       setAceitando(true);
       await api.post(`/api/servicos/${pending.id}/aceitar`);
@@ -101,9 +126,9 @@ export default function DiaristaSolicitacoes({ navigation }: any) {
     } finally {
       setAceitando(false);
     }
-  }
+  }, [pending?.id, load]);
 
-  async function onRecusar() {
+  const onRecusar = useCallback(async () => {
     if (!pending?.id) return;
     try {
       await api.post(`/api/servicos/${pending.id}/recusar`);
@@ -111,367 +136,532 @@ export default function DiaristaSolicitacoes({ navigation }: any) {
     } catch (e: any) {
       Alert.alert("Erro", e?.response?.data?.error ?? e?.message ?? "Falha ao recusar");
     }
-  }
+  }, [pending?.id, load]);
 
-  const openSOS = async () => {
+  const openSOS = useCallback(async () => {
     const phone = "5565999990000";
     const msg = encodeURIComponent("Preciso de ajuda em um atendimento (Dular).");
     const url = `https://wa.me/${phone}?text=${msg}`;
-    const ok = await Linking.canOpenURL(url);
-    if (!ok) return Alert.alert("SOS", "Não foi possível abrir o WhatsApp.");
+    const canOpen = await Linking.canOpenURL(url);
+    if (!canOpen) {
+      Alert.alert("SOS", "Não foi possível abrir o WhatsApp.");
+      return;
+    }
     Linking.openURL(url);
-  };
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  useFocusEffect(
+    useCallback(() => {
+      load();
+      (async () => {
+        try {
+          locationSub.current = await startLocationWatcher(onLocationUpdate);
+        } catch {
+          // sem localização
+        }
+      })();
+      requestAnimationFrame(() => scrollRef.current?.scrollTo({ y: 0, animated: false }));
+      return () => {
+        locationSub.current?.remove();
+        locationSub.current = null;
+      };
+    }, [load, onLocationUpdate])
+  );
+
+  useEffect(() => {
+    if (!pending) return;
+    pendingAnim.setValue(0);
+    pendingSlide.setValue(24);
+
+    Animated.parallel([
+      Animated.timing(pendingAnim, {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: true,
+      }),
+      Animated.spring(pendingSlide, {
+        toValue: 0,
+        tension: 70,
+        friction: 9,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [pending, pendingAnim, pendingSlide]);
+
+  const todayText = useMemo(() => dateLabel(), []);
+  const agendaTitle = useMemo(() => dateLabel(others[0]?.data ?? undefined), [others]);
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: HEADER_BG }} edges={["top", "left", "right"]}>
+    <SafeAreaView style={s.safe} edges={["left", "right", "top"]}>
       <ScrollView
         ref={scrollRef}
-        style={{ flex: 1, backgroundColor: HEADER_BG }}
-        contentContainerStyle={{ flexGrow: 1, paddingBottom: 24 }}
-        contentInsetAdjustmentBehavior="automatic"
-        automaticallyAdjustContentInsets
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={load} progressViewOffset={HEADER_H} />
-        }
+        style={s.scrollView}
+        contentContainerStyle={s.scrollContent}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={load} />}
       >
-        {/* Header */}
-        <View
-          style={{
-            backgroundColor: HEADER_BG,
-            paddingTop: 12,
-            paddingBottom: 8,
-            alignItems: "center",
-          }}
-        >
-          <Image
-            source={logoSource}
-            style={{
-              width: LOGO_W,
-              height: LOGO_H,
-              resizeMode: "contain",
-              alignSelf: "center",
-              marginBottom: 10,
-            }}
-          />
-          <View style={{ paddingHorizontal: 22, width: "100%" }}>
-            <Text
-              numberOfLines={1}
-              style={{
-                fontSize: 26,
-                fontWeight: "700",
-                color: "#1F2937",
-                textAlign: "center",
-                paddingHorizontal: 6,
-              }}
-            >
+        <View style={[s.header, { paddingTop: insets.top + 12 }]}> 
+          <View style={s.logoWrap}>
+            <Image source={logoSource} style={s.logo} resizeMode="contain" />
+          </View>
+
+          <View style={s.headerRow}>
+            <Text style={s.greeting} numberOfLines={1}>
               Olá, {displayName}
             </Text>
-          </View>
-          <View style={{ height: 10 }} />
-          <View style={{ paddingHorizontal: 22, width: "100%", flexDirection: "row", justifyContent: "center", gap: 8 }}>
-            <View
-              style={{
-                paddingHorizontal: 10,
-                paddingVertical: 6,
-                borderRadius: 999,
-                backgroundColor: clienteVerificacao === "APROVADO" ? "#DCFCE7" : "#DBEAFE",
-              }}
-            >
-              <Text
-                style={{
-                  color: clienteVerificacao === "APROVADO" ? "#166534" : "#1D4ED8",
-                  fontWeight: "800",
-                  fontSize: 12,
-                }}
-              >
-                {clienteVerificacao === "APROVADO" ? "Cliente verificado" : "Verificação pendente"}
-              </Text>
+            <View style={s.earningsWrap}>
+              <Text style={s.earningsValue}>{moneyBRL(ganhosMes)}</Text>
+              <Text style={s.earningsLabel}>Ganhos do mês</Text>
             </View>
-            {securityLevel === "REFORCADO" && (
-              <View
-                style={{
-                  paddingHorizontal: 10,
-                  paddingVertical: 6,
-                  borderRadius: 999,
-                  backgroundColor: "#FEF3C7",
-                }}
-              >
-                <Text style={{ color: "#B45309", fontWeight: "800", fontSize: 12 }}>Segurança reforçada</Text>
-              </View>
-            )}
           </View>
         </View>
 
-        <CenterWrap mt={6}>
-          {/* Card teal */}
-          <Animated.View
-            style={{
-              borderRadius: 20,
-              padding: 18,
-              backgroundColor: "#2F8A94",
-              justifyContent: "space-between",
-              shadowColor: "#000",
-              shadowOpacity: 0.12,
-              shadowRadius: 22,
-              shadowOffset: { width: 0, height: 16 },
-              elevation: 8,
-              opacity: cardAnim,
-              transform: [
-                {
-                  translateY: cardAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [18, 0],
-                  }),
-                },
-              ],
-            }}
-          >
-            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                <View
-                  style={{
-                    width: 34,
-                    height: 34,
-                    borderRadius: 17,
-                    backgroundColor: "rgba(255,255,255,0.12)",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  <Ionicons name="time-outline" size={18} color="rgba(255,255,255,0.85)" />
+        <CenterWrap mt={8}>
+          {pending ? (
+            <Animated.View
+              style={{
+                opacity: pendingAnim,
+                transform: [{ translateY: pendingSlide }],
+              }}
+            >
+              <LinearGradient
+                colors={[colors.greenDark, colors.green]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={s.pendingCard}
+              >
+                <View style={s.pendingTopRow}>
+                  <View style={s.pendingTopLeft}>
+                    <View style={s.pendingPersonBadge}>
+                      <Ionicons name="person" size={16} color={colors.card} />
+                    </View>
+                    <Text style={s.pendingTopText}>{pendingCount} Pendente(s)</Text>
+                  </View>
+                  <Pressable onPress={() => setPendenteOpen((v) => !v)} style={({ pressed }) => [pressed && s.pressed]}>
+                    <Ionicons name={pendenteOpen ? "chevron-up" : "chevron-down"} size={18} color={colors.card} />
+                  </Pressable>
                 </View>
-                <Text style={{ color: "#EAFBFA", fontWeight: "700", fontSize: 16 }}>
-                  {pending ? "1 Pendente" : "Sem pendências"}
-                </Text>
-              </View>
-              <Pressable onPress={() => setPendenteOpen((v) => !v)} hitSlop={10}>
-                <Ionicons
-                  name={pendenteOpen ? "chevron-up" : "chevron-down"}
-                  size={22}
-                  color="rgba(255,255,255,0.7)"
-                />
-              </Pressable>
-            </View>
 
-            {pendenteOpen && (
-              <>
-                <Text style={{ color: "rgba(255,255,255,0.92)", fontSize: 18, fontWeight: "600" }}>
-                  {pending ? "Faxina leve agendada" : "Aguardando novas solicitações"}
-                </Text>
+                {pendenteOpen ? (
+                  <>
+                    <Text style={s.pendingTitle} numberOfLines={2}>
+                      {pending.tipo} • {pending.turno}
+                    </Text>
 
-                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-                  <Text style={{ color: "rgba(255,255,255,0.70)", fontSize: 14 }}>
-                    {pending ? "25%  ·  2H" : "Fique online e aguarde"}
-                  </Text>
-                  {pending ? (
-                    <View style={{ flexDirection: "row", gap: 8 }}>
-                      {securityLevel === "REFORCADO" && (
-                        <Pressable
-                          onPress={onRecusar}
-                          disabled={aceitando}
-                          style={{
-                            paddingHorizontal: 14,
-                            paddingVertical: 10,
-                            borderRadius: 14,
-                            backgroundColor: "#FEE2E2",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            opacity: aceitando ? 0.7 : 1,
-                          }}
-                        >
-                          <Text style={{ color: "#B91C1C", fontWeight: "700", fontSize: 14 }}>
-                            Recusar
-                          </Text>
-                        </Pressable>
-                      )}
+                    <View style={s.pendingFooterRow}>
+                      <View style={s.pendingMetaRow}>
+                        <View style={s.pendingMetaChip}>
+                          <Ionicons name="time-outline" size={13} color={colors.card} />
+                          <Text style={s.pendingMetaText}>2H</Text>
+                        </View>
+                        <View style={s.pendingMetaChip}>
+                          <Ionicons name="star" size={13} color={colors.card} />
+                          <Text style={s.pendingMetaText}>5.0</Text>
+                        </View>
+                      </View>
+
                       <Pressable
                         onPress={onAceitar}
                         disabled={aceitando}
-                        style={{
-                          paddingHorizontal: 18,
-                          paddingVertical: 10,
-                          borderRadius: 14,
-                          backgroundColor: "#8FD3A8",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          opacity: aceitando ? 0.7 : 1,
-                        }}
+                        style={({ pressed }) => [s.acceptBtn, pressed && s.pressed, aceitando && s.disabledBtn]}
                       >
-                        <Text style={{ color: "#fff", fontWeight: "700", fontSize: 15 }}>
-                          {aceitando ? "..." : "Aceitar"}
-                        </Text>
+                        <Text style={s.acceptText}>{aceitando ? "..." : "Aceitar"}</Text>
                       </Pressable>
                     </View>
-                  ) : null}
-                </View>
-              </>
-            )}
-          </Animated.View>
 
-          {/* Label de dia */}
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 8 }}>
-            <Ionicons name="calendar-outline" size={18} color="#6FAE9F" />
-            <Text style={{ fontSize: 16, fontWeight: "600", color: dularColors.text }}>Terça-feira, 10 de maio</Text>
+                    {securityLevel === "REFORCADO" ? (
+                      <Pressable onPress={onRecusar} style={({ pressed }) => [s.rejectBtn, pressed && s.pressed]}>
+                        <Text style={s.rejectText}>Recusar</Text>
+                      </Pressable>
+                    ) : null}
+                  </>
+                ) : null}
+              </LinearGradient>
+            </Animated.View>
+          ) : null}
+
+          <View style={s.dateRow}>
+            <Ionicons name="calendar-outline" size={15} color={colors.sub} />
+            <Text style={s.dateText}>{todayText}</Text>
           </View>
 
-          {/* Segurança rápida */}
-          {pending && (
-            <View
-              style={{
-                marginTop: 10,
-                width: "100%",
-                borderRadius: 16,
-                backgroundColor: "rgba(255,255,255,0.92)",
-                borderWidth: 1,
-                borderColor: "#EEF2F4",
-                padding: 12,
-                gap: 8,
-              }}
-            >
-              <Text style={{ fontWeight: "800", color: dularColors.text }}>Segurança</Text>
-              <Text style={{ color: dularColors.muted, fontSize: 12 }}>
-                Use o SOS se se sentir em risco. O check-in é opcional e não penaliza.
-              </Text>
-              <View style={{ flexDirection: "row", gap: 8 }}>
+          {pending ? (
+            <View style={s.securityCard}>
+              <Text style={s.securityTitle}>Segurança</Text>
+              <Text style={s.securitySub}>Use o SOS se se sentir em risco. O check-in é opcional.</Text>
+
+              <View style={s.securityBtnRow}>
                 <Pressable
                   onPress={() => setCheckinOk(true)}
-                  style={{
-                    flex: 1,
-                    height: 44,
-                    borderRadius: 12,
-                    backgroundColor: "#EAF6F0",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    borderWidth: 1,
-                    borderColor: dularColors.border,
-                  }}
+                  style={({ pressed }) => [
+                    s.checkinBtn,
+                    checkinOk && s.checkinBtnDone,
+                    pressed && s.pressed,
+                  ]}
                 >
-                  <Text style={{ color: dularColors.success, fontWeight: "800" }}>
+                  <Text style={[s.checkinText, checkinOk && s.checkinTextDone]}>
                     {checkinOk ? "Check-in feito" : "Estou segura"}
                   </Text>
                 </Pressable>
-                <Pressable
-                  onPress={openSOS}
-                  style={{
-                    width: 120,
-                    height: 44,
-                    borderRadius: 12,
-                    backgroundColor: "#FEE2E2",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    borderWidth: 1,
-                    borderColor: "#FECACA",
-                  }}
-                >
-                  <Text style={{ color: "#B91C1C", fontWeight: "800" }}>SOS</Text>
+
+                <Pressable onPress={openSOS} style={({ pressed }) => [s.sosBtn, pressed && s.pressed]}>
+                  <Text style={s.sosText}>SOS</Text>
                 </Pressable>
               </View>
-              <Pressable
-                onPress={() => navigation.navigate("ReportIncident", { serviceId: pending.id, reportedUserId: pending.cliente.id })}
-                style={{
-                  marginTop: 4,
-                  height: 44,
-                  borderRadius: 12,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  borderWidth: 1,
-                  borderColor: "#E5E7EB",
-                  backgroundColor: "#fff",
-                }}
-              >
-                <Text style={{ color: "#111827", fontWeight: "700" }}>Reportar incidente</Text>
-              </Pressable>
             </View>
-          )}
+          ) : null}
 
-          {/* Card lista */}
-          <View
-            style={{
-              marginTop: 8,
-              borderRadius: 18,
-              backgroundColor: "rgba(255,255,255,0.92)",
-              borderWidth: 1,
-              borderColor: dularColors.border,
-              shadowColor: "#000",
-              shadowOpacity: 0.08,
-              shadowRadius: 18,
-              shadowOffset: { width: 0, height: 12 },
-              elevation: 6,
-            }}
-          >
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "space-between",
-                paddingHorizontal: 16,
-                paddingVertical: 16,
-                borderBottomWidth: 1,
-                borderBottomColor: "#EEF2F4",
-              }}
+          <View style={s.agendaCard}>
+            <Pressable
+              onPress={() => setAgendaOpen((v) => !v)}
+              style={({ pressed }) => [s.agendaHeader, pressed && s.pressed]}
             >
-              <Text style={{ fontSize: 18, fontWeight: "700", color: dularColors.text }}>Terça-feira, 14 de maio</Text>
-              <Ionicons name="chevron-down" size={18} color="#A7B3BE" />
-            </View>
+              <Text style={s.agendaTitle}>{agendaTitle}</Text>
+              <Ionicons
+                name={agendaOpen ? "chevron-up" : "chevron-down"}
+                size={18}
+                color={colors.sub}
+              />
+            </Pressable>
 
-            {others.length === 0 ? (
-              <Text style={{ color: "#9AA6B2", padding: 16, fontSize: 16 }}>Nenhuma solicitação.</Text>
-            ) : (
-              others.map((item, idx) => {
-                const last = idx === others.length - 1;
-                return (
-                  <Pressable
-                    key={item.id}
-                    onPress={() => navigation.navigate("DiaristaDetalhe", { servico: item })}
-                    style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      paddingHorizontal: 16,
-                      paddingVertical: 14,
-                      borderBottomWidth: last ? 0 : 1,
-                      borderBottomColor: "#EEF2F4",
-                      gap: 12,
-                    }}
-                  >
-                    <View
-                      style={{
-                        width: 40,
-                        height: 40,
-                        borderRadius: 20,
-                        backgroundColor: "#E7F4EF",
-                        alignItems: "center",
-                        justifyContent: "center",
-                      }}
+            {agendaOpen ? (
+              others.length === 0 ? (
+                <Text style={s.emptyText}>Nenhuma solicitação na agenda.</Text>
+              ) : (
+                others.map((item, index) => {
+                  const isLast = index === others.length - 1;
+                  return (
+                    <Pressable
+                      key={item.id}
+                      onPress={() => navigation.navigate(DIARISTA_STACK_ROUTES.DETALHE, { servico: item })}
+                      style={({ pressed }) => [
+                        s.agendaItem,
+                        !isLast && s.agendaDivider,
+                        pressed && s.pressed,
+                      ]}
                     >
-                      <Ionicons name="person-outline" size={22} color={dularColors.primary} />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ fontSize: 14, fontWeight: "700", color: dularColors.text }}>
-                        {item.cliente?.nome ?? "Cliente"}
-                      </Text>
-                      <View style={{ flexDirection: "row", gap: 6, marginTop: 2, alignItems: "center" }}>
-                        <DularBadge
-                          text={item.clienteVerificacao === "APROVADO" ? "Verificado" : "Verificação pendente"}
-                          bg={item.clienteVerificacao === "APROVADO" ? "#DCFCE7" : "#DBEAFE"}
-                          color={item.clienteVerificacao === "APROVADO" ? "#166534" : "#1D4ED8"}
-                        />
-                        {item.securityLevel === "REFORCADO" && <DularBadge text="Segurança" bg="#FEF3C7" color="#B45309" />}
+                      <View style={s.itemAvatar}>
+                        <Ionicons name="person" size={18} color={colors.green} />
                       </View>
-                    </View>
-                    <DularBadge
-                      text={item.turno === "MANHA" ? "7:00" : "20:30"}
-                      bg="#EAF6F0"
-                      color={dularColors.success}
-                      icon={<Ionicons name="checkmark-circle" size={16} color={dularColors.success} />}
-                      style={{ height: 28 }}
-                    />
-                  </Pressable>
-                );
-              })
-            )}
+
+                      <View style={s.itemMain}>
+                        <Text style={s.itemName} numberOfLines={1}>{item.cliente?.nome ?? "Cliente"}</Text>
+                        <Text style={s.itemSub} numberOfLines={1}>
+                          {item.bairro}, {item.cidade}
+                        </Text>
+                      </View>
+
+                      <View style={s.timeBadge}>
+                        <Ionicons name="checkmark" size={11} color={colors.greenDark} />
+                        <Text style={s.timeText}>{item.turno === "MANHA" ? "07:00" : "20:30"}</Text>
+                      </View>
+                    </Pressable>
+                  );
+                })
+              )
+            ) : null}
+          </View>
+
+          <View style={s.badgesRow}>
+            <DularBadge text={`Local ${coords ? "ativo" : "indisponível"}`} variant={coords ? "success" : "neutral"} />
+            {securityLevel === "REFORCADO" ? <DularBadge text="Segurança reforçada" variant="warning" /> : null}
           </View>
         </CenterWrap>
       </ScrollView>
+      <Modal visible={showPaywall} animationType="slide" presentationStyle="pageSheet">
+        <PaywallScreen
+          onClose={() => {
+            setShowPaywall(false);
+            refreshSubscription();
+          }}
+        />
+      </Modal>
     </SafeAreaView>
   );
 }
+
+const s = StyleSheet.create({
+  safe: {
+    flex: 1,
+    backgroundColor: colors.bg,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 110,
+  },
+  header: {
+    paddingBottom: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    gap: spacing.sm,
+  },
+  logoWrap: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  logo: {
+    width: 122,
+    height: 64,
+  },
+  headerRow: {
+    marginTop: spacing.sm,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: spacing.sm,
+  },
+  greeting: {
+    flex: 1,
+    fontSize: 22,
+    fontWeight: "900",
+    color: colors.ink,
+  },
+  earningsWrap: {
+    alignItems: "flex-end",
+  },
+  earningsValue: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: colors.greenDark,
+  },
+  earningsLabel: {
+    ...typography.sub,
+  },
+  pendingCard: {
+    borderRadius: radius.xl,
+    padding: 16,
+    gap: 12,
+    ...shadow.float,
+  },
+  pendingTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  pendingTopLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  pendingPersonBadge: {
+    width: 30,
+    height: 30,
+    borderRadius: radius.pill,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.card,
+  },
+  pendingTopText: {
+    color: colors.card,
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  pendingTitle: {
+    color: colors.card,
+    fontSize: 16,
+    fontWeight: "800",
+  },
+  pendingFooterRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.sm,
+  },
+  pendingMetaRow: {
+    flexDirection: "row",
+    gap: spacing.sm,
+  },
+  pendingMetaChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    borderRadius: radius.pill,
+    backgroundColor: colors.greenDark,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  pendingMetaText: {
+    color: colors.card,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  acceptBtn: {
+    height: 40,
+    minWidth: 98,
+    borderRadius: radius.btn,
+    backgroundColor: colors.card,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 16,
+  },
+  acceptText: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: colors.greenDark,
+  },
+  rejectBtn: {
+    marginTop: 4,
+    alignSelf: "flex-start",
+    borderRadius: radius.btn,
+    borderWidth: 1,
+    borderColor: colors.card,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  rejectText: {
+    color: colors.card,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  dateRow: {
+    marginTop: spacing.md,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+  },
+  dateText: {
+    ...typography.sub,
+  },
+  securityCard: {
+    marginTop: spacing.md,
+    backgroundColor: colors.card,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.stroke,
+    padding: 14,
+    gap: spacing.sm,
+    ...shadow.card,
+  },
+  securityTitle: {
+    ...typography.h2,
+  },
+  securitySub: {
+    ...typography.sub,
+  },
+  securityBtnRow: {
+    flexDirection: "row",
+    gap: spacing.sm,
+  },
+  checkinBtn: {
+    flex: 1,
+    height: 42,
+    borderRadius: radius.md,
+    backgroundColor: colors.greenLight,
+    borderWidth: 1,
+    borderColor: colors.stroke,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  checkinBtnDone: {
+    backgroundColor: colors.green,
+    borderColor: colors.green,
+  },
+  checkinText: {
+    color: colors.greenDark,
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  checkinTextDone: {
+    color: colors.card,
+  },
+  sosBtn: {
+    width: 88,
+    height: 42,
+    borderRadius: radius.md,
+    backgroundColor: colors.danger,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  sosText: {
+    color: colors.card,
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  agendaCard: {
+    marginTop: spacing.md,
+    backgroundColor: colors.card,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.stroke,
+    overflow: "hidden",
+    ...shadow.card,
+  },
+  agendaHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  agendaTitle: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: colors.ink,
+  },
+  agendaItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  agendaDivider: {
+    borderTopWidth: 1,
+    borderTopColor: colors.stroke,
+  },
+  itemAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: radius.pill,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.greenLight,
+  },
+  itemMain: {
+    flex: 1,
+    gap: 2,
+  },
+  itemName: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: colors.ink,
+  },
+  itemSub: {
+    ...typography.sub,
+  },
+  timeBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    borderRadius: radius.pill,
+    backgroundColor: colors.greenLight,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  timeText: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: colors.greenDark,
+  },
+  emptyText: {
+    ...typography.sub,
+    paddingHorizontal: 14,
+    paddingBottom: 14,
+  },
+  badgesRow: {
+    marginTop: spacing.md,
+    flexDirection: "row",
+    gap: spacing.sm,
+    flexWrap: "wrap",
+  },
+  pressed: {
+    opacity: 0.75,
+  },
+  disabledBtn: {
+    opacity: 0.6,
+  },
+});

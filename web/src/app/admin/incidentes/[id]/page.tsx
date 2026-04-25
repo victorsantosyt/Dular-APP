@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { StatusPill } from "../_components/StatusPill";
+import { StatusPill } from "@/app/admin/incidentes/_components/StatusPill";
 import { signGetUrl } from "@/lib/s3Objects";
 import { recomputeRiskForUser } from "@/lib/risk";
 import { revalidatePath } from "next/cache";
@@ -31,9 +31,9 @@ async function updateStatus(id: string, status: string) {
 export default async function AdminIncidenteDetalhePage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
-  const { id } = params;
+  const { id } = await params;
 
   const incident = await prisma.incidentReport.findUnique({
     where: { id },

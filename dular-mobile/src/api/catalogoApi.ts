@@ -1,4 +1,4 @@
-import { api } from "../lib/api";
+import { api } from "@/lib/api";
 
 export type CatalogoCategoria = { categoria: string; label: string };
 export type CatalogoTipo = { tipo: string; label: string; categorias: CatalogoCategoria[] };

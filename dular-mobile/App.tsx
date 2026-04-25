@@ -2,15 +2,15 @@ import { NavigationContainer, DefaultTheme, Theme } from "@react-navigation/nati
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useMemo } from "react";
-import ClienteTabs from "./src/navigation/ClienteTabs";
-import DiaristaTabs from "./src/navigation/DiaristaTabs";
-import AuthScreen from "./src/screens/AuthScreen";
-import { colors } from "./src/theme/theme";
-import { navRef } from "./src/navigation/nav";
-import { useAuth } from "./src/stores/authStore";
+import ClienteTabs from "@/navigation/ClienteTabs";
+import DiaristaTabs from "@/navigation/DiaristaTabs";
+import AuthStack from "@/navigation/AuthStack";
+import { colors } from "@/theme/tokens";
+import { navRef } from "@/navigation/nav";
+import { useAuth } from "@/stores/authStore";
 
 export default function App() {
-  const { token, role, user, hydrated, setSession, clearSession, hydrate } = useAuth();
+  const { token, role, hydrated, clearSession, hydrate } = useAuth();
 
   const navTheme: Theme = useMemo(() => {
     return {
@@ -43,15 +43,7 @@ export default function App() {
             <ClienteTabs onLogout={clearSession} />
           )
         ) : (
-          <AuthScreen
-            onAuth={(data) =>
-              setSession({
-                token: data.token,
-                role: data.role,
-                user: data.user ?? user,
-              })
-            }
-          />
+          <AuthStack />
         )}
       </NavigationContainer>
       <StatusBar style="dark" />

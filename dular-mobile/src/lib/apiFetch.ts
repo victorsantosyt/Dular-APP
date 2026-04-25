@@ -1,4 +1,4 @@
-import { api } from "./api";
+import { api } from "@/lib/api";
 
 // Wrapper simples em cima do axios configurado
 export async function apiFetch<T = any>(path: string, options: { method?: string; data?: any; params?: any; signal?: AbortSignal } = {}): Promise<T> {

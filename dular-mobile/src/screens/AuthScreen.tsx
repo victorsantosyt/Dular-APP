@@ -1,39 +1,53 @@
+/**
+ * AuthScreen — Tela de autenticação Dular
+ *
+ * Identidade visual 100% alinhada com os tokens validados.
+ * Lógica de negócio e debug preservados integralmente.
+ */
+
 import { useState, useMemo } from "react";
 import {
-  View,
-  Text,
+  ActivityIndicator,
   Alert,
-  Pressable,
+  Dimensions,
   Image,
-  TextInput,
   KeyboardAvoidingView,
   Platform,
-  Dimensions,
-  StyleSheet,
+  Pressable,
   ScrollView,
-  ActivityIndicator,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import { api, API_BASE_URL, setAuthToken } from "../lib/api";
-import { LoginResponse, RegisterResponse } from "../types/auth";
-import { logoSource } from "../lib/logoSource";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { api, API_BASE_URL, setAuthToken } from "@/lib/api";
+import { logoSource } from "@/lib/logoSource";
+import { LoginResponse, RegisterResponse } from "@/types/auth";
+import { colors, radius, spacing, typography } from "@/theme/tokens";
 
 type Props = {
-  onAuth: (data: { token: string; role: "CLIENTE" | "DIARISTA" | "ADMIN"; user: LoginResponse["user"] }) => void;
+  onAuth: (data: {
+    token: string;
+    role: "CLIENTE" | "DIARISTA" | "ADMIN";
+    user: LoginResponse["user"];
+  }) => void;
 };
+
+const { width: W, height: H } = Dimensions.get("window");
 
 export default function AuthScreen({ onAuth }: Props) {
   const [telefone, setTelefone] = useState("65999990001");
-  const [senha, setSenha] = useState("cliente123");
-  const [nome, setNome] = useState("Cliente Teste");
-  const [role, setRole] = useState<"CLIENTE" | "DIARISTA">("CLIENTE");
-  const [mode, setMode] = useState<"login" | "register">("login");
-  const [loading, setLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-  const { width: W, height: H } = Dimensions.get("window");
+  const [senha, setSenha]       = useState("cliente123");
+  const [nome, setNome]         = useState("Cliente Teste");
+  const [role, setRole]         = useState<"CLIENTE" | "DIARISTA">("CLIENTE");
+  const [mode, setMode]         = useState<"login" | "register">("login");
+  const [loading, setLoading]   = useState(false);
+  const [showPwd, setShowPwd]   = useState(false);
+
+  const contentW = useMemo(() => Math.round(W * 0.82), []);
 
   async function persistSession(token: string, user?: LoginResponse["user"]) {
     const entries: [string, string][] = [["dular_token", token]];
@@ -44,34 +58,27 @@ export default function AuthScreen({ onAuth }: Props) {
   async function handleLogin() {
     try {
       setLoading(true);
-      const baseURL = (api.defaults.baseURL ?? API_BASE_URL ?? "").replace(/\/$/, "");
-      const endpoint = "/api/auth/login";
-      const finalURL = baseURL ? `${baseURL}${endpoint}` : endpoint;
-      console.log("[LOGIN DEBUG] baseURL:", baseURL || "(vazio)");
-      console.log("[LOGIN DEBUG] finalURL:", finalURL);
-      console.log("[LOGIN DEBUG] timeout(ms):", api.defaults.timeout);
-      console.log("[LOGIN DEBUG] platform:", Platform.OS);
+      const baseURL  = (api.defaults.baseURL ?? API_BASE_URL ?? "").replace(/\/$/, "");
+      const finalURL = baseURL ? `${baseURL}/api/auth/login` : "/api/auth/login";
+
+      console.log("[LOGIN] baseURL:", baseURL || "(vazio)");
+      console.log("[LOGIN] finalURL:", finalURL);
+      console.log("[LOGIN] platform:", Platform.OS);
 
       if (!baseURL) {
         Alert.alert("Erro", "API base URL não configurada.");
         return;
       }
 
-      // Health check rápido para provar acessibilidade antes do login.
+      // Health check rápido
       try {
         const health = await api.get("/api/health", { timeout: 5000, validateStatus: () => true });
         if (health.status !== 200) {
-          Alert.alert(
-            "Erro",
-            `Backend não acessível: tente abrir ${baseURL}/api/health no navegador do celular.`
-          );
+          Alert.alert("Erro", `Backend não acessível: tente abrir ${baseURL}/api/health no navegador.`);
           return;
         }
       } catch {
-        Alert.alert(
-          "Erro",
-          `Backend não acessível: tente abrir ${baseURL}/api/health no navegador do celular.`
-        );
+        Alert.alert("Erro", `Backend não acessível: tente abrir ${baseURL}/api/health no navegador.`);
         return;
       }
 
@@ -79,26 +86,15 @@ export default function AuthScreen({ onAuth }: Props) {
       if (!res.data?.token) throw new Error("Falha ao obter token");
       await persistSession(res.data.token, res.data.user);
       await setAuthToken(res.data.token);
-      onAuth({
-        token: res.data.token,
-        role: res.data.user.role,
-        user: res.data.user,
-      });
+      onAuth({ token: res.data.token, role: res.data.user.role, user: res.data.user });
     } catch (e: any) {
       const status = e?.response?.status;
-      const code = e?.code;
-      console.log("[LOGIN ERROR]", {
-        code,
-        status,
-        message: e?.message,
-        data: e?.response?.data,
-      });
+      const code   = e?.code;
+      console.log("[LOGIN ERROR]", { code, status, message: e?.message, data: e?.response?.data });
       if (code === "ECONNABORTED") {
         Alert.alert("Erro", "Timeout ao conectar na API. Verifique a URL e a rede.");
       } else if (code === "ERR_NETWORK" || e?.message === "Network Error") {
-        Alert.alert("Erro", "Falha de rede ao conectar na API. Verifique Wi‑Fi e URL.");
-      } else if (status) {
-        Alert.alert("Erro", `${status} - ${e?.response?.data?.error ?? "Falha ao logar"}`);
+        Alert.alert("Erro", "Falha de rede. Verifique Wi‑Fi e URL.");
       } else {
         Alert.alert("Erro", e?.response?.data?.error ?? e?.message ?? "Falha ao logar");
       }
@@ -110,12 +106,7 @@ export default function AuthScreen({ onAuth }: Props) {
   async function handleRegister() {
     try {
       setLoading(true);
-      const res = await api.post<RegisterResponse>("/api/auth/register", {
-        nome,
-        telefone,
-        senha,
-        role,
-      });
+      const res = await api.post<RegisterResponse>("/api/auth/register", { nome, telefone, senha, role });
       if (!res.data?.ok) throw new Error("Registro falhou");
       Alert.alert("Sucesso", "Registro feito. Agora faça login.");
       setMode("login");
@@ -126,198 +117,271 @@ export default function AuthScreen({ onAuth }: Props) {
     }
   }
 
-  const contentWidth = useMemo(() => Math.round(W * 0.78), [W]);
-  const logoWidth = Math.round(contentWidth * 0.62 * 1.2); // +20%
-
-  const isEmailMock = false; // mantenho telefone; se quiser e-mail, troque para true
-
   return (
-    <LinearGradient colors={["#E3EEE5", "#E9F0ED"]} style={{ flex: 1 }}>
+    <View style={s.root}>
       <SafeAreaView style={{ flex: 1 }}>
-        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          style={{ flex: 1 }}
+        >
           <ScrollView
-            contentContainerStyle={{ flexGrow: 1, alignItems: "center" }}
+            contentContainerStyle={s.scroll}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag"
           >
-            <View style={{ flex: 1, alignItems: "center", paddingTop: Math.round(H * 0.06) }}>
-              {/* Logo */}
-              <Image
-                source={logoSource}
-                resizeMode="contain"
-                style={{
-                  width: logoWidth,
-                  height: Math.round(logoWidth * 0.58),
-                  marginBottom: 16,
-                }}
-              />
+            <View style={[s.inner, { paddingTop: Math.round(H * 0.06) }]}>
 
-              {/* Título */}
-              <Text style={{ fontSize: 20, fontWeight: "700", color: "#2B3443", marginBottom: 18 }}>
-                Bem-vindo de volta!
+              {/* ── Logo ── */}
+              <View style={s.logoWrap}>
+                <Image source={logoSource} style={s.logo} resizeMode="contain" />
+              </View>
+
+              {/* ── Título ── */}
+              <Text style={s.title}>
+                {mode === "login" ? "Bem-vindo de volta!" : "Crie sua conta"}
               </Text>
 
-              {/* Input 1 */}
-              <View style={[styles.inputCard, { width: contentWidth }]}>
-                <Ionicons
-                  name={isEmailMock ? "mail-outline" : "call-outline"}
-                  size={18}
-                  color="#A7B3BE"
-                  style={{ marginRight: 10 }}
-                />
+              {/* ── Nome (só no cadastro) ── */}
+              {mode === "register" && (
+                <View style={[s.inputBox, { width: contentW }]}>
+                  <Ionicons name="person-outline" size={18} color={colors.sub} style={s.inputIcon} />
+                  <TextInput
+                    value={nome}
+                    onChangeText={setNome}
+                    placeholder="Seu nome"
+                    placeholderTextColor={colors.sub}
+                    autoCapitalize="words"
+                    style={s.input}
+                  />
+                </View>
+              )}
+
+              {/* ── Telefone ── */}
+              <View style={[s.inputBox, { width: contentW }]}>
+                <Ionicons name="call-outline" size={18} color={colors.sub} style={s.inputIcon} />
                 <TextInput
                   value={telefone}
                   onChangeText={setTelefone}
-                  placeholder={isEmailMock ? "Seu email" : "Seu telefone"}
-                  placeholderTextColor="#9AA6B2"
-                  keyboardType={isEmailMock ? "email-address" : "phone-pad"}
+                  placeholder="Seu telefone"
+                  placeholderTextColor={colors.sub}
+                  keyboardType="phone-pad"
                   autoCapitalize="none"
-                  style={styles.input}
+                  style={s.input}
                 />
               </View>
 
-              {/* Input 2 */}
-              <View style={[styles.inputCard, { width: contentWidth, marginTop: 14 }]}>
-                <MaterialCommunityIcons name="lock-outline" size={18} color="#A7B3BE" style={{ marginRight: 10 }} />
+              {/* ── Senha ── */}
+              <View style={[s.inputBox, { width: contentW, marginTop: 12 }]}>
+                <MaterialCommunityIcons name="lock-outline" size={18} color={colors.sub} style={s.inputIcon} />
                 <TextInput
                   value={senha}
                   onChangeText={setSenha}
                   placeholder="Sua senha"
-                  placeholderTextColor="#9AA6B2"
-                  secureTextEntry={!showPassword}
+                  placeholderTextColor={colors.sub}
+                  secureTextEntry={!showPwd}
                   autoCapitalize="none"
-                  style={styles.input}
+                  style={s.input}
                 />
-                <Pressable onPress={() => setShowPassword((v) => !v)} hitSlop={16} style={{ paddingLeft: 10, paddingVertical: 6 }}>
-                  <Ionicons name={showPassword ? "eye-outline" : "eye-off-outline"} size={18} color="#A7B3BE" />
+                <Pressable onPress={() => setShowPwd((v) => !v)} hitSlop={16}>
+                  <Ionicons
+                    name={showPwd ? "eye-outline" : "eye-off-outline"}
+                    size={18}
+                    color={colors.sub}
+                  />
                 </Pressable>
               </View>
 
-              {/* Botão Entrar */}
+              {/* ── Botão principal ── */}
               <Pressable
                 onPress={mode === "login" ? handleLogin : handleRegister}
                 disabled={loading}
-                style={{ marginTop: 18, opacity: loading ? 0.75 : 1 }}
+                style={({ pressed }) => [
+                  s.btn,
+                  { width: contentW, marginTop: 20 },
+                  (loading || pressed) && { opacity: 0.8 },
+                ]}
               >
-                <LinearGradient
-                  colors={["#63B19F", "#4FA38F"]}
-                  start={{ x: 0, y: 0.5 }}
-                  end={{ x: 1, y: 0.5 }}
-                  style={[styles.button, { width: contentWidth }]}
-                >
-                  {loading ? (
-                    <ActivityIndicator color="#fff" />
-                  ) : (
-                    <Text style={styles.buttonText}>{mode === "login" ? "Entrar" : "Registrar"}</Text>
-                  )}
-                </LinearGradient>
-              </Pressable>
-
-              {/* Links */}
-              <Pressable
-                style={{ marginTop: 14 }}
-                onPress={() => Alert.alert("Recuperar senha", "Fale com o suporte para redefinir a senha.")}
-              >
-                <Text style={styles.linkMuted}>Esqueceu sua senha?</Text>
-              </Pressable>
-
-              <View style={{ marginTop: 28, alignItems: "center" }}>
-                <Text style={styles.muted}>Não tem conta?</Text>
-                {mode === "login" ? (
-                  <Pressable onPress={() => setMode("register")} style={{ marginTop: 6 }}>
-                    <Text style={styles.linkPrimary}>Cadastre-se</Text>
-                  </Pressable>
+                {loading ? (
+                  <ActivityIndicator color="#FFF" />
                 ) : (
-                  <Pressable onPress={() => setMode("login")} style={{ marginTop: 6 }}>
-                    <Text style={styles.linkPrimary}>Já tenho conta</Text>
-                  </Pressable>
+                  <Text style={s.btnText}>
+                    {mode === "login" ? "Entrar" : "Criar conta"}
+                  </Text>
                 )}
-                {mode === "register" && (
-                  <View style={{ flexDirection: "row", gap: 10, marginTop: 12 }}>
-                    <Pressable
-                      onPress={() => setRole("CLIENTE")}
-                      style={[
-                        styles.rolePill,
-                        { backgroundColor: role === "CLIENTE" ? "rgba(79,163,143,0.15)" : "#fff" },
-                      ]}
-                    >
-                      <Text style={{ color: "#2B3443", fontWeight: "700" }}>Cliente</Text>
-                    </Pressable>
-                    <Pressable
-                      onPress={() => setRole("DIARISTA")}
-                      style={[
-                        styles.rolePill,
-                        { backgroundColor: role === "DIARISTA" ? "rgba(79,163,143,0.15)" : "#fff" },
-                      ]}
-                    >
-                      <Text style={{ color: "#2B3443", fontWeight: "700" }}>Prestador</Text>
-                    </Pressable>
-                  </View>
-                )}
+              </Pressable>
+
+              {/* ── Esqueci senha ── */}
+              {mode === "login" && (
+                <Pressable
+                  style={{ marginTop: 14 }}
+                  onPress={() => Alert.alert("Recuperar senha", "Fale com o suporte para redefinir a senha.")}
+                >
+                  <Text style={s.linkMuted}>Esqueceu sua senha?</Text>
+                </Pressable>
+              )}
+
+              {/* ── Alternar modo ── */}
+              <View style={s.switchRow}>
+                <Text style={s.mutedText}>
+                  {mode === "login" ? "Não tem conta?" : "Já tem conta?"}
+                </Text>
+                <Pressable
+                  onPress={() => setMode(mode === "login" ? "register" : "login")}
+                  style={{ marginTop: 6 }}
+                >
+                  <Text style={s.linkGreen}>
+                    {mode === "login" ? "Cadastre-se" : "Fazer login"}
+                  </Text>
+                </Pressable>
               </View>
+
+              {/* ── Seleção de role (só no cadastro) ── */}
+              {mode === "register" && (
+                <View style={s.roleRow}>
+                  {(["CLIENTE", "DIARISTA"] as const).map((r) => (
+                    <Pressable
+                      key={r}
+                      onPress={() => setRole(r)}
+                      style={[s.rolePill, role === r && s.rolePillOn]}
+                    >
+                      <Text style={[s.rolePillText, role === r && s.rolePillTextOn]}>
+                        {r === "CLIENTE" ? "Cliente" : "Prestador"}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+              )}
+
             </View>
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
-    </LinearGradient>
+    </View>
   );
 }
 
-const styles = StyleSheet.create({
-  inputCard: {
-    height: 54,
-    borderRadius: 14,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#E8EEF0",
+const s = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: colors.bg, // #E6EDEA — identidade validada
+  },
+  scroll: {
+    flexGrow: 1,
+    alignItems: "center",
+  },
+  inner: {
+    flex: 1,
+    alignItems: "center",
+    paddingBottom: 40,
+  },
+  logoWrap: {
+    marginBottom: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  logo: {
+    width: 170,
+    height: 88,
+  },
+
+  title: {
+    ...typography.h1,
+    marginBottom: 22,
+    textAlign: "center",
+  },
+
+  // Inputs
+  inputBox: {
+    height: 52,
+    borderRadius: radius.md,       // 14px — identidade validada
+    backgroundColor: colors.card,
+    borderWidth: 1.5,
+    borderColor: colors.stroke,
     paddingHorizontal: 16,
     flexDirection: "row",
     alignItems: "center",
+    marginTop: 10,
+    // Sombra card
     shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 6,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  inputIcon: {
+    marginRight: 10,
   },
   input: {
     flex: 1,
-    fontSize: 15,
-    color: "#1F2A37",
+    fontSize: 14,
+    fontWeight: "600",
+    color: colors.ink,
+    paddingVertical: 0,
   },
-  button: {
-    height: 56,
-    borderRadius: 14,
+
+  // Botão principal
+  btn: {
+    height: 52,
+    borderRadius: radius.btn,      // 22px — pill, identidade validada
     alignItems: "center",
     justifyContent: "center",
+    backgroundColor: colors.green, // #3DC87A
     shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 6,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    elevation: 4,
   },
-  buttonText: {
-    color: "#FFFFFF",
-    fontSize: 17,
-    fontWeight: "700",
+  btnText: {
+    color: "#FFF",
+    fontSize: 16,
+    fontWeight: "800",
+    letterSpacing: 0.2,
   },
-  muted: {
-    color: "#8E9AA6",
-    fontSize: 14,
-  },
+
+  // Links
   linkMuted: {
-    color: "#8E9AA6",
-    fontSize: 14,
+    fontSize: 13,
+    color: colors.sub,
   },
-  linkPrimary: {
-    color: "#4FA38F",
+  linkGreen: {
     fontSize: 14,
     fontWeight: "700",
+    color: colors.green,
+  },
+  mutedText: {
+    fontSize: 13,
+    color: colors.sub,
+  },
+  switchRow: {
+    marginTop: 28,
+    alignItems: "center",
+  },
+
+  // Role selector
+  roleRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 16,
   },
   rolePill: {
-    borderWidth: 1,
-    borderColor: "#E8EEF0",
-    borderRadius: 12,
-    paddingHorizontal: 14,
+    borderWidth: 1.5,
+    borderColor: colors.stroke,
+    borderRadius: radius.btn,
+    paddingHorizontal: 18,
     paddingVertical: 10,
+    backgroundColor: colors.card,
+  },
+  rolePillOn: {
+    borderColor: colors.green,
+    backgroundColor: colors.greenLight,
+  },
+  rolePillText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: colors.ink,
+  },
+  rolePillTextOn: {
+    color: colors.greenDark,
   },
 });

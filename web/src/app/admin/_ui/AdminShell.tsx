@@ -1,5 +1,5 @@
-import Sidebar from "./Sidebar";
-import Topbar from "./Topbar";
+import Sidebar from "@/app/admin/_ui/Sidebar";
+import Topbar from "@/app/admin/_ui/Topbar";
 
 export default function AdminShell({ children }: { children: React.ReactNode }) {
   return (

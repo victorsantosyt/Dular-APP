@@ -1,7 +1,6 @@
 "use client";
 
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { useEffect } from "react";
 import { signIn } from "next-auth/react";
 import { ArrowLeft } from "lucide-react";
 import { LogoBrand } from "@/components/ui/LogoBrand";
@@ -37,16 +36,15 @@ export default function LoginRolePage() {
   const role = params.role as string;
   const isMobile = searchParams.get("platform") === "mobile";
 
-  useEffect(() => {
-    if (!ROLE_LABELS[role]) router.replace("/");
-  }, [role, router]);
-
-  if (!ROLE_LABELS[role]) return null;
-
   const callbackUrl = isMobile
     ? `/auth/callback/${role}?platform=mobile`
     : `/auth/callback/${role}`;
   const roleLabel = ROLE_LABELS[role];
+
+  if (!ROLE_LABELS[role]) {
+    router.replace("/");
+    return null;
+  }
 
   return (
     <main className="min-h-screen bg-[linear-gradient(160deg,#EAF5EF_0%,#D6EDE3_55%,#C8E5D8_100%)] px-4 pb-10">

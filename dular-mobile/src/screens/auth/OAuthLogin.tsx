@@ -4,24 +4,25 @@ import {
   Alert,
   Animated,
   Easing,
+  Image,
   Pressable,
   StyleSheet,
   Text,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import * as WebBrowser from "expo-web-browser";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
-import { colors, radius, shadow, spacing, typography } from "@/theme/tokens";
-import { DularLogo } from "@/ui/DularLogo";
+import { radius, shadow, spacing, typography } from "@/theme/tokens";
 import { AUTH_ROUTES } from "@/navigation/routes";
 import { API_BASE_URL } from "@/lib/api";
 import { useAuth } from "@/stores/authStore";
 
 WebBrowser.maybeCompleteAuthSession();
+
+const HERO = require("../../../assets/dular-hero.png");
 
 type AuthParamList = {
   [AUTH_ROUTES.ROLE_SELECT]: undefined;
@@ -35,54 +36,41 @@ const ROLE_LABEL: Record<string, string> = {
   DIARISTA: "Diarista",
 };
 
-function GoogleIcon() {
-  return (
-    // SVG paths inline como View já que RN não tem SVG nativo sem lib adicional
-    // Usando Ionicons como fallback
-    <Ionicons name="logo-google" size={20} color={colors.ink} />
-  );
-}
-
 export default function OAuthLogin({ route, navigation }: Props) {
   const { role } = route.params;
   const insets = useSafeAreaInsets();
   const { setSession } = useAuth();
-  const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [appleLoading, setAppleLoading] = useState(false);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(20)).current;
+  const slideAnim = useRef(new Animated.Value(24)).current;
 
   useEffect(() => {
     Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 380,
-        useNativeDriver: true,
-      }),
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 380,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }),
+      Animated.timing(fadeAnim, { toValue: 1, duration: 420, useNativeDriver: true }),
+      Animated.timing(slideAnim, { toValue: 0, duration: 420, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
     ]).start();
   }, [fadeAnim, slideAnim]);
 
-  async function handleGoogleLogin() {
+  async function handleOAuth(provider: "google" | "apple") {
     if (!API_BASE_URL) {
       Alert.alert("Erro", "URL da API não configurada.");
       return;
     }
-
+    const setLoading = provider === "google" ? setGoogleLoading : setAppleLoading;
     setLoading(true);
     try {
       const callbackUrl = encodeURIComponent(`/auth/callback/${role.toLowerCase()}?platform=mobile`);
-      const loginUrl = `${API_BASE_URL}/api/auth/signin/google?callbackUrl=${callbackUrl}`;
+      const loginUrl =
+        provider === "google"
+          ? `${API_BASE_URL}/api/auth/mobile-google?role=${role.toLowerCase()}&callbackUrl=${callbackUrl}`
+          : `${API_BASE_URL}/api/auth/signin/apple?callbackUrl=${callbackUrl}`;
+      console.log("[OAuthLogin] opening:", loginUrl);
       const result = await WebBrowser.openAuthSessionAsync(loginUrl, "dular://auth");
 
-      if (result.type !== "success") return; // usuário cancelou
+      if (result.type !== "success") return;
 
-      // result.url = "dular://auth?token=JWT&role=CLIENTE"
       const url = new URL(result.url);
       const token = url.searchParams.get("token");
       const returnedRole = url.searchParams.get("role") as "CLIENTE" | "DIARISTA" | "ADMIN" | null;
@@ -92,125 +80,212 @@ export default function OAuthLogin({ route, navigation }: Props) {
         Alert.alert("Erro", error === "no_role" ? "Perfil sem role definido." : "Falha na autenticação.");
         return;
       }
-
       if (!token || !returnedRole) {
         Alert.alert("Erro", "Resposta inválida do servidor.");
         return;
       }
-
       await setSession({ token, role: returnedRole });
-      // App.tsx reage ao store e renderiza as tabs automaticamente
-    } catch (err) {
+    } catch {
       Alert.alert("Erro", "Não foi possível concluir o login. Tente novamente.");
     } finally {
       setLoading(false);
     }
   }
 
-  return (
-    <LinearGradient
-      colors={[colors.greenLight, colors.bg]}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 0, y: 1 }}
-      style={s.root}
-    >
-      <View style={[s.inner, { paddingTop: insets.top + 48, paddingBottom: insets.bottom + 24 }]}>
+  const anyLoading = googleLoading || appleLoading;
 
-        <Animated.View
-          style={[s.header, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}
-        >
-          <DularLogo size="lg" />
+  return (
+    <View style={[s.root, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+      <Animated.View style={[s.content, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
+
+        {/* ── Logo ── */}
+        <View style={s.logoWrap}>
+          <Image source={HERO} style={s.hero} resizeMode="contain" />
+          <Text style={s.brand}>dular.</Text>
+        </View>
+
+        {/* ── Header ── */}
+        <View style={s.header}>
           <Text style={s.title}>Entrar como {ROLE_LABEL[role]}</Text>
           <Text style={s.subtitle}>Escolha como deseja continuar</Text>
-        </Animated.View>
+        </View>
 
-        <Animated.View
-          style={[s.buttons, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}
-        >
+        {/* ── Buttons ── */}
+        <View style={s.buttons}>
+
+          {/* Google */}
           <Pressable
-            onPress={handleGoogleLogin}
-            disabled={loading}
-            style={({ pressed }) => [s.oauthBtn, pressed && { opacity: 0.85 }]}
+            onPress={() => handleOAuth("google")}
+            disabled={anyLoading}
+            style={({ pressed }) => [s.btnGoogle, pressed && s.pressed]}
           >
-            {loading ? (
-              <ActivityIndicator color={colors.ink} />
+            {googleLoading ? (
+              <ActivityIndicator color="#1a1a1a" />
             ) : (
               <>
-                <GoogleIcon />
-                <Text style={s.oauthText}>Continuar com Google</Text>
+                <View style={s.googleG}>
+                  <Text style={s.googleGText}>G</Text>
+                </View>
+                <Text style={s.btnGoogleText}>Continuar com Google</Text>
               </>
             )}
           </Pressable>
-        </Animated.View>
 
-        <Animated.View style={[s.footer, { opacity: fadeAnim }]}>
+          {/* Apple */}
           <Pressable
-            onPress={() => navigation.goBack()}
-            style={({ pressed }) => [s.backBtn, pressed && { opacity: 0.7 }]}
+            onPress={() => handleOAuth("apple")}
+            disabled={anyLoading}
+            style={({ pressed }) => [s.btnApple, pressed && s.pressed]}
           >
-            <Ionicons name="arrow-back-outline" size={16} color={colors.sub} />
-            <Text style={s.backText}>Voltar</Text>
+            {appleLoading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <>
+                <Ionicons name="logo-apple" size={22} color="#fff" />
+                <Text style={s.btnAppleText}>Continuar com Apple</Text>
+              </>
+            )}
           </Pressable>
-        </Animated.View>
+        </View>
 
-      </View>
-    </LinearGradient>
+        {/* ── Back ── */}
+        <Pressable
+          onPress={() => navigation.goBack()}
+          disabled={anyLoading}
+          style={({ pressed }) => [s.backBtn, pressed && { opacity: 0.5 }]}
+        >
+          <Ionicons name="arrow-back-outline" size={14} color="#6b7280" />
+          <Text style={s.backText}>Voltar</Text>
+        </Pressable>
+
+      </Animated.View>
+    </View>
   );
 }
 
 const s = StyleSheet.create({
-  root: { flex: 1 },
-  inner: {
+  root: {
     flex: 1,
+    backgroundColor: "#EAF5EF",
+    alignItems: "center",
+    justifyContent: "center",
     paddingHorizontal: spacing.lg,
-    gap: spacing.xl,
   },
+  content: {
+    width: "100%",
+    maxWidth: 420,
+    alignItems: "center",
+    gap: 32,
+  },
+
+  // Logo
+  logoWrap: {
+    alignItems: "center",
+    gap: 4,
+  },
+  hero: {
+    width: 52,
+    height: 52,
+  },
+  brand: {
+    fontSize: 26,
+    fontWeight: "900",
+    color: "#0f1a10",
+    letterSpacing: -0.5,
+    marginTop: 2,
+  },
+
+  // Header
   header: {
     alignItems: "center",
-    gap: 8,
+    gap: 6,
   },
   title: {
-    ...typography.h1,
+    fontSize: 22,
+    fontWeight: "800",
+    color: "#0f1a10",
     textAlign: "center",
-    marginTop: 12,
+    lineHeight: 28,
   },
   subtitle: {
-    ...typography.sub,
+    fontSize: 13,
+    color: "#6b7280",
     textAlign: "center",
   },
+
+  // Buttons
   buttons: {
-    gap: spacing.md,
+    width: "100%",
+    gap: 12,
   },
-  oauthBtn: {
+
+  // Google button
+  btnGoogle: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 12,
     height: 54,
     borderRadius: radius.btn,
-    backgroundColor: colors.card,
-    borderWidth: 1.5,
-    borderColor: colors.stroke,
+    backgroundColor: "rgba(255,255,255,0.7)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.5)",
     ...shadow.card,
   },
-  oauthText: {
+  googleG: {
+    width: 20,
+    height: 20,
+    borderRadius: 4,
+    backgroundColor: "#4285F4",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  googleGText: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: "#fff",
+    lineHeight: 16,
+  },
+  btnGoogleText: {
     fontSize: 15,
     fontWeight: "700",
-    color: colors.ink,
+    color: "#0f1a10",
   },
-  footer: {
+
+  // Apple button
+  btnApple: {
+    flexDirection: "row",
     alignItems: "center",
-    marginTop: "auto" as any,
+    justifyContent: "center",
+    gap: 12,
+    height: 54,
+    borderRadius: radius.btn,
+    backgroundColor: "#0f1a10",
+    ...shadow.card,
   },
+  btnAppleText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#fff",
+  },
+
+  // Pressed state
+  pressed: {
+    opacity: 0.88,
+    transform: [{ scale: 0.98 }],
+  },
+
+  // Back
   backBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    gap: 5,
     paddingVertical: 8,
+    marginTop: -8,
   },
   backText: {
-    ...typography.sub,
     fontSize: 13,
     fontWeight: "600",
+    color: "#6b7280",
   },
 });

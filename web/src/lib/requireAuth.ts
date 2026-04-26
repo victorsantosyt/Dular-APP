@@ -16,13 +16,21 @@ export function requireAuth(req: Request) {
   const authHeader = req.headers.get("authorization");
   if (authHeader && authHeader.startsWith("Bearer ")) {
     const token = authHeader.replace("Bearer ", "").trim();
-    return verifyToken(token);
+    try {
+      return verifyToken(token);
+    } catch {
+      throw new Error("Unauthorized");
+    }
   }
 
   // Fallback: cookie HttpOnly
   const cookieToken = getTokenFromCookie(req.headers.get("cookie"));
   if (cookieToken) {
-    return verifyToken(cookieToken);
+    try {
+      return verifyToken(cookieToken);
+    } catch {
+      throw new Error("Unauthorized");
+    }
   }
 
   throw new Error("Unauthorized");

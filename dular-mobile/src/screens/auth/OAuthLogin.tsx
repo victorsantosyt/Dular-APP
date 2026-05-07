@@ -61,15 +61,26 @@ export default function OAuthLogin({ route, navigation }: Props) {
     const setLoading = provider === "google" ? setGoogleLoading : setAppleLoading;
     setLoading(true);
     try {
+      const redirectUri = "dular://auth/callback";
+      if (provider === "google") {
+        console.log("[OAuth] iniciando Google login");
+        console.log("[OAuth] redirectUri:", redirectUri);
+      }
       const callbackUrl = encodeURIComponent(`/auth/callback/${role.toLowerCase()}?platform=mobile`);
       const loginUrl =
         provider === "google"
           ? `${API_BASE_URL}/api/auth/mobile-google?role=${role.toLowerCase()}&callbackUrl=${callbackUrl}`
           : `${API_BASE_URL}/api/auth/signin/apple?callbackUrl=${callbackUrl}`;
       console.log("[OAuthLogin] opening:", loginUrl);
-      const result = await WebBrowser.openAuthSessionAsync(loginUrl, "dular://auth");
+      const result = await WebBrowser.openAuthSessionAsync(loginUrl, redirectUri);
+      if (provider === "google") {
+        console.log("[OAuth] resultado:", JSON.stringify(result));
+      }
 
       if (result.type !== "success") return;
+      if (provider === "google") {
+        console.log("[OAuth] URL callback:", result.url);
+      }
 
       const url = new URL(result.url);
       const token = url.searchParams.get("token");

@@ -210,6 +210,26 @@ async function main() {
     }
   }
 
+  await prisma.safeScorePolicyVersion.upsert({
+    where: { version: '1.0.0' },
+    update: {},
+    create: {
+      id: 'policy_v1_0_0',
+      version: '1.0.0',
+      weights: {
+        avaliacao_positiva: 20,
+        avaliacao_negativa: -30,
+        servico_concluido: 10,
+        cancelamento_tardio: -15,
+        incidente_aberto: -50,
+        incidente_resolvido_favor: -80,
+        kyc_aprovado: 50,
+        kyc_rejeitado: -20,
+        checkin_realizado: 5,
+      },
+    },
+  })
+
   console.log("Seed concluído:");
   console.log("Admin: 65999990000 / admin123");
   console.log("Admin extra: 65999990100 / S982575428yt (email: victordev.tec@gmail.com)");

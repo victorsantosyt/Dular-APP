@@ -3,7 +3,11 @@ import { requireAuth } from "@/lib/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { ok, fail } from "@/lib/apiResponse";
 
-const BASE_URL = process.env.AUTH_URL ?? "http://localhost:3000";
+const BASE_URL =
+  process.env.NEXT_PUBLIC_APP_URL ??
+  process.env.NEXTAUTH_URL ??
+  process.env.AUTH_URL ??
+  "http://localhost:3000";
 
 export async function POST(request: Request) {
   let payload;

@@ -5,22 +5,23 @@
  * Lógica de ações (aceitar/iniciar/concluir) preservada.
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Alert, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
 import { api } from "@/lib/api";
-import { Servico } from "@/types/servico";
+import type { ServicoListItem as Servico } from "../../../../shared/types/servico";
 import { DButton } from "@/components/DButton";
 import { DularBadge } from "@/components/DularBadge";
+import { SafeScoreBadge } from "@/components/SafeScoreBadge";
+import { formatPrice } from "@/utils/formatPrice";
+import { DIARISTA_STACK_ROUTES } from "@/navigation/routes";
 
 // ── Tokens ──────────────────────────────────────────────────────────────────
 import { colors, radius, shadow, spacing, typography } from "@/theme/tokens";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
-
-const brl = (v: number) => (v ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
 function statusVariant(st: string): "success" | "warning" | "neutral" | "danger" {
   const s = (st || "").toUpperCase();
@@ -41,12 +42,24 @@ function statusLabel(st: string) {
   return st || "Status";
 }
 
+function getServicoEndereco(servico: Servico | null | undefined) {
+  const endereco = servico?.enderecoCompleto ?? null;
+  return typeof endereco === "string" && endereco.trim() ? endereco.trim() : null;
+}
+
 // ── Componente ────────────────────────────────────────────────────────────────
 
 export default function DiaristaDetalhe({ route, navigation }: any) {
   const { servico }   = route.params as { servico: Servico };
   const [svc, setSvc] = useState<Servico>(servico);
   const [loading, setLoading] = useState(false);
+  const [clienteScore, setClienteScore] = useState<{
+    faixa: string;
+    cor: string;
+    bloqueado: boolean;
+    totalServicos: number;
+    verificado: boolean;
+  } | null>(null);
 
   async function reloadFromList() {
     try {
@@ -72,6 +85,56 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
     }
   }
 
+  useEffect(() => {
+    if (!svc.cliente?.id) return;
+    let alive = true;
+    api.get(`/api/usuarios/${svc.cliente.id}/score`)
+      .then((res) => {
+        if (alive) setClienteScore(res.data);
+      })
+      .catch(() => {
+        if (alive) setClienteScore(null);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [svc.cliente?.id]);
+
+  function confirmarAceite() {
+    const endereco = getServicoEndereco(svc);
+    const body = endereco ? { enderecoCompleto: endereco } : {};
+
+    if (!endereco) {
+      Alert.alert(
+        "Endereço não informado",
+        "Endereço não informado pelo cliente. Confirma mesmo assim?",
+        [
+          { text: "Cancelar", style: "cancel" },
+          { text: "Confirmar", onPress: () => { void action("aceitar", body); } },
+        ]
+      );
+      return;
+    }
+
+    void action("aceitar", body);
+  }
+
+  function aceitarServico() {
+    if (clienteScore?.bloqueado) {
+      Alert.alert(
+        "Atenção",
+        "Atenção: este cliente está com restrições ativas. Deseja continuar?",
+        [
+          { text: "Cancelar", style: "cancel" },
+          { text: "Continuar", onPress: confirmarAceite },
+        ]
+      );
+      return;
+    }
+
+    confirmarAceite();
+  }
+
   return (
     <SafeAreaView style={s.safe} edges={["top", "left", "right", "bottom"]}>
       <ScrollView
@@ -95,7 +158,7 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
 
           <InfoRow icon="cash-outline" label="Valor">
             <Text style={[s.infoValue, { color: colors.greenDark, fontWeight: "800" }]}>
-              {brl(svc.precoFinal / 100)}
+              {formatPrice(svc.precoFinal)}
             </Text>
           </InfoRow>
 
@@ -105,23 +168,36 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
             <Text style={s.infoValue}>{svc.cliente?.nome ?? "—"}</Text>
           </InfoRow>
 
-          {/* Endereço — só visível após aceite */}
-          {svc.status === "SOLICITADO" ? (
+          {clienteScore ? (
+            <>
+              <View style={s.divider} />
+              <SafeScoreBadge {...clienteScore} />
+              {clienteScore.bloqueado ? (
+                <View style={s.restrictedBox}>
+                  <Text style={s.restrictedText}>
+                    Este usuário está com acesso restrito na plataforma
+                  </Text>
+                </View>
+              ) : null}
+            </>
+          ) : null}
+
+          {getServicoEndereco(svc) ? (
+            <>
+              <View style={s.divider} />
+              <InfoRow icon="home-outline" label="Endereço">
+                <Text style={s.infoValue}>{getServicoEndereco(svc)}</Text>
+              </InfoRow>
+            </>
+          ) : svc.status === "SOLICITADO" ? (
             <>
               <View style={s.divider} />
               <View style={s.addressHint}>
                 <Ionicons name="lock-closed" size={14} color={colors.sub} />
                 <Text style={s.addressHintText}>
-                  Endereço completo liberado após aceitar o serviço.
+                  Endereço não informado pelo cliente.
                 </Text>
               </View>
-            </>
-          ) : svc.enderecoCompleto ? (
-            <>
-              <View style={s.divider} />
-              <InfoRow icon="home-outline" label="Endereço">
-                <Text style={s.infoValue}>{svc.enderecoCompleto}</Text>
-              </InfoRow>
             </>
           ) : null}
         </View>
@@ -132,7 +208,14 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
             <DButton
               title="Aceitar serviço"
               loading={loading}
-              onPress={() => action("aceitar", { enderecoCompleto: "Rua X, 123 - Centro" })}
+              onPress={aceitarServico}
+            />
+          )}
+          {["ACEITO", "EM_ANDAMENTO"].includes(svc.status.toUpperCase()) && (
+            <DButton
+              title="Abrir chat"
+              variant="outline"
+              onPress={() => navigation.navigate(DIARISTA_STACK_ROUTES.CHAT, { servicoId: svc.id })}
             />
           )}
           {svc.status === "ACEITO" && (
@@ -235,6 +318,19 @@ const s = StyleSheet.create({
     backgroundColor: colors.cardStrong,
   },
   addressHintText: { ...typography.sub, flex: 1 },
+  restrictedBox: {
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: "#FECACA",
+    backgroundColor: "#FEF2F2",
+    padding: 10,
+  },
+  restrictedText: {
+    color: colors.danger,
+    fontSize: 12,
+    fontWeight: "800",
+    textAlign: "center",
+  },
 
   ctaBlock: { gap: 10 },
 

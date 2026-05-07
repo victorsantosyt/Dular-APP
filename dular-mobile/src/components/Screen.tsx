@@ -1,7 +1,7 @@
 /**
  * Screen — Wrapper base de tela
  *
- * Aplica SafeAreaView + fundo #E6EDEA + header opcional.
+ * Aplica SafeAreaView + fundo Dular Soft Premium UI + header opcional.
  * Todas as telas devem usar este componente como raiz.
  */
 
@@ -21,8 +21,10 @@ type Props = {
   children: React.ReactNode;
   scroll?: boolean;
   contentStyle?: ViewStyle;
+  contentContainerStyle?: ViewStyle;
   rightAction?: React.ReactNode;
-  /** Padding horizontal customizado (padrão: spacing.lg = 18) */
+  padded?: boolean;
+  /** Padding horizontal customizado (padrão: spacing.screenPadding = 24) */
   px?: number;
 };
 
@@ -31,15 +33,19 @@ export function Screen({
   children,
   scroll = true,
   contentStyle,
+  contentContainerStyle,
   rightAction,
-  px = spacing.lg,
+  padded = true,
+  px = spacing.screenPadding,
 }: Props) {
+  const horizontalPadding = padded ? px : 0;
   const inner = scroll ? (
     <ScrollView
       contentContainerStyle={[
         styles.scrollContent,
-        { paddingHorizontal: px },
+        { paddingHorizontal: horizontalPadding },
         contentStyle,
+        contentContainerStyle,
       ]}
       keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}
@@ -50,8 +56,9 @@ export function Screen({
     <View
       style={[
         styles.flatContent,
-        { paddingHorizontal: px },
+        { paddingHorizontal: horizontalPadding },
         contentStyle,
+        contentContainerStyle,
       ]}
     >
       {children}
@@ -61,7 +68,7 @@ export function Screen({
   return (
     <SafeAreaView edges={["top", "left", "right"]} style={styles.safe}>
       {title ? (
-        <View style={[styles.header, { paddingHorizontal: px }]}>
+        <View style={[styles.header, { paddingHorizontal: horizontalPadding }]}>
           <Text style={styles.headerTitle}>{title}</Text>
           {rightAction}
         </View>
@@ -74,7 +81,7 @@ export function Screen({
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: colors.bg,
+    backgroundColor: colors.background,
   },
   header: {
     flexDirection: "row",
@@ -82,19 +89,19 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingTop: 10,
     paddingBottom: 8,
-    backgroundColor: colors.bg,
+    backgroundColor: colors.background,
   },
   headerTitle: {
     ...typography.h2,
   },
   scrollContent: {
     paddingTop: 8,
-    paddingBottom: 32,
-    gap: 12,
+    paddingBottom: 120,
+    gap: spacing.itemGap,
   },
   flatContent: {
     flex: 1,
     paddingTop: 8,
-    paddingBottom: 32,
+    paddingBottom: 120,
   },
 });

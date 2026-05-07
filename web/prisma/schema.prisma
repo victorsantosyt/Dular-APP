@@ -49,6 +49,47 @@ enum IncidentSeverity {
   ALTA
 }
 
+enum IncidenteCategoria {
+  AGRESSAO_VERBAL
+  AGRESSAO_FISICA
+  AGRESSAO_PSICOLOGICA
+  AGRESSAO_EMOCIONAL
+  VIOLENCIA_SEXUAL
+  IMPORTUNACAO_SEXUAL
+  FURTO
+  DANO_MATERIAL
+  AMBIENTE_INSALUBRE
+  VIOLACAO_PRIVACIDADE
+  NO_SHOW
+  OUTRO
+}
+
+enum IncidenteGravidade {
+  BAIXA
+  MEDIA
+  ALTA
+  CRITICA
+}
+
+enum IncidenteResolucao {
+  CONFIRMADA
+  ARQUIVADA
+  EM_ANALISE
+  AGUARDANDO_EVIDENCIA
+}
+
+enum ScoreEventoTipo {
+  AVALIACAO_POSITIVA
+  AVALIACAO_NEGATIVA
+  SERVICO_CONCLUIDO
+  KYC_APROVADO
+  DENUNCIA_CONFIRMADA
+  DENUNCIA_ARQUIVADA
+  CANCELAMENTO
+  NO_SHOW
+  TEMPO_PLATAFORMA
+}
+
 enum Turno {
   MANHA
   TARDE
@@ -125,39 +166,46 @@ enum FeatureKey {
 }
 
 model User {
-  id              String     @id @default(cuid())
-  nome            String
-  telefone        String?    @unique
-  cpf             String?    @unique
-  dataNascimento  DateTime?
-  email           String?    @unique
-  senhaHash       String?
-  role            UserRole?
-  status          UserStatus @default(ATIVO)
-  riskScore Int        @default(0)
-  riskTier  Int        @default(0)
-  avatarUrl String?
+  id             String     @id @default(cuid())
+  nome           String
+  telefone       String?    @unique
+  cpf            String?    @unique
+  dataNascimento DateTime?
+  email          String?    @unique
+  senhaHash      String?
+  role           UserRole?
+  status         UserStatus @default(ATIVO)
+  scoreAtual     Float         @default(500)
+  riskScore      Float         @default(0)
+  riskTier       SafeScoreTier @default(BRONZE)
+  emObservacao   Boolean       @default(false)
+  avatarUrl      String?
+  pushToken      String?
 
-  diaristaProfile      DiaristaProfile?
-  servicosComoCliente  Servico[] @relation("ServicoCliente")
-  servicosComoDiarista Servico[] @relation("ServicoDiarista")
-  safetyEvents         SafetyEvent[]
-  incidentsReported    IncidentReport[] @relation("ReportedBy")
-  incidentsReceived    IncidentReport[] @relation("ReportedUser")
-  habilidades          DiaristaHabilidade[]
-  oauthAccounts        OAuthAccount[]
-  chatMessages         ChatMessage[]
-  subscription         Subscription?
-  creditWallet         CreditWallet?
+  diaristaProfile       DiaristaProfile?
+  safeScore             SafeScore?
+  safeScoreProfile      SafeScoreProfile?
+  documentVerifications DocumentVerification[]
+  restrictions          UserRestriction[]
+  servicosComoCliente   Servico[]              @relation("ServicoCliente")
+  servicosComoDiarista  Servico[]              @relation("ServicoDiarista")
+  safetyEvents          SafetyEvent[]
+  incidentsReported     IncidentReport[]       @relation("ReportedBy")
+  incidentsReceived     IncidentReport[]       @relation("ReportedUser")
+  habilidades           DiaristaHabilidade[]
+  oauthAccounts         OAuthAccount[]
+  chatMessages          ChatMessage[]
+  subscription          Subscription?
+  creditWallet          CreditWallet?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
 model DiaristaProfile {
-  id          String            @id @default(cuid())
-  userId      String            @unique
-  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   verificacao VerificacaoStatus @default(PENDENTE)
   ativo       Boolean           @default(true)
@@ -166,6 +214,7 @@ model DiaristaProfile {
   bio         String?
 
   precoLeve   Int
+  precoMedio  Int @default(0)
   precoPesada Int
 
   notaMedia     Float @default(0)
@@ -204,7 +253,7 @@ model DiaristaBairro {
 }
 
 model Disponibilidade {
-  id         String @id @default(cuid())
+  id         String          @id @default(cuid())
   diaristaId String
   diarista   DiaristaProfile @relation(fields: [diaristaId], references: [id], onDelete: Cascade)
 
@@ -220,10 +269,10 @@ model Servico {
   id     String        @id @default(cuid())
   status ServicoStatus @default(SOLICITADO)
 
-  tipo  ServicoTipo
+  tipo      ServicoTipo
   categoria ServicoCategoria?
-  data  DateTime
-  turno Turno
+  data      DateTime
+  turno     Turno
 
   cidade String
   uf     String
@@ -263,7 +312,7 @@ model DiaristaHabilidade {
   diaristaId String
   tipo       ServicoTipo
   categoria  ServicoCategoria?
-  createdAt  DateTime @default(now())
+  createdAt  DateTime          @default(now())
 
   diarista User @relation(fields: [diaristaId], references: [id], onDelete: Cascade)
 
@@ -307,32 +356,37 @@ model Avaliacao {
 }
 
 model SafetyEvent {
-  id        String           @id @default(cuid())
+  id        String          @id @default(cuid())
   type      SafetyEventType
   userId    String
   serviceId String?
   lat       Float?
   lng       Float?
   meta      Json?
-  createdAt DateTime         @default(now())
+  createdAt DateTime        @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model IncidentReport {
-  id             String          @id @default(cuid())
+  id             String              @id @default(cuid())
   reportedById   String
   reportedUserId String
   serviceId      String?
   type           IncidentType
-  severity       IncidentSeverity @default(MEDIA)
+  severity       IncidentSeverity    @default(MEDIA)
+  categoria      IncidenteCategoria  @default(OUTRO)
+  subtipo        String?
+  gravidade      IncidenteGravidade  @default(MEDIA)
+  resolucao      IncidenteResolucao?
+  anonimo        Boolean             @default(false)
   description    String
-  status         IncidentStatus   @default(ABERTO)
+  status         IncidentStatus      @default(ABERTO)
 
   attachments IncidentAttachment[]
 
-  reportedBy    User @relation("ReportedBy", fields: [reportedById], references: [id])
-  reportedUser  User @relation("ReportedUser", fields: [reportedUserId], references: [id])
+  reportedBy   User @relation("ReportedBy", fields: [reportedById], references: [id])
+  reportedUser User @relation("ReportedUser", fields: [reportedUserId], references: [id])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -341,8 +395,32 @@ model IncidentReport {
   @@index([status])
 }
 
+model SafeScore {
+  id        String        @id @default(cuid())
+  userId    String        @unique
+  user      User          @relation(fields: [userId], references: [id])
+  score     Int           @default(500)
+  updatedAt DateTime      @updatedAt
+  eventos   ScoreEvento[]
+}
+
+model ScoreEvento {
+  id           String          @id @default(cuid())
+  safeScoreId  String
+  safeScore    SafeScore       @relation(fields: [safeScoreId], references: [id])
+  tipo         ScoreEventoTipo
+  peso         Int
+  descricao    String?
+  referenciaId String?
+  createdAt    DateTime        @default(now())
+
+  @@index([safeScoreId])
+  @@index([tipo])
+  @@index([referenciaId])
+}
+
 model IncidentAttachment {
-  id         String @id @default(cuid())
+  id         String   @id @default(cuid())
   incidentId String
   key        String
   mime       String
@@ -368,12 +446,12 @@ model OAuthAccount {
 }
 
 model ChatRoom {
-  id        String      @id @default(cuid())
-  servicoId String      @unique
-  servico   Servico     @relation(fields: [servicoId], references: [id], onDelete: Cascade)
-  createdAt DateTime    @default(now())
+  id        String   @id @default(cuid())
+  servicoId String   @unique
+  servico   Servico  @relation(fields: [servicoId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
 
-  messages  ChatMessage[]
+  messages ChatMessage[]
 }
 
 model ChatMessage {
@@ -440,4 +518,116 @@ model FeatureLimit {
   enabled Boolean          @default(true)
 
   @@unique([plan, feature])
+}
+
+// ==========================================
+// SAFESCORE GUARDIÃO — FASE 1
+// ==========================================
+
+enum SafeScoreTier {
+  BRONZE
+  SILVER
+  GOLD
+  PLATINUM
+}
+
+enum DocumentVerificationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum UserRestrictionType {
+  SHADOW_BAN
+  LIMIT_BOOKINGS
+  SUSPEND
+  BLOCK
+}
+
+model SafeScoreProfile {
+  id           String          @id @default(cuid())
+  userId       String          @unique
+  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  currentScore Float           @default(500)
+  riskScore    Float           @default(0)
+  tier         SafeScoreTier   @default(BRONZE)
+  lastRecalcAt DateTime?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  events       SafeScoreEvent[]
+}
+
+model SafeScorePolicyVersion {
+  id           String           @id @default(cuid())
+  version      String           @unique
+  weights      Json
+  publishedAt  DateTime         @default(now())
+  deprecatedAt DateTime?
+  events       SafeScoreEvent[]
+}
+
+model SafeScoreEvent {
+  id              String                 @id @default(cuid())
+  idempotencyKey  String                 @unique
+  userId          String
+  profile         SafeScoreProfile       @relation(fields: [userId], references: [userId], onDelete: Restrict)
+  policyVersionId String
+  policyVersion   SafeScorePolicyVersion @relation(fields: [policyVersionId], references: [id], onDelete: Restrict)
+  scoreBefore     Float
+  scoreAfter      Float
+  delta           Float
+  eventType       String
+  source          String
+  sourceId        String?
+  actorId         String?
+  payload         Json?
+  createdAt       DateTime               @default(now())
+
+  @@index([userId])
+  @@index([idempotencyKey])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String
+  targetId   String
+  targetType String
+  action     String
+  before     Json?
+  after      Json?
+  ip         String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  @@index([actorId])
+  @@index([targetId])
+}
+
+model DocumentVerification {
+  id         String                     @id @default(cuid())
+  userId     String
+  user       User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  docType    String
+  docUrl     String
+  status     DocumentVerificationStatus @default(PENDING)
+  reviewedBy String?
+  reviewNote String?
+  createdAt  DateTime                   @default(now())
+  updatedAt  DateTime                   @updatedAt
+
+  @@index([userId])
+}
+
+model UserRestriction {
+  id        String              @id @default(cuid())
+  userId    String
+  user      User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      UserRestrictionType
+  reason    String
+  expiresAt DateTime?
+  createdBy String
+  revokedAt DateTime?
+  createdAt DateTime            @default(now())
+
+  @@index([userId])
 }

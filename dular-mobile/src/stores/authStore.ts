@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { create } from "zustand";
 import { setAuthToken, registerClearSession } from "@/lib/api";
+import { SecureStorage } from "@/services/secureStorage";
 
 function isJwtExpired(token: string): boolean {
   try {
@@ -23,6 +24,14 @@ type User = {
   telefone?: string;
   role: Role;
   avatarUrl?: string | null;
+  bio?: string | null;
+  verificado?: boolean;
+  docEnviado?: boolean;
+  verificacao?: {
+    status: "NAO_ENVIADO" | "PENDENTE" | "APROVADO" | "REPROVADO";
+    updatedAt?: string;
+    motivo?: string | null;
+  } | null;
 };
 
 type AuthState = {
@@ -30,84 +39,86 @@ type AuthState = {
   token: string | null;
   role: Role | null;
   hydrated: boolean;
+  isAuthenticated: boolean;
   setSession: (data: { token: string; role: Role; user?: User | null }) => Promise<void>;
   clearSession: () => Promise<void>;
   hydrate: () => Promise<void>;
   setUser: (next: User | null | ((prev: User | null) => User | null)) => void;
 };
 
-const STORAGE_KEYS = ["dular_token", "token", "role", "userName", "userId", "dular_user"] as const;
+// Non-sensitive keys that stay in AsyncStorage
+const ASYNC_KEYS = ["role", "dular_role", "userName", "userId"] as const;
 
 export const useAuth = create<AuthState>((set) => ({
   user: null,
   token: null,
   role: null,
   hydrated: false,
+  isAuthenticated: false,
 
   async setSession(data) {
     const { token, role, user } = data;
     await setAuthToken(token);
-    const entries: [string, string][] = [
-      ["dular_token", token],
-      ["token", token], // compat
-      ["role", role],
-    ];
+
+    // Sensitive: store in SecureStore (encrypted)
+    await SecureStorage.saveToken(token);
+    if (user) await SecureStorage.saveUser(user);
+
+    // Non-sensitive: store in AsyncStorage
+    const entries: [string, string][] = [["role", role]];
     if (user?.nome) entries.push(["userName", user.nome]);
     if (user?.id) entries.push(["userId", user.id]);
-    if (user) entries.push(["dular_user", JSON.stringify(user)]);
     await AsyncStorage.multiSet(entries);
-    set({ token, role, user: user ?? null });
+
+    set({ token, role, user: user ?? null, isAuthenticated: true });
   },
 
   async clearSession() {
     await setAuthToken(null);
-    await AsyncStorage.multiRemove(STORAGE_KEYS as unknown as string[]);
-    set({ token: null, role: null, user: null });
+    await SecureStorage.clearAll();
+    await AsyncStorage.multiRemove(ASYNC_KEYS as unknown as string[]);
+    set({ token: null, role: null, user: null, isAuthenticated: false });
   },
 
   async hydrate() {
-    const pairs = await AsyncStorage.multiGet(STORAGE_KEYS as unknown as string[]);
+    console.log("[hydrate] iniciando...");
+
+    // Sensitive: read from SecureStore
+    const token = await SecureStorage.getToken();
+    const userFromSecure = await SecureStorage.getUser<User>();
+
+    // Non-sensitive: read from AsyncStorage
+    const pairs = await AsyncStorage.multiGet(ASYNC_KEYS as unknown as string[]);
     const map = Object.fromEntries(pairs);
-    const token = map["dular_token"] || map["token"] || null;
-    const role = map["role"] as Role | null;
-    const userJson = map["dular_user"];
+    const role = (map["role"] || map["dular_role"]) as Role | null;
     const userName = map["userName"];
     const userId = map["userId"];
+
+    console.log("[hydrate] valores:", { token, role });
 
     if (token && role) {
       if (isJwtExpired(token)) {
         await setAuthToken(null);
-        await AsyncStorage.multiRemove(STORAGE_KEYS as unknown as string[]);
-        set({ token: null, role: null, user: null, hydrated: true });
+        await SecureStorage.clearAll();
+        await AsyncStorage.multiRemove(ASYNC_KEYS as unknown as string[]);
+        set({ token: null, role: null, user: null, hydrated: true, isAuthenticated: false });
+        console.log("[hydrate] finalizado: token expirado, limpando sessão");
+        console.log("[hydrate] finalizado, estado atual:", useAuth.getState());
         return;
       }
 
-      let userObj: User | null = null;
-      if (userJson) {
-        try {
-          userObj = JSON.parse(userJson);
-        } catch {
-          userObj = null;
-        }
-      }
+      let userObj: User | null = userFromSecure;
       if (!userObj && (userName || userId)) {
-        userObj = {
-          id: userId || "",
-          nome: userName || "",
-          role,
-        };
+        userObj = { id: userId || "", nome: userName || "", role };
       }
 
       await setAuthToken(token);
-      set({
-        token,
-        role,
-        user: userObj,
-        hydrated: true,
-      });
+      set({ token, role, user: userObj, hydrated: true, isAuthenticated: true });
+      console.log("[hydrate] finalizado, estado atual:", useAuth.getState());
       return;
     }
-    set({ hydrated: true });
+    set({ hydrated: true, isAuthenticated: false });
+    console.log("[hydrate] finalizado, estado atual:", useAuth.getState());
   },
 
   setUser(next) {
@@ -117,6 +128,8 @@ export const useAuth = create<AuthState>((set) => ({
     });
   },
 }));
+
+export const useAuthStore = useAuth;
 
 // Registra clearSession no cliente HTTP para limpeza automática em 401/jwt-expired
 registerClearSession(() => useAuth.getState().clearSession());

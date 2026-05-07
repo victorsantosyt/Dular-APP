@@ -9,8 +9,10 @@
  */
 export {
   colors,
+  gradients,
   radius,
   shadow,
+  theme,
   typography,
   spacing,
   contentWidth,

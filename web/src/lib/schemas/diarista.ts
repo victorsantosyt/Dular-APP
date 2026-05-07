@@ -2,6 +2,7 @@ import { z } from "zod";
 
 export const updatePrecosSchema = z.object({
   precoLeve: z.number().int().min(1000).max(500000),
+  precoMedio: z.number().int().min(1000).max(650000).optional(),
   precoPesada: z.number().int().min(1000).max(800000),
   bio: z.string().max(300).optional(),
 });

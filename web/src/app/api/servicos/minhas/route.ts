@@ -24,17 +24,23 @@ export async function GET(req: Request) {
       take: 50,
     });
 
-    const safe = servicos.map((s) => ({
-      ...s,
-      enderecoCompleto:
+    const safe = servicos.map((s) => {
+      const canSeeAddress =
         s.status === "ACEITO" ||
         s.status === "EM_ANDAMENTO" ||
         s.status === "CONCLUIDO" ||
         s.status === "CONFIRMADO" ||
-        s.status === "FINALIZADO"
-          ? s.enderecoCompleto
-          : null,
-    }));
+        s.status === "FINALIZADO" ||
+        (auth.role === "DIARISTA" && s.status === "SOLICITADO");
+
+      const endereco = canSeeAddress ? s.enderecoCompleto : null;
+
+      return {
+        ...s,
+        enderecoCompleto: endereco,
+        endereco,
+      };
+    });
 
     return NextResponse.json({ ok: true, servicos: safe });
   } catch (error: unknown) {

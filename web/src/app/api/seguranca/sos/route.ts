@@ -8,9 +8,20 @@ export async function POST(req: Request) {
   try {
     const auth = requireAuth(req);
     const body = await req.json().catch(() => ({}));
-    const serviceId = body?.serviceId as string | undefined;
-    const lat = typeof body?.lat === "number" ? body.lat : undefined;
-    const lng = typeof body?.lng === "number" ? body.lng : undefined;
+    const serviceId = (body?.servicoId || body?.serviceId) as string | undefined;
+    const lat =
+      typeof body?.latitude === "number"
+        ? body.latitude
+        : typeof body?.lat === "number"
+          ? body.lat
+          : undefined;
+    const lng =
+      typeof body?.longitude === "number"
+        ? body.longitude
+        : typeof body?.lng === "number"
+          ? body.lng
+          : undefined;
+    const mensagem = typeof body?.mensagem === "string" ? body.mensagem.trim() : "";
 
     await prisma.$transaction(async (tx) => {
       await tx.safetyEvent.create({
@@ -20,6 +31,7 @@ export async function POST(req: Request) {
           serviceId: serviceId || null,
           lat: lat ?? null,
           lng: lng ?? null,
+          meta: mensagem ? { mensagem } : undefined,
         },
       });
 
@@ -40,7 +52,7 @@ export async function POST(req: Request) {
               serviceId,
               type: "OUTRO",
               severity: "ALTA",
-              description: "SOS silencioso acionado pelo usuário.",
+              description: mensagem || "SOS silencioso acionado pelo usuário.",
               status: "ABERTO",
             },
           });

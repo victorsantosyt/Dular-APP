@@ -21,11 +21,11 @@ import {
   SafeAreaView,
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import * as ImagePicker from "expo-image-picker";
 
 import { requestLocationWithAddress } from "@/lib/location";
+import { api } from "@/lib/api";
 import {
   getMe,
   updateMe,
@@ -33,6 +33,7 @@ import {
   type Me,
   type VerificacaoStatus,
 } from "@/api/perfilApi";
+import { type SafeScoreTier } from "@/api/safeScoreApi";
 import { apiMsg } from "@/utils/apiMsg";
 import { useAuth } from "@/stores/authStore";
 
@@ -40,9 +41,19 @@ import { useAuth } from "@/stores/authStore";
 import { colors, radius, shadow, spacing, typography } from "@/theme/tokens";
 import { DularBadge } from "@/components/DularBadge";
 import { DButton } from "@/components/DButton";
+import { SafeScoreBadge } from "@/components/SafeScoreBadge";
+import { AppIcon } from "@/components/ui";
 import { PERFIL_STACK_ROUTES } from "@/navigation/routes";
 
 type Props = { onLogout: () => void };
+type SafeScoreSummary = {
+  faixa: string;
+  cor: string;
+  bloqueado: boolean;
+  totalServicos: number;
+  verificado: boolean;
+  tier?: SafeScoreTier;
+};
 
 // Badge de verificação → variante DularBadge
 function verificacaoBadge(status: VerificacaoStatus) {
@@ -73,6 +84,8 @@ export default function ClientePerfil({ onLogout }: Props) {
   const [avatarLocal, setAvatarLocal]   = useState<string | null>(null);
   const [avatarRemote, setAvatarRemote] = useState<string | null>(null);
   const [verificacao, setVerificacao]   = useState<VerificacaoStatus>("NAO_ENVIADO");
+  const [safeScore, setSafeScore]       = useState<SafeScoreSummary | null>(null);
+  const [scoreLoading, setScoreLoading] = useState(false);
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -105,7 +118,19 @@ export default function ClientePerfil({ onLogout }: Props) {
     try {
       setError(null);
       setLoading(true);
-      applyMe(await getMe());
+      const data = await getMe();
+      applyMe(data);
+      if (data?.id) {
+        try {
+          setScoreLoading(true);
+          const scoreRes = await api.get<SafeScoreSummary>(`/api/usuarios/${data.id}/score`);
+          setSafeScore(scoreRes.data);
+        } catch {
+          setSafeScore(null);
+        } finally {
+          setScoreLoading(false);
+        }
+      }
     } catch (e: any) {
       setError(apiMsg(e, "Falha ao carregar perfil."));
     } finally {
@@ -237,17 +262,32 @@ export default function ClientePerfil({ onLogout }: Props) {
                     style={s.avatarImg}
                   />
                 ) : (
-                  <Ionicons name="person-circle" size={80} color={colors.green} />
+                  <AppIcon name="User" size={54} color={colors.green} background />
                 )}
                 {/* Ícone de câmera sobre avatar */}
                 <View style={s.cameraBtn}>
-                  <Ionicons name="camera" size={13} color="#FFF" />
+                  <AppIcon name="Camera" size={13} color="#FFF" />
                 </View>
               </Pressable>
 
               <Text style={s.nomeText}>{nome || "Cliente"}</Text>
 
               <DularBadge text={badgeLabel} variant={badgeVariant} />
+
+              {scoreLoading ? (
+                <ActivityIndicator color={colors.green} />
+              ) : safeScore ? (
+                <>
+                  <SafeScoreBadge {...safeScore} style={{ marginTop: 4 }} />
+                  {safeScore.bloqueado ? (
+                    <View style={s.restrictedBox}>
+                      <Text style={s.restrictedText}>
+                        Este usuário está com acesso restrito na plataforma
+                      </Text>
+                    </View>
+                  ) : null}
+                </>
+              ) : null}
 
               <Pressable onPress={pickAvatar} style={s.fotoBtn}>
                 <Text style={s.fotoBtnText}>{saving ? "Enviando..." : "Alterar foto"}</Text>
@@ -299,7 +339,7 @@ export default function ClientePerfil({ onLogout }: Props) {
               </View>
               <DButton
                 title={
-                  verificacao === "APROVADO" ? "Verificado ✓"
+                  verificacao === "APROVADO" ? "Verificado"
                   : verificacao === "PENDENTE" ? "Acompanhar / reenviar"
                   : "Enviar documentos"
                 }
@@ -341,7 +381,7 @@ export default function ClientePerfil({ onLogout }: Props) {
 
             {/* ── Logout ── */}
             <Pressable onPress={onLogout} style={s.logoutBtn}>
-              <Ionicons name="log-out-outline" size={18} color={colors.danger} />
+              <AppIcon name="LogOut" size={18} color={colors.danger} />
               <Text style={s.logoutText}>Sair da conta</Text>
             </Pressable>
           </>
@@ -470,6 +510,20 @@ const s = StyleSheet.create({
   },
   verLabel: {
     ...typography.sub,
+  },
+  restrictedBox: {
+    width: "100%",
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: "#FECACA",
+    backgroundColor: "#FEF2F2",
+    padding: 10,
+  },
+  restrictedText: {
+    color: colors.danger,
+    fontSize: 12,
+    fontWeight: "800",
+    textAlign: "center",
   },
 
   // Texto de ajuda

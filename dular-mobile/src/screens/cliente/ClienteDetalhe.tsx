@@ -19,20 +19,21 @@ import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 
 import { api } from "@/lib/api";
-import { Servico } from "@/types/servico";
+import type { ServicoListItem as Servico } from "../../../../shared/types/servico";
 import { DInput } from "@/components/DInput";
 import { DButton } from "@/components/DButton";
 import { DularBadge } from "@/components/DularBadge";
+import { formatPrice } from "@/utils/formatPrice";
+import { CLIENTE_STACK_ROUTES } from "@/navigation/routes";
 
 // ── Tokens ──────────────────────────────────────────────────────────────────
 import { colors, radius, shadow, spacing, typography } from "@/theme/tokens";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-const brl        = (v: number) => (v ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const formatDate = (v: string | number | Date) => new Date(v).toLocaleDateString("pt-BR");
 const statusUp   = (s: any) => String(s ?? "").toUpperCase();
-const FINAL      = ["CONFIRMADO","FINALIZADO","FINALIZADO_CLIENTE","CONCLUIDO","CONCLUÍDO","PAGO","AVALIADO"];
+const FINAL      = ["CONFIRMADO","FINALIZADO","FINALIZADO_CLIENTE","PAGO","AVALIADO"];
 const POLL_MS    = 5000;
 
 function statusLabel(st: string) {
@@ -133,11 +134,12 @@ export default function ClienteDetalhe({ route, navigation }: any) {
     [svc, statusRaw]
   );
   const podeConfirmar = useMemo(
-    () => !alreadyConfirmed && ["ACEITO","EM_ANDAMENTO","ANDAMENTO","AGUARDANDO_CONFIRMACAO","AGUARDANDO_CONFIRMAÇÃO"].includes(statusRaw),
+    () => !alreadyConfirmed && ["ACEITO","EM_ANDAMENTO","ANDAMENTO","AGUARDANDO_CONFIRMACAO","AGUARDANDO_CONFIRMAÇÃO","CONCLUIDO","CONCLUÍDO"].includes(statusRaw),
     [alreadyConfirmed, statusRaw]
   );
   const podeAvaliar = useMemo(() => !alreadyRated && statusRaw === "CONFIRMADO", [alreadyRated, statusRaw]);
   const contatoLiberado = useMemo(() => svc.status !== "SOLICITADO" && svc.diarista?.telefone, [svc]);
+  const chatLiberado = useMemo(() => ["ACEITO", "EM_ANDAMENTO"].includes(statusRaw), [statusRaw]);
 
   // ── Toast ─────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -236,7 +238,7 @@ export default function ClienteDetalhe({ route, navigation }: any) {
           <View style={s.infoRow}>
             <Ionicons name="cash-outline" size={15} color={colors.green} />
             <Text style={[s.infoText, { fontWeight: "800", color: colors.greenDark }]}>
-              {brl(svc.precoFinal / 100)}
+              {formatPrice(svc.precoFinal)}
             </Text>
           </View>
           <View style={s.divider} />
@@ -277,6 +279,14 @@ export default function ClienteDetalhe({ route, navigation }: any) {
               Serviço em andamento. Aguarde a conclusão para confirmar.
             </Text>
           </View>
+        )}
+
+        {chatLiberado && (
+          <DButton
+            title="Abrir chat"
+            variant="outline"
+            onPress={() => navigation.navigate(CLIENTE_STACK_ROUTES.CHAT, { servicoId: svc.id })}
+          />
         )}
 
         {/* Confirmar */}

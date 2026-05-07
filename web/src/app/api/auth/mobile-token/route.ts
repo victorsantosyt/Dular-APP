@@ -5,12 +5,12 @@ import { NextResponse } from "next/server";
 import type { UserRole } from "@prisma/client";
 
 // Gera um JWT próprio (mesmo formato de /api/auth/login) a partir da session NextAuth
-// e redireciona o mobile via deep link dular://auth?token=JWT&role=ROLE
+// e redireciona o mobile via deep link dular://auth/callback?token=JWT&role=ROLE
 export async function GET(request: Request) {
   const session = await auth();
 
   if (!session?.user?.id) {
-    return NextResponse.redirect("dular://auth?error=unauthorized");
+    return NextResponse.redirect("dular://auth/callback?error=unauthorized");
   }
 
   const user = await prisma.user.findUnique({
@@ -19,7 +19,7 @@ export async function GET(request: Request) {
   });
 
   if (!user?.role) {
-    return NextResponse.redirect("dular://auth?error=no_role");
+    return NextResponse.redirect("dular://auth/callback?error=no_role");
   }
 
   if (!user.cpf || !user.telefone) {
@@ -32,6 +32,6 @@ export async function GET(request: Request) {
     role: user.role as "CLIENTE" | "DIARISTA" | "ADMIN",
   });
 
-  const deepLink = `dular://auth?token=${encodeURIComponent(token)}&role=${user.role as UserRole}`;
+  const deepLink = `dular://auth/callback?token=${encodeURIComponent(token)}&role=${user.role as UserRole}`;
   return NextResponse.redirect(deepLink);
 }

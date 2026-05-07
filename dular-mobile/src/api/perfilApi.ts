@@ -19,7 +19,12 @@ export type Me = {
   bairros?: string[];
   disponibilidade?: any;
   precos?: any;
+  precoLeve?: number | null;
+  precoMedio?: number | null;
+  precoPesada?: number | null;
+  precoPesado?: number | null;
   verificado?: boolean;
+  docEnviado?: boolean;
   verificacao?: VerificacaoInfo;
 };
 
@@ -28,7 +33,17 @@ export async function getMe(): Promise<Me> {
   return res.data?.user ?? res.data;
 }
 
-export async function updateMe(payload: { nome?: string; email?: string; senhaAtual?: string; novaSenha?: string }): Promise<Me> {
+export async function updateMe(payload: {
+  nome?: string;
+  email?: string;
+  senhaAtual?: string;
+  novaSenha?: string;
+  bio?: string;
+  precoLeve?: number;
+  precoMedio?: number;
+  precoPesado?: number;
+  precoPesada?: number;
+}): Promise<Me> {
   const res = await api.put("/api/me", payload);
   return res.data?.user ?? res.data;
 }
@@ -53,7 +68,7 @@ export async function updateDiaristaDisponibilidade(payload: any) {
   return res.data;
 }
 
-export async function updateDiaristaPrecos(payload: { precoLeve: number; precoPesada: number; bio?: string }) {
+export async function updateDiaristaPrecos(payload: { precoLeve: number; precoMedio?: number; precoPesada: number; bio?: string }) {
   const res = await api.put("/api/diarista/precos", payload);
   return res.data;
 }

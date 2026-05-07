@@ -15,11 +15,13 @@ export const CLIENTE_STACK_ROUTES = {
   MINHAS: "ClienteMinhas",
   DETALHE: "ClienteDetalhe",
   PERFIL: "ClientePerfil",
+  CHAT: "Chat",
 } as const;
 
 export const DIARISTA_STACK_ROUTES = {
   SOLICITACOES: "DiaristaSolicitacoes",
   DETALHE: "DiaristaDetalhe",
+  CHAT: "Chat",
 } as const;
 
 export const PERFIL_STACK_ROUTES = {
@@ -34,6 +36,7 @@ export const PERFIL_STACK_ROUTES = {
   TERMOS: "Termos",
   PRIVACIDADE: "Privacidade",
   REPORT_INCIDENT: "ReportIncident",
+  SEGURANCA: "Seguranca",
 } as const;
 
 export type TabRouteName = (typeof TAB_ROUTES)[keyof typeof TAB_ROUTES];

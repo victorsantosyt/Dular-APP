@@ -18,7 +18,7 @@ import {
   View,
   ViewStyle,
 } from "react-native";
-import { colors, radius, spacing, typography } from "@/theme/tokens";
+import { colors, radius, shadow, spacing, typography } from "@/theme/tokens";
 
 type Props = TextInputProps & {
   icon?: React.ReactNode;
@@ -81,11 +81,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 12,
     gap: 10,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 1,
+    ...shadow.soft,
   },
   boxError: {
     borderColor: colors.danger,

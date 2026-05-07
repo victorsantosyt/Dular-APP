@@ -26,20 +26,20 @@ import { FlashList, type ListRenderItemInfo } from "@shopify/flash-list";
 import { Ionicons } from "@expo/vector-icons";
 
 import { api } from "@/lib/api";
-import { MinhasResponse, Servico } from "@/types/servico";
+import type { MinhasResponse, ServicoListItem as Servico } from "../../../../shared/types/servico";
 
 // ── Tokens ──────────────────────────────────────────────────────────────────
 import { colors, radius, shadow, spacing, typography } from "@/theme/tokens";
 import { DularBadge } from "@/components/DularBadge";
 import { CLIENTE_STACK_ROUTES } from "@/navigation/routes";
+import { formatPrice } from "@/utils/formatPrice";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-const brl        = (v: number) => (v ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const formatDate = (v: string | number | Date) => new Date(v).toLocaleDateString("pt-BR");
 const statusUp   = (s: any) => String(s ?? "").toUpperCase();
 
-const FINAL = ["CONFIRMADO","FINALIZADO","FINALIZADO_CLIENTE","CONCLUIDO","CONCLUÍDO","PAGO","AVALIADO"];
+const FINAL = ["CONFIRMADO","FINALIZADO","FINALIZADO_CLIENTE","PAGO","AVALIADO"];
 
 const isConfirmed = (item: any) =>
   Boolean(item?.__confirmedByClient || item?.finishedAt || item?.finalizadoEm || FINAL.includes(statusUp(item?.status)));
@@ -50,7 +50,7 @@ function statusLabel(st: string) {
   const s = statusUp(st);
   if (s === "ACEITO")        return "Aceito";
   if (s === "EM_ANDAMENTO")  return "Em andamento";
-  if (["CONCLUIDO","CONCLUÍDO"].includes(s)) return "Concluído (confirme)";
+  if (["CONCLUIDO","CONCLUÍDO"].includes(s)) return "Aguarda sua confirmação";
   if (s === "CONFIRMADO")    return "Confirmado";
   if (s === "FINALIZADO")    return "Finalizado";
   if (["CANCELADO","CANCELADA","RECUSADO","RECUSADA"].includes(s)) return "Cancelado";
@@ -107,7 +107,7 @@ export default function ClienteMinhas() {
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <SafeAreaView style={s.safe} edges={["top","left","right","bottom"]}>
+    <SafeAreaView style={s.safe} edges={["top","left","right"]}>
 
       {/* Header */}
       <View style={[s.header, { paddingTop: insets.top + 8 }]}>
@@ -153,7 +153,7 @@ export default function ClienteMinhas() {
 
               {/* Preço + data */}
               <View style={s.cardFooter}>
-                <Text style={s.cardPrice}>{brl(item.precoFinal / 100)}</Text>
+                <Text style={s.cardPrice}>{formatPrice(item.precoFinal)}</Text>
                 <Text style={s.cardDate}>Criado em {formatDate(item.createdAt)}</Text>
               </View>
 

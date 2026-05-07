@@ -12,14 +12,16 @@ import { colors, radius, shadow } from "@/theme/tokens";
 
 type Props = ViewProps & {
   elevation?: "low" | "float";
+  variant?: "default" | "soft" | "elevated" | "outline";
 };
 
-export function DCard({ elevation = "low", style, ...rest }: Props) {
+export function DCard({ elevation = "low", variant = "default", style, ...rest }: Props) {
   return (
     <View
       {...rest}
       style={[
         styles.base,
+        styles[variant],
         elevation === "float" ? shadow.float : shadow.card,
         style,
       ]}
@@ -33,9 +35,17 @@ export const DularCard = DCard;
 const styles = StyleSheet.create({
   base: {
     backgroundColor: colors.card,
-    borderRadius: radius.lg,
+    borderRadius: radius.xl,
     borderWidth: 1,
     borderColor: colors.stroke,
-    padding: 14,
+    padding: 16,
+  },
+  default: {},
+  soft: {
+    backgroundColor: colors.lavenderSoft,
+  },
+  elevated: {},
+  outline: {
+    shadowOpacity: 0,
   },
 });

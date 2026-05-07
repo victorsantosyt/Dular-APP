@@ -20,6 +20,7 @@ import { Screen } from "@/components/Screen";
 import { DButton } from "@/components/DButton";
 import { DInput } from "@/components/DInput";
 import { colors, radius, shadow, spacing, typography } from "@/theme/tokens";
+import { parsePriceToCents } from "@/utils/formatPrice";
 
 // ── Componente ────────────────────────────────────────────────────────────────
 
@@ -27,6 +28,9 @@ export default function EditProfile({ navigation }: any) {
   const [nome,     setNome]     = useState("");
   const [telefone, setTelefone] = useState("");
   const [bio,      setBio]      = useState("");
+  const [precoLeve, setPrecoLeve] = useState("");
+  const [precoMedio, setPrecoMedio] = useState("");
+  const [precoPesado, setPrecoPesado] = useState("");
   const [loading,  setLoading]  = useState(true);
   const [saving,   setSaving]   = useState(false);
   const [error,    setError]    = useState<string | null>(null);
@@ -39,12 +43,23 @@ export default function EditProfile({ navigation }: any) {
     setNome(data.nome ?? "");
     setTelefone(data.telefone ?? "");
     setBio(data.bio ?? "");
+    if (data.precoLeve != null) setPrecoLeve(String(data.precoLeve / 100));
+    if (data.precoMedio != null) {
+      setPrecoMedio(String(data.precoMedio / 100));
+    } else if (data.precoLeve != null && (data.precoPesado != null || data.precoPesada != null)) {
+      const pesada = data.precoPesado ?? data.precoPesada ?? 0;
+      setPrecoMedio(String(Math.round(((data.precoLeve + pesada) / 2) / 100)));
+    }
+    if (data.precoPesado != null || data.precoPesada != null) {
+      setPrecoPesado(String((data.precoPesado ?? data.precoPesada ?? 0) / 100));
+    }
     setUser((prev) => ({
       ...(prev ?? { id: data.id }),
       id: data.id || prev?.id || "",
       nome: data.nome ?? prev?.nome ?? "",
       telefone: data.telefone ?? prev?.telefone,
       role: (data.role as any) ?? prev?.role,
+      bio: data.bio ?? prev?.bio,
     }));
   }, [setUser]);
 
@@ -67,10 +82,34 @@ export default function EditProfile({ navigation }: any) {
   // ── Save ──────────────────────────────────────────────────────────────────
   const save = async () => {
     if (saving || busyRef.current) return;
+    const nomeTrim = nome.trim();
+    const precoLeveCents = parsePriceToCents(precoLeve);
+    const precoMedioCents = parsePriceToCents(precoMedio);
+    const precoPesadoCents = parsePriceToCents(precoPesado);
+
+    if (!nomeTrim) {
+      Alert.alert("Dados inválidos", "Nome não pode ser vazio.");
+      return;
+    }
+    if (
+      !Number.isFinite(precoLeveCents) || precoLeveCents <= 0 ||
+      !Number.isFinite(precoMedioCents) || precoMedioCents <= 0 ||
+      !Number.isFinite(precoPesadoCents) || precoPesadoCents <= 0
+    ) {
+      Alert.alert("Dados inválidos", "Preços devem ser números positivos.");
+      return;
+    }
+
     busyRef.current = true;
     try {
       setSaving(true);
-      const updated = await updateMe({ nome });
+      const updated = await updateMe({
+        nome: nomeTrim,
+        bio,
+        precoLeve: precoLeveCents,
+        precoMedio: precoMedioCents,
+        precoPesado: precoPesadoCents,
+      });
       apply(updated);
       Alert.alert("Sucesso", "Dados atualizados.");
       navigation.goBack();
@@ -120,6 +159,27 @@ export default function EditProfile({ navigation }: any) {
             placeholder="Conte sobre sua experiência..."
             multiline
             style={{ minHeight: 88 }}
+          />
+          <DInput
+            label="Preço faxina leve"
+            value={precoLeve}
+            onChangeText={setPrecoLeve}
+            keyboardType="decimal-pad"
+            placeholder="150,00"
+          />
+          <DInput
+            label="Preço faxina média"
+            value={precoMedio}
+            onChangeText={setPrecoMedio}
+            keyboardType="decimal-pad"
+            placeholder="180,00"
+          />
+          <DInput
+            label="Preço faxina pesada"
+            value={precoPesado}
+            onChangeText={setPrecoPesado}
+            keyboardType="decimal-pad"
+            placeholder="220,00"
           />
 
           <DButton

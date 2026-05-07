@@ -12,3 +12,6 @@
 # nested git backups
 **/.git.bak
 **/.git_backup
+.claude/
+.claire/
+.clone/

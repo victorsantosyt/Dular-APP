@@ -28,10 +28,10 @@ type Props = {
 };
 
 const VARIANTS: Record<Variant, { bg: string; color: string }> = {
-  success: { bg: colors.greenLight,  color: colors.greenDark },
-  warning: { bg: "#FEF9C3",          color: "#92400E" },
-  danger:  { bg: "#FEE2E2",          color: colors.danger },
-  neutral: { bg: "#F1F5F3",          color: colors.sub },
+  success: { bg: colors.successSoft, color: colors.success },
+  warning: { bg: colors.warningSoft, color: colors.warning },
+  danger:  { bg: colors.dangerSoft,  color: colors.danger },
+  neutral: { bg: colors.lavenderSoft, color: colors.sub },
 };
 
 export function DularBadge({
@@ -64,12 +64,14 @@ const styles = StyleSheet.create({
     alignSelf: "flex-start",
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: radius.sm,
+    minHeight: 18,
+    borderRadius: radius.pill,
     gap: 5,
   },
   icon: {},
   label: {
     fontSize: 12,
+    lineHeight: 16,
     fontWeight: "700",
   },
 });

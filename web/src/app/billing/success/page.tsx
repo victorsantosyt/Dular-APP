@@ -1,9 +1,17 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { useEffect } from "react";
+import { Suspense, useEffect } from "react";
 
-export default function BillingSuccess() {
+function RedirectFallback() {
+  return (
+    <main className="flex min-h-screen items-center justify-center bg-[#E6EDEA]">
+      <p className="text-sm text-gray-500">Redirecionando para o app…</p>
+    </main>
+  );
+}
+
+function BillingSuccessContent() {
   const searchParams = useSearchParams();
   const sessionId = searchParams.get("session_id") ?? "";
 
@@ -12,8 +20,14 @@ export default function BillingSuccess() {
   }, [sessionId]);
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[#E6EDEA]">
-      <p className="text-sm text-gray-500">Redirecionando para o app…</p>
-    </main>
+    <RedirectFallback />
+  );
+}
+
+export default function BillingSuccess() {
+  return (
+    <Suspense fallback={<RedirectFallback />}>
+      <BillingSuccessContent />
+    </Suspense>
   );
 }

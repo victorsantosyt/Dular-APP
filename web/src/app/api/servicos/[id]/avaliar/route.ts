@@ -5,6 +5,7 @@ import { avaliarServicoSchema } from "@/lib/schemas/servicos";
 import { assertStatus, recomputeDiaristaStats } from "@/lib/regrasServico";
 import { ServicoStatus } from "@prisma/client";
 import { registrarEvento } from "@/lib/servicoEvento";
+import { aplicarEvento } from "@/lib/safeScore";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -39,7 +40,7 @@ export async function POST(req: Request, { params }: Params) {
 
     assertStatus(servico.status as ServicoStatus, ["CONFIRMADO"]);
 
-    await prisma.avaliacao.create({
+    const avaliacao = await prisma.avaliacao.create({
       data: {
         servicoId: servico.id,
         clientId: servico.clientId,
@@ -56,6 +57,13 @@ export async function POST(req: Request, { params }: Params) {
     await registrarEvento(servico.id, servico.status as ServicoStatus, "FINALIZADO", auth.role, auth.userId);
 
     await recomputeDiaristaStats(servico.diaristaId);
+
+    await aplicarEvento(
+      servico.diaristaId,
+      parsed.data.notaGeral >= 4 ? "AVALIACAO_POSITIVA" : "AVALIACAO_NEGATIVA",
+      avaliacao.id,
+      `nota=${parsed.data.notaGeral}`,
+    );
 
     return NextResponse.json({ ok: true });
   } catch (error: unknown) {

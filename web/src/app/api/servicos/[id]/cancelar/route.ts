@@ -5,6 +5,8 @@ import { cancelarServicoSchema } from "@/lib/schemas/servicos";
 import { assertStatus, isCancelamentoTardio } from "@/lib/regrasServico";
 import { ServicoStatus } from "@prisma/client";
 import { registrarEvento } from "@/lib/servicoEvento";
+import { sendPushNotification } from "@/lib/notifications";
+import { aplicarEvento } from "@/lib/safeScore";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -48,6 +50,20 @@ export async function POST(req: Request, { params }: Params) {
     });
 
     await registrarEvento(servico.id, servico.status as ServicoStatus, "CANCELADO", auth.role, auth.userId);
+
+    await aplicarEvento(auth.userId, "CANCELAMENTO", id).catch(() => null);
+
+    const destinoId = isCliente ? servico.diaristaId : servico.clientId;
+    if (destinoId) {
+      await sendPushNotification(
+        destinoId,
+        "Serviço cancelado",
+        isCliente
+          ? "O cliente cancelou a solicitação."
+          : "A diarista cancelou o serviço.",
+        { servicoId: servico.id, tipo: "SERVICO_CANCELADO", tardio }
+      );
+    }
 
     return NextResponse.json({ ok: true, tardio, servico: updated });
   } catch (error: unknown) {

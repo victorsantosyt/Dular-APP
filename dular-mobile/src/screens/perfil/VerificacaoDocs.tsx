@@ -1,21 +1,50 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Text, View, Pressable, Alert, Image } from "react-native";
+import { Text, View, Pressable, Alert, Image, ActivityIndicator } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { Screen } from "@/components/Screen";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { apiMsg } from "@/utils/apiMsg";
+import { api } from "@/lib/api";
+import { getMe, type VerificacaoStatus } from "@/api/perfilApi";
+import { useAuth } from "@/stores/authStore";
 
-type FileField = "docFrente" | "selfie" | "docVerso";
+type FileField = "docFrente" | "docVerso";
+type UploadState = "idle" | "selecionando" | "enviando" | "sucesso" | "erro";
+
+type PickedFile = {
+  uri: string;
+  name: string;
+  type: string;
+};
+
+function makeFile(asset: ImagePicker.ImagePickerAsset, fallbackName: string): PickedFile {
+  const uri = asset.uri;
+  const ext = uri.split(".").pop()?.toLowerCase();
+  const type = asset.mimeType ?? (ext === "png" ? "image/png" : "image/jpeg");
+  const normalizedExt = type === "image/png" ? "png" : "jpg";
+  return {
+    uri,
+    name: asset.fileName ?? `${fallbackName}.${normalizedExt}`,
+    type,
+  };
+}
 
 export default function VerificacaoDocs() {
   const nav = useNavigation<any>();
-  const [docFrente, setDocFrente] = useState<string | null>(null);
-  const [docVerso, setDocVerso] = useState<string | null>(null);
-  const [selfie, setSelfie] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
+  const currentUser = useAuth((s) => s.user);
+  const setUser = useAuth((s) => s.setUser);
+  const [docFrente, setDocFrente] = useState<PickedFile | null>(null);
+  const [docVerso, setDocVerso] = useState<PickedFile | null>(null);
+  const [state, setState] = useState<UploadState>("idle");
+  const [verificacao, setVerificacao] = useState<VerificacaoStatus>(
+    currentUser?.verificacao?.status ?? "NAO_ENVIADO"
+  );
+  const [docEnviado, setDocEnviado] = useState(Boolean(currentUser?.docEnviado));
   const [toast, setToast] = useState<string | null>(null);
   const busyRef = useRef(false);
+  const locked = verificacao === "APROVADO" || (verificacao === "PENDENTE" && docEnviado);
+  const saving = state === "enviando";
 
   useEffect(() => {
     if (!toast) return;
@@ -23,48 +52,103 @@ export default function VerificacaoDocs() {
     return () => clearTimeout(t);
   }, [toast]);
 
+  useEffect(() => {
+    let alive = true;
+
+    async function loadStatus() {
+      try {
+        const me = await getMe();
+        if (!alive) return;
+        setVerificacao(me.verificacao?.status ?? "NAO_ENVIADO");
+        setDocEnviado(Boolean(me.docEnviado));
+      } catch {
+        // Mantém o estado local atual se não conseguir atualizar agora.
+      }
+    }
+
+    loadStatus();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   const pick = useCallback(async (field: FileField) => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (locked) return;
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== "granted") {
-      setToast("Permissão negada para acessar fotos.");
+      setToast("Permissão negada para usar a câmera.");
       return;
     }
-    const res = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [3, 4],
-      quality: 0.8,
-    });
-    if (res.canceled) return;
-    const uri = res.assets?.[0]?.uri;
-    if (!uri) return;
-    if (field === "docFrente") setDocFrente(uri);
-    if (field === "docVerso") setDocVerso(uri);
-    if (field === "selfie") setSelfie(uri);
-  }, []);
+    try {
+      setState("selecionando");
+      const res = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [3, 4],
+        quality: 0.8,
+      });
+      if (res.canceled) {
+        setState("idle");
+        return;
+      }
+      const asset = res.assets?.[0];
+      if (!asset?.uri) {
+        setState("idle");
+        return;
+      }
+      const file = makeFile(asset, field);
+      if (field === "docFrente") setDocFrente(file);
+      if (field === "docVerso") setDocVerso(file);
+      setState("idle");
+    } catch (e: any) {
+      setState("erro");
+      setToast(apiMsg(e, "Falha ao selecionar imagem."));
+    }
+  }, [locked]);
 
   const enviar = async () => {
     if (busyRef.current) return;
-    if (!docFrente || !selfie) {
-      Alert.alert("Envio", "Selecione documento (frente) e selfie.");
+    if (locked) {
+      Alert.alert("Verificação", verificacao === "APROVADO" ? "Sua verificação já foi aprovada." : "Sua verificação já está pendente.");
+      return;
+    }
+    if (!docFrente || !docVerso) {
+      Alert.alert("Envio", "Selecione frente e verso do documento.");
       return;
     }
     busyRef.current = true;
     try {
-      setSaving(true);
+      setState("enviando");
       setToast(null);
-      Alert.alert("Verificação", "Envio de documentos será habilitado em breve.");
+      const form = new FormData();
+      form.append("docFrente", docFrente as any);
+      form.append("docVerso", docVerso as any);
+
+      await api.post("/api/verificacoes", form, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+
+      setState("sucesso");
+      setVerificacao("PENDENTE");
+      setDocEnviado(true);
+      setUser((prev) => prev ? ({
+        ...prev,
+        docEnviado: true,
+        verificacao: { status: "PENDENTE" },
+      }) : prev);
+      Alert.alert("Documentos enviados", "Sua verificação está pendente de análise.");
     } catch (e: any) {
+      setState("erro");
       setToast(apiMsg(e, "Falha ao enviar documentos."));
     } finally {
-      setSaving(false);
       busyRef.current = false;
     }
   };
 
-  const renderPick = (label: string, uri: string | null, field: FileField) => (
+  const renderPick = (label: string, file: PickedFile | null, field: FileField) => (
     <Pressable
       onPress={() => pick(field)}
+      disabled={locked || saving || state === "selecionando"}
       style={{
         borderWidth: 1,
         borderColor: "#EEF2F4",
@@ -72,10 +156,11 @@ export default function VerificacaoDocs() {
         padding: 12,
         backgroundColor: "rgba(255,255,255,0.92)",
         alignItems: "center",
+        opacity: locked ? 0.6 : 1,
       }}
     >
-      {uri ? (
-        <Image source={{ uri }} style={{ width: "100%", height: 160, borderRadius: 12 }} />
+      {file ? (
+        <Image source={{ uri: file.uri }} style={{ width: "100%", height: 160, borderRadius: 12 }} />
       ) : (
         <View style={{ alignItems: "center", gap: 6 }}>
           <Ionicons name="cloud-upload-outline" size={26} color="#4FA38F" />
@@ -102,28 +187,41 @@ export default function VerificacaoDocs() {
           </View>
         ) : null}
 
+        {locked ? (
+          <View style={{ padding: 12, borderRadius: 12, backgroundColor: "#E0F2FE" }}>
+            <Text style={{ color: "#075985", fontWeight: "800" }}>
+              {verificacao === "APROVADO" ? "Verificação aprovada." : "Documentos enviados. Análise pendente."}
+            </Text>
+          </View>
+        ) : null}
+
         <Text style={{ fontSize: 15, fontWeight: "800", color: "#2B3443" }}>Envie seus documentos</Text>
         <Text style={{ color: "#8E9AA6" }}>
-          RG/CNH (frente e verso) e selfie. Usamos isso para manter a comunidade segura.
+          RG/CNH frente e verso. Usamos isso para manter a comunidade segura.
         </Text>
 
         {renderPick("Documento (frente)", docFrente, "docFrente")}
-        {renderPick("Documento (verso) - opcional", docVerso, "docVerso")}
-        {renderPick("Selfie", selfie, "selfie")}
+        {renderPick("Documento (verso)", docVerso, "docVerso")}
 
         <Pressable
           onPress={enviar}
-          disabled={saving}
+          disabled={locked || saving || state === "selecionando"}
           style={{
             marginTop: 4,
             backgroundColor: "#4FA38F",
             borderRadius: 14,
             padding: 14,
             alignItems: "center",
-            opacity: saving ? 0.7 : 1,
+            opacity: locked || saving || state === "selecionando" ? 0.7 : 1,
           }}
         >
-          <Text style={{ color: "#fff", fontWeight: "800" }}>{saving ? "Enviando..." : "Enviar documentos"}</Text>
+          {saving || state === "selecionando" ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={{ color: "#fff", fontWeight: "800" }}>
+              {state === "sucesso" ? "Documentos enviados" : "Enviar documentos"}
+            </Text>
+          )}
         </Pressable>
     </Screen>
   );

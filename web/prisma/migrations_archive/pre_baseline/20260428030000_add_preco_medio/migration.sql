@@ -1,0 +1,1 @@
+ALTER TABLE "DiaristaProfile" ADD COLUMN "precoMedio" INTEGER NOT NULL DEFAULT 0;

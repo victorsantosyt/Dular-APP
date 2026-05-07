@@ -22,9 +22,9 @@ import {
   Text,
   ViewStyle,
 } from "react-native";
-import { colors, radius, typography } from "@/theme/tokens";
+import { colors, radius, shadow, spacing, typography } from "@/theme/tokens";
 
-export type DButtonVariant = "primary" | "outline" | "ghost";
+export type DButtonVariant = "primary" | "secondary" | "outline" | "ghost";
 
 type Props = PressableProps & {
   title: string;
@@ -59,7 +59,7 @@ export function DButton({
     >
       {loading ? (
         <ActivityIndicator
-          color={variant === "primary" ? "#FFFFFF" : colors.green}
+          color={variant === "primary" ? colors.textOnPrimary : colors.primary}
           size="small"
         />
       ) : (
@@ -67,6 +67,7 @@ export function DButton({
           style={[
             styles.label,
             variant === "primary"  && styles.labelPrimary,
+            variant === "secondary" && styles.labelSecondary,
             variant === "outline"  && styles.labelOutline,
             variant === "ghost"    && styles.labelGhost,
             isDisabled             && styles.labelDisabled,
@@ -81,27 +82,27 @@ export function DButton({
 
 const styles = StyleSheet.create({
   base: {
-    height: 44,
-    borderRadius: radius.btn,
+    minHeight: 52,
+    borderRadius: radius.lg,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 20,
+    paddingHorizontal: spacing.xl,
     borderWidth: 1.5,
   },
 
   // ── Variantes ──────────────────────────────
   primary: {
-    backgroundColor: colors.green,
-    borderColor: colors.green,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.10,
-    shadowRadius: 8,
-    elevation: 3,
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+    ...shadow.primaryButton,
+  },
+  secondary: {
+    backgroundColor: colors.lavenderSoft,
+    borderColor: colors.lavenderSoft,
   },
   outline: {
     backgroundColor: "transparent",
-    borderColor: colors.green,
+    borderColor: colors.primary,
   },
   ghost: {
     backgroundColor: "transparent",
@@ -120,16 +121,19 @@ const styles = StyleSheet.create({
   // ── Labels ─────────────────────────────────
   label: {
     ...typography.btn,
-    letterSpacing: 0.1,
+    letterSpacing: 0,
   },
   labelPrimary: {
-    color: "#FFFFFF",
+    color: colors.textOnPrimary,
   },
   labelOutline: {
-    color: colors.green,
+    color: colors.primary,
+  },
+  labelSecondary: {
+    color: colors.primary,
   },
   labelGhost: {
-    color: colors.green,
+    color: colors.primary,
   },
   labelDisabled: {
     opacity: 0.7,

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/requireAuth";
 import { criarServicoSchema } from "@/lib/schemas/servicos";
+import { sendPushNotification } from "@/lib/notifications";
 
 export async function POST(req: Request) {
   try {
@@ -25,6 +26,7 @@ export async function POST(req: Request) {
       uf,
       bairro,
       diaristaUserId,
+      enderecoCompleto,
       observacoes,
       temPet,
       quartos3Mais,
@@ -98,7 +100,7 @@ export async function POST(req: Request) {
         cidade,
         uf,
         bairro,
-        enderecoCompleto: null, // só libera após ACEITO
+        enderecoCompleto: enderecoCompleto ?? null,
         observacoes: observacoes ?? null,
         temPet: temPet ?? false,
         quartos3Mais: quartos3Mais ?? false,
@@ -108,6 +110,13 @@ export async function POST(req: Request) {
         diaristaId: diaristaUserId,
       },
     });
+
+    await sendPushNotification(
+      diaristaUserId,
+      "Nova solicitação de serviço",
+      `Você recebeu um pedido de ${tipo.toLowerCase()} em ${bairro}.`,
+      { servicoId: servico.id, tipo: "NOVA_SOLICITACAO" }
+    );
 
     return NextResponse.json({ ok: true, servicoId: servico.id });
   } catch (error: unknown) {

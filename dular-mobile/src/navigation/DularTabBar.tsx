@@ -3,8 +3,8 @@
  *
  * Identidade validada:
  *   - Fundo branco, border-radius 28px, sombra float
- *   - Ativo: ícone + label em colors.green (#3DC87A)
- *   - Inativo: colors.sub (#90A89B)
+ *   - Ativo: ícone + label em colors.primary
+ *   - Inativo: colors.textSecondary
  *   - Posicionado como overlay absoluto (gerenciado pelo navigator)
  */
 
@@ -59,8 +59,8 @@ export default function DularTabBar({
             }
           };
 
-          const iconColor  = focused ? colors.green : colors.sub;
-          const labelColor = focused ? colors.green : colors.sub;
+          const iconColor  = focused ? colors.primary : colors.textSecondary;
+          const labelColor = focused ? colors.primary : colors.textSecondary;
 
           return (
             <Pressable
@@ -105,8 +105,9 @@ const styles = StyleSheet.create({
   // Card flutuante — identidade validada
   bar: {
     flexDirection: "row",
-    backgroundColor: colors.card,       // #FFFFFF
-    borderRadius: radius.tabbar,         // 28px
+    backgroundColor: colors.surface,
+    borderRadius: radius.xxl,
+    minHeight: 88,
     paddingVertical: 10,
     paddingHorizontal: 6,
     width: "100%",
@@ -135,7 +136,7 @@ const styles = StyleSheet.create({
     left: 6,
     right: 6,
     borderRadius: 18,
-    backgroundColor: colors.greenLight, // #EDF7F2
+    backgroundColor: colors.lavenderSoft,
   },
 
   label: {

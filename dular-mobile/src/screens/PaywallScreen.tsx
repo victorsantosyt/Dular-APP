@@ -10,13 +10,14 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
-import { Ionicons } from "@expo/vector-icons";
 import * as WebBrowser from "expo-web-browser";
 
 import { api } from "@/lib/api";
 import { useAuth } from "@/stores/authStore";
 import { useSubscription } from "@/hooks/useSubscription";
-import { DularLogo } from "@/ui/DularLogo";
+import { AppIcon, GradientButton } from "@/components/ui";
+import { DularLogo } from "@/assets/brand";
+import { Wallet3DIcon } from "@/assets/icons";
 import { colors, radius, shadow, spacing, typography } from "@/theme/tokens";
 
 WebBrowser.maybeCompleteAuthSession();
@@ -150,6 +151,7 @@ export default function PaywallScreen({ onClose }: Props) {
           {/* ── Header ──────────────────────────────────────────────────── */}
           <View style={s.header}>
             <DularLogo size="md" />
+            <Wallet3DIcon size={96} />
             <Text style={s.title}>Desbloqueie mais recursos</Text>
             <Text style={s.subtitle}>{subtitle}</Text>
           </View>
@@ -202,12 +204,7 @@ export default function PaywallScreen({ onClose }: Props) {
                     <View style={s.featureList}>
                       {features.map((feat) => (
                         <View key={feat} style={s.featureRow}>
-                          <Ionicons
-                            name="checkmark-circle"
-                            size={15}
-                            color={selected ? colors.green : colors.sub}
-                            style={{ marginTop: 1 }}
-                          />
+                          <AppIcon name="CheckCircle" size={15} color={selected ? colors.green : colors.sub} />
                           <Text style={[s.featureText, selected && s.featureTextSelected]}>
                             {feat}
                           </Text>
@@ -222,21 +219,15 @@ export default function PaywallScreen({ onClose }: Props) {
 
           {/* ── CTA ─────────────────────────────────────────────────────── */}
           <View style={s.ctaWrap}>
-            <Pressable
-              onPress={handleCheckout}
+            <GradientButton
+              title={checkingOut ? "Abrindo checkout..." : "Escolher plano"}
+              variant={role === "DIARISTA" ? "pink" : "purple"}
+              loading={checkingOut}
               disabled={!selectedId || checkingOut || loadingPlans}
-              style={({ pressed }) => [
-                s.ctaBtn,
-                (!selectedId || loadingPlans) && s.ctaBtnDisabled,
-                pressed && { opacity: 0.85 },
-              ]}
-            >
-              {checkingOut ? (
-                <ActivityIndicator color="#FFF" />
-              ) : (
-                <Text style={s.ctaBtnText}>Assinar agora</Text>
-              )}
-            </Pressable>
+              iconRight={<AppIcon name="ChevronRight" size={18} color="#fff" />}
+              onPress={handleCheckout}
+              style={s.ctaBtn}
+            />
 
             {onClose && (
               <Pressable

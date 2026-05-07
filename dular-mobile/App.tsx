@@ -1,16 +1,22 @@
 import { NavigationContainer, DefaultTheme, Theme } from "@react-navigation/native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
-import { useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import ClienteTabs from "@/navigation/ClienteTabs";
 import DiaristaTabs from "@/navigation/DiaristaTabs";
 import AuthStack from "@/navigation/AuthStack";
+import DularSplashScreen from "@/screens/onboarding/DularSplashScreen";
+import OnboardingScreen from "@/screens/onboarding/OnboardingScreen";
 import { colors } from "@/theme/tokens";
 import { navRef } from "@/navigation/nav";
 import { useAuth } from "@/stores/authStore";
+import { getOnboardingSeenValue, markOnboardingSeen, ONBOARDING_KEY } from "@/lib/onboarding";
 
 export default function App() {
-  const { token, role, hydrated, clearSession, hydrate } = useAuth();
+  const { token, role, clearSession, hydrate } = useAuth();
+  const [booting, setBooting] = useState(true);
+  const [showSplash, setShowSplash] = useState(true);
+  const [onboardingSeen, setOnboardingSeen] = useState<boolean | null>(null);
 
   const navTheme: Theme = useMemo(() => {
     return {
@@ -18,35 +24,84 @@ export default function App() {
       colors: {
         ...DefaultTheme.colors,
         primary: colors.primary,
-        background: colors.bg,
-        card: colors.card,
-        text: colors.text,
+        background: colors.background,
+        card: colors.surface,
+        text: colors.textPrimary,
         border: colors.border,
-        notification: colors.primary,
+        notification: colors.notification,
       },
     };
   }, []);
 
   useEffect(() => {
-    hydrate();
+    let mounted = true;
+    let splashTimer: ReturnType<typeof setTimeout> | undefined;
+
+    async function boot() {
+      try {
+        console.log("[BOOT] onboarding key:", ONBOARDING_KEY);
+        await hydrate();
+
+        const onboardingSeenValue = await getOnboardingSeenValue();
+        const seen = onboardingSeenValue === "true";
+        const currentAuth = useAuth.getState();
+
+        console.log("[BOOT] token:", !!currentAuth.token);
+        console.log("[BOOT] role:", currentAuth.role);
+        console.log("[BOOT] onboardingSeen:", onboardingSeenValue);
+        console.log("[BOOT] hasSeenOnboarding:", seen);
+
+        if (mounted) setOnboardingSeen(seen);
+      } catch (error) {
+        console.warn("[App] boot error", error);
+        if (mounted) setOnboardingSeen(false);
+      } finally {
+        if (!mounted) return;
+
+        setBooting(false);
+        splashTimer = setTimeout(() => {
+          if (mounted) setShowSplash(false);
+        }, 1600);
+        console.log("[BOOT] booting finished");
+      }
+    }
+
+    boot();
+
+    return () => {
+      mounted = false;
+      if (splashTimer) clearTimeout(splashTimer);
+    };
   }, [hydrate]);
 
+  const finishOnboarding = useCallback(async () => {
+    await markOnboardingSeen();
+    setOnboardingSeen(true);
+  }, []);
+
   const isLogged = !!token && !!role;
+  const shouldShowSplash = booting || showSplash;
 
   return (
     <SafeAreaProvider>
-      <NavigationContainer theme={navTheme} ref={navRef}>
-        {!hydrated ? null : isLogged ? (
-          role === "DIARISTA" ? (
-            <DiaristaTabs onLogout={clearSession} />
+      {shouldShowSplash ? (
+        <DularSplashScreen />
+      ) : (
+        <NavigationContainer theme={navTheme} ref={navRef}>
+          {isLogged ? (
+            role === "DIARISTA" ? (
+              <DiaristaTabs onLogout={clearSession} />
+            ) : (
+              <ClienteTabs onLogout={clearSession} />
+            )
+          ) : onboardingSeen === false ? (
+            <OnboardingScreen onFinish={finishOnboarding} showSplash={false} />
           ) : (
-            <ClienteTabs onLogout={clearSession} />
-          )
-        ) : (
-          <AuthStack />
-        )}
-      </NavigationContainer>
-      <StatusBar style="dark" />
+            <AuthStack />
+          )}
+        </NavigationContainer>
+      )}
+      <StatusBar style={shouldShowSplash ? "light" : "dark"} />
     </SafeAreaProvider>
   );
 }

@@ -4,6 +4,7 @@ import { requireAuth } from "@/lib/requireAuth";
 import { assertStatus } from "@/lib/regrasServico";
 import { ServicoStatus } from "@prisma/client";
 import { registrarEvento } from "@/lib/servicoEvento";
+import { aplicarEvento } from "@/lib/safeScore";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -30,6 +31,10 @@ export async function POST(req: Request, { params }: Params) {
     });
 
     await registrarEvento(servico.id, servico.status as ServicoStatus, "CONFIRMADO", auth.role, auth.userId);
+    await Promise.all([
+      aplicarEvento(servico.clientId, "SERVICO_CONCLUIDO", servico.id, "Serviço confirmado pelo cliente."),
+      aplicarEvento(servico.diaristaId, "SERVICO_CONCLUIDO", servico.id, "Serviço confirmado pelo cliente."),
+    ]);
 
     return NextResponse.json({ ok: true, servico: updated });
   } catch (error: unknown) {

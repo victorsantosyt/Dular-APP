@@ -16,12 +16,13 @@ async function handle(req: Request) {
       return NextResponse.json({ ok: false, error: "Dados inválidos." }, { status: 400 });
     }
 
-    const { precoLeve, precoPesada, bio } = parsed.data;
+    const { precoLeve, precoMedio, precoPesada, bio } = parsed.data;
 
     const updated = await prisma.diaristaProfile.update({
       where: { userId: auth.userId },
       data: {
         precoLeve,
+        precoMedio: precoMedio ?? undefined,
         precoPesada,
         bio: bio ?? undefined,
       },

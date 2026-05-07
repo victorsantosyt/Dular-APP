@@ -1,8 +1,12 @@
 /**
- * DiaristaCarteira — Carteira da diarista
+ * DiaristaCarteira — Painel de acompanhamento da diarista
  *
- * Identidade visual 100% aplicada com tokens Dular validados.
- * Toda a lógica de normalização de moeda preservada.
+ * Exibe:
+ *  - total de serviços concluídos no mês
+ *  - faturamento estimado do mês
+ *  - lista dos últimos serviços concluídos (com valor)
+ *
+ * Sem função de carteira / pagamento. Apenas leitura.
  */
 
 import React, { useCallback, useMemo, useState } from "react";
@@ -19,22 +23,28 @@ import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { api } from "@/lib/api";
 
-// ── Tokens Dular ──────────────────────────────────────────────────────────────
-import { colors, radius, shadow, spacing, typography } from "@/theme/tokens";
+import { colors, radius, shadow, spacing } from "@/theme/tokens";
 
-// ── Helpers de moeda (preservados) ───────────────────────────────────────────
 const MONEY_UNIT = (process.env.EXPO_PUBLIC_MONEY_UNIT || "centavos").toLowerCase();
 const brl = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
-type ExtratoItem = {
+type ServicoConcluido = {
   id: string;
   titulo: string;
-  subtitulo: string;
+  cliente: string;
   dataISO: string;
-  status: string;
   valor: number;
-  tipo: "ENTRADA" | "PENDENTE";
 };
+
+const STATUS_CONCLUIDO = new Set([
+  "FINALIZADO",
+  "CONCLUIDO",
+  "CONCLUÍDO",
+  "CONFIRMADO",
+  "PAGO",
+  "FINALIZED",
+  "DONE",
+]);
 
 function toNumber(v: any) {
   const n = Number(v);
@@ -44,7 +54,7 @@ function toNumber(v: any) {
 function normalizeMoney(v: any) {
   const n = toNumber(v);
   if (MONEY_UNIT === "centavos") return n / 100;
-  if (MONEY_UNIT === "reais")    return n;
+  if (MONEY_UNIT === "reais") return n;
   if (n >= 1000 && Number.isInteger(n)) return n / 100;
   return n;
 }
@@ -53,296 +63,292 @@ function getValor(s: any) {
   return normalizeMoney(s?.valorTotal ?? s?.valor ?? s?.precoFinal ?? s?.preco ?? s?.price ?? 0);
 }
 
-function normalizeStatus(s: any) {
-  return String(s ?? "").trim().toUpperCase();
+function getDataISO(s: any) {
+  return s?.finishedAt ?? s?.finalizadoEm ?? s?.updatedAt ?? s?.data ?? s?.createdAt ?? new Date().toISOString();
 }
 
-function statusToTipo(status: string): "ENTRADA" | "PENDENTE" | "IGNORAR" {
-  const st = normalizeStatus(status);
-  if (["CANCELADO","CANCELADA","CANCELLED","RECUSADO","RECUSADA"].includes(st)) return "IGNORAR";
-  if (["FINALIZADO","CONCLUIDO","CONCLUÍDO","CONFIRMADO","PAGO","FINALIZED","DONE"].includes(st)) return "ENTRADA";
-  return "PENDENTE";
+function tituloServico(s: any) {
+  const tipo = String(s?.tipo ?? s?.tipoServico ?? "Serviço").replace(/_/g, " ").toLowerCase();
+  return tipo.charAt(0).toUpperCase() + tipo.slice(1);
 }
 
-function statusLabel(raw: string) {
-  const st = normalizeStatus(raw);
-  if (["FINALIZADO","CONCLUIDO","CONCLUÍDO","CONFIRMADO","PAGO","FINALIZED","DONE"].includes(st)) return "Concluído";
-  if (["ACEITO","EM_ANDAMENTO","ANDAMENTO","PENDENTE","AGUARDANDO","IN_PROGRESS"].includes(st)) return "Pendente";
-  if (["CANCELADO","CANCELADA","CANCELLED","RECUSADO","RECUSADA"].includes(st)) return "Cancelado";
-  return "Em análise";
+function isInCurrentMonth(iso: string) {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return false;
+  const now = new Date();
+  return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
 }
 
-function buildCarteira(servicos: any[]) {
-  const extrato: ExtratoItem[] = (servicos || [])
-    .map((s) => {
-      const status = s?.status ?? s?.estado ?? "DESCONHECIDO";
-      const tipo   = statusToTipo(status);
-      const valor  = getValor(s);
-      if (tipo === "IGNORAR") return null;
-      return {
-        id:        String(s?.id ?? Math.random()),
-        titulo:    s?.tipo ?? s?.tipoServico ?? s?.titulo ?? "Serviço",
-        subtitulo: s?.cliente?.nome ?? s?.clienteNome ?? "Cliente",
-        dataISO:   s?.finishedAt ?? s?.finalizadoEm ?? s?.updatedAt ?? s?.createdAt ?? new Date().toISOString(),
-        status:    String(status),
-        tipo,
-        valor,
-      };
-    })
-    .filter(Boolean) as ExtratoItem[];
-
-  extrato.sort((a, b) => +new Date(b.dataISO) - +new Date(a.dataISO));
-
-  const saldoDisponivel = extrato.filter((e) => e.tipo === "ENTRADA").reduce((acc, e) => acc + e.valor, 0);
-  const saldoPendente   = extrato.filter((e) => e.tipo === "PENDENTE").reduce((acc, e) => acc + e.valor, 0);
-  return { saldoDisponivel, saldoPendente, extrato };
+function mesAtualLabel() {
+  const m = new Date().toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+  return m.charAt(0).toUpperCase() + m.slice(1);
 }
-
-// ── Componente ────────────────────────────────────────────────────────────────
 
 export default function DiaristaCarteira() {
-  const [loading, setLoading]       = useState(true);
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [error, setError]           = useState<string | null>(null);
-  const [saldoDisponivel, setSaldoDisponivel] = useState(0);
-  const [saldoPendente, setSaldoPendente]     = useState(0);
-  const [extrato, setExtrato]       = useState<ExtratoItem[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [servicos, setServicos] = useState<ServicoConcluido[]>([]);
 
-  const saqueDisponivel = false; // endpoint de saque não disponível ainda
-
-  const loadCarteira = useCallback(async (isRefresh = false) => {
+  const load = useCallback(async (isRefresh = false) => {
     try {
       setError(null);
       isRefresh ? setRefreshing(true) : setLoading(true);
 
-      const res      = await api.get("/api/servicos/minhas");
-      const servicos = Array.isArray(res.data?.servicos)
+      const res = await api.get("/api/servicos/minhas");
+      const lista = Array.isArray(res.data?.servicos)
         ? res.data.servicos
-        : Array.isArray(res.data) ? res.data : [];
+        : Array.isArray(res.data)
+          ? res.data
+          : [];
 
-      if (__DEV__ && servicos.length > 0) {
-        console.log("[CARTEIRA]", JSON.stringify(servicos[0], null, 2));
-      }
+      const concluidos: ServicoConcluido[] = (lista as any[])
+        .filter((s) => STATUS_CONCLUIDO.has(String(s?.status ?? "").toUpperCase()))
+        .map((s): ServicoConcluido => ({
+          id: String(s?.id ?? Math.random()),
+          titulo: tituloServico(s),
+          cliente: s?.cliente?.nome ?? s?.clienteNome ?? "Cliente",
+          dataISO: getDataISO(s),
+          valor: getValor(s),
+        }))
+        .sort((a, b) => +new Date(b.dataISO) - +new Date(a.dataISO));
 
-      const c = buildCarteira(servicos);
-      setSaldoDisponivel(c.saldoDisponivel);
-      setSaldoPendente(c.saldoPendente);
-      setExtrato(c.extrato);
+      setServicos(concluidos);
     } catch (e: any) {
-      setError(e?.message ?? "Falha ao carregar carteira.");
+      setError(e?.message ?? "Falha ao carregar dados.");
     } finally {
       isRefresh ? setRefreshing(false) : setLoading(false);
     }
   }, []);
 
-  useFocusEffect(useCallback(() => { loadCarteira(false); }, [loadCarteira]));
+  useFocusEffect(useCallback(() => { load(false); }, [load]));
 
-  // ── Render ────────────────────────────────────────────────────────────────
+  const { totalMes, faturamentoMes, ultimos } = useMemo(() => {
+    const doMes = servicos.filter((s) => isInCurrentMonth(s.dataISO));
+    return {
+      totalMes: doMes.length,
+      faturamentoMes: doMes.reduce((acc, s) => acc + s.valor, 0),
+      ultimos: servicos.slice(0, 8),
+    };
+  }, [servicos]);
 
   return (
     <SafeAreaView style={s.safe} edges={["top", "left", "right"]}>
       <ScrollView
-        style={{ flex: 1 }}
         contentContainerStyle={s.scroll}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={() => loadCarteira(true)} />
+          <RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={colors.primary} />
         }
+        showsVerticalScrollIndicator={false}
       >
+        {/* ─── Cabeçalho ─── */}
+        <Text style={s.titulo}>Meu desempenho</Text>
+        <Text style={s.subtitulo}>{mesAtualLabel()}</Text>
 
-        {/* ── Card de saldo ── */}
-        <View style={s.saldoCard}>
-          {/* Indicador de ícone */}
-          <View style={s.saldoIcon}>
-            <Ionicons name="wallet" size={22} color={colors.green} />
+        {/* ─── Métricas do mês ─── */}
+        <View style={s.metricsRow}>
+          <View style={s.metricCard}>
+            <View style={s.metricIcon}>
+              <Ionicons name="briefcase" size={20} color={colors.primary} />
+            </View>
+            <Text style={s.metricLabel}>Serviços no mês</Text>
+            <Text style={s.metricValue}>{loading ? "—" : totalMes}</Text>
           </View>
 
-          <Text style={s.saldoLabel}>Saldo disponível</Text>
-          <Text style={s.saldoValue}>
-            {loading ? "—" : brl(saldoDisponivel)}
-          </Text>
-
-          {/* Pendente */}
-          <View style={s.pendRow}>
-            <Text style={s.pendLabel}>Pendente</Text>
-            <Text style={s.pendValue}>{loading ? "—" : brl(saldoPendente)}</Text>
+          <View style={s.metricCard}>
+            <View style={[s.metricIcon, { backgroundColor: colors.muted }]}>
+              <Ionicons name="trending-up" size={20} color={colors.accent} />
+            </View>
+            <Text style={s.metricLabel}>Faturamento estimado</Text>
+            <Text style={s.metricValue}>{loading ? "—" : brl(faturamentoMes)}</Text>
           </View>
-
-          {/* Separador */}
-          <View style={s.divider} />
-
-          {/* Botão de saque */}
-          <TouchableOpacity
-            onPress={() => {}}
-            disabled={!saqueDisponivel}
-            style={[s.saqueBtn, !saqueDisponivel && s.saqueBtnDisabled]}
-          >
-            <Text style={[s.saqueBtnText, !saqueDisponivel && s.saqueBtnTextDisabled]}>
-              Solicitar saque
-            </Text>
-            {!saqueDisponivel && (
-              <Text style={s.saqueSoon}>Em breve</Text>
-            )}
-          </TouchableOpacity>
         </View>
 
-        {/* ── Erro ── */}
-        {error && (
+        {/* ─── Erro ─── */}
+        {error ? (
           <View style={s.errorCard}>
             <Text style={s.errorTitle}>Não foi possível carregar.</Text>
             <Text style={s.errorSub}>{error}</Text>
-            <TouchableOpacity style={s.retryBtn} onPress={() => loadCarteira(false)}>
+            <TouchableOpacity style={s.retryBtn} onPress={() => load(false)}>
               <Text style={s.retryText}>Tentar novamente</Text>
             </TouchableOpacity>
           </View>
-        )}
+        ) : null}
 
-        {/* ── Extrato ── */}
-        <Text style={s.extratoTitle}>Extrato</Text>
+        {/* ─── Últimos serviços concluídos ─── */}
+        <View style={s.sectionHead}>
+          <Text style={s.sectionTitle}>Últimos serviços concluídos</Text>
+        </View>
 
         {loading ? (
           <View style={s.skeleton} />
-        ) : extrato.length === 0 ? (
+        ) : ultimos.length === 0 ? (
           <View style={s.emptyCard}>
-            <Text style={s.emptyText}>Sem movimentações por aqui ainda.</Text>
+            <Ionicons name="checkmark-done-outline" size={22} color={colors.mutedForeground} />
+            <Text style={s.emptyText}>Nenhum serviço concluído ainda.</Text>
           </View>
         ) : (
-          extrato.map((e) => (
-            <View key={e.id} style={s.extratoItem}>
-              {/* Ícone de tipo */}
-              <View style={[s.extratoIcon, e.tipo === "ENTRADA" ? s.extratoIconEntrada : s.extratoIconPendente]}>
-                <Ionicons
-                  name={e.tipo === "ENTRADA" ? "checkmark-circle" : "time"}
-                  size={18}
-                  color={e.tipo === "ENTRADA" ? colors.greenDark : colors.sub}
-                />
+          ultimos.map((item) => (
+            <View key={item.id} style={s.itemCard}>
+              <View style={s.itemIcon}>
+                <Ionicons name="checkmark-circle" size={20} color={colors.primary} />
               </View>
 
-              {/* Info */}
               <View style={{ flex: 1, gap: 2 }}>
-                <Text style={s.extratoNome}>{e.titulo}</Text>
-                <Text style={s.extratoSub} numberOfLines={1}>
-                  {e.subtitulo} · {new Date(e.dataISO).toLocaleDateString("pt-BR")}
+                <Text style={s.itemTitle} numberOfLines={1}>{item.titulo}</Text>
+                <Text style={s.itemSub} numberOfLines={1}>
+                  {item.cliente} · {new Date(item.dataISO).toLocaleDateString("pt-BR")}
                 </Text>
-                <Text style={s.extratoStatus}>Status: {statusLabel(e.status)}</Text>
               </View>
 
-              {/* Valor */}
-              <Text style={[s.extratoValor, e.tipo === "ENTRADA" && s.extratoValorEntrada]}>
-                {(e.tipo === "ENTRADA" ? "+" : "") + brl(e.valor)}
-              </Text>
+              <Text style={s.itemValor}>{brl(item.valor)}</Text>
             </View>
           ))
         )}
-
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-// ── Styles ────────────────────────────────────────────────────────────────────
-
 const s = StyleSheet.create({
-  safe: {
-    flex: 1,
-    backgroundColor: colors.bg,
-  },
+  safe: { flex: 1, backgroundColor: colors.background },
   scroll: {
-    padding: spacing.lg,
-    paddingBottom: 110,
-    gap: 10,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.sm,
+    paddingBottom: 120,
   },
 
-  // Saldo card
-  saldoCard: {
+  titulo: {
+    fontSize: 24,
+    fontWeight: "800",
+    color: colors.foreground,
+    letterSpacing: -0.4,
+  },
+  subtitulo: {
+    fontSize: 13,
+    color: colors.mutedForeground,
+    fontWeight: "600",
+    marginTop: 2,
+    marginBottom: 18,
+  },
+
+  // Métricas
+  metricsRow: { flexDirection: "row", gap: 12 },
+  metricCard: {
+    flex: 1,
     backgroundColor: colors.card,
     borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: colors.stroke,
-    padding: 18,
+    borderColor: colors.border,
+    padding: 14,
     gap: 6,
     ...shadow.card,
   },
-  saldoIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: radius.md,
-    backgroundColor: colors.greenLight,
+  metricIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: colors.secondary,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 4,
   },
-  saldoLabel: {
-    fontSize: 13,
+  metricLabel: {
+    fontSize: 12,
+    color: colors.mutedForeground,
     fontWeight: "600",
-    color: colors.sub,
   },
-  saldoValue: {
-    fontSize: 34,
+  metricValue: {
+    fontSize: 22,
     fontWeight: "800",
-    color: colors.ink,
-    letterSpacing: -1,
-    marginTop: 2,
+    color: colors.foreground,
+    letterSpacing: -0.6,
   },
-  pendRow: {
+
+  // Seção
+  sectionHead: { marginTop: 22, marginBottom: 12 },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: colors.foreground,
+    letterSpacing: -0.2,
+  },
+
+  // Item
+  skeleton: {
+    height: 120,
+    borderRadius: radius.lg,
+    backgroundColor: colors.card,
+    opacity: 0.55,
+  },
+  emptyCard: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: 6,
-    paddingTop: 6,
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: colors.muted,
+    borderRadius: radius.lg,
+    padding: 16,
   },
-  pendLabel: {
+  emptyText: {
     fontSize: 13,
-    color: colors.sub,
+    color: colors.mutedForeground,
+    fontWeight: "600",
   },
-  pendValue: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: colors.ink,
+  itemCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: colors.card,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 14,
+    marginBottom: 10,
+    ...shadow.card,
   },
-  divider: {
-    height: 1,
-    backgroundColor: colors.stroke,
-    marginVertical: 6,
-  },
-  saqueBtn: {
-    height: 48,
-    borderRadius: radius.btn,
+  itemIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: colors.secondary,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.green,
-    gap: 2,
   },
-  saqueBtnDisabled: {
-    backgroundColor: colors.stroke,
-  },
-  saqueBtnText: {
-    color: "#FFF",
+  itemTitle: {
+    fontSize: 14,
     fontWeight: "800",
-    fontSize: 15,
+    color: colors.foreground,
   },
-  saqueBtnTextDisabled: {
-    color: colors.sub,
+  itemSub: {
+    fontSize: 12,
+    color: colors.mutedForeground,
+    fontWeight: "500",
   },
-  saqueSoon: {
-    fontSize: 11,
-    color: colors.sub,
+  itemValor: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: colors.primary,
   },
 
   // Erro
   errorCard: {
+    marginTop: 16,
     backgroundColor: colors.card,
     borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: colors.stroke,
+    borderColor: colors.border,
     padding: 14,
     gap: 8,
   },
   errorTitle: {
     fontSize: 14,
     fontWeight: "800",
-    color: colors.danger,
+    color: colors.destructive,
   },
   errorSub: {
-    ...typography.sub,
+    fontSize: 12,
+    color: colors.mutedForeground,
+    fontWeight: "500",
   },
   retryBtn: {
     marginTop: 4,
@@ -350,77 +356,11 @@ const s = StyleSheet.create({
     borderRadius: radius.btn,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.ink,
+    backgroundColor: colors.foreground,
   },
   retryText: {
-    color: "#FFF",
+    color: colors.card,
     fontWeight: "800",
     fontSize: 13,
-  },
-
-  // Extrato
-  extratoTitle: {
-    ...typography.h2,
-    marginTop: 6,
-  },
-  skeleton: {
-    height: 120,
-    borderRadius: radius.lg,
-    backgroundColor: colors.card,
-    opacity: 0.6,
-  },
-  emptyCard: {
-    backgroundColor: colors.card,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.stroke,
-    padding: 16,
-  },
-  emptyText: {
-    ...typography.sub,
-  },
-  extratoItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    backgroundColor: colors.card,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.stroke,
-    padding: 14,
-    ...shadow.card,
-  },
-  extratoIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: radius.md,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  extratoIconEntrada: {
-    backgroundColor: colors.greenLight,
-  },
-  extratoIconPendente: {
-    backgroundColor: "#F4F7F5",
-  },
-  extratoNome: {
-    fontSize: 14,
-    fontWeight: "800",
-    color: colors.ink,
-  },
-  extratoSub: {
-    ...typography.sub,
-  },
-  extratoStatus: {
-    fontSize: 11,
-    color: colors.sub,
-  },
-  extratoValor: {
-    fontSize: 14,
-    fontWeight: "800",
-    color: colors.ink,
-  },
-  extratoValorEntrada: {
-    color: colors.greenDark,
   },
 });

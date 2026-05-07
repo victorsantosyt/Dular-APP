@@ -4,6 +4,7 @@ import { requireAuth } from "@/lib/requireAuth";
 import { assertRole, assertStatus } from "@/lib/regrasServico";
 import { ServicoStatus, UserRole } from "@prisma/client";
 import { registrarEvento } from "@/lib/servicoEvento";
+import { sendPushNotification } from "@/lib/notifications";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -14,7 +15,12 @@ export async function POST(req: Request, { params }: Params) {
 
     const { id } = await params;
     const body = await req.json().catch(() => ({}));
-    const enderecoCompleto = typeof body?.enderecoCompleto === "string" ? body.enderecoCompleto : null;
+    const enderecoCompleto =
+      typeof body?.enderecoCompleto === "string"
+        ? body.enderecoCompleto
+        : typeof body?.endereco === "string"
+          ? body.endereco
+          : null;
 
     const servico = await prisma.servico.findUnique({ where: { id } });
     if (!servico) return NextResponse.json({ ok: false, error: "Serviço não encontrado." }, { status: 404 });
@@ -34,6 +40,13 @@ export async function POST(req: Request, { params }: Params) {
     });
 
     await registrarEvento(servico.id, servico.status as ServicoStatus, "ACEITO", auth.role as UserRole, auth.userId);
+
+    await sendPushNotification(
+      servico.clientId,
+      "Serviço aceito",
+      "A diarista aceitou sua solicitação. Confira os detalhes.",
+      { servicoId: servico.id, tipo: "SERVICO_ACEITO" }
+    );
 
     return NextResponse.json({ ok: true, servico: updated });
   } catch (error: unknown) {

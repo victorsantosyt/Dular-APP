@@ -3,6 +3,7 @@
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
 import { ArrowLeft } from "lucide-react";
+import { Suspense } from "react";
 import { LogoBrand } from "@/components/ui/LogoBrand";
 
 const ROLE_LABELS: Record<string, string> = {
@@ -29,7 +30,7 @@ function AppleLogo() {
   );
 }
 
-export default function LoginRolePage() {
+function LoginRoleContent() {
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -91,5 +92,13 @@ export default function LoginRolePage() {
 
       </div>
     </main>
+  );
+}
+
+export default function LoginRolePage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginRoleContent />
+    </Suspense>
   );
 }

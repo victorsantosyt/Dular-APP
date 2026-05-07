@@ -3,6 +3,7 @@ import { requireAuth } from "@/lib/requireAuth";
 import { rateLimit, cleanupRateLimit } from "@/lib/rateLimit";
 import { getRequestIp } from "@/lib/requestIp";
 import { fail, ok } from "@/lib/apiResponse";
+import { aplicarEvento } from "@/lib/safeScore";
 
 export async function POST(req: Request) {
   cleanupRateLimit();
@@ -32,20 +33,24 @@ export async function POST(req: Request) {
     return fail("bad_request", "Informe um motivo.", 400);
   }
 
-  const logEntry = `[ADMIN ${new Date().toISOString()}] REPROVADO: ${motivo}`;
-
   await prisma.diaristaProfile.update({
     where: { userId: id },
+    data: { verificacao: "REPROVADO" },
+  });
+
+  await prisma.documentVerification.create({
     data: {
-      verificacao: "REPROVADO",
+      userId: id,
+      docType: "KYC_REVIEW",
+      docUrl: "",
+      status: "REJECTED",
+      reviewedBy: auth.userId,
+      reviewNote: `KYC REPROVADO por admin ${auth.userId} em ${new Date().toISOString()} — ${motivo}`,
     },
   });
 
-  await prisma.$executeRawUnsafe(
-    `UPDATE "DiaristaProfile" SET bio = CASE WHEN bio IS NULL THEN $1 ELSE bio || E'\n' || $1 END WHERE "userId" = $2`,
-    logEntry,
-    id
-  );
+  // TODO Fase 5: adicionar KYC_REJEITADO ao enum ScoreEventoTipo
+  await aplicarEvento(id, "KYC_REJEITADO" as any, id, motivo).catch(() => null);
 
   return ok();
 }

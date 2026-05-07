@@ -3,6 +3,7 @@ import { requireAuth } from "@/lib/requireAuth";
 import { rateLimit, cleanupRateLimit } from "@/lib/rateLimit";
 import { getRequestIp } from "@/lib/requestIp";
 import { fail, ok } from "@/lib/apiResponse";
+import { aplicarEvento } from "@/lib/safeScore";
 
 export async function POST(req: Request) {
   cleanupRateLimit();
@@ -32,26 +33,23 @@ export async function POST(req: Request) {
     return fail("bad_request", "Informe um motivo.", 400);
   }
 
-  const logEntry = `[ADMIN ${new Date().toISOString()}] APROVADO: ${motivo}`;
-
   await prisma.diaristaProfile.update({
     where: { userId: id },
+    data: { verificacao: "VERIFICADO" },
+  });
+
+  await prisma.documentVerification.create({
     data: {
-      verificacao: "VERIFICADO",
-      bio: {
-        // usa bio como campo de anotações de verificação (evita migration)
-        set: undefined,
-        // prisma não permite concat direto; fazemos via raw update abaixo
-      } as any,
+      userId: id,
+      docType: "KYC_REVIEW",
+      docUrl: "",
+      status: "APPROVED",
+      reviewedBy: auth.userId,
+      reviewNote: `KYC APROVADO por admin ${auth.userId} em ${new Date().toISOString()} — ${motivo}`,
     },
   });
 
-  // Anexa log na bio (sem migration). Usa raw para concatenar de forma segura.
-  await prisma.$executeRawUnsafe(
-    `UPDATE "DiaristaProfile" SET bio = CASE WHEN bio IS NULL THEN $1 ELSE bio || E'\n' || $1 END WHERE "userId" = $2`,
-    logEntry,
-    id
-  );
+  await aplicarEvento(id, "KYC_APROVADO", id, motivo);
 
   return ok();
 }

@@ -1,0 +1,103 @@
+export const colors = {
+  // Dular Soft Premium UI
+  background: "#FBFAFF",
+  surface: "#FFFFFF",
+
+  primary: "#7B4EDB",
+  primaryLight: "#A980F2",
+  primaryDark: "#5F35B8",
+  primaryDeep: "#111827",
+
+  lavender: "#F3ECFF",
+  lavenderSoft: "#F8F3FF",
+  lavenderStrong: "#E7D8FF",
+
+  textPrimary: "#111827",
+  textSecondary: "#6B6475",
+  textMuted: "#9B94A8",
+  textOnPrimary: "#FFFFFF",
+  textDisabled: "#C7BED7",
+
+  border: "#EDE7F5",
+  divider: "#EEE8F6",
+
+  success: "#34C759",
+  successSoft: "#E8F8ED",
+  warning: "#F5A524",
+  warningSoft: "#FFF5DB",
+  danger: "#FF5A6E",
+  dangerSoft: "#FFE8EC",
+  notification: "#FF6B8A",
+
+  overlay: "rgba(17, 24, 39, 0.35)",
+  glassLight: "rgba(255, 255, 255, 0.16)",
+  glassBorder: "rgba(255, 255, 255, 0.20)",
+  whiteAlpha08: "rgba(255,255,255,0.08)",
+  whiteAlpha20: "rgba(255,255,255,0.2)",
+  whiteAlpha70: "rgba(255,255,255,0.7)",
+  whiteAlpha80: "rgba(255,255,255,0.8)",
+  whiteAlpha85: "rgba(255,255,255,0.85)",
+  whiteAlpha90: "rgba(255,255,255,0.9)",
+
+  // Brand accents and compatibility aliases
+  white: "#FFFFFF",
+  surfaceAlt: "#F8F3FF",
+  cardStrong: "#F8F3FF",
+  shadow: "rgba(91, 63, 163, 0.12)",
+
+  pink: "#FF6B8A",
+  pinkDark: "#EF5276",
+  pinkSoft: "#FFE8EC",
+  accent: "#FF6B8A",
+  accentDark: "#EF5276",
+  accentLight: "#FFE8EC",
+
+  successDark: "#249A46",
+  successLight: "#E8F8ED",
+  warningLight: "#FFF5DB",
+  dangerDark: "#D84056",
+  error: "#FF5A6E",
+  errorLight: "#FFE8EC",
+  info: "#7B4EDB",
+  infoLight: "#F3ECFF",
+  purpleSoft: "#F8F3FF",
+  greenSoft: "#E8F8ED",
+  redSoft: "#FFE8EC",
+  yellowSoft: "#FFF5DB",
+  blueSoft: "#F3ECFF",
+
+  // Legacy token names used across older screens.
+  green: "#7B4EDB",
+  greenDark: "#5F35B8",
+  greenLight: "#F8F3FF",
+  bg: "#FBFAFF",
+  card: "#FFFFFF",
+  ink: "#111827",
+  sub: "#6B6475",
+  muted: "#9B94A8",
+  stroke: "#EDE7F5",
+  star: "#F5A524",
+  brand: "#7B4EDB",
+  text: "#111827",
+  surface2: "#F8F3FF",
+  foreground: "#111827",
+  secondary: "#F8F3FF",
+  destructive: "#FF5A6E",
+  mutedForeground: "#9B94A8",
+
+  // Incident/alert specific colors (used in ReportIncident flow)
+  incidentRed: "#E56B6F",
+  incidentRedDark: "#B23B41",
+  incidentRedBg: "#FDECEC",
+  incidentAmber: "#F08A24",
+  incidentCritical: "#7F1D1D",
+
+  dark: {
+    background: "#15111F",
+    surface: "#211A30",
+    surfaceAlt: "#2B223D",
+    textPrimary: "#FFFFFF",
+    textSecondary: "#D7CFE7",
+    border: "rgba(255,255,255,0.10)",
+  },
+} as const;

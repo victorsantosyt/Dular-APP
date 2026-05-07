@@ -19,10 +19,13 @@ import * as Location from "expo-location";
 import { LinearGradient } from "expo-linear-gradient";
 
 import { api } from "@/lib/api";
-import { MinhasResponse, Servico } from "@/types/servico";
+import type { MinhasResponse, ServicoListItem as Servico } from "../../../../shared/types/servico";
 import { startLocationWatcher, type LocationUpdate } from "@/lib/location";
 import { logoSource } from "@/lib/logoSource";
 import { DularBadge } from "@/components/DularBadge";
+import { SafeScoreBadge } from "@/components/SafeScoreBadge";
+import { AppIcon } from "@/components/ui";
+import { SOSIcon } from "@/assets/icons";
 import { CenterWrap } from "@/ui/Layout";
 import { DIARISTA_STACK_ROUTES } from "@/navigation/routes";
 import { useSubscription } from "@/hooks/useSubscription";
@@ -38,6 +41,14 @@ const FINISHED_STATUS = new Set([
   "PAGO",
   "AVALIADO",
 ]);
+
+type SafeScoreSummary = {
+  faixa: string;
+  cor: string;
+  bloqueado: boolean;
+  totalServicos: number;
+  verificado: boolean;
+};
 
 function upper(v: unknown) {
   return String(v ?? "").toUpperCase();
@@ -56,6 +67,24 @@ function dateLabel(dateValue?: string | Date) {
   });
 }
 
+function getServicoEndereco(servico: Servico | null | undefined) {
+  const endereco = servico?.enderecoCompleto ?? null;
+  return typeof endereco === "string" && endereco.trim() ? endereco.trim() : null;
+}
+
+async function getCurrentCoords() {
+  const permission = await Location.requestForegroundPermissionsAsync();
+  if (permission.status !== "granted") {
+    throw new Error("Permissão de localização não concedida.");
+  }
+
+  const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+  return {
+    latitude: pos.coords.latitude,
+    longitude: pos.coords.longitude,
+  };
+}
+
 export default function DiaristaSolicitacoes({ navigation }: any) {
   const insets = useSafeAreaInsets();
   const { isBlocked, refresh: refreshSubscription } = useSubscription();
@@ -68,6 +97,7 @@ export default function DiaristaSolicitacoes({ navigation }: any) {
   const [aceitando, setAceitando] = useState(false);
   const [checkinOk, setCheckinOk] = useState(false);
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [scoreByUser, setScoreByUser] = useState<Record<string, SafeScoreSummary>>({});
 
   const scrollRef = useRef<ScrollView>(null);
   const locationSub = useRef<Location.LocationSubscription | null>(null);
@@ -78,6 +108,7 @@ export default function DiaristaSolicitacoes({ navigation }: any) {
   const pending = useMemo(() => items.find((s) => s.status === "SOLICITADO") ?? null, [items]);
   const pendingCount = useMemo(() => items.filter((s) => s.status === "SOLICITADO").length, [items]);
   const others = useMemo(() => items.filter((s) => s.id !== pending?.id), [items, pending?.id]);
+  const pendingClientScore = pending?.cliente?.id ? scoreByUser[pending.cliente.id] : undefined;
 
   const ganhosMes = useMemo(() => {
     const totalCents = items
@@ -89,8 +120,6 @@ export default function DiaristaSolicitacoes({ navigation }: any) {
   const displayName = useMemo(() => {
     const raw =
       pending?.diarista?.nome ||
-      pending?.diarista?.name ||
-      pending?.diarista?.fullName ||
       "Mariana";
     return raw.trim() || "Mariana";
   }, [pending]);
@@ -106,7 +135,28 @@ export default function DiaristaSolicitacoes({ navigation }: any) {
     try {
       setRefreshing(true);
       const res = await api.get<MinhasResponse>("/api/servicos/minhas");
-      setItems(res.data.servicos || []);
+      const list = res.data.servicos || [];
+      setItems(list);
+
+      const clientIds = Array.from(
+        new Set(list.map((item) => item.cliente?.id).filter(Boolean) as string[])
+      );
+      if (clientIds.length) {
+        const entries = await Promise.all(
+          clientIds.map(async (id) => {
+            try {
+              const scoreRes = await api.get<SafeScoreSummary>(`/api/usuarios/${id}/score`);
+              return [id, scoreRes.data] as const;
+            } catch {
+              return null;
+            }
+          })
+        );
+        setScoreByUser((cur) => ({
+          ...cur,
+          ...Object.fromEntries(entries.filter(Boolean) as [string, SafeScoreSummary][]),
+        }));
+      }
     } catch (e: any) {
       Alert.alert("Erro", e?.response?.data?.error ?? e?.message ?? "Falha ao carregar");
     } finally {
@@ -114,19 +164,53 @@ export default function DiaristaSolicitacoes({ navigation }: any) {
     }
   }, []);
 
-  const onAceitar = useCallback(async () => {
-    if (!pending?.id) return;
-    if (isBlocked) { setShowPaywall(true); return; }
+  const aceitarServico = useCallback(async (servico: Servico) => {
+    const endereco = getServicoEndereco(servico);
     try {
       setAceitando(true);
-      await api.post(`/api/servicos/${pending.id}/aceitar`);
+      await api.post(`/api/servicos/${servico.id}/aceitar`, endereco ? { enderecoCompleto: endereco } : {});
       await load();
     } catch (e: any) {
       Alert.alert("Erro", e?.response?.data?.error ?? e?.message ?? "Falha ao aceitar");
     } finally {
       setAceitando(false);
     }
-  }, [pending?.id, load]);
+  }, [load]);
+
+  const confirmarAceite = useCallback((servico: Servico) => {
+    if (!getServicoEndereco(servico)) {
+      Alert.alert(
+        "Endereço não informado",
+        "Endereço não informado pelo cliente. Confirma mesmo assim?",
+        [
+          { text: "Cancelar", style: "cancel" },
+          { text: "Confirmar", onPress: () => { void aceitarServico(servico); } },
+        ]
+      );
+      return;
+    }
+
+    void aceitarServico(servico);
+  }, [aceitarServico]);
+
+  const onAceitar = useCallback(async () => {
+    if (!pending?.id) return;
+    if (isBlocked) { setShowPaywall(true); return; }
+
+    if (pendingClientScore?.bloqueado) {
+      Alert.alert(
+        "Atenção",
+        "Atenção: este cliente está com restrições ativas. Deseja continuar?",
+        [
+          { text: "Cancelar", style: "cancel" },
+          { text: "Continuar", onPress: () => confirmarAceite(pending) },
+        ]
+      );
+      return;
+    }
+
+    confirmarAceite(pending);
+  }, [confirmarAceite, isBlocked, pending, pendingClientScore?.bloqueado]);
 
   const onRecusar = useCallback(async () => {
     if (!pending?.id) return;
@@ -138,9 +222,45 @@ export default function DiaristaSolicitacoes({ navigation }: any) {
     }
   }, [pending?.id, load]);
 
+  const doCheckin = useCallback(async () => {
+    if (!pending?.id) return;
+    try {
+      const current = await getCurrentCoords();
+      await api.post("/api/seguranca/checkin", {
+        servicoId: pending.id,
+        latitude: current.latitude,
+        longitude: current.longitude,
+      });
+      setCoords({ lat: current.latitude, lng: current.longitude });
+      setCheckinOk(true);
+    } catch (e: any) {
+      Alert.alert("Check-in", e?.response?.data?.error ?? e?.message ?? "Não foi possível registrar o check-in.");
+    }
+  }, [pending?.id]);
+
   const openSOS = useCallback(async () => {
+    const mensagem = "Preciso de ajuda em um atendimento (Dular).";
+    let current: { latitude: number; longitude: number } | null = null;
+
+    try {
+      current = await getCurrentCoords();
+      setCoords({ lat: current.latitude, lng: current.longitude });
+    } catch (err) {
+      console.error("[SOS] falha ao obter localização:", err);
+    }
+
+    try {
+      await api.post("/api/seguranca/sos", {
+        servicoId: pending?.id,
+        ...(current ? { latitude: current.latitude, longitude: current.longitude } : {}),
+        mensagem,
+      });
+    } catch (err) {
+      console.error("[SOS] falha ao registrar no backend:", err);
+    }
+
     const phone = "5565999990000";
-    const msg = encodeURIComponent("Preciso de ajuda em um atendimento (Dular).");
+    const msg = encodeURIComponent(mensagem);
     const url = `https://wa.me/${phone}?text=${msg}`;
     const canOpen = await Linking.canOpenURL(url);
     if (!canOpen) {
@@ -148,7 +268,7 @@ export default function DiaristaSolicitacoes({ navigation }: any) {
       return;
     }
     Linking.openURL(url);
-  }, []);
+  }, [pending?.id]);
 
   useEffect(() => {
     load();
@@ -251,6 +371,10 @@ export default function DiaristaSolicitacoes({ navigation }: any) {
                       {pending.tipo} • {pending.turno}
                     </Text>
 
+                    {pendingClientScore ? (
+                      <SafeScoreBadge {...pendingClientScore} style={s.pendingScore} />
+                    ) : null}
+
                     <View style={s.pendingFooterRow}>
                       <View style={s.pendingMetaRow}>
                         <View style={s.pendingMetaChip}>
@@ -284,7 +408,7 @@ export default function DiaristaSolicitacoes({ navigation }: any) {
           ) : null}
 
           <View style={s.dateRow}>
-            <Ionicons name="calendar-outline" size={15} color={colors.sub} />
+            <AppIcon name="Calendar" size={15} color={colors.sub} />
             <Text style={s.dateText}>{todayText}</Text>
           </View>
 
@@ -295,7 +419,7 @@ export default function DiaristaSolicitacoes({ navigation }: any) {
 
               <View style={s.securityBtnRow}>
                 <Pressable
-                  onPress={() => setCheckinOk(true)}
+                  onPress={doCheckin}
                   style={({ pressed }) => [
                     s.checkinBtn,
                     checkinOk && s.checkinBtnDone,
@@ -308,7 +432,7 @@ export default function DiaristaSolicitacoes({ navigation }: any) {
                 </Pressable>
 
                 <Pressable onPress={openSOS} style={({ pressed }) => [s.sosBtn, pressed && s.pressed]}>
-                  <Text style={s.sosText}>SOS</Text>
+                  <SOSIcon size={48} />
                 </Pressable>
               </View>
             </View>
@@ -464,6 +588,10 @@ const s = StyleSheet.create({
     color: colors.card,
     fontSize: 16,
     fontWeight: "800",
+  },
+  pendingScore: {
+    backgroundColor: colors.card,
+    borderColor: "rgba(255,255,255,0.45)",
   },
   pendingFooterRow: {
     flexDirection: "row",

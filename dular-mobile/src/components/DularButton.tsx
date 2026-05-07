@@ -16,7 +16,7 @@ type Props = {
   onPress: () => void;
   loading?: boolean;
   /** "primary" → DButton primary | "ghost" → DButton outline */
-  variant?: "primary" | "ghost";
+  variant?: "primary" | "secondary" | "ghost";
   style?: StyleProp<ViewStyle>;
 };
 
@@ -24,7 +24,7 @@ export function DularButton({ variant = "primary", ...rest }: Props) {
   return (
     <DButton
       {...rest}
-      variant={variant === "ghost" ? "outline" : "primary"}
+      variant={variant === "ghost" ? "outline" : variant}
     />
   );
 }

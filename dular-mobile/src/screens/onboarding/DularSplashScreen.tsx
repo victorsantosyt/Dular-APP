@@ -1,8 +1,8 @@
 import { useEffect } from "react";
-import { Image, ImageBackground, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 
-import { onboardingAssets } from "@/assets/onboardingAssets";
+import { DularLogoWhite } from "@/assets/brand";
 import { AppIcon } from "@/components/ui";
 
 const colors = {
@@ -21,18 +21,13 @@ export function DularSplashScreen() {
       end={{ x: 0.9, y: 1 }}
       style={styles.splash}
     >
-      <ImageBackground
-        source={onboardingAssets.splashBg}
-        resizeMode="cover"
-        imageStyle={styles.splashBgImage}
-        style={styles.splashBg}
-      >
+      <View style={styles.splashBg}>
         <View style={[styles.splashShape, styles.splashShapeTop]} />
         <View style={[styles.splashShape, styles.splashShapeLeft]} />
         <View style={[styles.splashShape, styles.splashShapeBottom]} />
 
         <View style={styles.splashCenter}>
-          <Image source={onboardingAssets.logoLight} style={styles.logoLight} resizeMode="contain" />
+          <DularLogoWhite size="lg" />
           <Text allowFontScaling={false} style={styles.splashTitle}>
             Conexões que{"\n"}facilitam <Text style={styles.splashTitleAccent}>sua rotina.</Text>
           </Text>
@@ -41,7 +36,7 @@ export function DularSplashScreen() {
         <View style={styles.splashHeart}>
           <AppIcon name="Heart" size={22} color={colors.pink} strokeWidth={2.8} />
         </View>
-      </ImageBackground>
+      </View>
     </LinearGradient>
   );
 }
@@ -57,9 +52,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",
-  },
-  splashBgImage: {
-    opacity: 0.34,
   },
   splashShape: {
     position: "absolute",
@@ -89,10 +81,6 @@ const styles = StyleSheet.create({
   splashCenter: {
     alignItems: "center",
     paddingHorizontal: 32,
-  },
-  logoLight: {
-    width: 170,
-    height: 72,
   },
   splashTitle: {
     marginTop: 26,

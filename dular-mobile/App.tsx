@@ -10,7 +10,12 @@ import OnboardingScreen from "@/screens/onboarding/OnboardingScreen";
 import { colors } from "@/theme/tokens";
 import { navRef } from "@/navigation/nav";
 import { useAuth } from "@/stores/authStore";
-import { getOnboardingSeenValue, markOnboardingSeen, ONBOARDING_KEY } from "@/lib/onboarding";
+import {
+  getOnboardingSeenValue,
+  markOnboardingSeen,
+  ONBOARDING_KEY,
+  resetOnboardingSeen,
+} from "@/lib/onboarding";
 
 export default function App() {
   const { token, role, clearSession, hydrate } = useAuth();
@@ -41,6 +46,11 @@ export default function App() {
       try {
         console.log("[BOOT] onboarding key:", ONBOARDING_KEY);
         await hydrate();
+
+        if (__DEV__) {
+          await resetOnboardingSeen();
+          console.log("[BOOT] onboarding resetado em DEV");
+        }
 
         const onboardingSeenValue = await getOnboardingSeenValue();
         const seen = onboardingSeenValue === "true";

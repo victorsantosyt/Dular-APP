@@ -1,7 +1,4 @@
 export const onboardingAssets = {
-  logoLight: require("../../assets/onboarding/dular-logo-light.png"),
-  logoDark: require("../../assets/onboarding/dular-logo-dark.png"),
-  splashBg: require("../../assets/onboarding/onboarding-splash-bg.png"),
   welcomeHero: require("../../assets/onboarding/onboarding-welcome-hero.png"),
   benefitsPhone: require("../../assets/onboarding/onboarding-benefits-phone.png"),
   securityShield: require("../../assets/onboarding/onboarding-security-shield.png"),

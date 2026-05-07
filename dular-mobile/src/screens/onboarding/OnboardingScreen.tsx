@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   Image,
-  ImageBackground,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -13,6 +12,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { onboardingAssets } from "@/assets/onboardingAssets";
+import { DularLogo, DularLogoWhite } from "@/assets/brand";
 import { AppIcon } from "@/components/ui";
 import { markOnboardingSeen } from "@/lib/onboarding";
 
@@ -174,7 +174,7 @@ export default function OnboardingScreen({ onFinish, showSplash = true }: Onboar
         contentContainerStyle={[styles.scroll, isSmallScreen && styles.scrollSmall]}
       >
         <View style={styles.logoRow}>
-          <Image source={onboardingAssets.logoDark} style={styles.logoDark} resizeMode="contain" />
+          <DularLogo size="md" />
         </View>
 
         <View style={styles.titleBlock}>
@@ -218,18 +218,13 @@ function SplashSlide({ onNext }: { onNext: () => void }) {
         end={{ x: 0.9, y: 1 }}
         style={styles.splash}
       >
-        <ImageBackground
-          source={onboardingAssets.splashBg}
-          resizeMode="cover"
-          imageStyle={styles.splashBgImage}
-          style={styles.splashBg}
-        >
+        <View style={styles.splashBg}>
           <View style={[styles.splashShape, styles.splashShapeTop]} />
           <View style={[styles.splashShape, styles.splashShapeLeft]} />
           <View style={[styles.splashShape, styles.splashShapeBottom]} />
 
           <View style={styles.splashCenter}>
-            <Image source={onboardingAssets.logoLight} style={styles.logoLight} resizeMode="contain" />
+            <DularLogoWhite size="lg" />
             <Text allowFontScaling={false} style={styles.splashTitle}>
               Conexões que{"\n"}facilitam <Text style={styles.splashTitleAccent}>sua rotina.</Text>
             </Text>
@@ -238,7 +233,7 @@ function SplashSlide({ onNext }: { onNext: () => void }) {
           <View style={styles.splashHeart}>
             <AppIcon name="Heart" size={22} color={colors.pink} strokeWidth={2.8} />
           </View>
-        </ImageBackground>
+        </View>
       </LinearGradient>
     </Pressable>
   );
@@ -419,10 +414,6 @@ const styles = StyleSheet.create({
   logoRow: {
     alignItems: "center",
     marginBottom: 12,
-  },
-  logoDark: {
-    width: 112,
-    height: 38,
   },
   titleBlock: {
     alignItems: "center",
@@ -661,9 +652,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     overflow: "hidden",
   },
-  splashBgImage: {
-    opacity: 0.1,
-  },
   splashShape: {
     position: "absolute",
     backgroundColor: "rgba(255,255,255,0.10)",
@@ -692,11 +680,6 @@ const styles = StyleSheet.create({
   splashCenter: {
     alignItems: "center",
     paddingHorizontal: 24,
-  },
-  logoLight: {
-    width: 148,
-    height: 62,
-    marginBottom: 24,
   },
   splashTitle: {
     color: colors.surface,

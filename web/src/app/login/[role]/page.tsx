@@ -7,8 +7,9 @@ import { Suspense } from "react";
 import { LogoBrand } from "@/components/ui/LogoBrand";
 
 const ROLE_LABELS: Record<string, string> = {
-  cliente: "Cliente",
+  cliente: "Empregador",
   diarista: "Diarista",
+  montador: "Montador",
 };
 
 function GoogleLogo() {

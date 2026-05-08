@@ -26,6 +26,13 @@ function maskPhone(value: string): string {
 
 type Props = { role: UserRole | null; nome: string | null | undefined; platform?: string };
 
+function roleHomePath(role: UserRole | null) {
+  if (role === "EMPREGADOR") return "/cliente";
+  if (role === "DIARISTA") return "/diarista";
+  if (role === "MONTADOR") return "/montador";
+  return "/";
+}
+
 export function OnboardingForm({ role, nome, platform }: Props) {
   const router = useRouter();
 
@@ -63,7 +70,7 @@ export function OnboardingForm({ role, nome, platform }: Props) {
       if (platform === "mobile") {
         window.location.href = "/api/auth/mobile-token";
       } else {
-        router.replace(role === "DIARISTA" ? "/diarista" : "/cliente");
+        router.replace(roleHomePath(role));
       }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Erro inesperado.");

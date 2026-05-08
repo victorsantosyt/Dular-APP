@@ -7,11 +7,17 @@ export async function GET(req: Request) {
     const auth = requireAuth(req);
 
     const where =
-      auth.role === "CLIENTE"
+      auth.role === "EMPREGADOR"
         ? { clientId: auth.userId }
         : auth.role === "DIARISTA"
           ? { diaristaId: auth.userId }
-          : {};
+          : auth.role === "ADMIN"
+            ? {}
+            : null;
+
+    if (!where) {
+      return NextResponse.json({ ok: false, error: "Perfil sem serviços neste fluxo." }, { status: 403 });
+    }
 
     const servicos = await prisma.servico.findMany({
       where,

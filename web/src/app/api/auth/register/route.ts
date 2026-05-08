@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { hashPassword } from "@/lib/password";
 import { registerSchema } from "@/lib/schemas/auth";
+import { ensureUserRoleProfile } from "@/lib/userProfiles";
 
 export async function POST(req: Request) {
   try {
@@ -21,24 +22,18 @@ export async function POST(req: Request) {
 
     const senhaHash = await hashPassword(senha);
 
-    const user = await prisma.user.create({
-      data: {
-        nome,
-        telefone,
-        senhaHash,
-        role,
-      },
-    });
-
-    if (role === "DIARISTA") {
-      await prisma.diaristaProfile.create({
+    await prisma.$transaction(async (tx) => {
+      const user = await tx.user.create({
         data: {
-          userId: user.id,
-          precoLeve: 0,
-          precoPesada: 0,
+          nome,
+          telefone,
+          senhaHash,
+          role,
         },
       });
-    }
+
+      await ensureUserRoleProfile(tx, user.id, role);
+    });
 
     return NextResponse.json({ ok: true });
   } catch (error) {

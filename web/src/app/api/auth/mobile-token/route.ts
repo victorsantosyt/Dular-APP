@@ -29,7 +29,7 @@ export async function GET(request: Request) {
 
   const token = signToken({
     userId: user.id,
-    role: user.role as "CLIENTE" | "DIARISTA" | "ADMIN",
+    role: user.role as "EMPREGADOR" | "DIARISTA" | "MONTADOR" | "ADMIN",
   });
 
   const deepLink = `dular://auth/callback?token=${encodeURIComponent(token)}&role=${user.role as UserRole}`;

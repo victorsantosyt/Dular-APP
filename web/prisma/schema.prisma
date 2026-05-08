@@ -7,9 +7,15 @@ datasource db {
 }
 
 enum UserRole {
-  CLIENTE
+  EMPREGADOR
   DIARISTA
+  MONTADOR
   ADMIN
+}
+
+enum Genero {
+  MASCULINO
+  FEMININO
 }
 
 enum UserStatus {
@@ -171,6 +177,7 @@ model User {
   telefone       String?    @unique
   cpf            String?    @unique
   dataNascimento DateTime?
+  genero         Genero?
   email          String?    @unique
   senhaHash      String?
   role           UserRole?
@@ -182,7 +189,9 @@ model User {
   avatarUrl      String?
   pushToken      String?
 
+  empregadorPerfil      EmpregadorPerfil?
   diaristaProfile       DiaristaProfile?
+  montadorPerfil        MontadorPerfil?
   safeScore             SafeScore?
   safeScoreProfile      SafeScoreProfile?
   documentVerifications DocumentVerification[]
@@ -197,6 +206,20 @@ model User {
   chatMessages          ChatMessage[]
   subscription          Subscription?
   creditWallet          CreditWallet?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model EmpregadorPerfil {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  cidade     String?
+  estado     String?
+  fotoPerfil String?
+  ativo      Boolean @default(true)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -222,6 +245,29 @@ model DiaristaProfile {
 
   bairros DiaristaBairro[]
   agenda  Disponibilidade[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model MontadorPerfil {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  bio             String?
+  especialidades  String[]
+  anosExperiencia Int?
+  cidade          String?
+  estado          String?
+  fotoPerfil      String?
+  documentoFrente String?
+  documentoVerso  String?
+  selfieDoc       String?
+  verificado      Boolean  @default(false)
+  ativo           Boolean  @default(true)
+  rating          Float    @default(0)
+  totalServicos   Int      @default(0)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

@@ -2,16 +2,16 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Home, Sparkles } from "lucide-react";
+import { Home, Sparkles, Wrench } from "lucide-react";
 import { LogoBrand } from "@/components/ui/LogoBrand";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
 
-type Role = "cliente" | "diarista";
+type Role = "cliente" | "diarista" | "montador";
 
 const OPTIONS: { role: Role; label: string; description: string; icon: React.ReactNode }[] = [
   {
     role: "cliente",
-    label: "Sou Cliente",
+    label: "Sou Empregador",
     description: "Quero encontrar uma diarista de confiança para minha casa.",
     icon: <Home size={28} strokeWidth={1.75} />,
   },
@@ -20,6 +20,12 @@ const OPTIONS: { role: Role; label: string; description: string; icon: React.Rea
     label: "Sou Diarista",
     description: "Quero oferecer meus serviços e receber novos clientes.",
     icon: <Sparkles size={28} strokeWidth={1.75} />,
+  },
+  {
+    role: "montador",
+    label: "Sou Montador",
+    description: "Quero oferecer serviços de montagem para empregadores.",
+    icon: <Wrench size={28} strokeWidth={1.75} />,
   },
 ];
 

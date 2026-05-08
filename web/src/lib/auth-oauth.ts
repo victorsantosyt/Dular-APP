@@ -54,7 +54,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   ],
   session: { strategy: "jwt" },
   callbacks: {
-    async jwt({ token, account, profile, trigger, session }) {
+    async jwt({ token, account, profile, trigger }) {
       // account só está presente no primeiro sign-in
       const providerMap: Record<string, OAuthProvider> = { google: "GOOGLE", apple: "APPLE" };
       const oauthProvider = account?.provider ? providerMap[account.provider] : undefined;
@@ -71,9 +71,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.role = user.role ?? null;
       }
 
-      // Atualiza role quando o cliente chama session.update({ role })
-      if (trigger === "update" && (session as { role?: UserRole } | null)?.role) {
-        token.role = (session as { role: UserRole }).role;
+      // Atualiza o JWT a partir do banco. Nunca confia no role enviado pelo client.
+      if (trigger === "update" && token.userId) {
+        const user = await prisma.user.findUnique({
+          where: { id: token.userId as string },
+          select: { role: true },
+        });
+        token.role = user?.role ?? null;
       }
 
       // Se role ainda for null mas já temos userId, busca no banco

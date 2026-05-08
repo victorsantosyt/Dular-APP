@@ -22,8 +22,9 @@ export default async function OnboardingPage({
   // Perfil já completo — mobile volta para gerar o token, web vai para a home
   if (user?.telefone && user?.cpf) {
     if (isMobile) redirect("/api/auth/mobile-token");
-    if (user.role === "CLIENTE") redirect("/cliente");
+    if (user.role === "EMPREGADOR") redirect("/cliente");
     if (user.role === "DIARISTA") redirect("/diarista");
+    if (user.role === "MONTADOR") redirect("/montador");
   }
 
   return (

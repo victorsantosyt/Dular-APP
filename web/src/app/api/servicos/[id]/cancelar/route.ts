@@ -59,7 +59,7 @@ export async function POST(req: Request, { params }: Params) {
         destinoId,
         "Serviço cancelado",
         isCliente
-          ? "O cliente cancelou a solicitação."
+          ? "O empregador cancelou a solicitação."
           : "A diarista cancelou o serviço.",
         { servicoId: servico.id, tipo: "SERVICO_CANCELADO", tardio }
       );

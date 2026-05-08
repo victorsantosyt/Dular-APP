@@ -10,7 +10,7 @@ export type PlanDef = {
   id: PlanId;
   name: string;
   description: string;
-  role: "CLIENTE" | "DIARISTA";
+  role: "EMPREGADOR" | "DIARISTA" | "MONTADOR";
   mode: "subscription";
   interval: "month" | "year";
   priceInCents: number;
@@ -49,12 +49,12 @@ export const PLANS: Record<PlanId, PlanDef> = {
     priceInCents: 35900, // R$359,00
     plan: "PREMIUM",
   },
-  // ── CLIENTE ───────────────────────────────────────────────────────────────
+  // ── EMPREGADOR ───────────────────────────────────────────────────────────────
   cliente_mensal: {
     id: "cliente_mensal",
-    name: "Cliente Mensal",
+    name: "Empregador Mensal",
     description: "Solicite serviços ilimitados por mês",
-    role: "CLIENTE",
+    role: "EMPREGADOR",
     mode: "subscription",
     interval: "month",
     priceInCents: 1490, // R$14,90

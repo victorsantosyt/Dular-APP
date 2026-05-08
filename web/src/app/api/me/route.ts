@@ -30,6 +30,7 @@ export async function GET(req: Request) {
         nome: true,
         telefone: true,
         email: true,
+        genero: true,
         role: true,
         status: true,
         avatarUrl: true,
@@ -136,6 +137,7 @@ export async function PUT(req: Request) {
         nome: true,
         telefone: true,
         email: true,
+        genero: true,
         role: true,
         status: true,
         avatarUrl: true,
@@ -208,13 +210,6 @@ export async function PUT(req: Request) {
           precoMedio: true,
           precoPesada: true,
         },
-      });
-    }
-
-    if (typeof bio === "string" && auth.role !== "DIARISTA") {
-      await prisma.diaristaProfile.updateMany({
-        where: { userId: auth.userId },
-        data: { bio: bio.trim() || null },
       });
     }
 

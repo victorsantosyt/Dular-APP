@@ -76,7 +76,7 @@ async function main() {
     await prisma.user.upsert({
       where: { telefone: c.tel },
       update: {},
-      create: { nome: c.nome, telefone: c.tel, senhaHash: senhaCliente, role: "CLIENTE" },
+      create: { nome: c.nome, telefone: c.tel, senhaHash: senhaCliente, role: "EMPREGADOR" },
     });
   }
 

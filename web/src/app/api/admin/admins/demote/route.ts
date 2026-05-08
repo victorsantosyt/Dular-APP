@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/requireAuth";
+import { ensureUserRoleProfile } from "@/lib/userProfiles";
 
 export const dynamic = "force-dynamic";
 
@@ -20,10 +21,15 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: "Você não pode remover a si mesmo." }, { status: 400 });
     }
 
-    const user = await prisma.user.update({
-      where: { id: userId },
-      data: { role: "CLIENTE" },
-      select: { id: true, nome: true, telefone: true, email: true, role: true },
+    const user = await prisma.$transaction(async (tx) => {
+      const nextUser = await tx.user.update({
+        where: { id: userId },
+        data: { role: "EMPREGADOR" },
+        select: { id: true, nome: true, telefone: true, email: true, role: true },
+      });
+
+      await ensureUserRoleProfile(tx, nextUser.id, nextUser.role);
+      return nextUser;
     });
 
     return NextResponse.json({ ok: true, user });

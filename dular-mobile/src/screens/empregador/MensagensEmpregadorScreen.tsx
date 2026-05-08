@@ -8,9 +8,9 @@ import { ConversaCard, ConversaCardSkeleton } from "@/components/ui/ConversaCard
 import { useMensagens } from "@/hooks/useMensagens";
 import type { ChatRoom } from "@/hooks/useMensagens";
 import { colors, spacing, typography } from "@/theme/tokens";
-import type { ClienteTabParamList } from "@/navigation/ClienteNavigator";
+import type { EmpregadorTabParamList } from "@/navigation/EmpregadorNavigator";
 
-type Navigation = BottomTabNavigationProp<ClienteTabParamList>;
+type Navigation = BottomTabNavigationProp<EmpregadorTabParamList>;
 
 const SKELETON_COUNT = 5;
 
@@ -38,7 +38,7 @@ function SkeletonList() {
   );
 }
 
-export function MensagensClienteScreen() {
+export function MensagensEmpregadorScreen() {
   const navigation = useNavigation<Navigation>();
   const { rooms, loading, refetch } = useMensagens();
   const [refreshing, setRefreshing] = useState(false);
@@ -95,7 +95,7 @@ export function MensagensClienteScreen() {
   );
 }
 
-export default MensagensClienteScreen;
+export default MensagensEmpregadorScreen;
 
 const styles = StyleSheet.create({
   safe: {

@@ -37,7 +37,7 @@ function statusLabel(status: string) {
   return status;
 }
 
-export default function ClientePerfil({ onLogout }: Props) {
+export default function EmpregadorPerfil({ onLogout }: Props) {
   const insets = useSafeAreaInsets();
   const setUser = useAuth((s) => s.setUser);
   const busyRef = useRef(false);
@@ -225,7 +225,7 @@ export default function ClientePerfil({ onLogout }: Props) {
                   )}
                 </View>
               </Pressable>
-              <Text style={s.nomeText}>{perfil?.nome ?? "Cliente"}</Text>
+              <Text style={s.nomeText}>{perfil?.nome ?? "Empregador"}</Text>
               <Text style={s.emailText}>{perfil?.email ?? ""}</Text>
             </View>
 

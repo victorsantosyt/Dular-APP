@@ -5,10 +5,10 @@ import { useNavigation } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import { AppIcon, AppIconName, DAvatar, DBadge, DBottomNav, DButton, DCard } from "@/components/ui";
 import { colors, radius, shadows, spacing } from "@/theme";
-import type { ClienteTabParamList } from "@/navigation/ClienteNavigator";
-import { useAgendamentosCliente } from "@/hooks/useAgendamentosCliente";
+import type { EmpregadorTabParamList } from "@/navigation/EmpregadorNavigator";
+import { useAgendamentosEmpregador } from "@/hooks/useAgendamentosEmpregador";
 
-type Navigation = BottomTabNavigationProp<ClienteTabParamList>;
+type Navigation = BottomTabNavigationProp<EmpregadorTabParamList>;
 type CategoriaFiltro = "todas" | "diarista" | "baba" | "cozinheira" | "exp";
 type StatusFiltro = "todas" | "aceitas" | "andamento" | "concluidas" | "canceladas";
 type StatusAgendamento = "pendente" | "aceita" | "andamento" | "concluida" | "cancelada";
@@ -336,11 +336,11 @@ function InfoCard() {
   );
 }
 
-export function AgendamentosClienteScreen() {
+export function AgendamentosEmpregadorScreen() {
   const navigation = useNavigation<Navigation>();
   const [categoriaAtiva, setCategoriaAtiva] = useState<CategoriaFiltro>("todas");
   const [statusAtivo, setStatusAtivo] = useState<StatusFiltro>("todas");
-  const { agendamentos: realAgendamentos, loading, error, refetch } = useAgendamentosCliente();
+  const { agendamentos: realAgendamentos, loading, error, refetch } = useAgendamentosEmpregador();
 
   const sourceData = realAgendamentos.length > 0 ? realAgendamentos : AGENDAMENTOS;
 
@@ -435,7 +435,7 @@ export function AgendamentosClienteScreen() {
   );
 }
 
-export default AgendamentosClienteScreen;
+export default AgendamentosEmpregadorScreen;
 
 const styles = StyleSheet.create({
   safe: {

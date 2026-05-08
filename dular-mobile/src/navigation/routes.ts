@@ -10,11 +10,11 @@ export const TAB_ROUTES = {
   PERFIL: "Perfil",
 } as const;
 
-export const CLIENTE_STACK_ROUTES = {
-  HOME: "ClienteHome",
-  MINHAS: "ClienteMinhas",
-  DETALHE: "ClienteDetalhe",
-  PERFIL: "ClientePerfil",
+export const EMPREGADOR_STACK_ROUTES = {
+  HOME: "EmpregadorHome",
+  MINHAS: "EmpregadorMinhas",
+  DETALHE: "EmpregadorDetalhe",
+  PERFIL: "EmpregadorPerfil",
   CHAT: "Chat",
 } as const;
 

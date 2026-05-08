@@ -9,9 +9,9 @@ import { AppIcon } from "@/components/ui";
 import { DButton } from "@/components/DButton";
 import { colors, radius, spacing, typography } from "@/theme/tokens";
 import { shadow } from "@/utils/platform";
-import type { ClienteTabParamList } from "@/navigation/ClienteNavigator";
+import type { EmpregadorTabParamList } from "@/navigation/EmpregadorNavigator";
 
-type RouteProps = RouteProp<ClienteTabParamList, "DiaristaProfile">;
+type RouteProps = RouteProp<EmpregadorTabParamList, "DiaristaProfile">;
 
 function tempoLabel(meses: number): string {
   if (meses < 12) return `${meses} ${meses === 1 ? "mês" : "meses"}`;

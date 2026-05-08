@@ -6,6 +6,7 @@ import { BenefitsScreen } from "@/screens/onboarding/BenefitsScreen";
 import { SecurityScreen } from "@/screens/onboarding/SecurityScreen";
 import { StartScreen } from "@/screens/onboarding/StartScreen";
 import { RoleSelectScreen } from "@/screens/onboarding/RoleSelectScreen";
+import { GeneroSelectScreen } from "@/screens/onboarding/GeneroSelectScreen";
 import { LoginScreen } from "@/screens/onboarding/LoginScreen";
 
 export type OnboardingStackParamList = {
@@ -15,6 +16,7 @@ export type OnboardingStackParamList = {
   Security: undefined;
   Start: undefined;
   RoleSelect: undefined;
+  GeneroSelect: undefined;
   Login: undefined;
 };
 
@@ -36,6 +38,11 @@ export default function OnboardingNavigator({ initialRouteName = "Splash" }: Pro
       <Stack.Screen name="Security" component={SecurityScreen} />
       <Stack.Screen name="Start" component={StartScreen} />
       <Stack.Screen name="RoleSelect" component={RoleSelectScreen} />
+      <Stack.Screen
+        name="GeneroSelect"
+        component={GeneroSelectScreen}
+        options={{ gestureEnabled: false }}
+      />
       <Stack.Screen name="Login" component={LoginScreen} />
     </Stack.Navigator>
   );

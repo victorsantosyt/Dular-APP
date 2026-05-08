@@ -13,7 +13,7 @@ function AuthenticatedFlow({ role }: { role: string | null }) {
   usePushNotifications();
 
   const normalizedRole = role?.toLowerCase();
-  if (normalizedRole === "empregador" || normalizedRole === "cliente") return <ClienteNavigator />;
+  if (normalizedRole === "empregador") return <ClienteNavigator />;
   if (normalizedRole === "diarista") return <DiaristaNavigator />;
   if (normalizedRole === "montador") return <MontadorPlaceholder />;
 

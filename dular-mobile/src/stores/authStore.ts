@@ -17,6 +17,7 @@ function isJwtExpired(token: string): boolean {
 }
 
 type Role = "EMPREGADOR" | "DIARISTA" | "MONTADOR" | "ADMIN";
+export type Genero = "MASCULINO" | "FEMININO";
 
 type User = {
   id: string;
@@ -39,8 +40,12 @@ type AuthState = {
   user: User | null;
   token: string | null;
   role: Role | null;
+  selectedRole: Role | null;
+  selectedGenero: Genero | null;
   hydrated: boolean;
   isAuthenticated: boolean;
+  setSelectedRole: (role: Role) => void;
+  setSelectedGenero: (genero: Genero) => void;
   setSession: (data: { token: string; role: Role; user?: User | null }) => Promise<void>;
   clearSession: () => Promise<void>;
   hydrate: () => Promise<void>;
@@ -61,8 +66,12 @@ export const useAuth = create<AuthState>((set) => ({
   user: null,
   token: null,
   role: null,
+  selectedRole: null,
+  selectedGenero: null,
   hydrated: false,
   isAuthenticated: false,
+  setSelectedRole: (role) => set({ selectedRole: role }),
+  setSelectedGenero: (genero) => set({ selectedGenero: genero }),
 
   async setSession(data) {
     const { token, role, user } = data;

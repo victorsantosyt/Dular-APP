@@ -18,14 +18,18 @@ import { useAuthStore } from "@/stores/authStore";
 import type { OnboardingStackParamList } from "@/navigation/OnboardingNavigator";
 import { colors as tc } from "@/theme/tokens";
 
+type Role = "EMPREGADOR" | "DIARISTA" | "MONTADOR";
+
 const { width } = Dimensions.get("window");
 
 type Navigation = NativeStackNavigationProp<OnboardingStackParamList>;
-type ChosenRole = "empregador" | "diarista";
+type ChosenRole = "empregador" | "diarista" | "montador";
 type IoniconsName = ComponentProps<typeof Ionicons>["name"];
 
 const clienteImg = require("../../../assets/images/roles/role_cliente_card.png");
 const diaristaImg = require("../../../assets/images/roles/role_diarista_card.png");
+// Imagem placeholder para Montador — substituir quando asset próprio existir
+const montadorImg = require("../../../assets/images/roles/role_diarista_card.png");
 
 const PURPLE = tc.purpleStep;
 const PINK = tc.pink;
@@ -50,6 +54,13 @@ const diaristaFeatures: Feature[] = [
   { icon: "bar-chart-outline", text: "Acompanhe seu\ndesempenho e\nevolua sempre" },
 ];
 
+const montadorFeatures: Feature[] = [
+  { icon: "construct-outline", text: "Monte com\nprecisão e\nqualidade" },
+  { icon: "calendar-outline", text: "Receba\noportunidades\nna sua região" },
+  { icon: "wallet-outline", text: "Ganhos\nseguros e\ntransparentes" },
+  { icon: "star-outline", text: "Construa sua\nreputação\nprofissional" },
+];
+
 // ─── Step Indicator ──────────────────────────────────────────────────────────
 
 function StepIndicator({ onSkip }: { onSkip: () => void }) {
@@ -66,8 +77,12 @@ function StepIndicator({ onSkip }: { onSkip: () => void }) {
           <View style={styles.stepCircleInactive}>
             <Text allowFontScaling={false} style={styles.stepInactiveText}>2</Text>
           </View>
+          <View style={styles.stepDash} />
+          <View style={styles.stepCircleInactive}>
+            <Text allowFontScaling={false} style={styles.stepInactiveText}>3</Text>
+          </View>
         </View>
-        <Text allowFontScaling={false} style={styles.stepCaption}>1 de 2</Text>
+        <Text allowFontScaling={false} style={styles.stepCaption}>1 de 3</Text>
       </View>
 
       <View style={styles.headerRight}>
@@ -161,8 +176,9 @@ export function RoleSelectScreen() {
   const navigation = useNavigation<Navigation>();
 
   const chooseRole = (role: ChosenRole) => {
-    useAuthStore.setState({ role: role === "empregador" ? "EMPREGADOR" : "DIARISTA" });
-    navigation.navigate("Login");
+    const mapped: Role = role === "empregador" ? "EMPREGADOR" : role === "diarista" ? "DIARISTA" : "MONTADOR";
+    useAuthStore.getState().setSelectedRole(mapped);
+    navigation.navigate("GeneroSelect");
   };
 
   const skip = () => navigation.navigate("Login");
@@ -225,10 +241,24 @@ export function RoleSelectScreen() {
           onPress={() => chooseRole("diarista")}
         />
 
+        <RoleCard
+          image={montadorImg}
+          accent={tc.teal}
+          bgTop="#DFF2ED"
+          bgCard="#F0FAF8"
+          borderHex={tc.teal + "4D"}
+          title="Montador"
+          description={"Instale e monte\ncom qualidade e\nprecisão."}
+          badgeIcon="construct-outline"
+          features={montadorFeatures}
+          buttonLabel="Sou Montador"
+          onPress={() => chooseRole("montador")}
+        />
+
         {/* Security footer */}
         <View style={styles.footer}>
           <View style={styles.footerIcon}>
-            <Ionicons name="lock-closed" size={18} color="#FFFFFF" />
+            <Ionicons name="lock-closed" size={18} color={tc.white} />
           </View>
           <View style={styles.footerText}>
             <Text allowFontScaling={false} style={styles.footerTitle}>Seguro e confiável</Text>

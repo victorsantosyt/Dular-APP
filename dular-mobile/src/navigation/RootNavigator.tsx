@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 import * as ExpoSplashScreen from "expo-splash-screen";
 import OnboardingNavigator from "@/navigation/OnboardingNavigator";
-import ClienteNavigator from "@/navigation/ClienteNavigator";
+import EmpregadorNavigator from "@/navigation/EmpregadorNavigator";
 import DiaristaNavigator from "@/navigation/DiaristaNavigator";
-import { useAuthStore } from "@/store/authStore";
+import MontadorNavigator from "@/navigation/MontadorNavigator";
+import { useAuthStore } from "@/stores/authStore";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { hasSeenOnboarding } from "@/lib/onboarding";
 import { colors } from "@/theme";
@@ -13,20 +14,11 @@ function AuthenticatedFlow({ role }: { role: string | null }) {
   usePushNotifications();
 
   const normalizedRole = role?.toLowerCase();
-  if (normalizedRole === "empregador") return <ClienteNavigator />;
+  if (normalizedRole === "empregador") return <EmpregadorNavigator />;
   if (normalizedRole === "diarista") return <DiaristaNavigator />;
-  if (normalizedRole === "montador") return <MontadorPlaceholder />;
+  if (normalizedRole === "montador") return <MontadorNavigator />;
 
   return <OnboardingNavigator initialRouteName="RoleSelect" />;
-}
-
-function MontadorPlaceholder() {
-  return (
-    <View style={styles.placeholderScreen}>
-      <Text style={styles.placeholderTitle}>Perfil Montador</Text>
-      <Text style={styles.placeholderText}>A area operacional de montadores ainda esta em preparacao.</Text>
-    </View>
-  );
 }
 
 export function RootNavigator() {
@@ -81,25 +73,5 @@ const styles = StyleSheet.create({
   bootScreen: {
     flex: 1,
     backgroundColor: colors.background,
-  },
-  placeholderScreen: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 24,
-    backgroundColor: colors.background,
-  },
-  placeholderTitle: {
-    fontSize: 20,
-    fontWeight: "800",
-    color: colors.textPrimary,
-    textAlign: "center",
-  },
-  placeholderText: {
-    marginTop: 10,
-    fontSize: 14,
-    lineHeight: 20,
-    color: colors.textSecondary,
-    textAlign: "center",
   },
 });

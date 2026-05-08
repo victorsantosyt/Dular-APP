@@ -53,6 +53,7 @@ import {
   Video,
   Wallet,
   WashingMachine,
+  Wrench,
   XCircle,
   ChefHat,
   Phone,
@@ -112,6 +113,7 @@ const ICONS = {
   Video,
   Wallet,
   WashingMachine,
+  Wrench,
   XCircle,
   ChefHat,
 } as const;

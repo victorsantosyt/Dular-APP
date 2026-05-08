@@ -76,27 +76,28 @@ function AppleLogo() {
 
 export function LoginScreen() {
   const navigation = useNavigation<Navigation>();
-  const role = useAuthStore((state) => state.role);
+  const preLoginRole = useAuthStore((state) => state.selectedRole);
+  const preLoginGenero = useAuthStore((state) => state.selectedGenero);
   const setSession = useAuthStore((state) => state.setSession);
   const [loadingProvider, setLoadingProvider] = useState<Provider | null>(null);
 
-  const selectedRole =
-    role === "DIARISTA"
+  const callbackRole =
+    preLoginRole === "DIARISTA"
       ? "diarista"
-      : role === "EMPREGADOR"
-        ? "cliente"
-        : role === "MONTADOR"
+      : preLoginRole === "EMPREGADOR"
+        ? "empregador"
+        : preLoginRole === "MONTADOR"
           ? "montador"
           : null;
 
   useEffect(() => {
-    if (!selectedRole) {
+    if (!callbackRole) {
       navigation.replace("RoleSelect");
     }
-  }, [navigation, selectedRole]);
+  }, [navigation, callbackRole]);
 
   const handleOAuthLogin = async (provider: Provider) => {
-    if (!selectedRole) {
+    if (!callbackRole) {
       Alert.alert("Perfil obrigatório", "Escolha Empregador, Diarista ou Montador antes de fazer login.");
       navigation.replace("RoleSelect");
       return;
@@ -109,11 +110,12 @@ export function LoginScreen() {
 
     setLoadingProvider(provider);
     try {
-      const callbackUrl = encodeURIComponent(`/auth/callback/${selectedRole}?platform=mobile`);
+      const generoParam = preLoginGenero ? `&genero=${preLoginGenero}` : "";
+      const callbackUrl = encodeURIComponent(`/auth/callback/${callbackRole}?platform=mobile`);
       const loginUrl =
         provider === "google"
-          ? `${API_BASE_URL}/api/auth/mobile-google?role=${selectedRole}&callbackUrl=${callbackUrl}`
-          : `${API_BASE_URL}/api/auth/signin/apple?callbackUrl=${callbackUrl}`;
+          ? `${API_BASE_URL}/api/auth/mobile-google?role=${callbackRole}&callbackUrl=${callbackUrl}${generoParam}`
+          : `${API_BASE_URL}/api/auth/signin/apple?callbackUrl=${callbackUrl}${generoParam}`;
 
       const result = await WebBrowser.openAuthSessionAsync(loginUrl, "dular://auth");
       if (result.type !== "success") return;
@@ -145,7 +147,7 @@ export function LoginScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.header}>
-        <StepperComponent step={2} total={2} />
+        <StepperComponent step={3} total={3} />
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>

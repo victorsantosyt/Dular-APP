@@ -18,6 +18,7 @@ import { DularMark } from "@/assets/brand";
 import { getRoleImage, type RoleImageKey } from "@/assets/roleImages";
 import { AppIcon } from "@/components/ui";
 import { AUTH_ROUTES } from "@/navigation/routes";
+import { useAuthStore } from "@/stores/authStore";
 
 type Role = "EMPREGADOR" | "DIARISTA" | "MONTADOR";
 type ProfileVariant = RoleImageKey;
@@ -76,6 +77,13 @@ const diaristaBenefits: Benefit[] = [
   { icon: "BarChart3", text: "Acompanhe seu desempenho" },
 ];
 
+const montadorBenefits: Benefit[] = [
+  { icon: "Wrench", text: "Monte com precisão" },
+  { icon: "Calendar", text: "Receba oportunidades" },
+  { icon: "Wallet", text: "Ganhos seguros" },
+  { icon: "Star", text: "Construa reputação" },
+];
+
 function StepIndicator() {
   return (
     <View style={styles.stepWrap}>
@@ -93,10 +101,18 @@ function StepIndicator() {
             2
           </Text>
         </View>
+
+        <View style={styles.stepLine} />
+
+        <View style={styles.stepCircleInactive}>
+          <Text allowFontScaling={false} style={styles.stepInactiveText}>
+            3
+          </Text>
+        </View>
       </View>
 
       <Text allowFontScaling={false} style={styles.stepLabel}>
-        1 de 2
+        1 de 3
       </Text>
     </View>
   );
@@ -153,17 +169,22 @@ function ProfileChoiceCard({
   onPress,
 }: ProfileChoiceCardProps) {
   const isCliente = variant === "cliente";
+  const isMontador = variant === "montador";
 
-  const accent = isCliente ? colors.primary : colors.pink;
-  const border = isCliente ? colors.borderPurple : colors.borderPink;
+  const accent = isCliente ? colors.primary : isMontador ? tc.teal : colors.pink;
+  const border = isCliente ? colors.borderPurple : isMontador ? tc.successSoftGreen : colors.borderPink;
 
   const cardGradient = isCliente
     ? ([tc.white, tc.lavenderSoftAlt] as const)
-    : ([tc.white, tc.pinkSoftLight] as const);
+    : isMontador
+      ? ([tc.white, tc.successSoftGreen] as const)
+      : ([tc.white, tc.pinkSoftLight] as const);
 
   const buttonGradient = isCliente
     ? ([tc.primaryLight, colors.primary] as const)
-    : ([tc.pinkMid, colors.pink] as const);
+    : isMontador
+      ? ([tc.teal, "#2E7A65"] as const)
+      : ([tc.pinkMid, colors.pink] as const);
 
   return (
     <View style={[styles.cardShadow, { shadowColor: accent }]}>
@@ -205,7 +226,7 @@ function ProfileChoiceCard({
           style={[
             styles.heroBackground,
             compact && styles.heroBackgroundCompact,
-            isCliente ? styles.clientHeroBackground : styles.diaristaHeroBackground,
+            isCliente ? styles.clientHeroBackground : isMontador ? styles.montadorHeroBackground : styles.diaristaHeroBackground,
           ]}
         />
 
@@ -218,7 +239,7 @@ function ProfileChoiceCard({
             style={[
               styles.heroImage,
               compact && styles.heroImageCompact,
-              isCliente ? styles.clientHeroImage : styles.diaristaHeroImage,
+              isCliente ? styles.clientHeroImage : isMontador ? styles.montadorHeroImage : styles.diaristaHeroImage,
             ]}
             resizeMode="contain"
           />
@@ -226,7 +247,7 @@ function ProfileChoiceCard({
 
         <View style={[styles.roleIconBadge, { backgroundColor: accent }]}>
           <AppIcon
-            name={isCliente ? "User" : "BriefcaseBusiness"}
+            name={isCliente ? "User" : isMontador ? "Wrench" : "BriefcaseBusiness"}
             size={24}
             color={tc.white}
             strokeWidth={2.2}
@@ -296,6 +317,7 @@ export default function RoleSelect() {
   const compact = height < 740;
 
   const goTo = (role: Role) => {
+    useAuthStore.getState().setSelectedRole(role);
     navigation.navigate(AUTH_ROUTES.OAUTH_LOGIN, { role });
   };
 
@@ -358,6 +380,16 @@ export default function RoleSelect() {
             benefits={diaristaBenefits}
             compact={compact}
             onPress={() => goTo("DIARISTA")}
+          />
+
+          <ProfileChoiceCard
+            variant="montador"
+            titleHighlight="Montador"
+            description="Instale e monte com qualidade e precisão."
+            buttonLabel="Sou Montador"
+            benefits={montadorBenefits}
+            compact={compact}
+            onPress={() => goTo("MONTADOR")}
           />
         </View>
 
@@ -615,6 +647,10 @@ const styles = StyleSheet.create({
     backgroundColor: tc.pinkSoftLight,
   },
 
+  montadorHeroBackground: {
+    backgroundColor: tc.successSoftGreen,
+  },
+
   heroImageArea: {
     position: "absolute",
     top: 54,
@@ -650,6 +686,11 @@ const styles = StyleSheet.create({
   },
 
   diaristaHeroImage: {
+    marginLeft: 0,
+    marginTop: 0,
+  },
+
+  montadorHeroImage: {
     marginLeft: 0,
     marginTop: 0,
   },

@@ -39,8 +39,8 @@ const ROLE_LABEL: Record<AuthRole, string> = {
   MONTADOR: "Montador",
 };
 
-const CALLBACK_ROLE: Record<AuthRole, "cliente" | "diarista" | "montador"> = {
-  EMPREGADOR: "cliente",
+const CALLBACK_ROLE: Record<AuthRole, "empregador" | "diarista" | "montador"> = {
+  EMPREGADOR: "empregador",
   DIARISTA: "diarista",
   MONTADOR: "montador",
 };

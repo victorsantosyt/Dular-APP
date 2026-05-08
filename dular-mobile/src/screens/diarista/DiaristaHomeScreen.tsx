@@ -1,29 +1,32 @@
-import React, { useEffect, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
-import { AppIcon, AppIconName, DAvatar, DBadge, DBottomNav, DCard } from "@/components/ui";
+import { AppIcon, AppIconName, DAvatar, DBadge, DBottomNav, DCard, DScreen, DSectionHeader } from "@/components/ui";
 import { DularLogo } from "@/assets/brand";
 import { Wallet3DIcon } from "@/assets/icons";
 import { colors, radius, shadows, spacing } from "@/theme";
 import { useAuthStore } from "@/store/authStore";
 import type { DiaristaTabParamList } from "@/navigation/DiaristaNavigator";
 import { getMyRestrictions, type UserRestriction } from "@/api/safeScoreApi";
+import { useAgendamentosDiarista, type AgendamentoDiarista, type StatusDiarista } from "@/hooks/useAgendamentosDiarista";
+import { useMensagens } from "@/hooks/useMensagens";
 
 type Navigation = BottomTabNavigationProp<DiaristaTabParamList>;
+type BadgeType = "default" | "success" | "warning" | "error" | "info" | "accent";
+type QuickActionId = "agendamentos" | "carteira" | "avaliacoes" | "mensagens";
 
-const QUICK_ACTIONS: { icon: AppIconName; label: string; tone: "purple" | "pink" | "green" | "blue" }[] = [
-  { icon: "Calendar", label: "Meus\nAgendamentos", tone: "purple" },
-  { icon: "Wallet", label: "Meus\nGanhos", tone: "purple" },
-  { icon: "Star", label: "Avaliações", tone: "pink" },
-  { icon: "MessageCircle", label: "Mensagens", tone: "pink" },
+const QUICK_ACTIONS: { id: QuickActionId; icon: AppIconName; label: string; tone: "purple" | "pink" | "green" | "blue" }[] = [
+  { id: "agendamentos", icon: "Calendar", label: "Meus\nAgendamentos", tone: "purple" },
+  { id: "carteira", icon: "Wallet", label: "Meus\nGanhos", tone: "purple" },
+  { id: "avaliacoes", icon: "Star", label: "Avaliações", tone: "pink" },
+  { id: "mensagens", icon: "MessageCircle", label: "Mensagens", tone: "pink" },
 ];
 
-function MenuIcon() {
+function MenuIcon({ onPress }: { onPress: () => void }) {
   return (
-    <Pressable hitSlop={spacing.sm}>
+    <Pressable hitSlop={spacing.sm} onPress={onPress}>
       <View style={styles.menuButton}>
         <View style={styles.menuLine} />
         <View style={styles.menuLine} />
@@ -33,55 +36,98 @@ function MenuIcon() {
   );
 }
 
-function TopBar() {
+function TopBar({
+  unreadMessages,
+  onMenuPress,
+  onMessagesPress,
+}: {
+  unreadMessages: number;
+  onMenuPress: () => void;
+  onMessagesPress: () => void;
+}) {
+  const badgeLabel = unreadMessages > 9 ? "9+" : String(unreadMessages);
+
   return (
     <View style={styles.topBar}>
-      <MenuIcon />
+      <MenuIcon onPress={onMenuPress} />
 
       <View style={styles.brandCenter}>
         <DularLogo size="sm" />
       </View>
 
-      <Pressable hitSlop={spacing.sm}>
+      <Pressable hitSlop={spacing.sm} onPress={onMessagesPress}>
         <View style={styles.notificationButton}>
           <AppIcon name="Bell" size={20} color="purple" />
-          <View style={styles.notificationBadge}>
-            <Text style={styles.notificationBadgeText}>2</Text>
-          </View>
+          {unreadMessages > 0 ? (
+            <View style={styles.notificationBadge}>
+              <Text style={styles.notificationBadgeText}>{badgeLabel}</Text>
+            </View>
+          ) : null}
         </View>
       </Pressable>
     </View>
   );
 }
 
-function AgendamentoItem() {
+function getAgendaBadge(status: StatusDiarista): { label: string; type: BadgeType } {
+  if (status === "confirmado") return { label: "Confirmado", type: "success" };
+  if (status === "andamento") return { label: "Em andamento", type: "info" };
+  if (status === "finalizado") return { label: "Finalizado", type: "default" };
+  if (status === "cancelado") return { label: "Cancelado", type: "error" };
+  return { label: "Pendente", type: "warning" };
+}
+
+function AgendamentoItem({ agendamento }: { agendamento: AgendamentoDiarista }) {
+  const badge = getAgendaBadge(agendamento.status);
+
   return (
     <View style={styles.appointmentRow}>
       <View style={styles.timeBox}>
         <AppIcon name="Clock" size={18} color="purple" />
-        <Text style={styles.timeText}>09:00</Text>
+        <Text style={styles.timeText}>{agendamento.hora}</Text>
       </View>
       <View style={styles.appointmentText}>
-        <Text style={styles.appointmentFamily}>Família Silva</Text>
-        <Text style={styles.appointmentType}>Limpeza geral</Text>
+        <Text style={styles.appointmentFamily} numberOfLines={1}>{agendamento.nomeCliente}</Text>
+        <Text style={styles.appointmentType} numberOfLines={1}>{agendamento.servico}</Text>
         <View style={styles.appointmentLocationRow}>
           <AppIcon name="MapPin" size={12} color={colors.textSecondary} />
-          <Text style={styles.appointmentLocation}>Jardim América, São Paulo</Text>
+          <Text style={styles.appointmentLocation} numberOfLines={1}>{agendamento.localizacao}</Text>
         </View>
       </View>
-      <DBadge type="success" label="Confirmado" />
+      <DBadge type={badge.type} label={badge.label} />
     </View>
   );
 }
 
-function AcaoRapidaBtn({ icon, label, tone }: { icon: AppIconName; label: string; tone: "purple" | "pink" | "green" | "blue" }) {
+function ShortcutBtn({ icon, label, onPress }: { icon: AppIconName; label: string; onPress: () => void }) {
   return (
-    <View style={styles.quickAction}>
+    <Pressable onPress={onPress} style={({ pressed }) => [styles.shortcutItem, pressed && { opacity: 0.75 }]}>
+      <View style={styles.shortcutIcon}>
+        <AppIcon name={icon} size={20} color={colors.primary} strokeWidth={2.1} />
+      </View>
+      <Text style={styles.shortcutLabel}>{label}</Text>
+    </Pressable>
+  );
+}
+
+function AcaoRapidaBtn({
+  icon,
+  label,
+  tone,
+  onPress,
+}: {
+  icon: AppIconName;
+  label: string;
+  tone: "purple" | "pink" | "green" | "blue";
+  onPress: () => void;
+}) {
+  return (
+    <Pressable onPress={onPress} style={({ pressed }) => [styles.quickAction, pressed && { opacity: 0.75 }]}>
       <View style={styles.quickIconBox}>
         <AppIcon name={icon} variant="soft" color={tone} />
       </View>
       <Text style={styles.quickLabel}>{label}</Text>
-    </View>
+    </Pressable>
   );
 }
 
@@ -89,8 +135,16 @@ export function DiaristaHomeScreen() {
   const navigation = useNavigation<Navigation>();
   const user = useAuthStore((state) => state.user);
   const firstName = (user?.nome || "Diarista").trim().split(/\s+/)[0];
+  const { agendamentos, loading: agendamentosLoading, error: agendamentosError } = useAgendamentosDiarista();
+  const { rooms } = useMensagens();
 
   const [restrictions, setRestrictions] = useState<UserRestriction[]>([]);
+  const nextAgendamento = agendamentos[0];
+  const unreadMessages = useMemo(
+    () => rooms.reduce((total, room) => total + Math.max(0, Number(room.naoLidas) || 0), 0),
+    [rooms],
+  );
+  const messagesBadge = unreadMessages > 0 ? unreadMessages : undefined;
 
   useEffect(() => {
     getMyRestrictions()
@@ -98,25 +152,38 @@ export function DiaristaHomeScreen() {
       .catch(() => []);
   }, []);
 
-  const handleBottomNav = (tab: "home" | "search" | "new" | "messages" | "profile") => {
+  const handleBottomNav = useCallback((tab: "home" | "search" | "new" | "messages" | "profile") => {
     if (tab === "new") navigation.navigate("Novo");
     if (tab === "messages") navigation.navigate("Mensagens");
     if (tab === "profile") navigation.navigate("Perfil");
     if (tab === "search") navigation.navigate("Agendamentos");
-  };
+  }, [navigation]);
+
+  const handleQuickAction = useCallback((action: QuickActionId) => {
+    if (action === "agendamentos") navigation.navigate("Agendamentos");
+    if (action === "carteira") navigation.navigate("Carteira");
+    if (action === "mensagens") navigation.navigate("Mensagens");
+    if (action === "avaliacoes") {
+      Alert.alert("Em breve", "Avaliações ainda não têm uma tela própria.");
+    }
+  }, [navigation]);
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <DScreen backgroundColor={colors.background}>
       <View style={styles.content}>
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-          <TopBar />
+          <TopBar
+            unreadMessages={unreadMessages}
+            onMenuPress={() => navigation.navigate("Perfil")}
+            onMessagesPress={() => navigation.navigate("Mensagens")}
+          />
 
           <View style={styles.header}>
             <View>
               <Text style={styles.greeting}>Olá, {firstName}!</Text>
               <Text style={styles.greetingSub}>Que bom te ver por aqui!</Text>
             </View>
-            <DAvatar size="lg" uri={user?.avatarUrl ?? undefined} initials={firstName.slice(0, 2)} online />
+            <DAvatar size="md" uri={user?.avatarUrl ?? undefined} initials={firstName.slice(0, 2)} online />
           </View>
 
           {restrictions.length > 0 && (() => {
@@ -143,17 +210,17 @@ export function DiaristaHomeScreen() {
             <View style={styles.earningsTop}>
               <View>
                 <View style={styles.earningsTitleRow}>
-                  <Text style={styles.earningsLabel}>Seus ganhos</Text>
+                  <Text style={styles.earningsLabel}>Carteira</Text>
                   <AppIcon name="Eye" size={15} color={colors.whiteAlpha80} strokeWidth={2.3} />
                 </View>
-                <Text style={styles.earningsPeriod}>Este mês</Text>
-                <Text style={styles.earningsValue}>R$ 2.350,00</Text>
+                <Text style={styles.earningsPeriod}>Resumo financeiro</Text>
+                <Text style={styles.earningsValue}>Abrir carteira</Text>
               </View>
               <View style={styles.cardIconBox}>
                 <Wallet3DIcon size={44} />
               </View>
             </View>
-            <Pressable style={styles.detailsLinkWrap}>
+            <Pressable style={styles.detailsLinkWrap} onPress={() => navigation.navigate("Carteira")}>
               <View style={styles.inlineLink}>
                 <Text style={styles.detailsLink}>Ver detalhes</Text>
                 <AppIcon name="ChevronRight" size={14} color={colors.whiteAlpha80} strokeWidth={2.4} />
@@ -162,17 +229,23 @@ export function DiaristaHomeScreen() {
           </LinearGradient>
 
           <DCard style={styles.todayCard}>
-            <View style={styles.cardHeader}>
-              <Text style={styles.cardTitle}>Agendamentos de hoje</Text>
-              <Pressable onPress={() => navigation.navigate("Agendamentos")}>
-                <View style={styles.inlineLink}>
-                  <Text style={styles.cardLink}>Ver todos</Text>
-                  <AppIcon name="ChevronRight" size={14} color={colors.primary} strokeWidth={2.4} />
-                </View>
-              </Pressable>
-            </View>
+            <DSectionHeader
+              title="Agendamentos de hoje"
+              action="Ver todos"
+              onAction={() => navigation.navigate("Agendamentos")}
+            />
             <View style={styles.divider} />
-            <AgendamentoItem />
+            {agendamentosLoading ? (
+              <View style={styles.appointmentState}>
+                <ActivityIndicator color={colors.primary} />
+              </View>
+            ) : agendamentosError ? (
+              <Text style={styles.appointmentStateText}>Não foi possível carregar seus agendamentos agora.</Text>
+            ) : nextAgendamento ? (
+              <AgendamentoItem agendamento={nextAgendamento} />
+            ) : (
+              <Text style={styles.appointmentStateText}>Nenhum agendamento encontrado.</Text>
+            )}
             <View style={styles.divider} />
             <Pressable onPress={() => navigation.navigate("Agendamentos")}>
               <View style={styles.allAppointmentsRow}>
@@ -184,10 +257,16 @@ export function DiaristaHomeScreen() {
           </DCard>
 
           <View style={styles.quickSection}>
-            <Text style={styles.sectionTitle}>Ações rápidas</Text>
+            <DSectionHeader title="Ações rápidas" style={styles.sectionHeaderRow} />
             <View style={styles.quickGrid}>
               {QUICK_ACTIONS.map((item) => (
-                <AcaoRapidaBtn key={item.label} icon={item.icon} label={item.label} tone={item.tone} />
+                <AcaoRapidaBtn
+                  key={item.id}
+                  icon={item.icon}
+                  label={item.label}
+                  tone={item.tone}
+                  onPress={() => handleQuickAction(item.id)}
+                />
               ))}
             </View>
           </View>
@@ -206,26 +285,57 @@ export function DiaristaHomeScreen() {
               <AppIcon name="Sparkles" size={32} color="pink" variant="soft" />
             </View>
           </DCard>
+
+          {/* ── Performance ── */}
+          <View style={styles.performanceSection}>
+            <DSectionHeader title="Meu desempenho" style={styles.sectionHeaderRow} />
+            <View style={styles.metricsRow}>
+              <View style={styles.metricCard}>
+                <AppIcon name="Calendar" size={20} color={colors.warning} strokeWidth={2} />
+                <Text style={styles.metricValue}>{agendamentosLoading ? "--" : agendamentos.length}</Text>
+                <Text style={styles.metricLabel}>Agendamentos</Text>
+              </View>
+              <View style={styles.metricDivider} />
+              <View style={styles.metricCard}>
+                <AppIcon name="MessageCircle" size={20} color={colors.primary} strokeWidth={2} />
+                <Text style={styles.metricValue}>{unreadMessages}</Text>
+                <Text style={styles.metricLabel}>Mensagens</Text>
+              </View>
+              <View style={styles.metricDivider} />
+              <View style={styles.metricCard}>
+                <AppIcon name="ShieldCheck" size={20} color={colors.success} strokeWidth={2} />
+                <Text style={styles.metricValue}>{restrictions.length}</Text>
+                <Text style={styles.metricLabel}>Restrições</Text>
+              </View>
+            </View>
+          </View>
+
+          {/* ── Atalhos ── */}
+          <View style={styles.shortcutsSection}>
+            <DSectionHeader title="Atalhos" style={styles.sectionHeaderRow} />
+            <View style={styles.shortcutsGrid}>
+              <ShortcutBtn icon="Wallet" label="Carteira" onPress={() => navigation.navigate("Carteira")} />
+              <ShortcutBtn icon="FileText" label="Documentos" onPress={() => navigation.navigate("VerificacaoDocs")} />
+              <ShortcutBtn icon="MessageCircle" label="Mensagens" onPress={() => navigation.navigate("Mensagens")} />
+              <ShortcutBtn icon="HelpCircle" label="Suporte" onPress={() => navigation.navigate("Suporte")} />
+            </View>
+          </View>
         </ScrollView>
 
-        <DBottomNav activeTab="home" messagesBadge={2} variant="diarista" onPress={handleBottomNav} />
+        <DBottomNav activeTab="home" messagesBadge={messagesBadge} variant="diarista" onPress={handleBottomNav} />
       </View>
-    </SafeAreaView>
+    </DScreen>
   );
 }
 
 export default DiaristaHomeScreen;
 
 const styles = StyleSheet.create({
-  safe: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
   content: {
     flex: 1,
   },
   scroll: {
-    paddingBottom: spacing["5xl"],
+    paddingBottom: 112,
   },
   topBar: {
     padding: spacing.lg,
@@ -265,9 +375,10 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: -2,
     right: -2,
-    width: 18,
+    minWidth: 18,
     height: 18,
     borderRadius: 9,
+    paddingHorizontal: 4,
     backgroundColor: colors.error,
     alignItems: "center",
     justifyContent: "center",
@@ -290,7 +401,7 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
   },
   greetingSub: {
-    fontSize: 14,
+    fontSize: 12,
     color: colors.textSecondary,
     marginTop: 2,
   },
@@ -327,16 +438,13 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: colors.whiteAlpha90,
   },
-  eye: {
-    fontSize: 14,
-  },
   earningsPeriod: {
     fontSize: 12,
     color: colors.whiteAlpha70,
     marginTop: 2,
   },
   earningsValue: {
-    fontSize: 32,
+    fontSize: 26,
     fontWeight: "800",
     color: colors.white,
     marginTop: 6,
@@ -366,20 +474,6 @@ const styles = StyleSheet.create({
     marginHorizontal: spacing.lg,
     marginBottom: spacing.lg,
   },
-  cardHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  cardTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: colors.textPrimary,
-  },
-  cardLink: {
-    color: colors.primary,
-    fontSize: 13,
-  },
   divider: {
     height: 1,
     backgroundColor: colors.border,
@@ -394,7 +488,7 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: radius.md,
-    backgroundColor: colors.primaryLight,
+    backgroundColor: colors.lavender,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -405,6 +499,7 @@ const styles = StyleSheet.create({
   },
   appointmentText: {
     flex: 1,
+    minWidth: 0,
   },
   appointmentFamily: {
     fontSize: 15,
@@ -422,12 +517,22 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
     alignItems: "center",
   },
-  locationIcon: {
-    fontSize: 11,
-  },
   appointmentLocation: {
+    flex: 1,
     fontSize: 12,
     color: colors.textSecondary,
+  },
+  appointmentState: {
+    minHeight: 56,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  appointmentStateText: {
+    minHeight: 56,
+    textAlignVertical: "center",
+    color: colors.textSecondary,
+    fontSize: 13,
+    lineHeight: 18,
   },
   allAppointmentsRow: {
     flexDirection: "row",
@@ -444,10 +549,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     marginBottom: spacing.lg,
   },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: colors.textPrimary,
+  sectionHeaderRow: {
     marginBottom: spacing.md,
   },
   quickGrid: {
@@ -542,5 +644,78 @@ const styles = StyleSheet.create({
     color: colors.incidentCritical,
     fontSize: 13,
     fontWeight: "500",
+  },
+
+  // Performance section
+  performanceSection: {
+    paddingHorizontal: spacing.lg,
+    marginBottom: spacing.lg,
+  },
+  metricsRow: {
+    flexDirection: "row",
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
+    padding: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    ...shadows.soft,
+    marginTop: spacing.md,
+  },
+  metricCard: {
+    flex: 1,
+    alignItems: "center",
+    gap: 4,
+  },
+  metricDivider: {
+    width: 1,
+    backgroundColor: colors.divider,
+    alignSelf: "stretch",
+    marginHorizontal: spacing.sm,
+  },
+  metricValue: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: colors.textPrimary,
+  },
+  metricLabel: {
+    fontSize: 11,
+    color: colors.textMuted,
+    fontWeight: "500",
+  },
+
+  // Shortcuts section
+  shortcutsSection: {
+    paddingHorizontal: spacing.lg,
+    marginBottom: spacing.xl,
+  },
+  shortcutsGrid: {
+    flexDirection: "row",
+    marginTop: spacing.md,
+    gap: spacing.sm,
+  },
+  shortcutItem: {
+    flex: 1,
+    alignItems: "center",
+    gap: spacing.xs,
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
+    paddingVertical: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    ...shadows.soft,
+  },
+  shortcutIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: radius.md,
+    backgroundColor: colors.lavender,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  shortcutLabel: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: colors.textSecondary,
+    textAlign: "center",
   },
 });

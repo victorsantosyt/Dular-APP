@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { ActivityIndicator, FlatList, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, FlatList, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
@@ -8,6 +8,7 @@ import { colors, radius, spacing } from "@/theme";
 import { useAuth } from "@/stores/authStore";
 import type { DiaristaTabParamList } from "@/navigation/DiaristaNavigator";
 import { useAgendamentosDiarista } from "@/hooks/useAgendamentosDiarista";
+import { useMensagens } from "@/hooks/useMensagens";
 
 type Navigation = BottomTabNavigationProp<DiaristaTabParamList>;
 type Filtro = "hoje" | "amanha" | "semana" | "pendentes" | "confirmados" | "concluidos";
@@ -35,74 +36,6 @@ const FILTROS: { label: string; value: Filtro }[] = [
   { label: "Concluídos", value: "concluidos" },
 ];
 
-const WEEK_DAYS = ["D", "S", "T", "Q", "Q", "S", "S"];
-const CALENDAR_DAYS = Array.from({ length: 28 }, (_, index) => index + 1);
-const APPOINTMENT_DAYS = new Set([14, 15, 19, 22]);
-const SELECTED_DAY = 14;
-
-const AGENDAMENTOS: Agendamento[] = [
-  {
-    id: "1",
-    nomeCliente: "Carolina Mendes",
-    avaliacao: "4,8",
-    localizacao: "Vila Mariana",
-    servico: "Limpeza Completa",
-    data: "Hoje",
-    hora: "14:00 - 18:00",
-    preco: "180",
-    status: "pendente",
-    avatarUrl: "",
-  },
-  {
-    id: "2",
-    nomeCliente: "Juliana Pereira",
-    avaliacao: "4,9",
-    localizacao: "Moema",
-    servico: "Limpeza Geral",
-    data: "Hoje",
-    hora: "09:00 - 13:00",
-    preco: "150",
-    status: "confirmado",
-    avatarUrl: "",
-  },
-  {
-    id: "3",
-    nomeCliente: "Fernanda Costa",
-    avaliacao: "4,7",
-    localizacao: "Perdizes",
-    servico: "Limpeza Completa",
-    data: "Sex, 24 Mai",
-    hora: "11:00 - 15:00",
-    preco: "170",
-    status: "andamento",
-    avatarUrl: "",
-  },
-  {
-    id: "4",
-    nomeCliente: "Beatriz Lima",
-    avaliacao: "5,0",
-    localizacao: "Jardim América",
-    servico: "Limpeza Pós-Obra",
-    data: "Qui, 23 Mai",
-    hora: "08:00 - 14:00",
-    preco: "220",
-    status: "finalizado",
-    avatarUrl: "",
-  },
-  {
-    id: "5",
-    nomeCliente: "Ana Paula Rocha",
-    avaliacao: "4,6",
-    localizacao: "Itaim Bibi",
-    servico: "Limpeza Geral",
-    data: "Qua, 22 Mai",
-    hora: "14:00 - 18:00",
-    preco: "150",
-    status: "cancelado",
-    avatarUrl: "",
-  },
-];
-
 function FilterChip({
   label,
   active,
@@ -123,55 +56,17 @@ function FilterChip({
   );
 }
 
-function CalendarDay({ day }: { day: number }) {
-  const selected = day === SELECTED_DAY;
-  const hasAppointment = APPOINTMENT_DAYS.has(day);
-
-  return (
-    <View style={styles.calendarCell}>
-      {selected ? (
-        <View style={styles.selectedDay}>
-          <Text style={styles.selectedDayText}>{day}</Text>
-        </View>
-      ) : (
-        <Text style={styles.calendarDayText}>{day}</Text>
-      )}
-      {hasAppointment && !selected ? <View style={styles.appointmentDot} /> : null}
-    </View>
-  );
-}
-
-function MiniCalendar() {
+function AgendaResumo({ total }: { total: number }) {
   return (
     <DCard style={styles.calendarCard}>
       <View style={styles.calendarHeader}>
-        <Text style={styles.calendarTitle}>Maio 2025</Text>
-        <View style={styles.calendarArrows}>
-          <Pressable hitSlop={spacing.xs}>
-            <View style={styles.calendarArrowButton}>
-              <AppIcon name="ArrowLeft" size={18} color={colors.primary} strokeWidth={2.4} />
-            </View>
-          </Pressable>
-          <Pressable hitSlop={spacing.xs}>
-            <View style={styles.calendarArrowButton}>
-              <AppIcon name="ChevronRight" size={18} color={colors.primary} strokeWidth={2.4} />
-            </View>
-          </Pressable>
-        </View>
-      </View>
-
-      <View style={styles.weekRow}>
-        {WEEK_DAYS.map((day, index) => (
-          <Text key={`${day}-${index}`} style={styles.weekDay}>
-            {day}
+        <View>
+          <Text style={styles.calendarTitle}>Agenda</Text>
+          <Text style={styles.calendarSummary}>
+            {total === 1 ? "1 agendamento carregado" : `${total} agendamentos carregados`}
           </Text>
-        ))}
-      </View>
-
-      <View style={styles.calendarGrid}>
-        {CALENDAR_DAYS.map((day) => (
-          <CalendarDay key={day} day={day} />
-        ))}
+        </View>
+        <AppIcon name="Calendar" size={24} color={colors.primary} variant="soft" />
       </View>
     </DCard>
   );
@@ -239,13 +134,28 @@ function AgendamentoDiaristaCard({ agendamento }: { agendamento: Agendamento }) 
 
         <View style={styles.actions}>
           {agendamento.status === "pendente" ? (
-            <DButton variant="primary" size="sm" label="Confirmar" onPress={() => undefined} />
+            <DButton
+              variant="primary"
+              size="sm"
+              label="Confirmar"
+              onPress={() => Alert.alert("Em breve", "Confirmação pelo app ainda não está disponível.")}
+            />
           ) : null}
           {agendamento.status === "confirmado" ? (
-            <DButton variant="secondary" size="sm" label="Ver rota" onPress={() => undefined} />
+            <DButton
+              variant="secondary"
+              size="sm"
+              label="Ver rota"
+              onPress={() => Alert.alert("Em breve", "Rota pelo app ainda não está disponível.")}
+            />
           ) : null}
           {agendamento.status === "andamento" ? (
-            <DButton variant="primary" size="sm" label="Finalizar" onPress={() => undefined} />
+            <DButton
+              variant="primary"
+              size="sm"
+              label="Finalizar"
+              onPress={() => Alert.alert("Em breve", "Finalização pelo app ainda não está disponível.")}
+            />
           ) : null}
           <DButton
             variant="ghost"
@@ -265,8 +175,14 @@ export function AgendamentosDiaristaScreen() {
   const firstName = (user?.nome || "Diarista").trim().split(/\s+/)[0];
   const [activeFilter, setActiveFilter] = useState<Filtro>("hoje");
   const { agendamentos: realAgendamentos, loading, error, refetch } = useAgendamentosDiarista();
+  const { rooms } = useMensagens();
+  const unreadMessages = useMemo(
+    () => rooms.reduce((total, room) => total + Math.max(0, Number(room.naoLidas) || 0), 0),
+    [rooms],
+  );
+  const messagesBadge = unreadMessages > 0 ? unreadMessages : undefined;
 
-  const sourceData = realAgendamentos.length > 0 ? realAgendamentos : AGENDAMENTOS;
+  const sourceData = realAgendamentos;
 
   const agendamentos = useMemo(() => {
     if (activeFilter === "pendentes") {
@@ -298,7 +214,10 @@ export function AgendamentosDiaristaScreen() {
             <Text style={styles.greeting}>Olá, {firstName}</Text>
             <Text style={styles.subtitle}>Seus agendamentos</Text>
           </View>
-          <Pressable hitSlop={spacing.sm}>
+          <Pressable
+            hitSlop={spacing.sm}
+            onPress={() => Alert.alert("Em breve", "Calendário completo ainda não está disponível.")}
+          >
             <View style={styles.calendarButton}>
               <AppIcon name="Calendar" size={20} color="purple" />
             </View>
@@ -318,7 +237,7 @@ export function AgendamentosDiaristaScreen() {
           </View>
         </ScrollView>
 
-        <MiniCalendar />
+        <AgendaResumo total={realAgendamentos.length} />
 
         {loading && realAgendamentos.length === 0 ? (
           <View style={styles.centerState}>
@@ -347,7 +266,7 @@ export function AgendamentosDiaristaScreen() {
           />
         )}
 
-        <DBottomNav variant="diarista" activeTab="new" onPress={handleBottomNav} />
+        <DBottomNav variant="diarista" activeTab="new" messagesBadge={messagesBadge} onPress={handleBottomNav} />
       </View>
     </SafeAreaView>
   );
@@ -440,6 +359,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700",
     color: colors.textPrimary,
+  },
+  calendarSummary: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginTop: 2,
   },
   calendarArrows: {
     flexDirection: "row",

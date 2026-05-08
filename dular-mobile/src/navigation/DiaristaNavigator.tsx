@@ -10,6 +10,8 @@ import type { ChatAbertoParams } from "@/screens/shared/ChatAbertoScreen";
 import PaywallScreen from "@/screens/PaywallScreen";
 import SegurancaScreen from "@/screens/diarista/SegurancaScreen";
 import DiaristaCarteira from "@/screens/diarista/DiaristaCarteira";
+import VerificacaoDocs from "@/screens/perfil/VerificacaoDocs";
+import Suporte from "@/screens/perfil/Suporte";
 import { useAuth } from "@/stores/authStore";
 
 export type DiaristaTabParamList = {
@@ -25,6 +27,8 @@ export type DiaristaTabParamList = {
   Paywall: { mensagem?: string };
   Seguranca: { servicoId: string; enderecoServico?: string };
   Carteira: undefined;
+  VerificacaoDocs: undefined;
+  Suporte: undefined;
 };
 
 const Tab = createBottomTabNavigator<DiaristaTabParamList>();
@@ -63,6 +67,8 @@ export function DiaristaNavigator() {
       <Tab.Screen name="Paywall" component={PaywallScreen} />
       <Tab.Screen name="Seguranca" component={SegurancaScreen} />
       <Tab.Screen name="Carteira" component={DiaristaCarteira} />
+      <Tab.Screen name="VerificacaoDocs" component={VerificacaoDocs} />
+      <Tab.Screen name="Suporte" component={Suporte} />
     </Tab.Navigator>
   );
 }

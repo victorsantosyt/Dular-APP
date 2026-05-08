@@ -1,5 +1,5 @@
-import React from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import React, { useRef, useEffect } from "react";
+import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors, gradients, radius, shadows, spacing } from "@/theme";
@@ -11,7 +11,7 @@ type Props = {
   activeTab: NavTab;
   onPress: (tab: NavTab) => void;
   messagesBadge?: number;
-  variant?: "cliente" | "diarista";
+  variant?: "empregador" | "diarista";
 };
 
 type Item = {
@@ -20,125 +20,208 @@ type Item = {
   icon: AppIconName;
 };
 
-const ITEMS: Item[] = [
-  { id: "home",     label: "Início",    icon: "Home" },
-  { id: "search",   label: "Buscar",    icon: "Search" },
-  { id: "new",      label: "Agendar",   icon: "Plus" },
+const EMPREGADOR_ITEMS: Item[] = [
+  { id: "home",     label: "Início",    icon: "Home"          },
+  { id: "search",   label: "Buscar",    icon: "Search"        },
+  { id: "new",      label: "Agenda",    icon: "Plus"          },
   { id: "messages", label: "Mensagens", icon: "MessageCircle" },
-  { id: "profile",  label: "Perfil",    icon: "User" },
+  { id: "profile",  label: "Perfil",    icon: "User"          },
 ];
 
 const DIARISTA_ITEMS: Item[] = [
-  { id: "home",     label: "Início",       icon: "Home" },
-  { id: "search",   label: "Agendamentos", icon: "Calendar" },
-  { id: "new",      label: "Novo",         icon: "Plus" },
-  { id: "messages", label: "Mensagens",    icon: "MessageCircle" },
-  { id: "profile",  label: "Perfil",       icon: "User" },
+  { id: "home",     label: "Início",    icon: "Home"               },
+  { id: "search",   label: "Agenda",    icon: "Calendar"           },
+  { id: "new",      label: "Serviços",  icon: "Plus"               },
+  { id: "messages", label: "Mensagens", icon: "MessageCircle"      },
+  { id: "profile",  label: "Perfil",    icon: "User"               },
 ];
 
-export function DBottomNav({ activeTab, onPress, messagesBadge, variant = "cliente" }: Props) {
+// ─── Animated tab item ────────────────────────────────────────────────────────
+
+function TabItem({
+  item,
+  isActive,
+  isCenter,
+  badge,
+  onPress,
+}: {
+  item: Item;
+  isActive: boolean;
+  isCenter: boolean;
+  badge?: number;
+  onPress: () => void;
+}) {
+  const pillAnim = useRef(new Animated.Value(isActive && !isCenter ? 1 : 0)).current;
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    Animated.spring(pillAnim, {
+      toValue: isActive && !isCenter ? 1 : 0,
+      tension: 120,
+      friction: 10,
+      useNativeDriver: false,
+    }).start();
+  }, [isActive, isCenter, pillAnim]);
+
+  const onPressIn = () => {
+    Animated.spring(scaleAnim, { toValue: 0.9, tension: 150, friction: 8, useNativeDriver: true }).start();
+  };
+  const onPressOut = () => {
+    Animated.spring(scaleAnim, { toValue: 1, tension: 150, friction: 8, useNativeDriver: true }).start();
+  };
+
+  const iconColor = isActive ? colors.primary : colors.textMuted;
+  const labelColor = isActive ? colors.primary : colors.textMuted;
+  const pillBg = pillAnim.interpolate({ inputRange: [0, 1], outputRange: ["rgba(123,78,219,0)", "rgba(243,236,255,1)"] });
+
+  if (isCenter) {
+    return (
+      <Pressable
+        onPress={onPress}
+        onPressIn={onPressIn}
+        onPressOut={onPressOut}
+        style={s.centerWrap}
+      >
+        <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+          <LinearGradient
+            colors={gradients.button}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={s.centerBtn}
+          >
+            <AppIcon name="Plus" size={28} color={colors.white} strokeWidth={2.6} />
+          </LinearGradient>
+        </Animated.View>
+        <Text style={[s.label, s.centerLabel]} numberOfLines={1}>{item.label}</Text>
+      </Pressable>
+    );
+  }
+
+  return (
+    <Pressable
+      onPress={onPress}
+      onPressIn={onPressIn}
+      onPressOut={onPressOut}
+      style={s.item}
+    >
+      <Animated.View style={[s.iconPill, { backgroundColor: pillBg }]}>
+        <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+          <AppIcon
+            name={item.icon}
+            size={isActive ? 22 : 21}
+            color={iconColor}
+            strokeWidth={isActive ? 2.4 : 1.9}
+          />
+        </Animated.View>
+
+        {badge && badge > 0 ? (
+          <View style={s.badge}>
+            <Text style={s.badgeText}>{badge > 9 ? "9+" : badge}</Text>
+          </View>
+        ) : null}
+      </Animated.View>
+
+      <Text
+        style={[s.label, { color: labelColor, fontWeight: isActive ? "700" : "500" }]}
+        numberOfLines={1}
+      >
+        {item.label}
+      </Text>
+    </Pressable>
+  );
+}
+
+// ─── DBottomNav ───────────────────────────────────────────────────────────────
+
+export function DBottomNav({ activeTab, onPress, messagesBadge, variant = "empregador" }: Props) {
   const insets = useSafeAreaInsets();
-  const items = variant === "diarista" ? DIARISTA_ITEMS : ITEMS;
-  const bottomPadding = Math.max(8, insets.bottom + 8);
+  const items = variant === "diarista" ? DIARISTA_ITEMS : EMPREGADOR_ITEMS;
+  const bottomPadding = Math.max(spacing.sm, insets.bottom + spacing.sm);
 
   return (
     <View style={[s.bar, { paddingBottom: bottomPadding }]}>
-      {items.map((item) => {
-        const isCenter = item.id === "new";
-        const isActive = activeTab === item.id;
-        const color = isActive ? colors.primary : colors.textSecondary;
-
-        if (isCenter) {
-          return (
-            <Pressable key={item.id} onPress={() => onPress(item.id)} style={s.centerWrap}>
-              <LinearGradient
-                colors={gradients.button}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={s.centerBtn}
-              >
-                <AppIcon name="Plus" size={30} color={colors.white} strokeWidth={2.6} />
-              </LinearGradient>
-              <Text style={[s.label, s.centerLabel]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
-                {item.label}
-              </Text>
-            </Pressable>
-          );
-        }
-
-        const showBadge = item.id === "messages" && messagesBadge && messagesBadge > 0;
-
-        return (
-          <Pressable key={item.id} onPress={() => onPress(item.id)} style={s.item}>
-            <View>
-              <AppIcon name={item.icon} size={isActive ? 26 : 24} color={color} strokeWidth={isActive ? 2.4 : 2} />
-              {showBadge ? (
-                <View style={s.badge}>
-                  <Text style={s.badgeText}>{messagesBadge! > 9 ? "9+" : messagesBadge}</Text>
-                </View>
-              ) : null}
-            </View>
-            <Text style={[s.label, { color }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
-              {item.label}
-            </Text>
-          </Pressable>
-        );
-      })}
+      {items.map((item) => (
+        <TabItem
+          key={item.id}
+          item={item}
+          isActive={activeTab === item.id}
+          isCenter={item.id === "new"}
+          badge={item.id === "messages" ? messagesBadge : undefined}
+          onPress={() => onPress(item.id)}
+        />
+      ))}
     </View>
   );
 }
 
+// ─── Styles ──────────────────────────────────────────────────────────────────
+
 const s = StyleSheet.create({
   bar: {
     flexDirection: "row",
-    backgroundColor: colors.surface,
-    minHeight: 88,
-    paddingTop: 10,
-    paddingHorizontal: spacing.md,
+    backgroundColor: "rgba(255,255,255,0.97)",
+    minHeight: 80,
+    paddingTop: spacing.sm,
+    paddingHorizontal: spacing.sm,
     borderTopLeftRadius: radius.xxl,
     borderTopRightRadius: radius.xxl,
+    borderWidth: 1,
+    borderBottomWidth: 0,
+    borderColor: colors.border,
     alignItems: "flex-start",
     ...shadows.floating,
   },
+
   item: {
     flex: 1,
     alignItems: "center",
-    justifyContent: "center",
-    gap: 3,
+    gap: 4,
     paddingTop: 2,
-    paddingBottom: 2,
+  },
+  iconPill: {
+    width: 44,
+    height: 36,
+    borderRadius: radius.lg,
+    alignItems: "center",
+    justifyContent: "center",
+    position: "relative",
   },
   label: {
-    fontSize: 12,
-    lineHeight: 15,
-    fontWeight: "600",
+    fontSize: 11,
+    lineHeight: 14,
     textAlign: "center",
     width: "100%",
   },
+
+  // Center button
   centerWrap: {
     flex: 1,
     alignItems: "center",
     justifyContent: "flex-start",
-    marginTop: -24,
+    gap: 4,
+    marginTop: -22,
+    paddingTop: 0,
   },
   centerBtn: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: 58,
+    height: 58,
+    borderRadius: 29,
     alignItems: "center",
     justifyContent: "center",
     ...shadows.primaryButton,
   },
   centerLabel: {
-    marginTop: 3,
     color: colors.primary,
+    fontWeight: "600",
   },
+
+  // Badge
   badge: {
     position: "absolute",
-    top: -4,
-    right: -8,
-    minWidth: 20,
-    height: 20,
+    top: 2,
+    right: 4,
+    minWidth: 18,
+    height: 18,
     paddingHorizontal: 4,
     borderRadius: radius.pill,
     backgroundColor: colors.notification,
@@ -147,7 +230,8 @@ const s = StyleSheet.create({
   },
   badgeText: {
     color: colors.white,
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: "800",
+    lineHeight: 13,
   },
 });

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, FlatList, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
@@ -8,6 +8,7 @@ import { colors, radius, shadows, spacing } from "@/theme";
 import type { EmpregadorTabParamList } from "@/navigation/EmpregadorNavigator";
 import { useBuscar, type ApiDiarista } from "@/hooks/useBuscar";
 import { useGeoDefaults } from "@/hooks/useGeoDefaults";
+import { useMensagens } from "@/hooks/useMensagens";
 
 type Navigation = BottomTabNavigationProp<EmpregadorTabParamList>;
 
@@ -71,74 +72,6 @@ const CATEGORIAS_POPULARES: CategoriaIconeItem[] = [
   { icon: "MoreHorizontal", label: "Mais", tone: "yellow" },
 ];
 
-const PROFISSIONAIS: Profissional[] = [
-  {
-    id: "luciana",
-    name: "Luciana Silva",
-    category: "Diarista",
-    categoryIcon: "Sparkles",
-    location: "Jardim América, SP",
-    rating: "4,9",
-    experience: "5 anos exp.",
-    distance: "1,2 km",
-    online: true,
-    verified: true,
-    avatarUrl: "",
-  },
-  {
-    id: "juliana",
-    name: "Juliana Castro",
-    category: "Babá",
-    categoryIcon: "Baby",
-    location: "Vila Mariana, SP",
-    rating: "4,8",
-    experience: "3 anos exp.",
-    distance: "2,4 km",
-    online: true,
-    verified: true,
-    avatarUrl: "",
-  },
-  {
-    id: "renata",
-    name: "Renata Lima",
-    category: "Cozinheira",
-    categoryIcon: "ChefHat",
-    location: "Moema, SP",
-    rating: "4,9",
-    experience: "7 anos exp.",
-    distance: "3,1 km",
-    online: true,
-    verified: true,
-    avatarUrl: "",
-  },
-  {
-    id: "carla",
-    name: "Carla Souza",
-    category: "Diarista",
-    categoryIcon: "Sparkles",
-    location: "Perdizes, SP",
-    rating: "4,7",
-    experience: "4 anos exp.",
-    distance: "3,8 km",
-    online: false,
-    verified: false,
-    avatarUrl: "",
-  },
-  {
-    id: "aline",
-    name: "Aline Ferreira",
-    category: "Babá",
-    categoryIcon: "Baby",
-    location: "Itaim Bibi, SP",
-    rating: "4,9",
-    experience: "2 anos exp.",
-    distance: "4,5 km",
-    online: true,
-    verified: true,
-    avatarUrl: "",
-  },
-];
-
 function mapApiToUI(d: ApiDiarista, bairro: string, cidade: string): Profissional {
   return {
     id: d.userId,
@@ -155,14 +88,24 @@ function mapApiToUI(d: ApiDiarista, bairro: string, cidade: string): Profissiona
   };
 }
 
-function NotificationButton() {
+function NotificationButton({
+  unreadMessages,
+  onPress,
+}: {
+  unreadMessages: number;
+  onPress: () => void;
+}) {
+  const badgeLabel = unreadMessages > 9 ? "9+" : String(unreadMessages);
+
   return (
-    <Pressable hitSlop={spacing.sm}>
+    <Pressable hitSlop={spacing.sm} onPress={onPress}>
       <View style={styles.notificationButton}>
         <AppIcon name="Bell" size={20} color="purple" />
-        <View style={styles.notificationBadge}>
-          <Text style={styles.notificationBadgeText}>2</Text>
-        </View>
+        {unreadMessages > 0 ? (
+          <View style={styles.notificationBadge}>
+            <Text style={styles.notificationBadgeText}>{badgeLabel}</Text>
+          </View>
+        ) : null}
       </View>
     </Pressable>
   );
@@ -256,6 +199,12 @@ export function BuscarScreen() {
   const [searchQuery, setSearchQuery] = useState("");
   const { profissionais: apiProfissionais, loading, error, buscar } = useBuscar();
   const geo = useGeoDefaults();
+  const { rooms } = useMensagens();
+  const unreadMessages = useMemo(
+    () => rooms.reduce((total, room) => total + Math.max(0, Number(room.naoLidas) || 0), 0),
+    [rooms],
+  );
+  const messagesBadge = unreadMessages > 0 ? unreadMessages : undefined;
 
   useEffect(() => {
     if (geo.cidade && geo.uf && geo.bairro) {
@@ -271,9 +220,7 @@ export function BuscarScreen() {
   );
 
   const displayProfissionais: Profissional[] =
-    apiProfissionais.length > 0
-      ? apiProfissionais.map((d) => mapApiToUI(d, geo.bairro, geo.cidade))
-      : PROFISSIONAIS;
+    apiProfissionais.map((d) => mapApiToUI(d, geo.bairro, geo.cidade));
 
   const handleBottomNav = (tab: "home" | "search" | "new" | "messages" | "profile") => {
     if (tab === "home") navigation.navigate("Home");
@@ -293,7 +240,10 @@ export function BuscarScreen() {
                 Encontre o profissional ideal para o que você precisa.
               </Text>
             </View>
-            <NotificationButton />
+            <NotificationButton
+              unreadMessages={unreadMessages}
+              onPress={() => navigation.navigate("Mensagens")}
+            />
           </View>
 
           <View style={styles.searchRow}>
@@ -384,7 +334,7 @@ export function BuscarScreen() {
           </View>
         </ScrollView>
 
-        <DBottomNav activeTab="search" onPress={handleBottomNav} />
+        <DBottomNav activeTab="search" messagesBadge={messagesBadge} onPress={handleBottomNav} />
       </View>
     </SafeAreaView>
   );

@@ -107,8 +107,10 @@ export const colors = {
   // Push notification accent
   pushGreen: "#1DB954",
 
-  // Teal accent (verification/doc screens)
+  // Teal accent — Montador profile
   teal: "#4FA38F",
+  tealDark: "#3D8A78",
+  tealSoft: "#E8F5F2",
 
   // Info palette (info banners)
   lightBlue: "#E0F2FE",

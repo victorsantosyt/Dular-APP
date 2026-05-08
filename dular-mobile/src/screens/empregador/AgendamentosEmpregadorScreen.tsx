@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, FlatList, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, FlatList, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
@@ -7,6 +7,7 @@ import { AppIcon, AppIconName, DAvatar, DBadge, DBottomNav, DButton, DCard } fro
 import { colors, radius, shadows, spacing } from "@/theme";
 import type { EmpregadorTabParamList } from "@/navigation/EmpregadorNavigator";
 import { useAgendamentosEmpregador } from "@/hooks/useAgendamentosEmpregador";
+import { useMensagens } from "@/hooks/useMensagens";
 
 type Navigation = BottomTabNavigationProp<EmpregadorTabParamList>;
 type CategoriaFiltro = "todas" | "diarista" | "baba" | "cozinheira" | "exp";
@@ -99,96 +100,24 @@ const STATUS_MAP: Record<StatusAgendamento, StatusConfig> = {
   },
 };
 
-const AGENDAMENTOS: Agendamento[] = [
-  {
-    id: "1",
-    nome: "Luciana Silva",
-    idade: "32",
-    categoria: "Diarista",
-    categoriaKey: "diarista",
-    categoriaIcon: "Sparkles",
-    localizacao: "Jardim América, SP",
-    data: "Hoje",
-    hora: "14:00 - 18:00",
-    avaliacao: "4,9",
-    experiencia: "5 anos de experiência",
-    preco: "180",
-    status: "aceita",
-    avatarUrl: "",
-  },
-  {
-    id: "2",
-    nome: "Juliana Castro",
-    idade: "28",
-    categoria: "Babá",
-    categoriaKey: "baba",
-    categoriaIcon: "Baby",
-    localizacao: "Vila Mariana, SP",
-    data: "Amanhã",
-    hora: "08:00 - 17:00",
-    avaliacao: "4,8",
-    experiencia: "3 anos de experiência",
-    preco: "160",
-    status: "aceita",
-    avatarUrl: "",
-  },
-  {
-    id: "3",
-    nome: "Renata Lima",
-    idade: "40",
-    categoria: "Cozinheira",
-    categoriaKey: "cozinheira",
-    categoriaIcon: "ChefHat",
-    localizacao: "Moema, SP",
-    data: "Sex, 24 Mai",
-    hora: "11:00 - 14:00",
-    avaliacao: "4,9",
-    experiencia: "7 anos de experiência",
-    preco: "200",
-    status: "andamento",
-    avatarUrl: "",
-  },
-  {
-    id: "4",
-    nome: "Carla Souza",
-    idade: "29",
-    categoria: "Extra",
-    categoriaKey: "exp",
-    categoriaIcon: "User",
-    localizacao: "Perdizes, SP",
-    data: "Sáb, 25 Mai",
-    hora: "09:00 - 13:00",
-    avaliacao: "4,7",
-    experiencia: "4 anos de experiência",
-    preco: "140",
-    status: "aceita",
-    avatarUrl: "",
-  },
-  {
-    id: "5",
-    nome: "A definir",
-    idade: "A definir",
-    categoria: "Diarista",
-    categoriaKey: "diarista",
-    categoriaIcon: "Sparkles",
-    localizacao: "Pinheiros, SP",
-    data: "Ter, 28 Mai",
-    hora: "14:00 - 18:00",
-    avaliacao: "Sem avaliação",
-    experiencia: "Profissional em seleção",
-    preco: "Sob consulta",
-    status: "pendente",
-  },
-];
+function NotificationButton({
+  unreadMessages,
+  onPress,
+}: {
+  unreadMessages: number;
+  onPress: () => void;
+}) {
+  const badgeLabel = unreadMessages > 9 ? "9+" : String(unreadMessages);
 
-function NotificationButton() {
   return (
-    <Pressable hitSlop={spacing.sm}>
+    <Pressable hitSlop={spacing.sm} onPress={onPress}>
       <View style={styles.notificationButton}>
         <AppIcon name="Bell" size={20} color="purple" />
-        <View style={styles.notificationBadge}>
-          <Text style={styles.notificationBadgeText}>2</Text>
-        </View>
+        {unreadMessages > 0 ? (
+          <View style={styles.notificationBadge}>
+            <Text style={styles.notificationBadgeText}>{badgeLabel}</Text>
+          </View>
+        ) : null}
       </View>
     </Pressable>
   );
@@ -319,7 +248,7 @@ function AgendamentoCard({ agendamento }: { agendamento: Agendamento }) {
   );
 }
 
-function InfoCard() {
+function InfoCard({ onHistoricoPress }: { onHistoricoPress: () => void }) {
   return (
     <DCard style={styles.infoCard}>
       <View style={styles.infoIconBox}>
@@ -331,7 +260,7 @@ function InfoCard() {
           Você pode reagendar ou cancelar seus serviços facilmente.
         </Text>
       </View>
-      <DButton variant="primary" size="sm" label="Ver histórico" onPress={() => undefined} />
+      <DButton variant="primary" size="sm" label="Ver histórico" onPress={onHistoricoPress} />
     </DCard>
   );
 }
@@ -341,8 +270,14 @@ export function AgendamentosEmpregadorScreen() {
   const [categoriaAtiva, setCategoriaAtiva] = useState<CategoriaFiltro>("todas");
   const [statusAtivo, setStatusAtivo] = useState<StatusFiltro>("todas");
   const { agendamentos: realAgendamentos, loading, error, refetch } = useAgendamentosEmpregador();
+  const { rooms } = useMensagens();
+  const unreadMessages = useMemo(
+    () => rooms.reduce((total, room) => total + Math.max(0, Number(room.naoLidas) || 0), 0),
+    [rooms],
+  );
+  const messagesBadge = unreadMessages > 0 ? unreadMessages : undefined;
 
-  const sourceData = realAgendamentos.length > 0 ? realAgendamentos : AGENDAMENTOS;
+  const sourceData = realAgendamentos;
 
   const agendamentos = useMemo(() => {
     return sourceData.filter((item) => {
@@ -369,7 +304,10 @@ export function AgendamentosEmpregadorScreen() {
               <Text style={styles.screenTitle}>Agendamentos</Text>
               <Text style={styles.screenSubtitle}>Acompanhe todas as suas solicitações</Text>
             </View>
-            <NotificationButton />
+            <NotificationButton
+              unreadMessages={unreadMessages}
+              onPress={() => navigation.navigate("Mensagens")}
+            />
           </View>
         </View>
 
@@ -424,12 +362,18 @@ export function AgendamentosEmpregadorScreen() {
                 <Text style={styles.emptyText}>Nenhum agendamento encontrado</Text>
               </View>
             }
-            ListFooterComponent={agendamentos.length > 0 ? <InfoCard /> : null}
+            ListFooterComponent={
+              agendamentos.length > 0 ? (
+                <InfoCard
+                  onHistoricoPress={() => Alert.alert("Em breve", "Histórico completo ainda não está disponível.")}
+                />
+              ) : null
+            }
             refreshControl={<RefreshControl refreshing={loading} onRefresh={refetch} colors={[colors.primary]} />}
           />
         )}
 
-        <DBottomNav activeTab="new" onPress={handleBottomNav} />
+        <DBottomNav activeTab="new" messagesBadge={messagesBadge} onPress={handleBottomNav} />
       </View>
     </SafeAreaView>
   );

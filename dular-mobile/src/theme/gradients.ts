@@ -6,6 +6,8 @@ export const gradients = {
   soft: ["#F8F3FF", "#EFE3FF"] as const,
   card: ["#FFFFFF", "#F8F3FF"] as const,
 
+  montador: ["#4FA38F", "#3D8A78"] as const,
+
   // Compatibility aliases
   purple: [colors.primary, colors.primaryDark] as const,
   pink: [colors.notification, colors.accentDark] as const,

@@ -516,30 +516,30 @@ const styles = StyleSheet.create({
 
   // Banner de restrição
   restrictionBannerWarn: {
-    backgroundColor: "#FEF3C7",
+    backgroundColor: colors.warningSoft,
     borderLeftWidth: 4,
-    borderLeftColor: "#F59E0B",
+    borderLeftColor: colors.warning,
     padding: spacing.md,
     marginHorizontal: spacing.lg,
     marginBottom: spacing.md,
     borderRadius: radius.sm,
   },
   restrictionBannerCrit: {
-    backgroundColor: "#FEE2E2",
+    backgroundColor: colors.dangerSoft,
     borderLeftWidth: 4,
-    borderLeftColor: "#EF4444",
+    borderLeftColor: colors.danger,
     padding: spacing.md,
     marginHorizontal: spacing.lg,
     marginBottom: spacing.md,
     borderRadius: radius.sm,
   },
   restrictionTextWarn: {
-    color: "#92400E",
+    color: colors.warningDark,
     fontSize: 13,
     fontWeight: "500",
   },
   restrictionTextCrit: {
-    color: "#7F1D1D",
+    color: colors.incidentCritical,
     fontSize: 13,
     fontWeight: "500",
   },

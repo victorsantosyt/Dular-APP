@@ -69,7 +69,7 @@ function GoogleLogo() {
 function AppleLogo() {
   return (
     <View style={styles.appleLogoBox}>
-      <Ionicons name="logo-apple" size={19} color="#fff" />
+      <Ionicons name="logo-apple" size={19} color={colors.white} />
     </View>
   );
 }
@@ -80,7 +80,14 @@ export function LoginScreen() {
   const setSession = useAuthStore((state) => state.setSession);
   const [loadingProvider, setLoadingProvider] = useState<Provider | null>(null);
 
-  const selectedRole = role === "DIARISTA" ? "diarista" : role === "CLIENTE" ? "cliente" : null;
+  const selectedRole =
+    role === "DIARISTA"
+      ? "diarista"
+      : role === "EMPREGADOR"
+        ? "cliente"
+        : role === "MONTADOR"
+          ? "montador"
+          : null;
 
   useEffect(() => {
     if (!selectedRole) {
@@ -90,7 +97,7 @@ export function LoginScreen() {
 
   const handleOAuthLogin = async (provider: Provider) => {
     if (!selectedRole) {
-      Alert.alert("Perfil obrigatório", "Escolha Cliente ou Diarista antes de fazer login.");
+      Alert.alert("Perfil obrigatório", "Escolha Empregador, Diarista ou Montador antes de fazer login.");
       navigation.replace("RoleSelect");
       return;
     }
@@ -113,7 +120,7 @@ export function LoginScreen() {
 
       const url = new URL(result.url);
       const token = url.searchParams.get("token");
-      const returnedRole = url.searchParams.get("role") as "CLIENTE" | "DIARISTA" | "ADMIN" | null;
+      const returnedRole = url.searchParams.get("role") as "EMPREGADOR" | "DIARISTA" | "MONTADOR" | "ADMIN" | null;
       const error = url.searchParams.get("error");
 
       if (error) {
@@ -358,7 +365,7 @@ const styles = StyleSheet.create({
   appleLogoBox: {
     width: 24,
     height: 24,
-    backgroundColor: "#000",
+    backgroundColor: colors.black,
     borderRadius: 6,
     alignItems: "center",
     justifyContent: "center",
@@ -367,9 +374,9 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: "#fff",
+    backgroundColor: colors.white,
     borderWidth: 1,
-    borderColor: "#E5E7EB",
+    borderColor: colors.border,
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",
@@ -387,22 +394,22 @@ const styles = StyleSheet.create({
   googleQuadrantTL: {
     top: 0,
     left: 0,
-    backgroundColor: "#4285F4",
+    backgroundColor: colors.googleBlue,
   },
   googleQuadrantTR: {
     top: 0,
     right: 0,
-    backgroundColor: "#EA4335",
+    backgroundColor: colors.googleRed,
   },
   googleQuadrantBL: {
     bottom: 0,
     left: 0,
-    backgroundColor: "#34A853",
+    backgroundColor: colors.googleGreen,
   },
   googleQuadrantBR: {
     bottom: 0,
     right: 0,
-    backgroundColor: "#FBBC05",
+    backgroundColor: colors.googleYellow,
   },
   googleCenter: {
     position: "absolute",
@@ -411,14 +418,14 @@ const styles = StyleSheet.create({
     width: 16,
     height: 16,
     borderRadius: 8,
-    backgroundColor: "#fff",
+    backgroundColor: colors.white,
     alignItems: "center",
     justifyContent: "center",
   },
   googleG: {
     fontSize: 11,
     fontWeight: "700",
-    color: "#4285F4",
+    color: colors.googleBlue,
     lineHeight: 14,
   },
   loginLabel: {

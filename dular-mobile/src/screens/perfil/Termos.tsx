@@ -3,6 +3,7 @@ import { Text, View, Pressable } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { Screen } from "@/components/Screen";
 import { Ionicons } from "@expo/vector-icons";
+import { colors } from "@/theme/tokens";
 
 export default function Termos() {
   const nav = useNavigation<any>();
@@ -12,7 +13,7 @@ export default function Termos() {
       title="Termos de uso"
       rightAction={
         <Pressable onPress={() => nav.goBack()} hitSlop={12}>
-          <Ionicons name="chevron-back" size={22} color="#2B3443" />
+          <Ionicons name="chevron-back" size={22} color={colors.ink} />
         </Pressable>
       }
     >
@@ -21,13 +22,13 @@ export default function Termos() {
             backgroundColor: "rgba(255,255,255,0.92)",
             borderRadius: 18,
             borderWidth: 1,
-            borderColor: "#EEF2F4",
+            borderColor: colors.stroke,
             padding: 16,
             gap: 10,
           }}
         >
-          <Text style={{ color: "#2B3443", fontSize: 14, fontWeight: "700" }}>Conteúdo placeholder</Text>
-          <Text style={{ color: "#8E9AA6", fontSize: 13 }}>
+          <Text style={{ color: colors.ink, fontSize: 14, fontWeight: "700" }}>Conteúdo placeholder</Text>
+          <Text style={{ color: colors.sub, fontSize: 13 }}>
             Vamos adicionar o texto completo dos termos em breve.
           </Text>
         </View>

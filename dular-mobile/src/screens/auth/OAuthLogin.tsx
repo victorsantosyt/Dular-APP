@@ -15,7 +15,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as WebBrowser from "expo-web-browser";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
-import { radius, shadow, spacing, typography } from "@/theme/tokens";
+import { colors, radius, shadow, spacing, typography } from "@/theme/tokens";
 import { AUTH_ROUTES } from "@/navigation/routes";
 import { API_BASE_URL } from "@/lib/api";
 import { useAuth } from "@/stores/authStore";
@@ -24,16 +24,25 @@ WebBrowser.maybeCompleteAuthSession();
 
 const HERO = require("../../../assets/dular-hero.png");
 
+type AuthRole = "EMPREGADOR" | "DIARISTA" | "MONTADOR";
+
 type AuthParamList = {
   [AUTH_ROUTES.ROLE_SELECT]: undefined;
-  [AUTH_ROUTES.OAUTH_LOGIN]: { role: "CLIENTE" | "DIARISTA" };
+  [AUTH_ROUTES.OAUTH_LOGIN]: { role: AuthRole };
 };
 
 type Props = NativeStackScreenProps<AuthParamList, typeof AUTH_ROUTES.OAUTH_LOGIN>;
 
-const ROLE_LABEL: Record<string, string> = {
-  CLIENTE: "Cliente",
+const ROLE_LABEL: Record<AuthRole, string> = {
+  EMPREGADOR: "Empregador",
   DIARISTA: "Diarista",
+  MONTADOR: "Montador",
+};
+
+const CALLBACK_ROLE: Record<AuthRole, "cliente" | "diarista" | "montador"> = {
+  EMPREGADOR: "cliente",
+  DIARISTA: "diarista",
+  MONTADOR: "montador",
 };
 
 export default function OAuthLogin({ route, navigation }: Props) {
@@ -62,29 +71,19 @@ export default function OAuthLogin({ route, navigation }: Props) {
     setLoading(true);
     try {
       const redirectUri = "dular://auth/callback";
-      if (provider === "google") {
-        console.log("[OAuth] iniciando Google login");
-        console.log("[OAuth] redirectUri:", redirectUri);
-      }
-      const callbackUrl = encodeURIComponent(`/auth/callback/${role.toLowerCase()}?platform=mobile`);
+      const callbackRole = CALLBACK_ROLE[role];
+      const callbackUrl = encodeURIComponent(`/auth/callback/${callbackRole}?platform=mobile`);
       const loginUrl =
         provider === "google"
-          ? `${API_BASE_URL}/api/auth/mobile-google?role=${role.toLowerCase()}&callbackUrl=${callbackUrl}`
+          ? `${API_BASE_URL}/api/auth/mobile-google?role=${callbackRole}&callbackUrl=${callbackUrl}`
           : `${API_BASE_URL}/api/auth/signin/apple?callbackUrl=${callbackUrl}`;
-      console.log("[OAuthLogin] opening:", loginUrl);
       const result = await WebBrowser.openAuthSessionAsync(loginUrl, redirectUri);
-      if (provider === "google") {
-        console.log("[OAuth] resultado:", JSON.stringify(result));
-      }
 
       if (result.type !== "success") return;
-      if (provider === "google") {
-        console.log("[OAuth] URL callback:", result.url);
-      }
 
       const url = new URL(result.url);
       const token = url.searchParams.get("token");
-      const returnedRole = url.searchParams.get("role") as "CLIENTE" | "DIARISTA" | "ADMIN" | null;
+      const returnedRole = url.searchParams.get("role") as "EMPREGADOR" | "DIARISTA" | "MONTADOR" | "ADMIN" | null;
       const error = url.searchParams.get("error");
 
       if (error) {
@@ -131,7 +130,7 @@ export default function OAuthLogin({ route, navigation }: Props) {
             style={({ pressed }) => [s.btnGoogle, pressed && s.pressed]}
           >
             {googleLoading ? (
-              <ActivityIndicator color="#1a1a1a" />
+              <ActivityIndicator color={colors.ink} />
             ) : (
               <>
                 <View style={s.googleG}>
@@ -149,10 +148,10 @@ export default function OAuthLogin({ route, navigation }: Props) {
             style={({ pressed }) => [s.btnApple, pressed && s.pressed]}
           >
             {appleLoading ? (
-              <ActivityIndicator color="#fff" />
+              <ActivityIndicator color={colors.white} />
             ) : (
               <>
-                <Ionicons name="logo-apple" size={22} color="#fff" />
+                <Ionicons name="logo-apple" size={22} color={colors.white} />
                 <Text style={s.btnAppleText}>Continuar com Apple</Text>
               </>
             )}
@@ -165,7 +164,7 @@ export default function OAuthLogin({ route, navigation }: Props) {
           disabled={anyLoading}
           style={({ pressed }) => [s.backBtn, pressed && { opacity: 0.5 }]}
         >
-          <Ionicons name="arrow-back-outline" size={14} color="#6b7280" />
+          <Ionicons name="arrow-back-outline" size={14} color={colors.sub} />
           <Text style={s.backText}>Voltar</Text>
         </Pressable>
 
@@ -177,7 +176,7 @@ export default function OAuthLogin({ route, navigation }: Props) {
 const s = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: "#EAF5EF",
+    backgroundColor: colors.successSoft,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: spacing.lg,
@@ -201,7 +200,7 @@ const s = StyleSheet.create({
   brand: {
     fontSize: 26,
     fontWeight: "900",
-    color: "#0f1a10",
+    color: colors.ink,
     letterSpacing: -0.5,
     marginTop: 2,
   },
@@ -214,13 +213,13 @@ const s = StyleSheet.create({
   title: {
     fontSize: 22,
     fontWeight: "800",
-    color: "#0f1a10",
+    color: colors.ink,
     textAlign: "center",
     lineHeight: 28,
   },
   subtitle: {
     fontSize: 13,
-    color: "#6b7280",
+    color: colors.sub,
     textAlign: "center",
   },
 
@@ -247,20 +246,20 @@ const s = StyleSheet.create({
     width: 20,
     height: 20,
     borderRadius: 4,
-    backgroundColor: "#4285F4",
+    backgroundColor: colors.googleBlue,
     alignItems: "center",
     justifyContent: "center",
   },
   googleGText: {
     fontSize: 13,
     fontWeight: "800",
-    color: "#fff",
+    color: colors.white,
     lineHeight: 16,
   },
   btnGoogleText: {
     fontSize: 15,
     fontWeight: "700",
-    color: "#0f1a10",
+    color: colors.ink,
   },
 
   // Apple button
@@ -271,13 +270,13 @@ const s = StyleSheet.create({
     gap: 12,
     height: 54,
     borderRadius: radius.btn,
-    backgroundColor: "#0f1a10",
+    backgroundColor: colors.ink,
     ...shadow.card,
   },
   btnAppleText: {
     fontSize: 15,
     fontWeight: "700",
-    color: "#fff",
+    color: colors.white,
   },
 
   // Pressed state
@@ -297,6 +296,6 @@ const s = StyleSheet.create({
   backText: {
     fontSize: 13,
     fontWeight: "600",
-    color: "#6b7280",
+    color: colors.sub,
   },
 });

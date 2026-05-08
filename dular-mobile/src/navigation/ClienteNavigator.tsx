@@ -9,6 +9,7 @@ import ClientePerfil from "@/screens/cliente/ClientePerfil";
 import ClienteDetalhe from "@/screens/cliente/ClienteDetalhe";
 import { ChatAbertoScreen } from "@/screens/shared/ChatAbertoScreen";
 import type { ChatAbertoParams } from "@/screens/shared/ChatAbertoScreen";
+import PaywallScreen from "@/screens/PaywallScreen";
 import { useAuth } from "@/stores/authStore";
 
 export type ClienteTabParamList = {
@@ -19,7 +20,10 @@ export type ClienteTabParamList = {
   ChatAberto: ChatAbertoParams;
   Perfil: undefined;
   ProfissionalPerfil: { id: string };
+  DiaristaProfile: { diaristaId: string; nome: string };
   DetalheServico: { id: string };
+  ClienteDetalhe: { servicoId: string };
+  Paywall: { mensagem?: string };
 };
 
 const Tab = createBottomTabNavigator<ClienteTabParamList>();
@@ -48,7 +52,10 @@ export function ClienteNavigator() {
       <Tab.Screen name="ChatAberto" component={ChatAbertoScreen} />
       <Tab.Screen name="Perfil" component={PerfilScreen} />
       <Tab.Screen name="ProfissionalPerfil" component={DiaristaProfileScreen} />
+      <Tab.Screen name="DiaristaProfile" component={DiaristaProfileScreen} />
       <Tab.Screen name="DetalheServico" component={DetalheServicoScreen} />
+      <Tab.Screen name="ClienteDetalhe" component={DetalheServicoScreen} />
+      <Tab.Screen name="Paywall" component={PaywallScreen} />
     </Tab.Navigator>
   );
 }

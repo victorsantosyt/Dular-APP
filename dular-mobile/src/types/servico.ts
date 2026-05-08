@@ -1,9 +1,11 @@
 export type ServicoStatus =
   | "RASCUNHO"
+  | "PENDENTE"
   | "SOLICITADO"
   | "ACEITO"
   | "RECUSADO"
   | "CANCELADO"
+  | "INICIADO"
   | "EM_ANDAMENTO"
   | "CONCLUIDO"
   | "CONCLUÍDO"

@@ -16,22 +16,23 @@ import type { ComponentProps } from "react";
 import { DularLogo } from "@/assets/brand";
 import { useAuthStore } from "@/stores/authStore";
 import type { OnboardingStackParamList } from "@/navigation/OnboardingNavigator";
+import { colors as tc } from "@/theme/tokens";
 
 const { width } = Dimensions.get("window");
 
 type Navigation = NativeStackNavigationProp<OnboardingStackParamList>;
-type ChosenRole = "cliente" | "diarista";
+type ChosenRole = "empregador" | "diarista";
 type IoniconsName = ComponentProps<typeof Ionicons>["name"];
 
 const clienteImg = require("../../../assets/images/roles/role_cliente_card.png");
 const diaristaImg = require("../../../assets/images/roles/role_diarista_card.png");
 
-const PURPLE = "#7C5CFF";
-const PINK = "#FF6B9A";
-const DARK = "#1A1A4E";
-const GRAY = "#888888";
-const GRAY_MID = "#555555";
-const GRAY_FEAT = "#666666";
+const PURPLE = tc.purpleStep;
+const PINK = tc.pink;
+const DARK = tc.navyDeep;
+const GRAY = tc.grayMid;
+const GRAY_MID = tc.grayFeat;
+const GRAY_FEAT = tc.grayText;
 
 type Feature = { icon: IoniconsName; text: string };
 
@@ -121,7 +122,7 @@ function RoleCard({
       </View>
 
       <View style={[styles.cardBadge, { backgroundColor: accent }]}>
-        <Ionicons name={badgeIcon} size={22} color="#FFFFFF" />
+        <Ionicons name={badgeIcon} size={22} color={tc.white} />
       </View>
 
       {/* ── Bottom features + button ── */}
@@ -160,7 +161,7 @@ export function RoleSelectScreen() {
   const navigation = useNavigation<Navigation>();
 
   const chooseRole = (role: ChosenRole) => {
-    useAuthStore.setState({ role: role === "cliente" ? "CLIENTE" : "DIARISTA" });
+    useAuthStore.setState({ role: role === "empregador" ? "EMPREGADOR" : "DIARISTA" });
     navigation.navigate("Login");
   };
 
@@ -202,12 +203,12 @@ export function RoleSelectScreen() {
           bgTop="#EDE9FF"
           bgCard="#F5F3FF"
           borderHex="#7C5CFF4D"
-          title="Cliente"
+          title="Empregador"
           description={"Encontre diaristas\nconfiáveis e facilite\nsua rotina."}
           badgeIcon="person-outline"
           features={clienteFeatures}
-          buttonLabel="Sou Cliente"
-          onPress={() => chooseRole("cliente")}
+          buttonLabel="Sou Empregador"
+          onPress={() => chooseRole("empregador")}
         />
 
         <RoleCard
@@ -250,7 +251,7 @@ const CARD_WIDTH = width - 32;
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: tc.white,
   },
 
   // Header
@@ -278,11 +279,11 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 3 },
     elevation: 3,
   },
-  stepActiveText: { color: "#FFFFFF", fontSize: 13, fontWeight: "800" },
+  stepActiveText: { color: tc.white, fontSize: 13, fontWeight: "800" },
   stepDash: {
     width: 36,
     height: 2,
-    backgroundColor: "#DDDDDD",
+    backgroundColor: tc.grayDisabled,
     marginHorizontal: 6,
   },
   stepCircleInactive: {
@@ -290,12 +291,12 @@ const styles = StyleSheet.create({
     height: 30,
     borderRadius: 15,
     borderWidth: 1.5,
-    borderColor: "#CCCCCC",
-    backgroundColor: "#FFFFFF",
+    borderColor: tc.grayBorder,
+    backgroundColor: tc.white,
     alignItems: "center",
     justifyContent: "center",
   },
-  stepInactiveText: { color: "#AAAAAA", fontSize: 13, fontWeight: "800" },
+  stepInactiveText: { color: tc.grayLight, fontSize: 13, fontWeight: "800" },
   stepCaption: { color: PURPLE, fontSize: 12, fontWeight: "700" },
   skipText: { color: PURPLE, fontSize: 14, fontWeight: "600" },
 
@@ -341,7 +342,7 @@ const styles = StyleSheet.create({
     width: CARD_WIDTH,
     borderRadius: 20,
     borderWidth: 1.5,
-    shadowColor: "#000000",
+    shadowColor: tc.black,
     shadowOpacity: 0.06,
     shadowRadius: 14,
     shadowOffset: { width: 0, height: 6 },
@@ -394,7 +395,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     zIndex: 3,
-    shadowColor: "#000000",
+    shadowColor: tc.black,
     shadowOpacity: 0.15,
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 3 },
@@ -403,7 +404,7 @@ const styles = StyleSheet.create({
 
   // Card bottom
   cardBottom: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: tc.white,
     padding: 16,
   },
   featuresRow: {
@@ -428,14 +429,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginTop: 12,
-    shadowColor: "#000000",
+    shadowColor: tc.black,
     shadowOpacity: 0.12,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 4 },
     elevation: 3,
   },
   buttonText: {
-    color: "#FFFFFF",
+    color: tc.white,
     fontSize: 16,
     fontWeight: "700",
     letterSpacing: 0.2,
@@ -448,9 +449,9 @@ const styles = StyleSheet.create({
     gap: 14,
     padding: 16,
     borderRadius: 16,
-    backgroundColor: "#F5F3FF",
+    backgroundColor: tc.lavenderSoftAlt,
     borderWidth: 1,
-    borderColor: "#E8E1FF",
+    borderColor: tc.lavenderDivider,
   },
   footerIcon: {
     width: 36,

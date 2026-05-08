@@ -8,6 +8,7 @@ import { apiMsg } from "@/utils/apiMsg";
 import { api } from "@/lib/api";
 import { getMe, type VerificacaoStatus } from "@/api/perfilApi";
 import { useAuth } from "@/stores/authStore";
+import { colors } from "@/theme/tokens";
 
 type FileField = "docFrente" | "docVerso";
 type UploadState = "idle" | "selecionando" | "enviando" | "sucesso" | "erro";
@@ -151,7 +152,7 @@ export default function VerificacaoDocs() {
       disabled={locked || saving || state === "selecionando"}
       style={{
         borderWidth: 1,
-        borderColor: "#EEF2F4",
+        borderColor: colors.stroke,
         borderRadius: 14,
         padding: 12,
         backgroundColor: "rgba(255,255,255,0.92)",
@@ -163,9 +164,9 @@ export default function VerificacaoDocs() {
         <Image source={{ uri: file.uri }} style={{ width: "100%", height: 160, borderRadius: 12 }} />
       ) : (
         <View style={{ alignItems: "center", gap: 6 }}>
-          <Ionicons name="cloud-upload-outline" size={26} color="#4FA38F" />
-          <Text style={{ color: "#2B3443", fontWeight: "700" }}>{label}</Text>
-          <Text style={{ color: "#8E9AA6", fontSize: 12 }}>Toque para escolher</Text>
+          <Ionicons name="cloud-upload-outline" size={26} color={colors.teal} />
+          <Text style={{ color: colors.ink, fontWeight: "700" }}>{label}</Text>
+          <Text style={{ color: colors.sub, fontSize: 12 }}>Toque para escolher</Text>
         </View>
       )}
     </Pressable>
@@ -176,27 +177,27 @@ export default function VerificacaoDocs() {
       title="Verificação"
       rightAction={
         <Pressable onPress={() => nav.goBack()} hitSlop={12}>
-          <Ionicons name="chevron-back" size={22} color="#2B3443" />
+          <Ionicons name="chevron-back" size={22} color={colors.ink} />
         </Pressable>
       }
       contentStyle={{ gap: 12 }}
     >
         {toast ? (
-          <View style={{ padding: 12, borderRadius: 12, backgroundColor: "#0F172A" }}>
-            <Text style={{ color: "#fff", fontWeight: "800" }}>{toast}</Text>
+          <View style={{ padding: 12, borderRadius: 12, backgroundColor: colors.ink }}>
+            <Text style={{ color: colors.white, fontWeight: "800" }}>{toast}</Text>
           </View>
         ) : null}
 
         {locked ? (
-          <View style={{ padding: 12, borderRadius: 12, backgroundColor: "#E0F2FE" }}>
-            <Text style={{ color: "#075985", fontWeight: "800" }}>
+          <View style={{ padding: 12, borderRadius: 12, backgroundColor: colors.lightBlue }}>
+            <Text style={{ color: colors.infoTextDark, fontWeight: "800" }}>
               {verificacao === "APROVADO" ? "Verificação aprovada." : "Documentos enviados. Análise pendente."}
             </Text>
           </View>
         ) : null}
 
-        <Text style={{ fontSize: 15, fontWeight: "800", color: "#2B3443" }}>Envie seus documentos</Text>
-        <Text style={{ color: "#8E9AA6" }}>
+        <Text style={{ fontSize: 15, fontWeight: "800", color: colors.ink }}>Envie seus documentos</Text>
+        <Text style={{ color: colors.sub }}>
           RG/CNH frente e verso. Usamos isso para manter a comunidade segura.
         </Text>
 
@@ -208,7 +209,7 @@ export default function VerificacaoDocs() {
           disabled={locked || saving || state === "selecionando"}
           style={{
             marginTop: 4,
-            backgroundColor: "#4FA38F",
+            backgroundColor: colors.teal,
             borderRadius: 14,
             padding: 14,
             alignItems: "center",
@@ -216,9 +217,9 @@ export default function VerificacaoDocs() {
           }}
         >
           {saving || state === "selecionando" ? (
-            <ActivityIndicator color="#fff" />
+            <ActivityIndicator color={colors.white} />
           ) : (
-            <Text style={{ color: "#fff", fontWeight: "800" }}>
+            <Text style={{ color: colors.white, fontWeight: "800" }}>
               {state === "sucesso" ? "Documentos enviados" : "Enviar documentos"}
             </Text>
           )}

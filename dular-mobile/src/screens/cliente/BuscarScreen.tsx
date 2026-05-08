@@ -243,7 +243,7 @@ function ProfissionalRow({ profissional }: { profissional: Profissional }) {
             variant="secondary"
             size="sm"
             label="Ver perfil"
-            onPress={() => navigation.navigate("ProfissionalPerfil", { id: profissional.id })}
+            onPress={() => navigation.navigate("DiaristaProfile", { diaristaId: profissional.id, nome: profissional.name })}
           />
         </View>
       </View>

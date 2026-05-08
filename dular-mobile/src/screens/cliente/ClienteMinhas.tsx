@@ -50,7 +50,7 @@ function statusLabel(st: string) {
   const s = statusUp(st);
   if (s === "ACEITO")        return "Aceito";
   if (s === "EM_ANDAMENTO")  return "Em andamento";
-  if (["CONCLUIDO","CONCLUÍDO"].includes(s)) return "Aguarda sua confirmação";
+  if (["CONCLUIDO","CONCLUÍDO"].includes(s)) return "Confirmar serviço";
   if (s === "CONFIRMADO")    return "Confirmado";
   if (s === "FINALIZADO")    return "Finalizado";
   if (["CANCELADO","CANCELADA","RECUSADO","RECUSADA"].includes(s)) return "Cancelado";
@@ -61,7 +61,8 @@ function statusVariant(st: string): "success" | "warning" | "neutral" | "danger"
   const s = statusUp(st);
   if (s === "ACEITO")        return "warning";
   if (s === "EM_ANDAMENTO")  return "warning";
-  if (["CONCLUIDO","CONCLUÍDO","CONFIRMADO","FINALIZADO"].includes(s)) return "success";
+  if (["CONCLUIDO","CONCLUÍDO"].includes(s)) return "warning";
+  if (["CONFIRMADO","FINALIZADO"].includes(s)) return "success";
   if (["CANCELADO","CANCELADA","RECUSADO","RECUSADA"].includes(s))     return "danger";
   return "neutral";
 }
@@ -126,7 +127,7 @@ export default function ClienteMinhas() {
           contentContainerStyle={{ paddingBottom: 110 }}
           renderItem={({ item }: ListRenderItemInfo<Servico>) => (
             <Pressable
-              onPress={() => navigation.navigate(CLIENTE_STACK_ROUTES.DETALHE, { servico: item })}
+              onPress={() => navigation.navigate(CLIENTE_STACK_ROUTES.DETALHE, { servicoId: item.id })}
               style={({ pressed }) => [s.card, pressed && { opacity: 0.85 }]}
             >
               {/* Topo: tipo + badge */}
@@ -160,7 +161,7 @@ export default function ClienteMinhas() {
               {/* Notificação de andamento */}
               {["ACEITO","EM_ANDAMENTO"].includes(statusUp(item.status)) && (
                 <View style={s.infoBar}>
-                  <Ionicons name="information-circle" size={16} color="#0369A1" />
+                  <Ionicons name="information-circle" size={16} color={colors.primary} />
                   <Text style={s.infoBarText}>
                     {item.status === "ACEITO"
                       ? "Sua solicitação foi aceita."
@@ -249,10 +250,10 @@ const s = StyleSheet.create({
     gap: 6,
     padding: 10,
     borderRadius: radius.md,
-    backgroundColor: "#E0F2FE",
+    backgroundColor: colors.warningSoft,
     marginTop: 4,
   },
-  infoBarText: { fontSize: 13, fontWeight: "600", color: "#0F172A", flex: 1 },
+  infoBarText: { fontSize: 13, fontWeight: "600", color: colors.ink, flex: 1 },
 
   payBar: {
     padding: 12,

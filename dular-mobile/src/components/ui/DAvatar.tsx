@@ -22,26 +22,26 @@ const SIZE_MAP: Record<Size, number> = {
 const PORTRAIT_PALETTES = [
   {
     bg: [colors.lavender, colors.surface] as const,
-    skin: "#D99A73",
-    hair: "#2C1634",
+    skin: colors.avatarSkin1,
+    hair: colors.avatarHair1,
     shirt: colors.primary,
   },
   {
     bg: [colors.dangerSoft, colors.surface] as const,
-    skin: "#B87352",
-    hair: "#1B1021",
+    skin: colors.avatarSkin2,
+    hair: colors.avatarHair2,
     shirt: colors.notification,
   },
   {
     bg: [colors.lavenderSoft, colors.surface] as const,
-    skin: "#E2B08A",
-    hair: "#4B2E29",
+    skin: colors.avatarSkin3,
+    hair: colors.avatarHair3,
     shirt: colors.primary,
   },
   {
     bg: [colors.lavenderSoft, colors.surface] as const,
-    skin: "#C98962",
-    hair: "#25116D",
+    skin: colors.avatarSkin4,
+    hair: colors.avatarHair4,
     shirt: colors.primaryLight,
   },
 ];

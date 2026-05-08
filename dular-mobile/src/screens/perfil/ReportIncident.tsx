@@ -50,7 +50,7 @@ type CategoryGroup = {
   subtipos: SubtipoOption[];
 };
 
-const CLIENTE_GROUPS: CategoryGroup[] = [
+const EMPREGADOR_GROUPS: CategoryGroup[] = [
   {
     key: "patrimonio",
     title: "Patrimônio",
@@ -161,7 +161,7 @@ export default function ReportIncident({ route }: any) {
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
-  const groups = role === "DIARISTA" ? DIARISTA_GROUPS : CLIENTE_GROUPS;
+  const groups = role === "DIARISTA" ? DIARISTA_GROUPS : EMPREGADOR_GROUPS;
   const selectedGroup = useMemo(
     () => groups.find((g) => g.key === selectedGroupKey) ?? null,
     [groups, selectedGroupKey],
@@ -502,7 +502,7 @@ const s = StyleSheet.create({
     borderRadius: radius.lg,
     padding: 14,
     borderWidth: 1,
-    borderColor: "#F8D6D7",
+    borderColor: colors.dangerSoft,
   },
   alertText: {
     flex: 1,
@@ -535,7 +535,7 @@ const s = StyleSheet.create({
     borderRadius: radius.lg,
     padding: 14,
     borderWidth: 1,
-    borderColor: "#F8D6D7",
+    borderColor: colors.dangerSoft,
   },
   errorText: {
     flex: 1,

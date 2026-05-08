@@ -1,15 +1,10 @@
-/**
- * ClientePerfil — Perfil do cliente
- *
- * Identidade visual 100% aplicada com tokens Dular validados.
- * Toda lógica de avatar, verificação, geo e atualização preservada.
- */
-
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   Image,
+  KeyboardAvoidingView,
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -17,128 +12,55 @@ import {
   TextInput,
   View,
 } from "react-native";
-import {
-  SafeAreaView,
-  useSafeAreaInsets,
-} from "react-native-safe-area-context";
-import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { useFocusEffect } from "@react-navigation/native";
 import * as ImagePicker from "expo-image-picker";
 
-import { requestLocationWithAddress } from "@/lib/location";
 import { api } from "@/lib/api";
-import {
-  getMe,
-  updateMe,
-  uploadAvatarDataUrl,
-  type Me,
-  type VerificacaoStatus,
-} from "@/api/perfilApi";
-import { type SafeScoreTier } from "@/api/safeScoreApi";
-import { apiMsg } from "@/utils/apiMsg";
+import { uploadAvatarDataUrl } from "@/api/perfilApi";
+import { usePerfil } from "@/hooks/usePerfil";
 import { useAuth } from "@/stores/authStore";
-
-// ── Tokens Dular ──────────────────────────────────────────────────────────────
-import { colors, radius, shadow, spacing, typography } from "@/theme/tokens";
-import { DularBadge } from "@/components/DularBadge";
-import { DButton } from "@/components/DButton";
-import { SafeScoreBadge } from "@/components/SafeScoreBadge";
 import { AppIcon } from "@/components/ui";
-import { PERFIL_STACK_ROUTES } from "@/navigation/routes";
+import { DButton } from "@/components/DButton";
+import { colors, radius, shadow, spacing, typography } from "@/theme/tokens";
+import { platformSelect } from "@/utils/platform";
+import type { ServicoListItem, MinhasResponse } from "../../../../shared/types/servico";
 
 type Props = { onLogout: () => void };
-type SafeScoreSummary = {
-  faixa: string;
-  cor: string;
-  bloqueado: boolean;
-  totalServicos: number;
-  verificado: boolean;
-  tier?: SafeScoreTier;
-};
 
-// Badge de verificação → variante DularBadge
-function verificacaoBadge(status: VerificacaoStatus) {
-  switch (status) {
-    case "APROVADO":  return { variant: "success" as const, label: "Verificado" };
-    case "PENDENTE":  return { variant: "warning" as const, label: "Pendente" };
-    case "REPROVADO": return { variant: "danger"  as const, label: "Reprovado" };
-    default:          return { variant: "neutral" as const, label: "Não enviado" };
-  }
+function statusLabel(status: string) {
+  const s = status.toUpperCase();
+  if (s === "FINALIZADO" || s === "CONCLUIDO") return "Finalizado";
+  if (s === "ACEITO" || s === "EM_ANDAMENTO") return "Em andamento";
+  if (s === "SOLICITADO") return "Aguardando";
+  if (s === "CANCELADO" || s === "RECUSADO") return "Cancelado";
+  return status;
 }
 
 export default function ClientePerfil({ onLogout }: Props) {
-  const insets  = useSafeAreaInsets();
+  const insets = useSafeAreaInsets();
   const setUser = useAuth((s) => s.setUser);
-  const nav     = useNavigation<any>();
   const busyRef = useRef(false);
 
-  const [nome, setNome]           = useState("");
-  const [telefone, setTelefone]   = useState("");
-  const [email, setEmail]         = useState("");
-  const [bio, setBio]             = useState("");
-  const [geoLoading, setGeoLoading] = useState(false);
-  const [geoInfo, setGeoInfo]     = useState<string | null>(null);
-  const [loading, setLoading]     = useState(true);
-  const [saving, setSaving]       = useState(false);
-  const [error, setError]         = useState<string | null>(null);
-  const [toast, setToast]         = useState<string | null>(null);
-  const [avatarLocal, setAvatarLocal]   = useState<string | null>(null);
-  const [avatarRemote, setAvatarRemote] = useState<string | null>(null);
-  const [verificacao, setVerificacao]   = useState<VerificacaoStatus>("NAO_ENVIADO");
-  const [safeScore, setSafeScore]       = useState<SafeScoreSummary | null>(null);
-  const [scoreLoading, setScoreLoading] = useState(false);
+  const { perfil, loading, saving, error, atualizar, refetch } = usePerfil();
 
-  // ── Helpers ───────────────────────────────────────────────────────────────
+  // Edit modal state
+  const [modalVisible, setModalVisible] = useState(false);
+  const [editNome, setEditNome] = useState("");
+  const [editBio, setEditBio] = useState("");
 
-  const applyMe = useCallback((data: Me | null) => {
-    if (!data) return;
-    setNome(data.nome ?? "");
-    setTelefone(data.telefone ?? "");
-    setBio(data.bio ?? "");
-    setEmail((data as any).email ?? "");
-    if (data.nome || data.telefone || data.role) {
-      setUser((prev) => ({
-        ...(prev ?? { id: data.id }),
-        id: data.id || prev?.id || "",
-        nome: data.nome ?? prev?.nome ?? "",
-        telefone: data.telefone ?? prev?.telefone,
-        role: (data.role as any) ?? prev?.role,
-        avatarUrl: data.avatarUrl ?? prev?.avatarUrl,
-      }));
-    }
-    if (data.avatarUrl) setAvatarRemote(data.avatarUrl);
-    if (data.verificacao?.status)  setVerificacao(data.verificacao.status);
-    else if (data.verificado)       setVerificacao("APROVADO");
-  }, [setUser]);
+  // Avatar
+  const [avatarLocal, setAvatarLocal] = useState<string | null>(null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+
+  // History
+  const [historico, setHistorico] = useState<ServicoListItem[]>([]);
+  const [histLoading, setHistLoading] = useState(false);
+
+  // Toast
+  const [toast, setToast] = useState<string | null>(null);
 
   const showToast = (msg: string) => setToast(msg);
-
-  // ── Load ──────────────────────────────────────────────────────────────────
-
-  const loadMe = useCallback(async () => {
-    try {
-      setError(null);
-      setLoading(true);
-      const data = await getMe();
-      applyMe(data);
-      if (data?.id) {
-        try {
-          setScoreLoading(true);
-          const scoreRes = await api.get<SafeScoreSummary>(`/api/usuarios/${data.id}/score`);
-          setSafeScore(scoreRes.data);
-        } catch {
-          setSafeScore(null);
-        } finally {
-          setScoreLoading(false);
-        }
-      }
-    } catch (e: any) {
-      setError(apiMsg(e, "Falha ao carregar perfil."));
-    } finally {
-      setLoading(false);
-    }
-  }, [applyMe]);
-
-  useFocusEffect(useCallback(() => { loadMe(); }, [loadMe]));
 
   useEffect(() => {
     if (!toast) return;
@@ -146,26 +68,42 @@ export default function ClientePerfil({ onLogout }: Props) {
     return () => clearTimeout(t);
   }, [toast]);
 
-  // ── Actions ───────────────────────────────────────────────────────────────
-
-  const salvar = async () => {
-    if (saving || busyRef.current) return;
-    busyRef.current = true;
-    try {
-      setSaving(true);
-      applyMe(await updateMe({ nome }));
-      showToast("Dados atualizados.");
-    } catch (e: any) {
-      showToast(apiMsg(e, "Falha ao salvar dados."));
-    } finally {
-      setSaving(false);
-      busyRef.current = false;
+  // Sync edit fields when perfil loads
+  useEffect(() => {
+    if (perfil) {
+      setEditNome(perfil.nome ?? "");
+      setEditBio(perfil.bio ?? "");
     }
-  };
+  }, [perfil]);
 
+  // Fetch history
+  const fetchHistorico = useCallback(async () => {
+    setHistLoading(true);
+    try {
+      const res = await api.get<MinhasResponse>("/api/servicos/minhas");
+      const all = res.data?.servicos ?? [];
+      setHistorico(all.slice(0, 3));
+    } catch {
+      // ignore; history is non-critical
+    } finally {
+      setHistLoading(false);
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      refetch();
+      void fetchHistorico();
+    }, [refetch, fetchHistorico])
+  );
+
+  // Avatar picker
   const pickAvatar = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== "granted") { showToast("Permissão negada para acessar fotos."); return; }
+    if (status !== "granted") {
+      showToast("Permissão negada para acessar fotos.");
+      return;
+    }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
@@ -175,400 +113,479 @@ export default function ClientePerfil({ onLogout }: Props) {
     });
     if (result.canceled) return;
     const asset = result.assets?.[0];
-    if (!asset?.uri) return;
+    if (!asset?.uri || !asset.base64) return;
     setAvatarLocal(asset.uri);
-    await uploadAvatarAndSave(asset);
-  };
-
-  const uploadAvatarAndSave = async (asset: ImagePicker.ImagePickerAsset) => {
     if (busyRef.current) return;
     busyRef.current = true;
+    setAvatarUploading(true);
     try {
-      setSaving(true);
-      const base64 = asset.base64;
-      if (!base64) { showToast("Não foi possível ler a imagem."); return; }
-      const mime    = (asset as any).mimeType || "image/jpeg";
-      const dataUrl = `data:${mime};base64,${base64}`;
-      const up      = await uploadAvatarDataUrl(dataUrl);
+      const mime = (asset as any).mimeType ?? "image/jpeg";
+      const dataUrl = `data:${mime};base64,${asset.base64}`;
+      const up = await uploadAvatarDataUrl(dataUrl);
       const finalUrl = up?.user?.avatarUrl ?? dataUrl;
-      if (finalUrl) setAvatarRemote(finalUrl);
-      setUser((u) => (u ? { ...u, avatarUrl: finalUrl ?? u.avatarUrl } : u));
+      setUser((u) => (u ? { ...u, avatarUrl: finalUrl } : u));
       showToast("Foto atualizada.");
-    } catch (e: any) {
-      showToast(apiMsg(e, "Falha ao atualizar foto."));
+    } catch {
+      showToast("Falha ao atualizar foto.");
     } finally {
-      setSaving(false);
+      setAvatarUploading(false);
       busyRef.current = false;
     }
   };
 
-  const ativarGeo = async () => {
-    try {
-      setGeoLoading(true);
-      const { coords, address } = await requestLocationWithAddress();
-      const bairro = address?.district || address?.subregion || "Bairro não encontrado";
-      const cidade = address?.city || address?.subregion || "Cidade não encontrada";
-      const uf     = (address as any)?.region_code || address?.region || "";
-      const resumo = `${bairro} - ${cidade}${uf ? "/" + uf : ""}`;
-      setGeoInfo(`${resumo} (${coords.latitude.toFixed(4)}, ${coords.longitude.toFixed(4)})`);
-      Alert.alert("Localização ativada", resumo);
-    } catch (e: any) {
-      Alert.alert("Localização", e?.message ?? "Não foi possível ativar a geolocalização.");
-    } finally {
-      setGeoLoading(false);
+  // Open edit modal
+  const openModal = () => {
+    setEditNome(perfil?.nome ?? "");
+    setEditBio(perfil?.bio ?? "");
+    setModalVisible(true);
+  };
+
+  // Save from modal
+  const saveEdits = async () => {
+    const nomeTrim = editNome.trim();
+    if (!nomeTrim) {
+      Alert.alert("Nome inválido", "O nome não pode ficar vazio.");
+      return;
+    }
+    const ok = await atualizar({
+      nome: nomeTrim,
+      bio: editBio.trim(),
+      telefone: perfil?.telefone,
+    });
+    if (ok) {
+      setModalVisible(false);
+      showToast("Dados atualizados.");
+      setUser((u) =>
+        u ? { ...u, nome: nomeTrim } : u
+      );
+    } else {
+      showToast("Falha ao salvar. Tente novamente.");
     }
   };
 
-  const { variant: badgeVariant, label: badgeLabel } = verificacaoBadge(verificacao);
+  // Logout
+  const handleLogout = () => {
+    Alert.alert("Sair da conta", "Tem certeza que deseja sair?", [
+      { text: "Cancelar", style: "cancel" },
+      {
+        text: "Sair",
+        style: "destructive",
+        onPress: async () => {
+          try { await api.post("/api/auth/logout"); } catch {}
+          onLogout();
+        },
+      },
+    ]);
+  };
 
-  // ── Render ────────────────────────────────────────────────────────────────
+  const avatarSrc = avatarLocal ?? perfil?.avatarUrl ?? null;
 
   return (
-    <SafeAreaView style={s.safe} edges={["top", "left", "right", "bottom"]}>
+    <SafeAreaView style={s.safe} edges={["top", "left", "right"]}>
+      {/* Toast */}
+      {toast ? (
+        <View style={s.toast}>
+          <Text style={s.toastText}>{toast}</Text>
+        </View>
+      ) : null}
+
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={[s.scroll, { paddingBottom: Math.max(32, insets.bottom + 16) }]}
+        contentContainerStyle={[
+          s.scroll,
+          { paddingBottom: Math.max(32, insets.bottom + 16) },
+        ]}
         showsVerticalScrollIndicator={false}
       >
-
-        {/* ── Toast ── */}
-        {toast ? (
-          <View style={s.toast}>
-            <Text style={s.toastText}>{toast}</Text>
-          </View>
-        ) : null}
-
-        {/* ── Estados de loading / erro ── */}
         {loading ? (
-          <View style={s.card}>
-            <View style={s.skeletonLine} />
-            <View style={[s.skeletonLine, { width: "60%" }]} />
-            <ActivityIndicator color={colors.green} style={{ marginTop: 8 }} />
+          <View style={s.center}>
+            <ActivityIndicator color={colors.primary} size="large" />
           </View>
         ) : error ? (
           <View style={s.card}>
             <Text style={s.errorTitle}>Não foi possível carregar.</Text>
             <Text style={s.errorSub}>{error}</Text>
-            <DButton title="Tentar novamente" onPress={loadMe} variant="outline" style={{ marginTop: 8 }} />
+            <DButton title="Tentar novamente" onPress={refetch} variant="outline" style={{ marginTop: 8 }} />
           </View>
         ) : (
           <>
-            {/* ── Avatar ── */}
+            {/* Avatar */}
             <View style={[s.card, s.avatarSection]}>
               <Pressable onPress={pickAvatar} style={s.avatarWrap}>
-                {avatarLocal || avatarRemote ? (
-                  <Image
-                    source={{ uri: avatarLocal || avatarRemote || undefined }}
-                    style={s.avatarImg}
-                  />
+                {avatarSrc ? (
+                  <Image source={{ uri: avatarSrc }} style={s.avatarImg} />
                 ) : (
-                  <AppIcon name="User" size={54} color={colors.green} background />
+                  <AppIcon name="User" size={48} color={colors.primary} />
                 )}
-                {/* Ícone de câmera sobre avatar */}
-                <View style={s.cameraBtn}>
-                  <AppIcon name="Camera" size={13} color="#FFF" />
+                <View style={s.cameraBadge}>
+                  {avatarUploading ? (
+                    <ActivityIndicator size={10} color={colors.white} />
+                  ) : (
+                    <AppIcon name="Camera" size={12} color={colors.white} />
+                  )}
                 </View>
               </Pressable>
+              <Text style={s.nomeText}>{perfil?.nome ?? "Cliente"}</Text>
+              <Text style={s.emailText}>{perfil?.email ?? ""}</Text>
+            </View>
 
-              <Text style={s.nomeText}>{nome || "Cliente"}</Text>
+            {/* Dados pessoais */}
+            <View style={s.card}>
+              <View style={s.sectionHeader}>
+                <Text style={s.sectionTitle}>Dados pessoais</Text>
+                <Pressable onPress={openModal} style={s.editBtn}>
+                  <Text style={s.editBtnText}>Editar</Text>
+                </Pressable>
+              </View>
 
-              <DularBadge text={badgeLabel} variant={badgeVariant} />
+              <View style={s.fieldRow}>
+                <Text style={s.fieldLabel}>Nome</Text>
+                <Text style={s.fieldValue}>{perfil?.nome ?? "—"}</Text>
+              </View>
+              <View style={s.divider} />
+              <View style={s.fieldRow}>
+                <Text style={s.fieldLabel}>Telefone</Text>
+                <Text style={s.fieldValue}>{perfil?.telefone ?? "—"}</Text>
+              </View>
+              <View style={s.divider} />
+              <View style={s.fieldRow}>
+                <Text style={s.fieldLabel}>Biografia</Text>
+                <Text style={[s.fieldValue, s.bioValue]} numberOfLines={3}>
+                  {perfil?.bio || "Nenhuma bio cadastrada."}
+                </Text>
+              </View>
+            </View>
 
-              {scoreLoading ? (
-                <ActivityIndicator color={colors.green} />
-              ) : safeScore ? (
-                <>
-                  <SafeScoreBadge {...safeScore} style={{ marginTop: 4 }} />
-                  {safeScore.bloqueado ? (
-                    <View style={s.restrictedBox}>
-                      <Text style={s.restrictedText}>
-                        Este usuário está com acesso restrito na plataforma
+            {/* Histórico */}
+            <View style={s.card}>
+              <Text style={s.sectionTitle}>Histórico de serviços</Text>
+              {histLoading ? (
+                <ActivityIndicator color={colors.primary} />
+              ) : historico.length === 0 ? (
+                <Text style={s.emptyText}>Nenhum serviço encontrado.</Text>
+              ) : (
+                historico.map((item) => (
+                  <View key={item.id} style={s.historicoItem}>
+                    <View style={s.historicoLeft}>
+                      <Text style={s.historicoTipo}>{item.tipo}</Text>
+                      <Text style={s.historicoData}>
+                        {new Date(item.data).toLocaleDateString("pt-BR")}
                       </Text>
                     </View>
-                  ) : null}
-                </>
-              ) : null}
-
-              <Pressable onPress={pickAvatar} style={s.fotoBtn}>
-                <Text style={s.fotoBtnText}>{saving ? "Enviando..." : "Alterar foto"}</Text>
-              </Pressable>
+                    <View style={s.statusPill}>
+                      <Text style={s.statusText}>{statusLabel(item.status)}</Text>
+                    </View>
+                  </View>
+                ))
+              )}
             </View>
 
-            {/* ── Dados pessoais ── */}
-            <View style={s.card}>
-              <Text style={s.sectionTitle}>Dados pessoais</Text>
-
-              <Text style={s.fieldLabel}>Nome</Text>
-              <TextInput value={nome} onChangeText={setNome} style={s.input} />
-
-              <Text style={s.fieldLabel}>Telefone</Text>
-              <TextInput value={telefone} style={[s.input, s.inputDisabled]} editable={false} />
-
-              <Text style={s.fieldLabel}>E-mail</Text>
-              <TextInput
-                value={email}
-                style={[s.input, s.inputDisabled]}
-                keyboardType="email-address"
-                placeholder="Em breve"
-                placeholderTextColor={colors.sub}
-                editable={false}
-              />
-
-              <Text style={s.fieldLabel}>Bio</Text>
-              <TextInput
-                value={bio}
-                style={[s.input, s.inputDisabled, { minHeight: 64 }]}
-                multiline
-                editable={false}
-              />
-
-              <DButton
-                title={saving ? "Salvando..." : "Salvar"}
-                onPress={salvar}
-                loading={saving}
-                style={{ marginTop: 6 }}
-              />
-            </View>
-
-            {/* ── Verificação ── */}
-            <View style={s.card}>
-              <Text style={s.sectionTitle}>Verificação</Text>
-              <View style={s.verRow}>
-                <Text style={s.verLabel}>Status:</Text>
-                <DularBadge text={badgeLabel} variant={badgeVariant} />
-              </View>
-              <DButton
-                title={
-                  verificacao === "APROVADO" ? "Verificado"
-                  : verificacao === "PENDENTE" ? "Acompanhar / reenviar"
-                  : "Enviar documentos"
-                }
-                variant={verificacao === "APROVADO" ? "ghost" : "primary"}
-                onPress={() => Alert.alert("Verificação", "Envio de documentos será habilitado em breve.")}
-                style={{ marginTop: 4 }}
-              />
-            </View>
-
-            {/* ── Segurança ── */}
-            <View style={s.card}>
-              <Text style={s.sectionTitle}>Segurança</Text>
-              <Text style={s.helpText}>
-                Reporte qualquer abuso, assédio ou comportamento inadequado.
-              </Text>
-              <DButton
-                title="Reportar incidente"
-                variant="outline"
-                onPress={() => nav.navigate(PERFIL_STACK_ROUTES.REPORT_INCIDENT)}
-                style={{ marginTop: 4 }}
-              />
-            </View>
-
-            {/* ── Localização ── */}
-            <View style={s.card}>
-              <Text style={s.sectionTitle}>Localização</Text>
-              <Text style={s.helpText}>
-                Ative sua localização para sugestões mais precisas.
-              </Text>
-              {geoInfo ? <Text style={s.geoInfo}>{geoInfo}</Text> : null}
-              <DButton
-                title={geoLoading ? "Ativando..." : "Ativar geolocalização"}
-                variant="outline"
-                onPress={ativarGeo}
-                loading={geoLoading}
-                style={{ marginTop: 4 }}
-              />
-            </View>
-
-            {/* ── Logout ── */}
-            <Pressable onPress={onLogout} style={s.logoutBtn}>
+            {/* Logout */}
+            <Pressable onPress={handleLogout} style={s.logoutBtn}>
               <AppIcon name="LogOut" size={18} color={colors.danger} />
               <Text style={s.logoutText}>Sair da conta</Text>
             </Pressable>
           </>
         )}
       </ScrollView>
+
+      {/* Edit Modal */}
+      <Modal
+        visible={modalVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <KeyboardAvoidingView
+          style={s.modalOverlay}
+          behavior={platformSelect({ ios: "padding", android: "height" })}
+        >
+          <View style={s.modalSheet}>
+            <View style={s.modalHeader}>
+              <Text style={s.modalTitle}>Editar perfil</Text>
+              <Pressable onPress={() => setModalVisible(false)} hitSlop={12}>
+                <AppIcon name="XCircle" size={22} color={colors.textSecondary} />
+              </Pressable>
+            </View>
+
+            <Text style={s.modalLabel}>Nome completo</Text>
+            <TextInput
+              value={editNome}
+              onChangeText={setEditNome}
+              style={s.modalInput}
+              placeholder="Seu nome"
+              placeholderTextColor={colors.textMuted}
+              autoCapitalize="words"
+              returnKeyType="next"
+            />
+
+            <Text style={s.modalLabel}>Biografia</Text>
+            <TextInput
+              value={editBio}
+              onChangeText={(t) => setEditBio(t.slice(0, 300))}
+              style={[s.modalInput, s.modalInputMulti]}
+              placeholder="Conte um pouco sobre você..."
+              placeholderTextColor={colors.textMuted}
+              multiline
+              maxLength={300}
+              returnKeyType="done"
+            />
+            <Text style={s.charCount}>{editBio.length}/300</Text>
+
+            <DButton
+              title={saving ? "Salvando..." : "Salvar"}
+              onPress={saveEdits}
+              loading={saving}
+              style={{ marginTop: spacing.md }}
+            />
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </SafeAreaView>
   );
 }
 
-// ── Styles ────────────────────────────────────────────────────────────────────
-
 const s = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: colors.bg,
+    backgroundColor: colors.background,
   },
   scroll: {
     paddingHorizontal: spacing.lg,
-    paddingTop: 12,
-    gap: 12,
+    paddingTop: spacing.md,
+    gap: spacing.md,
   },
-
-  // Toast
+  center: {
+    paddingVertical: 64,
+    alignItems: "center",
+  },
   toast: {
-    padding: 12,
+    position: "absolute",
+    top: spacing.md,
+    left: spacing.lg,
+    right: spacing.lg,
+    zIndex: 99,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
     borderRadius: radius.md,
-    backgroundColor: colors.ink,
+    backgroundColor: colors.textPrimary,
   },
   toastText: {
-    color: "#FFF",
-    fontWeight: "800",
-    fontSize: 13,
+    ...typography.body,
+    color: colors.white,
+    fontWeight: "700",
+    textAlign: "center",
   },
-
-  // Card base
   card: {
-    backgroundColor: colors.card,
+    backgroundColor: colors.surface,
     borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: colors.stroke,
-    padding: 16,
-    gap: 10,
+    borderColor: colors.border,
+    padding: spacing.md,
+    gap: spacing.sm,
     ...shadow.card,
   },
-
-  // Avatar section
   avatarSection: {
     alignItems: "center",
+    paddingVertical: spacing.lg,
   },
   avatarWrap: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    backgroundColor: colors.greenLight,
-    borderWidth: 1,
-    borderColor: colors.stroke,
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    backgroundColor: colors.lavender,
     alignItems: "center",
     justifyContent: "center",
-    overflow: "visible",
     position: "relative",
   },
   avatarImg: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
+    width: 88,
+    height: 88,
+    borderRadius: 44,
   },
-  cameraBtn: {
+  cameraBadge: {
     position: "absolute",
     bottom: 0,
     right: 0,
     width: 26,
     height: 26,
     borderRadius: 13,
-    backgroundColor: colors.green,
+    backgroundColor: colors.primary,
     borderWidth: 2,
-    borderColor: colors.card,
+    borderColor: colors.surface,
     alignItems: "center",
     justifyContent: "center",
   },
   nomeText: {
     ...typography.h2,
-    marginTop: 4,
+    color: colors.textPrimary,
+    marginTop: spacing.sm,
   },
-  fotoBtn: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: radius.btn,
-    backgroundColor: colors.greenLight,
+  emailText: {
+    ...typography.body,
+    color: colors.textMuted,
   },
-  fotoBtnText: {
-    color: colors.greenDark,
-    fontWeight: "700",
-    fontSize: 13,
-  },
-
-  // Section title
-  sectionTitle: {
-    ...typography.h3,
-  },
-
-  // Fields
-  fieldLabel: {
-    ...typography.sub,
-    marginBottom: -4,
-  },
-  input: {
-    borderWidth: 1.5,
-    borderColor: colors.stroke,
-    borderRadius: radius.md,
-    padding: 12,
-    backgroundColor: colors.card,
-    color: colors.ink,
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  inputDisabled: {
-    backgroundColor: colors.cardStrong,
-    color: colors.sub,
-  },
-
-  // Verificação
-  verRow: {
+  sectionHeader: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    justifyContent: "space-between",
   },
-  verLabel: {
-    ...typography.sub,
+  sectionTitle: {
+    ...typography.h3,
+    color: colors.textPrimary,
   },
-  restrictedBox: {
-    width: "100%",
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: "#FECACA",
-    backgroundColor: "#FEF2F2",
-    padding: 10,
+  editBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: radius.pill,
+    backgroundColor: colors.lavender,
   },
-  restrictedText: {
-    color: colors.danger,
-    fontSize: 12,
-    fontWeight: "800",
+  editBtnText: {
+    ...typography.caption,
+    color: colors.primary,
+    fontWeight: "700",
+  },
+  fieldRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: spacing.sm,
+  },
+  fieldLabel: {
+    ...typography.caption,
+    color: colors.textMuted,
+    width: 80,
+    paddingTop: 1,
+  },
+  fieldValue: {
+    ...typography.body,
+    color: colors.textPrimary,
+    flex: 1,
+    textAlign: "right",
+  },
+  bioValue: {
+    textAlign: "right",
+    color: colors.textSecondary,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: colors.divider,
+  },
+  emptyText: {
+    ...typography.body,
+    color: colors.textMuted,
     textAlign: "center",
+    paddingVertical: spacing.sm,
   },
-
-  // Texto de ajuda
-  helpText: {
-    ...typography.sub,
-    lineHeight: 18,
+  historicoItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.divider,
   },
-  geoInfo: {
-    fontSize: 12,
-    color: colors.ink,
+  historicoLeft: {
+    gap: 2,
+  },
+  historicoTipo: {
+    ...typography.body,
+    color: colors.textPrimary,
     fontWeight: "600",
   },
-
-  // Logout
+  historicoData: {
+    ...typography.caption,
+    color: colors.textMuted,
+  },
+  statusPill: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+    borderRadius: radius.pill,
+    backgroundColor: colors.lavender,
+  },
+  statusText: {
+    ...typography.caption,
+    color: colors.primary,
+    fontWeight: "700",
+  },
   logoutBtn: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 8,
+    gap: spacing.sm,
     height: 48,
-    borderRadius: radius.btn,
+    borderRadius: radius.lg,
     borderWidth: 1.5,
-    borderColor: "#FECACA",
-    backgroundColor: "#FEF2F2",
-    marginTop: 4,
+    borderColor: colors.dangerSoft,
+    backgroundColor: colors.dangerSoft,
   },
   logoutText: {
+    ...typography.body,
     color: colors.danger,
     fontWeight: "800",
-    fontSize: 14,
   },
-
-  // Error / skeleton
   errorTitle: {
-    fontSize: 14,
+    ...typography.body,
     fontWeight: "800",
     color: colors.danger,
   },
   errorSub: {
-    ...typography.sub,
+    ...typography.caption,
+    color: colors.textSecondary,
   },
-  skeletonLine: {
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: colors.stroke,
-    width: "100%",
+
+  // Modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: colors.overlay,
+    justifyContent: "flex-end",
+  },
+  modalSheet: {
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
+    padding: spacing.lg,
+    paddingBottom: spacing.xl,
+    gap: spacing.xs,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: spacing.sm,
+  },
+  modalTitle: {
+    ...typography.h3,
+    color: colors.textPrimary,
+  },
+  modalLabel: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    marginTop: spacing.sm,
+    marginBottom: 4,
+  },
+  modalInput: {
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    ...typography.body,
+    color: colors.textPrimary,
+    backgroundColor: colors.background,
+  },
+  modalInputMulti: {
+    minHeight: 88,
+    textAlignVertical: "top",
+    paddingTop: spacing.sm,
+  },
+  charCount: {
+    ...typography.caption,
+    color: colors.textMuted,
+    textAlign: "right",
+    marginTop: 2,
   },
 });

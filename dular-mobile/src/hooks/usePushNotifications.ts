@@ -3,6 +3,7 @@ import * as Notifications from "expo-notifications";
 import * as Device from "expo-device";
 import { Platform } from "react-native";
 import { api } from "@/lib/api";
+import { colors } from "@/theme/tokens";
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -15,7 +16,6 @@ Notifications.setNotificationHandler({
 
 async function registerForPushNotifications(): Promise<string | null> {
   if (!Device.isDevice) {
-    console.log("[push] push notifications só funcionam em dispositivo físico.");
     return null;
   }
 
@@ -24,7 +24,7 @@ async function registerForPushNotifications(): Promise<string | null> {
       name: "default",
       importance: Notifications.AndroidImportance.MAX,
       vibrationPattern: [0, 250, 250, 250],
-      lightColor: "#1DB954",
+      lightColor: colors.pushGreen,
     });
   }
 
@@ -37,7 +37,6 @@ async function registerForPushNotifications(): Promise<string | null> {
   }
 
   if (finalStatus !== "granted") {
-    console.log("[push] permissão negada pelo usuário.");
     return null;
   }
 
@@ -57,25 +56,14 @@ export function usePushNotifications() {
       if (!token) return;
       try {
         await api.post("/api/me/push-token", { pushToken: token });
-        console.log("[push] token registrado:", token);
       } catch (err) {
         console.error("[push] falha ao salvar token:", err);
       }
     });
 
-    // Notificação recebida com app em foreground
-    notificationListener.current = Notifications.addNotificationReceivedListener(
-      (notification) => {
-        console.log("[push] notificação recebida:", notification.request.content);
-      }
-    );
+    notificationListener.current = Notifications.addNotificationReceivedListener(() => {});
 
-    // Usuário tocou na notificação
-    responseListener.current = Notifications.addNotificationResponseReceivedListener(
-      (response) => {
-        console.log("[push] interação com notificação:", response.notification.request.content);
-      }
-    );
+    responseListener.current = Notifications.addNotificationResponseReceivedListener(() => {});
 
     return () => {
       notificationListener.current?.remove();

@@ -29,7 +29,7 @@ const TIPO_TO_LABEL: Record<string, string> = {
 
 export type StatusAgendamento = "pendente" | "aceita" | "andamento" | "concluida" | "cancelada";
 
-export interface AgendamentoCliente {
+export interface AgendamentoEmpregador {
   id: string;
   nome: string;
   idade: string;
@@ -51,7 +51,7 @@ interface ServicosResponse {
   servicos: any[];
 }
 
-function toClienteStatus(raw: string): StatusAgendamento {
+function toEmpregadorStatus(raw: string): StatusAgendamento {
   const map: Record<string, StatusAgendamento> = {
     SOLICITADO: "pendente",
     PENDENTE: "pendente",
@@ -65,7 +65,7 @@ function toClienteStatus(raw: string): StatusAgendamento {
   return map[raw] ?? "pendente";
 }
 
-function mapServico(raw: any): AgendamentoCliente {
+function mapServicoEmpregador(raw: any): AgendamentoEmpregador {
   return {
     id: raw.id,
     nome: raw.diarista?.nome ?? "A definir",
@@ -79,14 +79,14 @@ function mapServico(raw: any): AgendamentoCliente {
     avaliacao: "--",
     experiencia: "--",
     preco: raw.precoFinal != null ? String(raw.precoFinal) : "--",
-    status: toClienteStatus(raw.status),
+    status: toEmpregadorStatus(raw.status),
     avatarUrl: undefined,
   };
 }
 
-export function useAgendamentosCliente() {
+export function useAgendamentosEmpregador() {
   const { token } = useAuth();
-  const [agendamentos, setAgendamentos] = useState<AgendamentoCliente[]>([]);
+  const [agendamentos, setAgendamentos] = useState<AgendamentoEmpregador[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -96,7 +96,7 @@ export function useAgendamentosCliente() {
     setError(null);
     try {
       const res = await apiService.get<ServicosResponse>("/api/servicos/minhas", token);
-      const mapped = (res.data?.servicos ?? []).map(mapServico);
+      const mapped = (res.data?.servicos ?? []).map(mapServicoEmpregador);
       setAgendamentos(mapped);
     } catch {
       setError("Erro ao carregar agendamentos");

@@ -5,11 +5,11 @@ import { useNavigation } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import { AppIcon, AppIconName, DAvatar, DBottomNav, DButton, DCard, DInput } from "@/components/ui";
 import { colors, radius, shadows, spacing } from "@/theme";
-import type { ClienteTabParamList } from "@/navigation/ClienteNavigator";
+import type { EmpregadorTabParamList } from "@/navigation/EmpregadorNavigator";
 import { useBuscar, type ApiDiarista } from "@/hooks/useBuscar";
 import { useGeoDefaults } from "@/hooks/useGeoDefaults";
 
-type Navigation = BottomTabNavigationProp<ClienteTabParamList>;
+type Navigation = BottomTabNavigationProp<EmpregadorTabParamList>;
 
 type CategoriaCardItem = {
   icon: AppIconName;

@@ -18,7 +18,7 @@ import { DButton } from "@/components/DButton";
 import { DularBadge } from "@/components/DularBadge";
 import { AvaliacaoModal } from "@/components/ui";
 import { formatPrice } from "@/utils/formatPrice";
-import { CLIENTE_STACK_ROUTES } from "@/navigation/routes";
+import { EMPREGADOR_STACK_ROUTES } from "@/navigation/routes";
 import { colors, radius, shadow, spacing, typography } from "@/theme/tokens";
 
 const formatDate = (v: string | number | Date) => new Date(v).toLocaleDateString("pt-BR");
@@ -46,7 +46,7 @@ function statusVariant(st: string): "success" | "warning" | "neutral" | "danger"
   return "neutral";
 }
 
-export default function ClienteDetalhe({ route, navigation }: any) {
+export default function EmpregadorDetalhe({ route, navigation }: any) {
   const params = route.params as any;
   const servicoId: string = params.servicoId ?? params.servico?.id ?? "";
 
@@ -256,7 +256,7 @@ export default function ClienteDetalhe({ route, navigation }: any) {
           <DButton
             title="Abrir chat"
             variant="outline"
-            onPress={() => navigation.navigate(CLIENTE_STACK_ROUTES.CHAT, { servicoId: svc.id })}
+            onPress={() => navigation.navigate(EMPREGADOR_STACK_ROUTES.CHAT, { servicoId: svc.id })}
           />
         ) : null}
 

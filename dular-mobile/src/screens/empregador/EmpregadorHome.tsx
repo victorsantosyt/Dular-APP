@@ -134,7 +134,7 @@ function SolicitarButton({
   );
 }
 
-export default function ClienteHome() {
+export default function EmpregadorHome() {
   const insets = useSafeAreaInsets();
   const user = useAuth((state) => state.user);
   const geo = useGeoDefaults();
@@ -173,7 +173,7 @@ export default function ClienteHome() {
   const bairroEfetivo = useMemo(() => (bairro || bairroAtual || "").trim(), [bairro, bairroAtual]);
 
   const displayName = useMemo(() => {
-    if (!nome) return "Cliente";
+    if (!nome) return "Empregador";
     return nome.split(/\s+/)[0] || "Cliente";
   }, [nome]);
 

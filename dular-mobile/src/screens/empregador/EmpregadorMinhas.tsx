@@ -1,5 +1,5 @@
 /**
- * ClienteMinhas — Lista de solicitações do cliente
+ * EmpregadorMinhas — Lista de solicitações do empregador
  *
  * Identidade visual 100% aplicada com tokens Dular validados.
  * Lógica de polling (5s), confirmação e badges de status preservada.
@@ -31,7 +31,7 @@ import type { MinhasResponse, ServicoListItem as Servico } from "../../../../sha
 // ── Tokens ──────────────────────────────────────────────────────────────────
 import { colors, radius, shadow, spacing, typography } from "@/theme/tokens";
 import { DularBadge } from "@/components/DularBadge";
-import { CLIENTE_STACK_ROUTES } from "@/navigation/routes";
+import { EMPREGADOR_STACK_ROUTES } from "@/navigation/routes";
 import { formatPrice } from "@/utils/formatPrice";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -71,7 +71,7 @@ const POLL_MS = 5000;
 
 // ── Componente ────────────────────────────────────────────────────────────────
 
-export default function ClienteMinhas() {
+export default function EmpregadorMinhas() {
   const [items, setItems]       = useState<Servico[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading]   = useState(true);
@@ -127,7 +127,7 @@ export default function ClienteMinhas() {
           contentContainerStyle={{ paddingBottom: 110 }}
           renderItem={({ item }: ListRenderItemInfo<Servico>) => (
             <Pressable
-              onPress={() => navigation.navigate(CLIENTE_STACK_ROUTES.DETALHE, { servicoId: item.id })}
+              onPress={() => navigation.navigate(EMPREGADOR_STACK_ROUTES.DETALHE, { servicoId: item.id })}
               style={({ pressed }) => [s.card, pressed && { opacity: 0.85 }]}
             >
               {/* Topo: tipo + badge */}

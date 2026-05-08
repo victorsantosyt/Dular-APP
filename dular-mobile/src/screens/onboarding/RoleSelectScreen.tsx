@@ -26,7 +26,7 @@ type Navigation = NativeStackNavigationProp<OnboardingStackParamList>;
 type ChosenRole = "empregador" | "diarista" | "montador";
 type IoniconsName = ComponentProps<typeof Ionicons>["name"];
 
-const clienteImg = require("../../../assets/images/roles/role_cliente_card.png");
+const empregadorImg = require("../../../assets/images/roles/role_cliente_card.png");
 const diaristaImg = require("../../../assets/images/roles/role_diarista_card.png");
 // Imagem placeholder para Montador — substituir quando asset próprio existir
 const montadorImg = require("../../../assets/images/roles/role_diarista_card.png");
@@ -40,7 +40,7 @@ const GRAY_FEAT = tc.grayText;
 
 type Feature = { icon: IoniconsName; text: string };
 
-const clienteFeatures: Feature[] = [
+const empregadorFeatures: Feature[] = [
   { icon: "search-outline", text: "Encontre\nprofissionais\nqualificadas" },
   { icon: "calendar-outline", text: "Agende em\npoucos cliques\ne economize tempo" },
   { icon: "shield-checkmark-outline", text: "Pagamento\nseguro e\nprotegido" },
@@ -214,7 +214,7 @@ export function RoleSelectScreen() {
 
         {/* Cards */}
         <RoleCard
-          image={clienteImg}
+          image={empregadorImg}
           accent={PURPLE}
           bgTop="#EDE9FF"
           bgCard="#F5F3FF"
@@ -222,7 +222,7 @@ export function RoleSelectScreen() {
           title="Empregador"
           description={"Encontre diaristas\nconfiáveis e facilite\nsua rotina."}
           badgeIcon="person-outline"
-          features={clienteFeatures}
+          features={empregadorFeatures}
           buttonLabel="Sou Empregador"
           onPress={() => chooseRole("empregador")}
         />

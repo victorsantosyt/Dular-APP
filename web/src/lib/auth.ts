@@ -8,7 +8,7 @@ if (!JWT_SECRET) {
 
 export type JwtPayload = {
   userId: string;
-  role: "CLIENTE" | "DIARISTA" | "ADMIN";
+  role: "EMPREGADOR" | "DIARISTA" | "MONTADOR" | "ADMIN";
 };
 
 export function signToken(payload: JwtPayload) {

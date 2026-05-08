@@ -11,8 +11,8 @@ type Params = { params: Promise<{ id: string }> };
 export async function POST(req: Request, { params }: Params) {
   try {
     const auth = requireAuth(req);
-    if (auth.role !== "CLIENTE") {
-      return NextResponse.json({ ok: false, error: "Apenas cliente pode confirmar." }, { status: 403 });
+    if (auth.role !== "EMPREGADOR") {
+      return NextResponse.json({ ok: false, error: "Apenas empregador pode confirmar." }, { status: 403 });
     }
 
     const { id } = await params;
@@ -32,8 +32,8 @@ export async function POST(req: Request, { params }: Params) {
 
     await registrarEvento(servico.id, servico.status as ServicoStatus, "CONFIRMADO", auth.role, auth.userId);
     await Promise.all([
-      aplicarEvento(servico.clientId, "SERVICO_CONCLUIDO", servico.id, "Serviço confirmado pelo cliente."),
-      aplicarEvento(servico.diaristaId, "SERVICO_CONCLUIDO", servico.id, "Serviço confirmado pelo cliente."),
+      aplicarEvento(servico.clientId, "SERVICO_CONCLUIDO", servico.id, "Serviço confirmado pelo empregador."),
+      aplicarEvento(servico.diaristaId, "SERVICO_CONCLUIDO", servico.id, "Serviço confirmado pelo empregador."),
     ]);
 
     return NextResponse.json({ ok: true, servico: updated });

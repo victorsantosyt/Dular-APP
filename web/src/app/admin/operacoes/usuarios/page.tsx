@@ -11,10 +11,11 @@ import { AdminTable } from "@/components/admin-ui/AdminTable";
 import { AdminEmpty } from "@/components/admin-ui/AdminEmpty";
 
 export default async function UsuariosPage() {
-  const [total, clientes, diaristas, admins, rows] = await Promise.all([
+  const [total, empregadores, diaristas, montadores, admins, rows] = await Promise.all([
     prisma.user.count(),
-    prisma.user.count({ where: { role: "CLIENTE" } }),
+    prisma.user.count({ where: { role: "EMPREGADOR" } }),
     prisma.user.count({ where: { role: "DIARISTA" } }),
+    prisma.user.count({ where: { role: "MONTADOR" } }),
     prisma.user.count({ where: { role: "ADMIN" } }),
     prisma.user.findMany({
       orderBy: { createdAt: "desc" },
@@ -30,10 +31,13 @@ export default async function UsuariosPage() {
           <AdminKpi label="Total" value={String(total)} />
         </div>
         <div className="md:col-span-3">
-          <AdminKpi label="Clientes" value={String(clientes)} />
+          <AdminKpi label="Empregadores" value={String(empregadores)} />
         </div>
         <div className="md:col-span-3">
           <AdminKpi label="Diaristas" value={String(diaristas)} />
+        </div>
+        <div className="md:col-span-3">
+          <AdminKpi label="Montadores" value={String(montadores)} />
         </div>
         <div className="md:col-span-3">
           <AdminKpi label="Admins" value={String(admins)} />

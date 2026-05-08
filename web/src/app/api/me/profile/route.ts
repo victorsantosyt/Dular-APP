@@ -28,6 +28,7 @@ const schema = z.object({
     .string()
     .min(10, "Telefone inválido")
     .max(15, "Telefone inválido"),
+  genero: z.enum(["MASCULINO", "FEMININO"]).optional(),
 });
 
 export async function PATCH(req: Request) {
@@ -40,7 +41,7 @@ export async function PATCH(req: Request) {
     return fail("bad_request", parsed.error.issues[0].message, 400);
   }
 
-  const { nome, cpf, dataNascimento, telefone } = parsed.data;
+  const { nome, cpf, dataNascimento, telefone, genero } = parsed.data;
   const cpfDigits = cpf.replace(/\D/g, "");
   const telefoneDigits = telefone.replace(/\D/g, "");
 
@@ -52,6 +53,7 @@ export async function PATCH(req: Request) {
         cpf: cpfDigits,
         dataNascimento: new Date(dataNascimento),
         telefone: telefoneDigits,
+        ...(genero ? { genero } : {}),
       },
       select: { id: true, nome: true, role: true },
     });

@@ -3,16 +3,16 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { Home, Sparkles } from "lucide-react";
+import { Home, Sparkles, Wrench } from "lucide-react";
 import { LogoBrand } from "@/components/ui/LogoBrand";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
 
-type Role = "CLIENTE" | "DIARISTA";
+type Role = "EMPREGADOR" | "DIARISTA" | "MONTADOR";
 
 const OPTIONS: { role: Role; label: string; description: string; icon: React.ReactNode }[] = [
   {
-    role: "CLIENTE",
-    label: "Sou Cliente",
+    role: "EMPREGADOR",
+    label: "Sou Empregador",
     description: "Quero encontrar uma diarista de confiança para minha casa.",
     icon: <Home size={28} strokeWidth={1.75} />,
   },
@@ -22,7 +22,19 @@ const OPTIONS: { role: Role; label: string; description: string; icon: React.Rea
     description: "Quero oferecer meus serviços e receber novos clientes.",
     icon: <Sparkles size={28} strokeWidth={1.75} />,
   },
+  {
+    role: "MONTADOR",
+    label: "Sou Montador",
+    description: "Quero oferecer serviços de montagem para empregadores.",
+    icon: <Wrench size={28} strokeWidth={1.75} />,
+  },
 ];
+
+function roleHomePath(role: Role) {
+  if (role === "EMPREGADOR") return "/cliente";
+  if (role === "DIARISTA") return "/diarista";
+  return "/montador";
+}
 
 export default function EscolherPerfilPage() {
   const router = useRouter();
@@ -51,7 +63,7 @@ export default function EscolherPerfilPage() {
       // Força refresh do JWT para que session.user.role reflita o valor do banco
       await update({ role: selected });
 
-      router.replace(selected === "CLIENTE" ? "/cliente" : "/diarista");
+      router.replace(roleHomePath(selected));
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Erro inesperado.");
       setLoading(false);

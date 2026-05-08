@@ -12,8 +12,8 @@ type Params = { params: Promise<{ id: string }> };
 export async function POST(req: Request, { params }: Params) {
   try {
     const auth = requireAuth(req);
-    if (auth.role !== "CLIENTE") {
-      return NextResponse.json({ ok: false, error: "Apenas cliente pode avaliar." }, { status: 403 });
+    if (auth.role !== "EMPREGADOR") {
+      return NextResponse.json({ ok: false, error: "Apenas empregador pode avaliar." }, { status: 403 });
     }
 
     const { id } = await params;

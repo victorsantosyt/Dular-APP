@@ -11,7 +11,7 @@ export default function SmokePage() {
   const [telefone, setTelefone] = useState("65999990001");
   const [senha, setSenha] = useState("cliente123");
   const [nome, setNome] = useState("Cliente Teste");
-  const [role, setRole] = useState<"CLIENTE" | "DIARISTA">("CLIENTE");
+  const [role, setRole] = useState<"EMPREGADOR" | "DIARISTA" | "MONTADOR">("EMPREGADOR");
 
   const [token, setToken] = useState<string>(() => {
     if (typeof window === "undefined") return "";
@@ -32,7 +32,7 @@ export default function SmokePage() {
     setTelefone("65999990001");
     setSenha("cliente123");
     setNome("Cliente Teste");
-    setRole("CLIENTE");
+    setRole("EMPREGADOR");
   }
 
   function fillDiaristaSeed() {
@@ -218,11 +218,12 @@ export default function SmokePage() {
               Role
               <select
                 value={role}
-                onChange={(e) => setRole(e.target.value as "CLIENTE" | "DIARISTA")}
+                onChange={(e) => setRole(e.target.value as "EMPREGADOR" | "DIARISTA" | "MONTADOR")}
                 style={inputStyle}
               >
-                <option value="CLIENTE">CLIENTE</option>
+                <option value="EMPREGADOR">EMPREGADOR</option>
                 <option value="DIARISTA">DIARISTA</option>
+                <option value="MONTADOR">MONTADOR</option>
               </select>
             </label>
 

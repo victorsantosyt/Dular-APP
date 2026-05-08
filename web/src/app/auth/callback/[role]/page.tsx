@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { ensureUserRoleProfile } from "@/lib/userProfiles";
 import { redirect } from "next/navigation";
 
-const ROLE_MAP = { cliente: "EMPREGADOR", diarista: "DIARISTA", montador: "MONTADOR" } as const;
+const ROLE_MAP = { cliente: "EMPREGADOR", empregador: "EMPREGADOR", diarista: "DIARISTA", montador: "MONTADOR" } as const;
 type UrlRole = keyof typeof ROLE_MAP;
 
 function roleHomePath(role: string | null | undefined) {

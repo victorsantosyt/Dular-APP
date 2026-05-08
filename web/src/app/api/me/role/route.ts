@@ -2,8 +2,9 @@ import { auth } from "@/lib/auth-oauth";
 import { prisma } from "@/lib/prisma";
 import { fail, ok } from "@/lib/apiResponse";
 import { z } from "zod";
+import { ensureUserRoleProfile } from "@/lib/userProfiles";
 
-const schema = z.object({ role: z.enum(["CLIENTE", "DIARISTA"]) });
+const schema = z.object({ role: z.enum(["EMPREGADOR", "DIARISTA", "MONTADOR"]) });
 
 export async function PATCH(req: Request) {
   const session = await auth();
@@ -15,18 +16,14 @@ export async function PATCH(req: Request) {
 
   const { role } = parsed.data;
 
-  await prisma.user.update({
-    where: { id: session.user.id },
-    data: { role },
-  });
-
-  if (role === "DIARISTA") {
-    await prisma.diaristaProfile.upsert({
-      where: { userId: session.user.id },
-      update: {},
-      create: { userId: session.user.id, precoLeve: 0, precoPesada: 0 },
+  await prisma.$transaction(async (tx) => {
+    await tx.user.update({
+      where: { id: session.user.id },
+      data: { role },
     });
-  }
+
+    await ensureUserRoleProfile(tx, session.user.id, role);
+  });
 
   return ok({ ok: true, role });
 }

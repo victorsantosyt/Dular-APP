@@ -7,8 +7,8 @@ import { sendPushNotification } from "@/lib/notifications";
 export async function POST(req: Request) {
   try {
     const auth = requireAuth(req);
-    if (auth.role !== "CLIENTE") {
-      return NextResponse.json({ ok: false, error: "Apenas cliente pode solicitar." }, { status: 403 });
+    if (auth.role !== "EMPREGADOR") {
+      return NextResponse.json({ ok: false, error: "Apenas empregador pode solicitar." }, { status: 403 });
     }
 
     const body = await req.json();

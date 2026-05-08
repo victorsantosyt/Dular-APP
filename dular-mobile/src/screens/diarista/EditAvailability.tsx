@@ -140,7 +140,7 @@ export default function EditAvailability({ navigation }: any) {
                     onPress={() => toggle(turnos, setTurnos, key)}
                     style={({ pressed }) => [s.turnoBtn, active && s.turnoBtnOn, pressed && { opacity: 0.75 }]}
                   >
-                    <Ionicons name={icon as any} size={20} color={active ? "#FFF" : colors.sub} />
+                    <Ionicons name={icon as any} size={20} color={active ? colors.white : colors.sub} />
                     <Text style={[s.turnoBtnText, active && s.turnoBtnTextOn]}>{label}</Text>
                   </Pressable>
                 );
@@ -202,7 +202,7 @@ const s = StyleSheet.create({
   },
   dayChipOn:      { backgroundColor: colors.green, borderColor: colors.green },
   dayChipText:    { fontSize: 12, fontWeight: "700", color: colors.ink },
-  dayChipTextOn:  { color: "#FFF" },
+  dayChipTextOn:  { color: colors.white },
 
   // Turnos
   turnoRow: { flexDirection: "row", gap: 10 },
@@ -220,7 +220,7 @@ const s = StyleSheet.create({
   },
   turnoBtnOn:       { backgroundColor: colors.green, borderColor: colors.green },
   turnoBtnText:     { fontSize: 14, fontWeight: "700", color: colors.sub },
-  turnoBtnTextOn:   { color: "#FFF" },
+  turnoBtnTextOn:   { color: colors.white },
 
   // Resumo
   resumoCard: {

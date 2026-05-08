@@ -3,8 +3,6 @@ import {
   Alert,
   Animated,
   Image,
-  Linking,
-  Modal,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -28,8 +26,7 @@ import { AppIcon } from "@/components/ui";
 import { SOSIcon } from "@/assets/icons";
 import { CenterWrap } from "@/ui/Layout";
 import { DIARISTA_STACK_ROUTES } from "@/navigation/routes";
-import { useSubscription } from "@/hooks/useSubscription";
-import PaywallScreen from "@/screens/PaywallScreen";
+import { usePaywallGuard } from "@/hooks/usePaywallGuard";
 import { colors, radius, shadow, spacing, typography } from "@/theme/tokens";
 
 const FINISHED_STATUS = new Set([
@@ -72,30 +69,17 @@ function getServicoEndereco(servico: Servico | null | undefined) {
   return typeof endereco === "string" && endereco.trim() ? endereco.trim() : null;
 }
 
-async function getCurrentCoords() {
-  const permission = await Location.requestForegroundPermissionsAsync();
-  if (permission.status !== "granted") {
-    throw new Error("Permissão de localização não concedida.");
-  }
-
-  const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-  return {
-    latitude: pos.coords.latitude,
-    longitude: pos.coords.longitude,
-  };
-}
 
 export default function DiaristaSolicitacoes({ navigation }: any) {
   const insets = useSafeAreaInsets();
-  const { isBlocked, refresh: refreshSubscription } = useSubscription();
-  const [showPaywall, setShowPaywall] = useState(false);
+  const { verificar } = usePaywallGuard();
 
   const [items, setItems] = useState<Servico[]>([]);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [pendenteOpen, setPendenteOpen] = useState(true);
   const [agendaOpen, setAgendaOpen] = useState(true);
   const [aceitando, setAceitando] = useState(false);
-  const [checkinOk, setCheckinOk] = useState(false);
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [scoreByUser, setScoreByUser] = useState<Record<string, SafeScoreSummary>>({});
 
@@ -193,82 +177,67 @@ export default function DiaristaSolicitacoes({ navigation }: any) {
     void aceitarServico(servico);
   }, [aceitarServico]);
 
-  const onAceitar = useCallback(async () => {
-    if (!pending?.id) return;
-    if (isBlocked) { setShowPaywall(true); return; }
-
-    if (pendingClientScore?.bloqueado) {
-      Alert.alert(
-        "Atenção",
-        "Atenção: este cliente está com restrições ativas. Deseja continuar?",
-        [
-          { text: "Cancelar", style: "cancel" },
-          { text: "Continuar", onPress: () => confirmarAceite(pending) },
-        ]
-      );
-      return;
-    }
-
-    confirmarAceite(pending);
-  }, [confirmarAceite, isBlocked, pending, pendingClientScore?.bloqueado]);
-
-  const onRecusar = useCallback(async () => {
-    if (!pending?.id) return;
+  const handleServicoAction = useCallback(async (servicoId: string, action: string) => {
     try {
-      await api.post(`/api/servicos/${pending.id}/recusar`);
+      setActionLoading(`${servicoId}-${action}`);
+      await api.post(`/api/servicos/${servicoId}/${action}`);
       await load();
     } catch (e: any) {
-      Alert.alert("Erro", e?.response?.data?.error ?? e?.message ?? "Falha ao recusar");
+      Alert.alert("Erro", e?.response?.data?.error ?? e?.message ?? "Falha");
+    } finally {
+      setActionLoading(null);
     }
+  }, [load]);
+
+  const onAceitar = useCallback(async () => {
+    if (!pending?.id) return;
+
+    verificar("aceiteMes", () => {
+      if (pendingClientScore?.bloqueado) {
+        Alert.alert(
+          "Atenção",
+          "Atenção: este cliente está com restrições ativas. Deseja continuar?",
+          [
+            { text: "Cancelar", style: "cancel" },
+            { text: "Continuar", onPress: () => confirmarAceite(pending) },
+          ]
+        );
+        return;
+      }
+      confirmarAceite(pending);
+    });
+  }, [confirmarAceite, pending, pendingClientScore?.bloqueado, verificar]);
+
+  const onRecusar = useCallback(() => {
+    if (!pending?.id) return;
+    Alert.alert(
+      "Recusar serviço?",
+      "Tem certeza que deseja recusar esta solicitação?",
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Recusar",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await api.post(`/api/servicos/${pending.id}/recusar`);
+              await load();
+            } catch (e: any) {
+              Alert.alert("Erro", e?.response?.data?.error ?? e?.message ?? "Falha ao recusar");
+            }
+          },
+        },
+      ]
+    );
   }, [pending?.id, load]);
 
-  const doCheckin = useCallback(async () => {
+  const navigateToSeguranca = useCallback(() => {
     if (!pending?.id) return;
-    try {
-      const current = await getCurrentCoords();
-      await api.post("/api/seguranca/checkin", {
-        servicoId: pending.id,
-        latitude: current.latitude,
-        longitude: current.longitude,
-      });
-      setCoords({ lat: current.latitude, lng: current.longitude });
-      setCheckinOk(true);
-    } catch (e: any) {
-      Alert.alert("Check-in", e?.response?.data?.error ?? e?.message ?? "Não foi possível registrar o check-in.");
-    }
-  }, [pending?.id]);
-
-  const openSOS = useCallback(async () => {
-    const mensagem = "Preciso de ajuda em um atendimento (Dular).";
-    let current: { latitude: number; longitude: number } | null = null;
-
-    try {
-      current = await getCurrentCoords();
-      setCoords({ lat: current.latitude, lng: current.longitude });
-    } catch (err) {
-      console.error("[SOS] falha ao obter localização:", err);
-    }
-
-    try {
-      await api.post("/api/seguranca/sos", {
-        servicoId: pending?.id,
-        ...(current ? { latitude: current.latitude, longitude: current.longitude } : {}),
-        mensagem,
-      });
-    } catch (err) {
-      console.error("[SOS] falha ao registrar no backend:", err);
-    }
-
-    const phone = "5565999990000";
-    const msg = encodeURIComponent(mensagem);
-    const url = `https://wa.me/${phone}?text=${msg}`;
-    const canOpen = await Linking.canOpenURL(url);
-    if (!canOpen) {
-      Alert.alert("SOS", "Não foi possível abrir o WhatsApp.");
-      return;
-    }
-    Linking.openURL(url);
-  }, [pending?.id]);
+    navigation.navigate("Seguranca", {
+      servicoId: pending.id,
+      enderecoServico: getServicoEndereco(pending) ?? undefined,
+    });
+  }, [navigation, pending]);
 
   useEffect(() => {
     load();
@@ -396,11 +365,9 @@ export default function DiaristaSolicitacoes({ navigation }: any) {
                       </Pressable>
                     </View>
 
-                    {securityLevel === "REFORCADO" ? (
-                      <Pressable onPress={onRecusar} style={({ pressed }) => [s.rejectBtn, pressed && s.pressed]}>
-                        <Text style={s.rejectText}>Recusar</Text>
-                      </Pressable>
-                    ) : null}
+                    <Pressable onPress={onRecusar} style={({ pressed }) => [s.rejectBtn, pressed && s.pressed]}>
+                      <Text style={s.rejectText}>Recusar</Text>
+                    </Pressable>
                   </>
                 ) : null}
               </LinearGradient>
@@ -419,19 +386,13 @@ export default function DiaristaSolicitacoes({ navigation }: any) {
 
               <View style={s.securityBtnRow}>
                 <Pressable
-                  onPress={doCheckin}
-                  style={({ pressed }) => [
-                    s.checkinBtn,
-                    checkinOk && s.checkinBtnDone,
-                    pressed && s.pressed,
-                  ]}
+                  onPress={navigateToSeguranca}
+                  style={({ pressed }) => [s.checkinBtn, pressed && s.pressed]}
                 >
-                  <Text style={[s.checkinText, checkinOk && s.checkinTextDone]}>
-                    {checkinOk ? "Check-in feito" : "Estou segura"}
-                  </Text>
+                  <Text style={s.checkinText}>Check-in</Text>
                 </Pressable>
 
-                <Pressable onPress={openSOS} style={({ pressed }) => [s.sosBtn, pressed && s.pressed]}>
+                <Pressable onPress={navigateToSeguranca} style={({ pressed }) => [s.sosBtn, pressed && s.pressed]}>
                   <SOSIcon size={48} />
                 </Pressable>
               </View>
@@ -458,31 +419,73 @@ export default function DiaristaSolicitacoes({ navigation }: any) {
                 others.map((item, index) => {
                   const isLast = index === others.length - 1;
                   return (
-                    <Pressable
+                    <View
                       key={item.id}
-                      onPress={() => navigation.navigate(DIARISTA_STACK_ROUTES.DETALHE, { servico: item })}
-                      style={({ pressed }) => [
-                        s.agendaItem,
-                        !isLast && s.agendaDivider,
-                        pressed && s.pressed,
-                      ]}
+                      style={[s.agendaItem, !isLast && s.agendaDivider]}
                     >
-                      <View style={s.itemAvatar}>
-                        <Ionicons name="person" size={18} color={colors.green} />
-                      </View>
+                      <Pressable
+                        onPress={() => navigation.navigate(DIARISTA_STACK_ROUTES.DETALHE, { servicoId: item.id })}
+                        style={({ pressed }) => [s.agendaItemRow, pressed && s.pressed]}
+                      >
+                        <View style={s.itemAvatar}>
+                          <Ionicons name="person" size={18} color={colors.green} />
+                        </View>
+                        <View style={s.itemMain}>
+                          <Text style={s.itemName} numberOfLines={1}>{item.cliente?.nome ?? "Cliente"}</Text>
+                          <Text style={s.itemSub} numberOfLines={1}>
+                            {item.bairro}, {item.cidade}
+                          </Text>
+                        </View>
+                        <View style={s.timeBadge}>
+                          <Ionicons name="checkmark" size={11} color={colors.greenDark} />
+                          <Text style={s.timeText}>{item.turno === "MANHA" ? "07:00" : "20:30"}</Text>
+                        </View>
+                      </Pressable>
 
-                      <View style={s.itemMain}>
-                        <Text style={s.itemName} numberOfLines={1}>{item.cliente?.nome ?? "Cliente"}</Text>
-                        <Text style={s.itemSub} numberOfLines={1}>
-                          {item.bairro}, {item.cidade}
-                        </Text>
-                      </View>
-
-                      <View style={s.timeBadge}>
-                        <Ionicons name="checkmark" size={11} color={colors.greenDark} />
-                        <Text style={s.timeText}>{item.turno === "MANHA" ? "07:00" : "20:30"}</Text>
-                      </View>
-                    </Pressable>
+                      {["ACEITO", "INICIADO", "EM_ANDAMENTO", "CONFIRMADO"].includes(upper(item.status)) ? (
+                        <View style={s.agendaActions}>
+                          {upper(item.status) === "ACEITO" ? (
+                            <Pressable
+                              onPress={() => { void handleServicoAction(item.id, "iniciar"); }}
+                              disabled={actionLoading === `${item.id}-iniciar`}
+                              style={({ pressed }) => [s.agendaActionBtn, pressed && s.pressed]}
+                            >
+                              <Text style={s.agendaActionText}>
+                                {actionLoading === `${item.id}-iniciar` ? "..." : "Iniciar"}
+                              </Text>
+                            </Pressable>
+                          ) : null}
+                          {["INICIADO", "EM_ANDAMENTO"].includes(upper(item.status)) ? (
+                            <>
+                              <Pressable
+                                onPress={() => navigation.navigate("Seguranca", {
+                                  servicoId: item.id,
+                                  enderecoServico: getServicoEndereco(item) ?? undefined,
+                                })}
+                                style={({ pressed }) => [s.agendaActionBtn, s.agendaActionBtnSecondary, pressed && s.pressed]}
+                              >
+                                <Text style={[s.agendaActionText, { color: colors.greenDark }]}>Segurança</Text>
+                              </Pressable>
+                              <Pressable
+                                onPress={() => { void handleServicoAction(item.id, "concluir"); }}
+                                disabled={actionLoading === `${item.id}-concluir`}
+                                style={({ pressed }) => [s.agendaActionBtn, pressed && s.pressed]}
+                              >
+                                <Text style={s.agendaActionText}>
+                                  {actionLoading === `${item.id}-concluir` ? "..." : "Concluir"}
+                                </Text>
+                              </Pressable>
+                            </>
+                          ) : null}
+                          {upper(item.status) === "CONFIRMADO" ? (
+                            <View style={s.agendaPaidBadge}>
+                              <Ionicons name="checkmark-circle" size={13} color={colors.success} />
+                              <Text style={s.agendaPaidText}>Pagamento liberado ✓</Text>
+                            </View>
+                          ) : null}
+                        </View>
+                      ) : null}
+                    </View>
                   );
                 })
               )
@@ -495,14 +498,6 @@ export default function DiaristaSolicitacoes({ navigation }: any) {
           </View>
         </CenterWrap>
       </ScrollView>
-      <Modal visible={showPaywall} animationType="slide" presentationStyle="pageSheet">
-        <PaywallScreen
-          onClose={() => {
-            setShowPaywall(false);
-            refreshSubscription();
-          }}
-        />
-      </Modal>
     </SafeAreaView>
   );
 }
@@ -684,17 +679,10 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  checkinBtnDone: {
-    backgroundColor: colors.green,
-    borderColor: colors.green,
-  },
   checkinText: {
     color: colors.greenDark,
     fontSize: 12,
     fontWeight: "800",
-  },
-  checkinTextDone: {
-    color: colors.card,
   },
   sosBtn: {
     width: 88,
@@ -731,15 +719,55 @@ const s = StyleSheet.create({
     color: colors.ink,
   },
   agendaItem: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  agendaItemRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
   },
   agendaDivider: {
     borderTopWidth: 1,
     borderTopColor: colors.stroke,
+  },
+  agendaActions: {
+    flexDirection: "row",
+    gap: spacing.xs,
+    marginTop: 8,
+    flexWrap: "wrap",
+  },
+  agendaActionBtn: {
+    height: 30,
+    borderRadius: radius.btn,
+    backgroundColor: colors.green,
+    paddingHorizontal: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  agendaActionBtnSecondary: {
+    backgroundColor: colors.greenLight,
+    borderWidth: 1,
+    borderColor: colors.stroke,
+  },
+  agendaActionText: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: colors.card,
+  },
+  agendaPaidBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: radius.pill,
+    backgroundColor: colors.successSoft,
+  },
+  agendaPaidText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: colors.success,
   },
   itemAvatar: {
     width: 36,

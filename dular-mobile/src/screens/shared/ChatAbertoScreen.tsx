@@ -1,236 +1,140 @@
-import React, { useEffect, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import {
-  Animated,
+  ActivityIndicator,
   FlatList,
   KeyboardAvoidingView,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from "react-native";
-import { platformSelect } from "@/utils/platform";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
-import { AppIcon, DAvatar } from "@/components/ui";
-import { colors, radius, shadows, spacing } from "@/theme";
+import { AppIcon } from "@/components/ui";
+import { MensagemBubble } from "@/components/ui/MensagemBubble";
+import { useChat } from "@/hooks/useChat";
+import type { Mensagem } from "@/hooks/useChat";
+import { useAuth } from "@/stores/authStore";
+import { colors, radius, spacing, typography } from "@/theme/tokens";
+import { platformSelect, shadow } from "@/utils/platform";
 
 export type ChatAbertoParams = {
-  conversaId?: string;
-  nome?: string;
-  avatarUrl?: string;
-  online?: boolean;
-  servico?: string;
-  dataHora?: string;
-  bairro?: string;
-  status?: string;
-  papel?: "cliente" | "diarista";
+  roomId: string;
+  servicoId: string;
+  nomeUsuario: string;
 };
 
 type Props = {
-  route?: {
-    params?: ChatAbertoParams;
-  };
+  route: { params: ChatAbertoParams };
 };
-
-type Message = {
-  id: string;
-  author: "me" | "other";
-  text: string;
-  time: string;
-};
-
-const DEFAULT_AVATAR =
-  "";
-
-const MESSAGES: Message[] = [
-  {
-    id: "1",
-    author: "other",
-    text: "Oi, confirmo o serviço para amanhã no período da manhã.",
-    time: "09:12",
-  },
-  {
-    id: "2",
-    author: "me",
-    text: "Perfeito. O endereço está completo no pedido.",
-    time: "09:14",
-  },
-  {
-    id: "3",
-    author: "other",
-    text: "Vou levar os materiais principais. Precisa de algum cuidado especial?",
-    time: "09:16",
-  },
-  {
-    id: "4",
-    author: "me",
-    text: "Apenas atenção ao piso da sala. Obrigada pela confirmação.",
-    time: "09:17",
-  },
-];
-
-const QUICK_REPLIES = [
-  "Pode confirmar",
-  "Chego em 10 minutos",
-  "Obrigada pelo retorno",
-  "Pode me mandar detalhes?",
-];
-
-function TypingIndicator() {
-  const dots = useRef([new Animated.Value(0.35), new Animated.Value(0.35), new Animated.Value(0.35)]).current;
-
-  useEffect(() => {
-    const animation = Animated.loop(
-      Animated.stagger(
-        130,
-        dots.map((dot) =>
-          Animated.sequence([
-            Animated.timing(dot, { toValue: 1, duration: 260, useNativeDriver: true }),
-            Animated.timing(dot, { toValue: 0.35, duration: 260, useNativeDriver: true }),
-          ]),
-        ),
-      ),
-    );
-
-    animation.start();
-    return () => animation.stop();
-  }, [dots]);
-
-  return (
-    <View style={styles.typingWrap}>
-      {dots.map((dot, index) => (
-        <Animated.View key={index} style={[styles.typingDot, { opacity: dot }]} />
-      ))}
-    </View>
-  );
-}
-
-function MessageBubble({ item }: { item: Message }) {
-  const mine = item.author === "me";
-
-  return (
-    <View style={[styles.messageRow, mine ? styles.messageRowMine : styles.messageRowOther]}>
-      <View style={[styles.bubble, mine ? styles.bubbleMine : styles.bubbleOther]}>
-        <Text style={[styles.bubbleText, mine ? styles.bubbleTextMine : styles.bubbleTextOther]}>
-          {item.text}
-        </Text>
-        <Text style={[styles.messageTime, mine ? styles.messageTimeMine : styles.messageTimeOther]}>
-          {item.time}
-        </Text>
-      </View>
-    </View>
-  );
-}
 
 export function ChatAbertoScreen({ route }: Props) {
   const navigation = useNavigation();
-  const insets = useSafeAreaInsets();
-  const [draft, setDraft] = useState("");
-  const params = route?.params ?? {};
+  const { roomId, nomeUsuario } = route.params;
+  const userId = useAuth((state) => state.user?.id) ?? "";
 
-  const nome = params.nome ?? "Luciana Silva";
-  const avatarUrl = params.avatarUrl ?? DEFAULT_AVATAR;
-  const online = params.online ?? true;
-  const servico = params.servico ?? "Faxina completa";
-  const dataHora = params.dataHora ?? "Hoje, 14:00 - 18:00";
-  const bairro = params.bairro ?? "Jardim América";
-  const status = params.status ?? "Confirmado";
+  const { mensagens, loading, enviar } = useChat(roomId);
+
+  const [text, setText] = useState("");
+  const [enviando, setEnviando] = useState(false);
+
+  const handleEnviar = useCallback(async () => {
+    const trimmed = text.trim();
+    if (!trimmed || enviando) return;
+    setText("");
+    setEnviando(true);
+    try {
+      await enviar(trimmed);
+    } catch {
+      // Error is already reflected in the message's status field
+    } finally {
+      setEnviando(false);
+    }
+  }, [text, enviando, enviar]);
+
+  const renderItem = useCallback(
+    ({ item }: { item: Mensagem }) => (
+      <MensagemBubble mensagem={item} isOwn={item.autorId === userId} />
+    ),
+    [userId]
+  );
+
+  const canSend = text.trim().length > 0 && !enviando;
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
+      {/* Header — outside KAV so it stays fixed */}
+      <View style={styles.header}>
+        <Pressable
+          onPress={() => navigation.goBack()}
+          hitSlop={12}
+          style={styles.backBtn}
+        >
+          <AppIcon name="ArrowLeft" size={22} color={colors.white} strokeWidth={2.5} />
+        </Pressable>
+        <Text style={styles.headerTitle} numberOfLines={1}>
+          {nomeUsuario}
+        </Text>
+      </View>
+
       <KeyboardAvoidingView
-        behavior={platformSelect({ ios: "padding", android: undefined })}
-        style={styles.keyboard}
+        style={styles.kav}
+        behavior={platformSelect({ ios: "padding", android: "height" })}
+        keyboardVerticalOffset={platformSelect({ ios: 90, android: 0 })}
       >
-        <View style={styles.header}>
-          <Pressable onPress={() => navigation.goBack()} hitSlop={spacing.sm} style={styles.iconButton}>
-            <AppIcon name="ArrowLeft" size={22} color={colors.textPrimary} strokeWidth={2.5} />
-          </Pressable>
-
-          <DAvatar size="md" uri={avatarUrl} initials={nome.slice(0, 2)} online={online} />
-
-          <View style={styles.headerText}>
-            <Text style={styles.headerName} numberOfLines={1}>{nome}</Text>
-            <Text style={styles.headerStatus}>{online ? "Online agora" : "Última atividade recente"}</Text>
+        {/* Messages area */}
+        {loading ? (
+          <View style={styles.center}>
+            <ActivityIndicator color={colors.primary} size="large" />
           </View>
-
-          <Pressable hitSlop={spacing.sm} style={styles.iconButton}>
-            <AppIcon name="MoreHorizontal" size={22} color={colors.textPrimary} strokeWidth={2.5} />
-          </Pressable>
-        </View>
-
-        <View style={styles.serviceCard}>
-          <View style={styles.serviceHeader}>
-            <View style={styles.serviceIcon}>
-              <AppIcon name="Sparkles" size={18} color="purple" />
-            </View>
-            <View style={styles.serviceTextBlock}>
-              <Text style={styles.serviceTitle}>{servico}</Text>
-              <Text style={styles.serviceMeta}>Resumo do serviço em andamento</Text>
-            </View>
-            <View style={styles.statusPill}>
-              <Text style={styles.statusText}>{status}</Text>
-            </View>
+        ) : mensagens.length === 0 ? (
+          <View style={styles.center}>
+            <Text style={styles.emptyText}>
+              {"Nenhuma mensagem ainda.\nDiga olá! 👋"}
+            </Text>
           </View>
+        ) : (
+          <FlatList
+            inverted
+            data={mensagens}
+            keyExtractor={(item) => item.id}
+            renderItem={renderItem}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.listContent}
+            ItemSeparatorComponent={() => <View style={styles.separator} />}
+            style={styles.list}
+          />
+        )}
 
-          <View style={styles.serviceInfoRow}>
-            <View style={styles.serviceInfoItem}>
-              <AppIcon name="Clock" size={14} color={colors.textSecondary} />
-              <Text style={styles.serviceInfoText}>{dataHora}</Text>
-            </View>
-            <View style={styles.serviceInfoItem}>
-              <AppIcon name="MapPin" size={14} color={colors.textSecondary} />
-              <Text style={styles.serviceInfoText}>{bairro}</Text>
-            </View>
-          </View>
-        </View>
-
-        <FlatList
-          data={MESSAGES}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => <MessageBubble item={item} />}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.messageList}
-          ListFooterComponent={
-            <View style={styles.typingRow}>
-              <TypingIndicator />
-            </View>
-          }
-        />
-
-        <View style={[styles.composerWrap, { paddingBottom: Math.max(insets.bottom, spacing.sm) }]}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.quickReplies}
-            keyboardShouldPersistTaps="handled"
+        {/* Input bar */}
+        <SafeAreaView edges={["bottom"]} style={styles.inputSafe}>
+          <View
+            style={[
+              styles.inputBar,
+              { paddingBottom: platformSelect({ ios: 0, android: 8 }) },
+            ]}
           >
-            {QUICK_REPLIES.map((reply) => (
-              <Pressable key={reply} onPress={() => setDraft(reply)} style={styles.replyChip}>
-                <Text style={styles.replyChipText}>{reply}</Text>
-              </Pressable>
-            ))}
-          </ScrollView>
-
-          <View style={styles.inputRow}>
-            <Pressable hitSlop={spacing.xs} style={styles.attachButton}>
-              <AppIcon name="Paperclip" size={20} color={colors.primary} strokeWidth={2.3} />
-            </Pressable>
             <TextInput
-              value={draft}
-              onChangeText={setDraft}
-              placeholder="Digite sua mensagem"
+              value={text}
+              onChangeText={setText}
+              placeholder="Digite uma mensagem..."
               placeholderTextColor={colors.textMuted}
               style={styles.input}
-              multiline
+              multiline={false}
+              maxLength={500}
+              returnKeyType="send"
+              onSubmitEditing={handleEnviar}
             />
-            <Pressable hitSlop={spacing.xs} style={styles.sendButton}>
+            <Pressable
+              onPress={handleEnviar}
+              disabled={!canSend}
+              style={[styles.sendBtn, !canSend && styles.sendBtnDisabled]}
+            >
               <AppIcon name="Send" size={19} color={colors.white} strokeWidth={2.5} />
             </Pressable>
           </View>
-        </View>
+        </SafeAreaView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -241,265 +145,84 @@ export default ChatAbertoScreen;
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: colors.background,
-  },
-  keyboard: {
-    flex: 1,
+    backgroundColor: colors.primary,
   },
   header: {
-    minHeight: 70,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
+    height: 56,
     flexDirection: "row",
     alignItems: "center",
+    paddingHorizontal: spacing.md,
     gap: spacing.md,
-    backgroundColor: colors.background,
+    backgroundColor: colors.primary,
   },
-  iconButton: {
+  backBtn: {
     width: 40,
     height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.surface,
-    alignItems: "center",
-    justifyContent: "center",
-    ...shadows.soft,
-  },
-  headerText: {
-    flex: 1,
-    minWidth: 0,
-  },
-  headerName: {
-    fontSize: 16,
-    lineHeight: 21,
-    fontWeight: "900",
-    color: colors.textPrimary,
-  },
-  headerStatus: {
-    marginTop: 1,
-    fontSize: 12,
-    lineHeight: 16,
-    fontWeight: "600",
-    color: colors.success,
-  },
-  serviceCard: {
-    marginHorizontal: spacing.lg,
-    marginBottom: spacing.sm,
-    borderRadius: radius.xl,
-    backgroundColor: colors.surface,
-    padding: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    ...shadows.soft,
-  },
-  serviceHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-  },
-  serviceIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: colors.purpleSoft,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  serviceTextBlock: {
-    flex: 1,
-    minWidth: 0,
-  },
-  serviceTitle: {
-    fontSize: 14,
-    lineHeight: 18,
-    fontWeight: "900",
-    color: colors.textPrimary,
-  },
-  serviceMeta: {
-    marginTop: 2,
-    fontSize: 11,
-    lineHeight: 15,
-    fontWeight: "600",
-    color: colors.textSecondary,
-  },
-  statusPill: {
     borderRadius: radius.full,
-    backgroundColor: colors.primaryLight,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 5,
-  },
-  statusText: {
-    fontSize: 11,
-    lineHeight: 14,
-    fontWeight: "900",
-    color: colors.primary,
-  },
-  serviceInfoRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: spacing.sm,
-    marginTop: spacing.md,
-  },
-  serviceInfoItem: {
-    flexDirection: "row",
     alignItems: "center",
-    gap: spacing.xs,
-    minHeight: 22,
+    justifyContent: "center",
   },
-  serviceInfoText: {
-    fontSize: 12,
-    lineHeight: 16,
-    fontWeight: "600",
-    color: colors.textSecondary,
-  },
-  messageList: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.lg,
-  },
-  messageRow: {
-    marginBottom: spacing.sm,
-    flexDirection: "row",
-  },
-  messageRowMine: {
-    justifyContent: "flex-end",
-  },
-  messageRowOther: {
-    justifyContent: "flex-start",
-  },
-  bubble: {
-    maxWidth: "82%",
-    borderRadius: 22,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-  },
-  bubbleMine: {
-    backgroundColor: colors.primary,
-    borderBottomRightRadius: 8,
-  },
-  bubbleOther: {
-    backgroundColor: colors.surface,
-    borderBottomLeftRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
-    ...shadows.soft,
-  },
-  bubbleText: {
-    fontSize: 14,
-    lineHeight: 20,
-    fontWeight: "600",
-  },
-  bubbleTextMine: {
+  headerTitle: {
+    flex: 1,
+    ...typography.h3,
     color: colors.white,
   },
-  bubbleTextOther: {
-    color: colors.textPrimary,
-  },
-  messageTime: {
-    marginTop: 4,
-    alignSelf: "flex-end",
-    fontSize: 10,
-    lineHeight: 13,
-    fontWeight: "700",
-  },
-  messageTimeMine: {
-    color: colors.whiteAlpha80,
-  },
-  messageTimeOther: {
-    color: colors.textMuted,
-  },
-  typingRow: {
-    alignItems: "flex-start",
-    paddingTop: spacing.xs,
-  },
-  typingWrap: {
-    height: 32,
-    minWidth: 54,
-    borderRadius: 16,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingHorizontal: spacing.md,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 5,
-    ...shadows.soft,
-  },
-  typingDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: colors.primary,
-  },
-  composerWrap: {
+  kav: {
+    flex: 1,
     backgroundColor: colors.background,
-    paddingTop: spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
   },
-  quickReplies: {
-    paddingHorizontal: spacing.lg,
-    gap: spacing.sm,
-    paddingBottom: spacing.sm,
-  },
-  replyChip: {
-    minHeight: 34,
-    borderRadius: radius.full,
-    backgroundColor: colors.purpleSoft,
-    paddingHorizontal: spacing.md,
+  center: {
+    flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "rgba(124,92,255,0.14)",
+    padding: spacing.xl,
   },
-  replyChipText: {
-    fontSize: 12,
-    lineHeight: 16,
-    fontWeight: "800",
-    color: colors.primary,
+  emptyText: {
+    ...typography.body,
+    color: colors.textMuted,
+    textAlign: "center",
   },
-  inputRow: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-    gap: spacing.sm,
+  list: {
+    flex: 1,
+  },
+  listContent: {
     paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
   },
-  attachButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+  separator: {
+    height: 4,
+  },
+  inputSafe: {
     backgroundColor: colors.surface,
+  },
+  inputBar: {
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    ...shadows.soft,
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.sm,
+    backgroundColor: colors.surface,
+    ...shadow(4),
   },
   input: {
     flex: 1,
     minHeight: 44,
-    maxHeight: 104,
-    borderRadius: 22,
-    backgroundColor: colors.surface,
+    maxHeight: 44,
+    borderRadius: radius.pill,
+    backgroundColor: colors.background,
     paddingHorizontal: spacing.md,
-    paddingTop: platformSelect({ ios: 12, android: 9 }),
-    paddingBottom: 10,
-    fontSize: 14,
-    lineHeight: 20,
-    fontWeight: "600",
+    ...typography.body,
     color: colors.textPrimary,
-    borderWidth: 1,
-    borderColor: colors.border,
   },
-  sendButton: {
+  sendBtn: {
     width: 44,
     height: 44,
-    borderRadius: 22,
+    borderRadius: radius.full,
     backgroundColor: colors.primary,
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.24,
-    shadowRadius: 12,
-    elevation: 8,
+  },
+  sendBtnDisabled: {
+    opacity: 0.4,
   },
 });

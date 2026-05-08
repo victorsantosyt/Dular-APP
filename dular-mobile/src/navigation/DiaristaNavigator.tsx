@@ -7,6 +7,9 @@ import DiaristaPerfil from "@/screens/diarista/DiaristaPerfil";
 import DiaristaDetalhe from "@/screens/diarista/DiaristaDetalhe";
 import { ChatAbertoScreen } from "@/screens/shared/ChatAbertoScreen";
 import type { ChatAbertoParams } from "@/screens/shared/ChatAbertoScreen";
+import PaywallScreen from "@/screens/PaywallScreen";
+import SegurancaScreen from "@/screens/diarista/SegurancaScreen";
+import DiaristaCarteira from "@/screens/diarista/DiaristaCarteira";
 import { useAuth } from "@/stores/authStore";
 
 export type DiaristaTabParamList = {
@@ -18,6 +21,10 @@ export type DiaristaTabParamList = {
   Perfil: undefined;
   ProfissionalPerfil: { id: string };
   DetalheServico: { id: string };
+  DiaristaDetalhe: { servicoId: string };
+  Paywall: { mensagem?: string };
+  Seguranca: { servicoId: string; enderecoServico?: string };
+  Carteira: undefined;
 };
 
 const Tab = createBottomTabNavigator<DiaristaTabParamList>();
@@ -52,6 +59,10 @@ export function DiaristaNavigator() {
       <Tab.Screen name="Perfil" component={PerfilScreen} />
       <Tab.Screen name="ProfissionalPerfil" component={ProfissionalPerfilScreen} />
       <Tab.Screen name="DetalheServico" component={DetalheServicoScreen} />
+      <Tab.Screen name="DiaristaDetalhe" component={DetalheServicoScreen} />
+      <Tab.Screen name="Paywall" component={PaywallScreen} />
+      <Tab.Screen name="Seguranca" component={SegurancaScreen} />
+      <Tab.Screen name="Carteira" component={DiaristaCarteira} />
     </Tab.Navigator>
   );
 }

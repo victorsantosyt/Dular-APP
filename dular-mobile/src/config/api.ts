@@ -38,3 +38,6 @@ const BASE_URL =
   "http://localhost:3000";
 
 export default BASE_URL;
+
+export const sosWhatsapp: string =
+  (Constants.expoConfig?.extra?.sosWhatsapp as string | undefined) ?? "5565999999999";

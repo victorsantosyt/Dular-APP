@@ -4,12 +4,12 @@ import {
   Alert,
   Animated,
   Image,
-  Modal,
   Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -29,9 +29,8 @@ import {
 import { getCatalogoServicos, type CatalogoTipo } from "@/api/catalogoApi";
 import { PILOT_MODE, PILOT } from "@/config/pilotConfig";
 import { useGeoDefaults } from "@/hooks/useGeoDefaults";
-import { useSubscription } from "@/hooks/useSubscription";
+import { usePaywallGuard } from "@/hooks/usePaywallGuard";
 import { useAuth } from "@/stores/authStore";
-import PaywallScreen from "@/screens/PaywallScreen";
 
 import { colors, radius, shadow, spacing, typography } from "@/theme/tokens";
 import ScreenBackground from "@/ui/ScreenBackground";
@@ -139,8 +138,7 @@ export default function ClienteHome() {
   const insets = useSafeAreaInsets();
   const user = useAuth((state) => state.user);
   const geo = useGeoDefaults();
-  const { isBlocked, refresh: refreshSubscription } = useSubscription();
-  const [showPaywall, setShowPaywall] = useState(false);
+  const { verificar } = usePaywallGuard();
   const nome = (user?.nome || "").trim();
 
   const [cidade, setCidade] = useState(PILOT_MODE ? PILOT.cidade : "Cuiaba");
@@ -158,7 +156,7 @@ export default function ClienteHome() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
-  const [enderecoCompleto] = useState<string | null>(null);
+  const [enderecoCompleto, setEnderecoCompleto] = useState<string>("");
 
   const coordsRef = useRef<{ lat: number; lng: number } | null>(null);
   const initialFetchRef = useRef(false);
@@ -262,7 +260,7 @@ export default function ClienteHome() {
         diaristaUserId,
         latitude: coords?.lat,
         longitude: coords?.lng,
-        enderecoCompleto: enderecoCompleto || undefined,
+        enderecoCompleto: enderecoCompleto.trim() || undefined,
         temPet: false,
         observacoes: "Pedido criado pelo app (MVP).",
       };
@@ -384,6 +382,14 @@ export default function ClienteHome() {
 
         {geo.loading ? <Text style={s.geoHint}>Detectando sua localização...</Text> : null}
 
+        <TextInput
+          value={enderecoCompleto}
+          onChangeText={setEnderecoCompleto}
+          placeholder="Endereço completo (opcional)"
+          placeholderTextColor={colors.sub}
+          style={s.addressInput}
+        />
+
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -458,8 +464,7 @@ export default function ClienteHome() {
 
                   <SolicitarButton
                     onPress={() => {
-                      if (isBlocked) { setShowPaywall(true); return; }
-                      criarServico(item.user.id);
+                      verificar("servicosMes", () => { void criarServico(item.user.id); });
                     }}
                     loading={creatingId === item.user.id}
                     disabled={creatingId !== null && creatingId !== item.user.id}
@@ -471,14 +476,6 @@ export default function ClienteHome() {
         )}
       </ScrollView>
 
-      <Modal visible={showPaywall} animationType="slide" presentationStyle="pageSheet">
-        <PaywallScreen
-          onClose={() => {
-            setShowPaywall(false);
-            refreshSubscription();
-          }}
-        />
-      </Modal>
     </ScreenBackground>
   );
 }
@@ -542,6 +539,19 @@ const s = StyleSheet.create({
     ...typography.sub,
     textAlign: "center",
     marginTop: 8,
+  },
+  addressInput: {
+    height: 42,
+    borderRadius: radius.pill,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.stroke,
+    paddingHorizontal: 16,
+    color: colors.ink,
+    fontSize: 12,
+    fontWeight: "500",
+    marginTop: 8,
+    ...shadow.card,
   },
   categoriesRow: {
     gap: 10,

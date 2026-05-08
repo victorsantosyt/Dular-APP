@@ -5,7 +5,7 @@ import { AUTH_ROUTES } from "@/navigation/routes";
 
 type AuthParamList = {
   [AUTH_ROUTES.ROLE_SELECT]: undefined;
-  [AUTH_ROUTES.OAUTH_LOGIN]: { role: "CLIENTE" | "DIARISTA" };
+  [AUTH_ROUTES.OAUTH_LOGIN]: { role: "EMPREGADOR" | "DIARISTA" | "MONTADOR" };
 };
 
 const Stack = createNativeStackNavigator<AuthParamList>();

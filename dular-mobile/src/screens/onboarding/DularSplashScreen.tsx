@@ -1,22 +1,15 @@
-import { useEffect } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet } from "react-native";
+import { Text, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 
 import { DularLogoWhite } from "@/assets/brand";
 import { AppIcon } from "@/components/ui";
-
-const colors = {
-  pink: "#FF3F86",
-};
+import { colors } from "@/theme/tokens";
 
 export function DularSplashScreen() {
-  useEffect(() => {
-    console.log("[SPLASH] mounted");
-  }, []);
-
   return (
     <LinearGradient
-      colors={["#7C3AED", "#5B25D9", "#4520B8"]}
+      colors={[colors.primary, colors.primaryDark, colors.primaryDeep2]}
       start={{ x: 0.08, y: 0 }}
       end={{ x: 0.9, y: 1 }}
       style={styles.splash}
@@ -34,7 +27,7 @@ export function DularSplashScreen() {
         </View>
 
         <View style={styles.splashHeart}>
-          <AppIcon name="Heart" size={22} color={colors.pink} strokeWidth={2.8} />
+          <AppIcon name="Heart" size={22} color={colors.pinkBright} strokeWidth={2.8} />
         </View>
       </View>
     </LinearGradient>
@@ -84,7 +77,7 @@ const styles = StyleSheet.create({
   },
   splashTitle: {
     marginTop: 26,
-    color: "#FFFFFF",
+    color: colors.white,
     fontSize: 34,
     lineHeight: 40,
     fontWeight: "800",
@@ -92,7 +85,7 @@ const styles = StyleSheet.create({
     letterSpacing: -0.6,
   },
   splashTitleAccent: {
-    color: colors.pink,
+    color: colors.pinkBright,
   },
   splashHeart: {
     position: "absolute",
@@ -100,7 +93,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.white,
     alignItems: "center",
     justifyContent: "center",
   },

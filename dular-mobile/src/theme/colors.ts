@@ -85,12 +85,77 @@ export const colors = {
   destructive: "#FF5A6E",
   mutedForeground: "#9B94A8",
 
+  // Skeleton / shimmer loading state
+  skeletonBg: "#E8E8F0",
+
   // Incident/alert specific colors (used in ReportIncident flow)
   incidentRed: "#E56B6F",
   incidentRedDark: "#B23B41",
   incidentRedBg: "#FDECEC",
   incidentAmber: "#F08A24",
   incidentCritical: "#7F1D1D",
+
+  // Warning semantic shades
+  warningDark: "#92400E",
+
+  // Google brand colors (OAuth buttons — must match brand guidelines)
+  googleBlue: "#4285F4",
+  googleRed: "#EA4335",
+  googleGreen: "#34A853",
+  googleYellow: "#FBBC05",
+
+  // Push notification accent
+  pushGreen: "#1DB954",
+
+  // Teal accent (verification/doc screens)
+  teal: "#4FA38F",
+
+  // Info palette (info banners)
+  lightBlue: "#E0F2FE",
+  infoTextDark: "#075985",
+
+  // Onboarding/auth brand palette
+  navyDeep: "#120A4D",
+  navyMid: "#6F6A8F",
+  pinkBright: "#FF3F86",
+  primaryDeep2: "#4520B8",
+  borderPurple: "#D8C5FF",
+
+  // Pure black (for shadows)
+  black: "#000000",
+
+  // Neutral grays (step indicators, inactive UI)
+  grayMid: "#888888",
+  grayFeat: "#555555",
+  grayText: "#666666",
+  grayLight: "#AAAAAA",
+  grayBorder: "#CCCCCC",
+  grayDisabled: "#DDDDDD",
+
+  // Onboarding / auth screens distinct palette
+  onboardingBg: "#FCFAFF",
+  onboardingPrimary: "#6D35E8",
+  pinkSoftLight: "#FFF0F6",
+  pinkBorder: "#FFD3E3",
+  pinkMid: "#FF5A9B",
+  lavenderSoftAlt: "#F5EFFF",
+  lavenderMid: "#EFE6FF",
+  lavenderDivider: "#E8E2F4",
+  onboardingBorder: "#ECE4F8",
+  primarySoftAlt: "#EEE7FF",
+  successGreenAlt: "#39C96B",
+  successSoftGreen: "#EFFFF4",
+  purpleStep: "#7C5CFF",
+
+  // Avatar skin and hair tones
+  avatarSkin1: "#D99A73",
+  avatarSkin2: "#B87352",
+  avatarSkin3: "#E2B08A",
+  avatarSkin4: "#C98962",
+  avatarHair1: "#2C1634",
+  avatarHair2: "#1B1021",
+  avatarHair3: "#4B2E29",
+  avatarHair4: "#25116D",
 
   dark: {
     background: "#15111F",

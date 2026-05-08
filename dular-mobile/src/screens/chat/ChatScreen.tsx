@@ -185,9 +185,9 @@ export default function ChatScreen({ route, navigation }: any) {
                 style={[s.sendBtn, (!text.trim() || sending) && s.sendBtnDisabled]}
               >
                 {sending ? (
-                  <ActivityIndicator color="#fff" size="small" />
+                  <ActivityIndicator color={colors.white} size="small" />
                 ) : (
-                  <AppIcon name="Send" size={18} color="#fff" />
+                  <AppIcon name="Send" size={18} color={colors.white} />
                 )}
               </Pressable>
             </View>
@@ -228,7 +228,7 @@ const s = StyleSheet.create({
     marginBottom: 0,
     padding: 12,
     borderRadius: radius.md,
-    backgroundColor: "#FEE2E2",
+    backgroundColor: colors.dangerSoft,
   },
   errorText: { color: colors.danger, fontWeight: "700", fontSize: 13 },
   messages: {
@@ -264,7 +264,7 @@ const s = StyleSheet.create({
   },
   sender: { fontSize: 11, color: colors.sub, fontWeight: "800" },
   messageText: { color: colors.ink, fontSize: 14, fontWeight: "600", lineHeight: 19 },
-  messageTextMine: { color: "#fff" },
+  messageTextMine: { color: colors.white },
   time: { alignSelf: "flex-end", color: colors.sub, fontSize: 10, fontWeight: "700" },
   timeMine: { color: "rgba(255,255,255,0.78)" },
   inputBar: {

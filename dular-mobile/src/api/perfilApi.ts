@@ -13,7 +13,8 @@ export type Me = {
   nome?: string;
   telefone?: string;
   email?: string | null;
-  role?: "CLIENTE" | "DIARISTA" | "ADMIN";
+  genero?: "MASCULINO" | "FEMININO" | null;
+  role?: "EMPREGADOR" | "DIARISTA" | "MONTADOR" | "ADMIN";
   bio?: string | null;
   avatarUrl?: string | null;
   bairros?: string[];

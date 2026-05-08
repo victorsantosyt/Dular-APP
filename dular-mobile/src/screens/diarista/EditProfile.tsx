@@ -1,211 +1,301 @@
-/**
- * EditProfile — Editar dados pessoais
- * Tokens Dular 100% aplicados. Lógica preservada.
- */
-
 import { useCallback, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Image,
+  KeyboardAvoidingView,
+  Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
+import * as ImagePicker from "expo-image-picker";
 
-import { getMe, updateMe, type Me } from "@/api/perfilApi";
-import { apiMsg } from "@/utils/apiMsg";
+import { uploadAvatarDataUrl } from "@/api/perfilApi";
+import { usePerfil } from "@/hooks/usePerfil";
 import { useAuth } from "@/stores/authStore";
-import { Screen } from "@/components/Screen";
+import { AppIcon } from "@/components/ui";
 import { DButton } from "@/components/DButton";
 import { DInput } from "@/components/DInput";
 import { colors, radius, shadow, spacing, typography } from "@/theme/tokens";
-import { parsePriceToCents } from "@/utils/formatPrice";
-
-// ── Componente ────────────────────────────────────────────────────────────────
+import { platformSelect } from "@/utils/platform";
 
 export default function EditProfile({ navigation }: any) {
-  const [nome,     setNome]     = useState("");
-  const [telefone, setTelefone] = useState("");
-  const [bio,      setBio]      = useState("");
-  const [precoLeve, setPrecoLeve] = useState("");
-  const [precoMedio, setPrecoMedio] = useState("");
-  const [precoPesado, setPrecoPesado] = useState("");
-  const [loading,  setLoading]  = useState(true);
-  const [saving,   setSaving]   = useState(false);
-  const [error,    setError]    = useState<string | null>(null);
+  const insets = useSafeAreaInsets();
   const setUser = useAuth((s) => s.setUser);
   const busyRef = useRef(false);
 
-  // ── Apply ─────────────────────────────────────────────────────────────────
-  const apply = useCallback((data: Me | null) => {
-    if (!data) return;
-    setNome(data.nome ?? "");
-    setTelefone(data.telefone ?? "");
-    setBio(data.bio ?? "");
-    if (data.precoLeve != null) setPrecoLeve(String(data.precoLeve / 100));
-    if (data.precoMedio != null) {
-      setPrecoMedio(String(data.precoMedio / 100));
-    } else if (data.precoLeve != null && (data.precoPesado != null || data.precoPesada != null)) {
-      const pesada = data.precoPesado ?? data.precoPesada ?? 0;
-      setPrecoMedio(String(Math.round(((data.precoLeve + pesada) / 2) / 100)));
+  const { perfil, loading, saving, error, atualizar, refetch } = usePerfil();
+
+  const [nome, setNome] = useState("");
+  const [bio, setBio] = useState("");
+  const [telefone, setTelefone] = useState("");
+  const [avatarLocal, setAvatarLocal] = useState<string | null>(null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+
+  const syncFromPerfil = useCallback(() => {
+    if (perfil) {
+      setNome(perfil.nome ?? "");
+      setBio(perfil.bio ?? "");
+      setTelefone(perfil.telefone ?? "");
     }
-    if (data.precoPesado != null || data.precoPesada != null) {
-      setPrecoPesado(String((data.precoPesado ?? data.precoPesada ?? 0) / 100));
-    }
-    setUser((prev) => ({
-      ...(prev ?? { id: data.id }),
-      id: data.id || prev?.id || "",
-      nome: data.nome ?? prev?.nome ?? "",
-      telefone: data.telefone ?? prev?.telefone,
-      role: (data.role as any) ?? prev?.role,
-      bio: data.bio ?? prev?.bio,
-    }));
-  }, [setUser]);
+  }, [perfil]);
 
-  // ── Load ──────────────────────────────────────────────────────────────────
-  const load = useCallback(async () => {
-    try {
-      setError(null);
-      setLoading(true);
-      const data = await getMe();
-      apply(data);
-    } catch (e: any) {
-      setError(apiMsg(e, "Falha ao carregar perfil."));
-    } finally {
-      setLoading(false);
-    }
-  }, [apply]);
+  useFocusEffect(
+    useCallback(() => {
+      refetch();
+    }, [refetch])
+  );
 
-  useFocusEffect(useCallback(() => { load(); }, [load]));
+  // Sync fields whenever perfil data arrives/changes
+  useFocusEffect(syncFromPerfil);
 
-  // ── Save ──────────────────────────────────────────────────────────────────
-  const save = async () => {
-    if (saving || busyRef.current) return;
-    const nomeTrim = nome.trim();
-    const precoLeveCents = parsePriceToCents(precoLeve);
-    const precoMedioCents = parsePriceToCents(precoMedio);
-    const precoPesadoCents = parsePriceToCents(precoPesado);
-
-    if (!nomeTrim) {
-      Alert.alert("Dados inválidos", "Nome não pode ser vazio.");
+  const pickAvatar = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("Permissão negada", "Não foi possível acessar a galeria de fotos.");
       return;
     }
-    if (
-      !Number.isFinite(precoLeveCents) || precoLeveCents <= 0 ||
-      !Number.isFinite(precoMedioCents) || precoMedioCents <= 0 ||
-      !Number.isFinite(precoPesadoCents) || precoPesadoCents <= 0
-    ) {
-      Alert.alert("Dados inválidos", "Preços devem ser números positivos.");
-      return;
-    }
-
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+      base64: true,
+    });
+    if (result.canceled) return;
+    const asset = result.assets?.[0];
+    if (!asset?.uri || !asset.base64) return;
+    setAvatarLocal(asset.uri);
+    if (busyRef.current) return;
     busyRef.current = true;
+    setAvatarUploading(true);
     try {
-      setSaving(true);
-      const updated = await updateMe({
-        nome: nomeTrim,
-        bio,
-        precoLeve: precoLeveCents,
-        precoMedio: precoMedioCents,
-        precoPesado: precoPesadoCents,
-      });
-      apply(updated);
-      Alert.alert("Sucesso", "Dados atualizados.");
-      navigation.goBack();
-    } catch (e: any) {
-      Alert.alert("Erro", apiMsg(e, "Falha ao salvar dados."));
+      const mime = (asset as any).mimeType ?? "image/jpeg";
+      const dataUrl = `data:${mime};base64,${asset.base64}`;
+      const up = await uploadAvatarDataUrl(dataUrl);
+      const finalUrl = up?.user?.avatarUrl ?? dataUrl;
+      setUser((u) => (u ? { ...u, avatarUrl: finalUrl } : u));
+    } catch {
+      Alert.alert("Erro", "Falha ao atualizar foto.");
     } finally {
-      setSaving(false);
+      setAvatarUploading(false);
       busyRef.current = false;
     }
   };
 
-  // ── Render ────────────────────────────────────────────────────────────────
-  return (
-    <Screen title="Editar dados">
-      {loading ? (
-        <View style={s.card}>
-          <ActivityIndicator color={colors.green} />
-        </View>
-      ) : error ? (
-        <View style={[s.card, { gap: 10 }]}>
-          <Text style={s.errorTitle}>Não foi possível carregar.</Text>
-          <Text style={s.errorSub}>{error}</Text>
-          <DButton title="Tentar novamente" onPress={load} variant="outline" />
-        </View>
-      ) : (
-        <View style={s.card}>
-          <DInput
-            label="Nome completo"
-            value={nome}
-            onChangeText={setNome}
-            placeholder="Seu nome"
-            autoCapitalize="words"
-          />
-          <DInput
-            label="Telefone"
-            value={telefone}
-            onChangeText={setTelefone}
-            keyboardType="phone-pad"
-            placeholder="Seu telefone"
-            editable={false}
-            hint="O telefone não pode ser alterado aqui."
-          />
-          <DInput
-            label="Biografia"
-            value={bio}
-            onChangeText={setBio}
-            placeholder="Conte sobre sua experiência..."
-            multiline
-            style={{ minHeight: 88 }}
-          />
-          <DInput
-            label="Preço faxina leve"
-            value={precoLeve}
-            onChangeText={setPrecoLeve}
-            keyboardType="decimal-pad"
-            placeholder="150,00"
-          />
-          <DInput
-            label="Preço faxina média"
-            value={precoMedio}
-            onChangeText={setPrecoMedio}
-            keyboardType="decimal-pad"
-            placeholder="180,00"
-          />
-          <DInput
-            label="Preço faxina pesada"
-            value={precoPesado}
-            onChangeText={setPrecoPesado}
-            keyboardType="decimal-pad"
-            placeholder="220,00"
-          />
+  const save = async () => {
+    const nomeTrim = nome.trim();
+    if (!nomeTrim) {
+      Alert.alert("Nome inválido", "O nome não pode ficar vazio.");
+      return;
+    }
+    const ok = await atualizar({
+      nome: nomeTrim,
+      bio: bio.trim(),
+      telefone: telefone.trim() || perfil?.telefone,
+    });
+    if (ok) {
+      setUser((u) => (u ? { ...u, nome: nomeTrim } : u));
+      Alert.alert("Sucesso", "Dados atualizados.");
+      navigation.goBack();
+    } else {
+      Alert.alert("Erro", "Falha ao salvar dados. Tente novamente.");
+    }
+  };
 
-          <DButton
-            title={saving ? "Salvando..." : "Salvar dados"}
-            onPress={save}
-            loading={saving}
-            style={{ marginTop: 4 }}
-          />
-        </View>
-      )}
-    </Screen>
+  const avatarSrc = avatarLocal ?? perfil?.avatarUrl ?? null;
+
+  return (
+    <SafeAreaView style={s.safe} edges={["top", "left", "right"]}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={platformSelect({ ios: "padding", android: "height" })}
+        keyboardVerticalOffset={platformSelect({ ios: 90, android: 0 })}
+      >
+        <ScrollView
+          contentContainerStyle={[
+            s.scroll,
+            { paddingBottom: Math.max(32, insets.bottom + 24) },
+          ]}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Header */}
+          <Text style={s.screenTitle}>Editar dados</Text>
+
+          {loading ? (
+            <View style={s.center}>
+              <ActivityIndicator color={colors.primary} size="large" />
+            </View>
+          ) : error ? (
+            <View style={s.card}>
+              <Text style={s.errorTitle}>Não foi possível carregar.</Text>
+              <Text style={s.errorSub}>{error}</Text>
+              <DButton title="Tentar novamente" onPress={refetch} variant="outline" style={{ marginTop: spacing.sm }} />
+            </View>
+          ) : (
+            <View style={s.card}>
+              {/* Avatar */}
+              <View style={s.avatarRow}>
+                <Pressable onPress={pickAvatar} style={s.avatarWrap}>
+                  {avatarSrc ? (
+                    <Image source={{ uri: avatarSrc }} style={s.avatarImg} />
+                  ) : (
+                    <AppIcon name="User" size={40} color={colors.primary} />
+                  )}
+                  <View style={s.cameraBadge}>
+                    {avatarUploading ? (
+                      <ActivityIndicator size={10} color={colors.white} />
+                    ) : (
+                      <AppIcon name="Camera" size={12} color={colors.white} />
+                    )}
+                  </View>
+                </Pressable>
+                <View style={s.avatarHint}>
+                  <Text style={s.avatarHintTitle}>Foto de perfil</Text>
+                  <Text style={s.avatarHintSub}>Toque para alterar</Text>
+                </View>
+              </View>
+
+              {/* Fields */}
+              <DInput
+                label="Nome completo"
+                value={nome}
+                onChangeText={setNome}
+                placeholder="Seu nome"
+                autoCapitalize="words"
+                returnKeyType="next"
+              />
+
+              <DInput
+                label="Telefone"
+                value={telefone}
+                onChangeText={setTelefone}
+                keyboardType="phone-pad"
+                placeholder="Seu telefone"
+                editable={false}
+                hint="O telefone não pode ser alterado aqui."
+              />
+
+              <View>
+                <DInput
+                  label="Biografia"
+                  value={bio}
+                  onChangeText={(t) => setBio(t.slice(0, 300))}
+                  placeholder="Conte sobre sua experiência como diarista..."
+                  multiline
+                  style={{ minHeight: 100 }}
+                  returnKeyType="done"
+                />
+                <Text style={s.charCount}>{bio.length}/300</Text>
+              </View>
+
+              <DButton
+                title={saving ? "Salvando..." : "Salvar dados"}
+                onPress={save}
+                loading={saving}
+                style={{ marginTop: spacing.sm }}
+              />
+            </View>
+          )}
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
-// ── Styles ────────────────────────────────────────────────────────────────────
-
 const s = StyleSheet.create({
+  safe: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  scroll: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    gap: spacing.md,
+  },
+  screenTitle: {
+    ...typography.h2,
+    color: colors.textPrimary,
+    marginBottom: spacing.sm,
+  },
+  center: {
+    paddingVertical: 64,
+    alignItems: "center",
+  },
   card: {
-    backgroundColor: colors.card,
+    backgroundColor: colors.surface,
     borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: colors.stroke,
-    padding: 16,
-    gap: 12,
+    borderColor: colors.border,
+    padding: spacing.md,
+    gap: spacing.md,
     ...shadow.card,
   },
-  errorTitle: { fontSize: 14, fontWeight: "800", color: colors.danger },
-  errorSub:   { ...typography.sub },
+  avatarRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    paddingBottom: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.divider,
+  },
+  avatarWrap: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: colors.lavender,
+    alignItems: "center",
+    justifyContent: "center",
+    position: "relative",
+  },
+  avatarImg: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+  },
+  cameraBadge: {
+    position: "absolute",
+    bottom: 0,
+    right: 0,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: colors.primary,
+    borderWidth: 2,
+    borderColor: colors.surface,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarHint: {
+    gap: 2,
+  },
+  avatarHintTitle: {
+    ...typography.body,
+    color: colors.textPrimary,
+    fontWeight: "700",
+  },
+  avatarHintSub: {
+    ...typography.caption,
+    color: colors.textMuted,
+  },
+  charCount: {
+    ...typography.caption,
+    color: colors.textMuted,
+    textAlign: "right",
+    marginTop: 2,
+  },
+  errorTitle: {
+    ...typography.body,
+    fontWeight: "800",
+    color: colors.danger,
+  },
+  errorSub: {
+    ...typography.caption,
+    color: colors.textSecondary,
+  },
 });

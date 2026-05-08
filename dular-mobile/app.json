@@ -14,6 +14,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.dular.app",
+      "buildNumber": "1",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Usamos sua localização para sugerir diaristas e serviços próximos.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "Usamos sua localização para sugerir diaristas e serviços próximos."
@@ -21,6 +22,7 @@
     },
     "android": {
       "package": "com.dular.app",
+      "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
@@ -33,10 +35,14 @@
     "plugins": [
       "expo-web-browser",
       "expo-font",
-      "expo-secure-store"
+      "expo-secure-store",
+      ["expo-location", {
+        "locationAlwaysAndWhenInUsePermission": "O Dular usa sua localização durante o serviço para segurança."
+      }]
     ],
     "extra": {
-      "apiBaseUrl": "http://localhost:3000"
+      "apiBaseUrl": "SUBSTITUIR_EM_PRODUCAO",
+      "sosWhatsapp": "SUBSTITUIR_EM_PRODUCAO"
     }
   }
 }

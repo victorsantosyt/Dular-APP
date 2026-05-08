@@ -15,23 +15,24 @@ import { onboardingAssets } from "@/assets/onboardingAssets";
 import { DularLogo, DularLogoWhite } from "@/assets/brand";
 import { AppIcon } from "@/components/ui";
 import { markOnboardingSeen } from "@/lib/onboarding";
+import { colors as tc } from "@/theme/tokens";
 
 const colors = {
-  background: "#FCFAFF",
-  surface: "#FFFFFF",
-  primary: "#6D35E8",
-  primaryDark: "#120A4D",
-  primarySoft: "#EEE7FF",
-  pink: "#FF3F86",
-  pinkSoft: "#FFF0F6",
-  lavender: "#F5EFFF",
-  lavender2: "#EFE6FF",
-  text: "#120A4D",
-  textMuted: "#6F6A8F",
-  border: "#ECE4F8",
-  divider: "#E8E2F4",
-  success: "#39C96B",
-  successSoft: "#EFFFF4",
+  background: tc.onboardingBg,
+  surface: tc.white,
+  primary: tc.onboardingPrimary,
+  primaryDark: tc.navyDeep,
+  primarySoft: tc.primarySoftAlt,
+  pink: tc.pinkBright,
+  pinkSoft: tc.pinkSoftLight,
+  lavender: tc.lavenderSoftAlt,
+  lavender2: tc.lavenderMid,
+  text: tc.navyDeep,
+  textMuted: tc.navyMid,
+  border: tc.onboardingBorder,
+  divider: tc.lavenderDivider,
+  success: tc.successGreenAlt,
+  successSoft: tc.successSoftGreen,
 };
 
 type ClearSlideKey = "welcome" | "benefits" | "security" | "start";
@@ -117,10 +118,6 @@ export default function OnboardingScreen({ onFinish, showSplash = true }: Onboar
   const currentSlide = clearSlides[clearIndex];
 
   useEffect(() => {
-    console.log("[ONBOARDING] mounted");
-  }, []);
-
-  useEffect(() => {
     if (!showSplash || index !== 0) return undefined;
 
     const timer = setTimeout(() => {
@@ -131,8 +128,6 @@ export default function OnboardingScreen({ onFinish, showSplash = true }: Onboar
   }, [index, showSplash]);
 
   const finish = async () => {
-    console.log("[ONBOARDING] finished");
-
     if (onFinish) {
       await onFinish();
       return;
@@ -213,7 +208,7 @@ function SplashSlide({ onNext }: { onNext: () => void }) {
   return (
     <Pressable onPress={onNext} style={styles.splashPressable}>
       <LinearGradient
-        colors={["#7C3AED", "#5B25D9", "#4520B8"]}
+        colors={[tc.primary, tc.primaryDark, tc.primaryDeep2]}
         start={{ x: 0.08, y: 0 }}
         end={{ x: 0.9, y: 1 }}
         style={styles.splash}
@@ -364,7 +359,7 @@ function PrimaryButton({
   return (
     <Pressable onPress={onPress} style={styles.buttonShadow}>
       <LinearGradient
-        colors={isLast ? ["#FF3F86", "#FF5A9B"] : ["#7C3AED", "#5B25D9"]}
+        colors={isLast ? [tc.pinkBright, tc.pinkMid] : [tc.primary, tc.primaryDark]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.primaryButton}
@@ -372,7 +367,7 @@ function PrimaryButton({
         <Text allowFontScaling={false} style={styles.primaryButtonText}>
           {label}
         </Text>
-        {isLast ? <AppIcon name="ChevronRight" size={20} color="#FFFFFF" strokeWidth={2.7} /> : null}
+        {isLast ? <AppIcon name="ChevronRight" size={20} color={tc.white} strokeWidth={2.7} /> : null}
       </LinearGradient>
     </Pressable>
   );

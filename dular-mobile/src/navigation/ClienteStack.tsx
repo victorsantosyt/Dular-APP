@@ -1,5 +1,6 @@
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { Pressable, Text } from "react-native";
+import { colors } from "@/theme/tokens";
 import ClienteHome from "@/screens/cliente/ClienteHome";
 import ClienteMinhas from "@/screens/cliente/ClienteMinhas";
 import ClienteDetalhe from "@/screens/cliente/ClienteDetalhe";
@@ -15,7 +16,7 @@ export default function ClienteStack({ onLogout }: Props) {
       screenOptions={{
         headerRight: () => (
           <Pressable onPress={onLogout} style={{ paddingHorizontal: 8 }}>
-            <Text style={{ color: "#d00", fontWeight: "600" }}>Sair</Text>
+            <Text style={{ color: colors.danger, fontWeight: "600" }}>Sair</Text>
           </Pressable>
         ),
       }}

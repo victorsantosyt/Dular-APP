@@ -1,4 +1,5 @@
 import { Platform, StyleSheet } from "react-native";
+import { colors } from "@/theme/tokens";
 
 export const isIOS = Platform.OS === "ios";
 export const isAndroid = Platform.OS === "android";
@@ -24,7 +25,7 @@ export function platformStyles(base: object, ios?: object, android?: object) {
 export const shadow = (elevation = 4) =>
   isIOS
     ? {
-        shadowColor: "#000",
+        shadowColor: colors.black,
         shadowOffset: { width: 0, height: elevation / 2 },
         shadowOpacity: 0.12,
         shadowRadius: elevation,

@@ -4,7 +4,7 @@ export type LoginResponse = {
   user: {
     id: string;
     nome: string;
-    role: "CLIENTE" | "DIARISTA" | "ADMIN";
+    role: "EMPREGADOR" | "DIARISTA" | "MONTADOR" | "ADMIN";
   };
 };
 

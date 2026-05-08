@@ -50,8 +50,10 @@ function getServicoEndereco(servico: Servico | null | undefined) {
 // ── Componente ────────────────────────────────────────────────────────────────
 
 export default function DiaristaDetalhe({ route, navigation }: any) {
-  const { servico }   = route.params as { servico: Servico };
-  const [svc, setSvc] = useState<Servico>(servico);
+  const params = route.params as any;
+  const [svc, setSvc] = useState<Servico | null>(params.servico ?? null);
+  const [loadingInit, setLoadingInit] = useState(!params.servico);
+  const servicoId: string = params.servicoId ?? params.servico?.id ?? "";
   const [loading, setLoading] = useState(false);
   const [clienteScore, setClienteScore] = useState<{
     faixa: string;
@@ -64,12 +66,21 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
   async function reloadFromList() {
     try {
       const res   = await api.get("/api/servicos/minhas");
-      const found = res.data?.servicos?.find((s: Servico) => s.id === svc.id);
+      const found = res.data?.servicos?.find((s: Servico) => s.id === servicoId);
       if (found) setSvc(found);
     } catch { /* silencioso */ }
   }
 
+  useEffect(() => {
+    if (!params.servico && servicoId) {
+      setLoadingInit(true);
+      reloadFromList().finally(() => setLoadingInit(false));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   async function action(name: string, body?: unknown) {
+    if (!svc) return;
     try {
       setLoading(true);
       const res     = await api.post(`/api/servicos/${svc.id}/${name}`, body ?? {});
@@ -85,8 +96,20 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
     }
   }
 
+  function recusarServico() {
+    if (!svc) return;
+    Alert.alert(
+      "Recusar serviço?",
+      "Tem certeza que deseja recusar esta solicitação?",
+      [
+        { text: "Cancelar", style: "cancel" },
+        { text: "Recusar", style: "destructive", onPress: () => { void action("recusar"); } },
+      ]
+    );
+  }
+
   useEffect(() => {
-    if (!svc.cliente?.id) return;
+    if (!svc?.cliente?.id) return;
     let alive = true;
     api.get(`/api/usuarios/${svc.cliente.id}/score`)
       .then((res) => {
@@ -98,7 +121,7 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
     return () => {
       alive = false;
     };
-  }, [svc.cliente?.id]);
+  }, [svc?.cliente?.id]);
 
   function confirmarAceite() {
     const endereco = getServicoEndereco(svc);
@@ -133,6 +156,14 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
     }
 
     confirmarAceite();
+  }
+
+  if (loadingInit || !svc) {
+    return (
+      <SafeAreaView style={s.safe} edges={["top", "bottom"]}>
+        <Text style={{ ...typography.sub, textAlign: "center", marginTop: 48 }}>Carregando...</Text>
+      </SafeAreaView>
+    );
   }
 
   return (
@@ -205,13 +236,20 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
         {/* ── CTAs ── */}
         <View style={s.ctaBlock}>
           {svc.status === "SOLICITADO" && (
-            <DButton
-              title="Aceitar serviço"
-              loading={loading}
-              onPress={aceitarServico}
-            />
+            <>
+              <DButton
+                title="Aceitar serviço"
+                loading={loading}
+                onPress={aceitarServico}
+              />
+              <DButton
+                title="Recusar serviço"
+                variant="outline"
+                onPress={recusarServico}
+              />
+            </>
           )}
-          {["ACEITO", "EM_ANDAMENTO"].includes(svc.status.toUpperCase()) && (
+          {["ACEITO", "INICIADO", "EM_ANDAMENTO"].includes(svc.status.toUpperCase()) && (
             <DButton
               title="Abrir chat"
               variant="outline"
@@ -222,17 +260,23 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
             <DButton
               title="Iniciar serviço"
               loading={loading}
-              onPress={() => action("iniciar")}
+              onPress={() => { void action("iniciar"); }}
             />
           )}
-          {svc.status === "EM_ANDAMENTO" && (
+          {["INICIADO", "EM_ANDAMENTO"].includes(svc.status.toUpperCase()) && (
             <DButton
               title="Concluir serviço"
               loading={loading}
-              onPress={() => action("concluir")}
+              onPress={() => { void action("concluir"); }}
             />
           )}
-          {["CONCLUIDO","CONCLUÍDO","CONFIRMADO","FINALIZADO"].includes(svc.status.toUpperCase()) && (
+          {svc.status.toUpperCase() === "CONFIRMADO" && (
+            <View style={s.paidCard}>
+              <Ionicons name="checkmark-circle" size={20} color={colors.success} />
+              <Text style={s.paidText}>Pagamento liberado ✓</Text>
+            </View>
+          )}
+          {["CONCLUIDO","CONCLUÍDO","FINALIZADO"].includes(svc.status.toUpperCase()) && (
             <View style={s.doneCard}>
               <Ionicons name="checkmark-circle" size={24} color={colors.green} />
               <Text style={s.doneText}>Serviço finalizado. Obrigada!</Text>
@@ -321,8 +365,8 @@ const s = StyleSheet.create({
   restrictedBox: {
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: "#FECACA",
-    backgroundColor: "#FEF2F2",
+    borderColor: colors.dangerSoft,
+    backgroundColor: colors.dangerSoft,
     padding: 10,
   },
   restrictedText: {
@@ -333,6 +377,18 @@ const s = StyleSheet.create({
   },
 
   ctaBlock: { gap: 10 },
+
+  paidCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    padding: 14,
+    borderRadius: radius.lg,
+    backgroundColor: colors.successSoft,
+    borderWidth: 1,
+    borderColor: colors.success,
+  },
+  paidText: { fontSize: 14, fontWeight: "700", color: colors.success },
 
   doneCard: {
     flexDirection: "row",

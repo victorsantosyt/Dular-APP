@@ -301,7 +301,7 @@ export default function DiaristaPerfil({ onLogout }: Props) {
               <Ionicons name="person" size={40} color={colors.sub} />
             )}
             <View style={s.cameraBtn}>
-              <Ionicons name="camera" size={14} color="#FFF" />
+              <Ionicons name="camera" size={14} color={colors.white} />
             </View>
           </Pressable>
 
@@ -432,7 +432,7 @@ const s = StyleSheet.create({
     backgroundColor: colors.ink,
     marginBottom: 4,
   },
-  toastText: { color: "#FFF", fontWeight: "800", fontSize: 13 },
+  toastText: { color: colors.white, fontWeight: "800", fontSize: 13 },
 
   card: {
     backgroundColor: colors.card,
@@ -496,7 +496,7 @@ const s = StyleSheet.create({
   },
   chipOn:      { backgroundColor: colors.green, borderColor: colors.green },
   chipText:    { fontSize: 12, fontWeight: "700", color: colors.ink },
-  chipTextOn:  { color: "#FFF" },
+  chipTextOn:  { color: colors.white },
 
   // Row buttons
   row: {
@@ -531,8 +531,8 @@ const s = StyleSheet.create({
     height: 48,
     borderRadius: radius.btn,
     borderWidth: 1.5,
-    borderColor: "#FECACA",
-    backgroundColor: "#FEF2F2",
+    borderColor: colors.dangerSoft,
+    backgroundColor: colors.dangerSoft,
     marginTop: 4,
   },
   logoutText: { color: colors.danger, fontWeight: "800", fontSize: 14 },

@@ -16,13 +16,14 @@ function isJwtExpired(token: string): boolean {
   }
 }
 
-type Role = "CLIENTE" | "DIARISTA" | "ADMIN";
+type Role = "EMPREGADOR" | "DIARISTA" | "MONTADOR" | "ADMIN";
 
 type User = {
   id: string;
   nome: string;
   telefone?: string;
   role: Role;
+  genero?: "MASCULINO" | "FEMININO" | null;
   avatarUrl?: string | null;
   bio?: string | null;
   verificado?: boolean;
@@ -48,6 +49,13 @@ type AuthState = {
 
 // Non-sensitive keys that stay in AsyncStorage
 const ASYNC_KEYS = ["role", "dular_role", "userName", "userId"] as const;
+
+function normalizeRole(value: string | null | undefined): Role | null {
+  if (value === "EMPREGADOR" || value === "DIARISTA" || value === "MONTADOR" || value === "ADMIN") {
+    return value;
+  }
+  return null;
+}
 
 export const useAuth = create<AuthState>((set) => ({
   user: null,
@@ -81,8 +89,6 @@ export const useAuth = create<AuthState>((set) => ({
   },
 
   async hydrate() {
-    console.log("[hydrate] iniciando...");
-
     // Sensitive: read from SecureStore
     const token = await SecureStorage.getToken();
     const userFromSecure = await SecureStorage.getUser<User>();
@@ -90,11 +96,9 @@ export const useAuth = create<AuthState>((set) => ({
     // Non-sensitive: read from AsyncStorage
     const pairs = await AsyncStorage.multiGet(ASYNC_KEYS as unknown as string[]);
     const map = Object.fromEntries(pairs);
-    const role = (map["role"] || map["dular_role"]) as Role | null;
+    const role = normalizeRole(map["role"] || map["dular_role"]);
     const userName = map["userName"];
     const userId = map["userId"];
-
-    console.log("[hydrate] valores:", { token, role });
 
     if (token && role) {
       if (isJwtExpired(token)) {
@@ -102,8 +106,6 @@ export const useAuth = create<AuthState>((set) => ({
         await SecureStorage.clearAll();
         await AsyncStorage.multiRemove(ASYNC_KEYS as unknown as string[]);
         set({ token: null, role: null, user: null, hydrated: true, isAuthenticated: false });
-        console.log("[hydrate] finalizado: token expirado, limpando sessão");
-        console.log("[hydrate] finalizado, estado atual:", useAuth.getState());
         return;
       }
 
@@ -114,11 +116,9 @@ export const useAuth = create<AuthState>((set) => ({
 
       await setAuthToken(token);
       set({ token, role, user: userObj, hydrated: true, isAuthenticated: true });
-      console.log("[hydrate] finalizado, estado atual:", useAuth.getState());
       return;
     }
     set({ hydrated: true, isAuthenticated: false });
-    console.log("[hydrate] finalizado, estado atual:", useAuth.getState());
   },
 
   setUser(next) {

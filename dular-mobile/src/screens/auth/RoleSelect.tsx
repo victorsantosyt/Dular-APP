@@ -19,7 +19,7 @@ import { getRoleImage, type RoleImageKey } from "@/assets/roleImages";
 import { AppIcon } from "@/components/ui";
 import { AUTH_ROUTES } from "@/navigation/routes";
 
-type Role = "CLIENTE" | "DIARISTA";
+type Role = "EMPREGADOR" | "DIARISTA" | "MONTADOR";
 type ProfileVariant = RoleImageKey;
 type IconName = ComponentProps<typeof AppIcon>["name"];
 
@@ -43,21 +43,23 @@ type ProfileChoiceCardProps = {
   onPress: () => void;
 };
 
+import { colors as tc } from "@/theme/tokens";
+
 const colors = {
-  background: "#FCFAFF",
-  surface: "#FFFFFF",
-  primary: "#6D35E8",
-  primaryDark: "#120A4D",
-  primarySoft: "#EEE7FF",
-  lavender: "#F5EFFF",
-  borderPurple: "#D8C5FF",
-  pink: "#FF3F86",
-  pinkSoft: "#FFF0F6",
-  borderPink: "#FFD3E3",
-  text: "#120A4D",
-  textMuted: "#6F6A8F",
-  divider: "#E8E2F4",
-  successSoft: "#F4EDFF",
+  background: tc.onboardingBg,
+  surface: tc.white,
+  primary: tc.onboardingPrimary,
+  primaryDark: tc.navyDeep,
+  primarySoft: tc.primarySoftAlt,
+  lavender: tc.lavenderSoftAlt,
+  borderPurple: tc.borderPurple,
+  pink: tc.pinkBright,
+  pinkSoft: tc.pinkSoftLight,
+  borderPink: tc.pinkBorder,
+  text: tc.navyDeep,
+  textMuted: tc.navyMid,
+  divider: tc.lavenderDivider,
+  successSoft: tc.lavenderSoftAlt,
 };
 
 const clienteBenefits: Benefit[] = [
@@ -156,12 +158,12 @@ function ProfileChoiceCard({
   const border = isCliente ? colors.borderPurple : colors.borderPink;
 
   const cardGradient = isCliente
-    ? (["#FFFFFF", "#FBF7FF"] as const)
-    : (["#FFFFFF", "#FFF8FB"] as const);
+    ? ([tc.white, tc.lavenderSoftAlt] as const)
+    : ([tc.white, tc.pinkSoftLight] as const);
 
   const buttonGradient = isCliente
-    ? (["#8F63F3", colors.primary] as const)
-    : (["#FF5FA0", colors.pink] as const);
+    ? ([tc.primaryLight, colors.primary] as const)
+    : ([tc.pinkMid, colors.pink] as const);
 
   return (
     <View style={[styles.cardShadow, { shadowColor: accent }]}>
@@ -226,7 +228,7 @@ function ProfileChoiceCard({
           <AppIcon
             name={isCliente ? "User" : "BriefcaseBusiness"}
             size={24}
-            color="#FFFFFF"
+            color={tc.white}
             strokeWidth={2.2}
           />
         </View>
@@ -259,7 +261,7 @@ function ProfileChoiceCard({
             <Text allowFontScaling={false} style={styles.buttonText}>
               {buttonLabel}
             </Text>
-            <AppIcon name="ChevronRight" size={22} color="#FFFFFF" strokeWidth={2.5} />
+            <AppIcon name="ChevronRight" size={22} color={tc.white} strokeWidth={2.5} />
           </LinearGradient>
         </Pressable>
       </LinearGradient>
@@ -306,7 +308,7 @@ export default function RoleSelect() {
         contentContainerStyle={[styles.content, compact && styles.contentCompact]}
       >
         <View style={styles.topBar}>
-          <Pressable hitSlop={12} onPress={() => goTo("CLIENTE")} style={styles.skipButton}>
+          <Pressable hitSlop={12} onPress={() => goTo("EMPREGADOR")} style={styles.skipButton}>
             <Text allowFontScaling={false} style={styles.skipText}>
               Pular
             </Text>
@@ -340,12 +342,12 @@ export default function RoleSelect() {
         <View style={[styles.cardsWrap, compact && styles.cardsWrapCompact]}>
           <ProfileChoiceCard
             variant="cliente"
-            titleHighlight="Cliente"
+            titleHighlight="Empregador"
             description="Encontre diaristas confiáveis e facilite sua rotina."
-            buttonLabel="Sou Cliente"
+            buttonLabel="Sou Empregador"
             benefits={clienteBenefits}
             compact={compact}
-            onPress={() => goTo("CLIENTE")}
+            onPress={() => goTo("EMPREGADOR")}
           />
 
           <ProfileChoiceCard
@@ -606,11 +608,11 @@ const styles = StyleSheet.create({
   },
 
   clientHeroBackground: {
-    backgroundColor: "#F3ECFF",
+    backgroundColor: tc.lavender,
   },
 
   diaristaHeroBackground: {
-    backgroundColor: "#FFF0F6",
+    backgroundColor: tc.pinkSoftLight,
   },
 
   heroImageArea: {

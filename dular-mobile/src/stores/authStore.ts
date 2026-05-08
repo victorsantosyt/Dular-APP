@@ -94,7 +94,7 @@ export const useAuth = create<AuthState>((set) => ({
     await setAuthToken(null);
     await SecureStorage.clearAll();
     await AsyncStorage.multiRemove(ASYNC_KEYS as unknown as string[]);
-    set({ token: null, role: null, user: null, isAuthenticated: false });
+    set({ token: null, role: null, user: null, isAuthenticated: false, selectedRole: null, selectedGenero: null });
   },
 
   async hydrate() {

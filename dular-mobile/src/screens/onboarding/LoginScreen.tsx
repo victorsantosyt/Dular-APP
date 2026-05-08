@@ -110,12 +110,12 @@ export function LoginScreen() {
 
     setLoadingProvider(provider);
     try {
-      const generoParam = preLoginGenero ? `&genero=${preLoginGenero}` : "";
-      const callbackUrl = encodeURIComponent(`/auth/callback/${callbackRole}?platform=mobile`);
+      const generoSuffix = preLoginGenero ? `&genero=${preLoginGenero}` : "";
+      const callbackUrl = encodeURIComponent(`/auth/callback/${callbackRole}?platform=mobile${generoSuffix}`);
       const loginUrl =
         provider === "google"
-          ? `${API_BASE_URL}/api/auth/mobile-google?role=${callbackRole}&callbackUrl=${callbackUrl}${generoParam}`
-          : `${API_BASE_URL}/api/auth/signin/apple?callbackUrl=${callbackUrl}${generoParam}`;
+          ? `${API_BASE_URL}/api/auth/mobile-google?role=${callbackRole}&callbackUrl=${callbackUrl}`
+          : `${API_BASE_URL}/api/auth/signin/apple?callbackUrl=${callbackUrl}`;
 
       const result = await WebBrowser.openAuthSessionAsync(loginUrl, "dular://auth");
       if (result.type !== "success") return;

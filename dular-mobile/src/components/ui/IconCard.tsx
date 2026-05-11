@@ -64,10 +64,10 @@ export function IconCard({
 const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.surface,
-    borderRadius: radius.xl,
+    borderRadius: radius.lg,
     borderWidth: 1.5,
     borderColor: colors.border,
-    padding: spacing.lg,
+    padding: spacing.md,
     flexDirection: "row",
     gap: spacing.md,
     alignItems: "center",

@@ -236,12 +236,12 @@ const s = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
   },
-  cardTitle:    { fontSize: 14, fontWeight: "800", color: colors.ink },
+  cardTitle:    { fontSize: 14, fontWeight: "700", color: colors.ink },
   cardLocation: { fontSize: 13, fontWeight: "600", color: colors.ink },
   cardDiarista: { ...typography.sub },
   badgeRow:     { flexDirection: "row", gap: 8, marginTop: 2 },
   cardFooter:   { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 4 },
-  cardPrice:    { fontSize: 14, fontWeight: "800", color: colors.ink },
+  cardPrice:    { fontSize: 14, fontWeight: "700", color: colors.ink },
   cardDate:     { ...typography.sub },
 
   infoBar: {
@@ -262,7 +262,7 @@ const s = StyleSheet.create({
     gap: 4,
     marginTop: 4,
   },
-  payTitle: { fontSize: 13, fontWeight: "800", color: colors.greenDark },
+  payTitle: { fontSize: 13, fontWeight: "700", color: colors.greenDark },
   paySub:   { fontSize: 12, color: colors.greenDark, lineHeight: 17 },
 
   emptyText: { ...typography.sub, textAlign: "center", marginTop: 32 },

@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Image,
+  ImageSourcePropType,
   KeyboardAvoidingView,
+  Linking,
   Modal,
   Pressable,
   ScrollView,
@@ -12,118 +14,189 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { useFocusEffect } from "@react-navigation/native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import * as ImagePicker from "expo-image-picker";
-
 import { api } from "@/lib/api";
 import { uploadAvatarDataUrl } from "@/api/perfilApi";
+import { AppIcon, DBottomNav, DButton, DCard } from "@/components/ui";
+import { useMensagens } from "@/hooks/useMensagens";
 import { usePerfil } from "@/hooks/usePerfil";
+import type { EmpregadorTabParamList } from "@/navigation/EmpregadorNavigator";
 import { useAuth } from "@/stores/authStore";
-import { AppIcon } from "@/components/ui";
-import { DButton } from "@/components/DButton";
-import { colors, radius, shadow, spacing, typography } from "@/theme/tokens";
+import { colors, radius, shadows, spacing } from "@/theme";
 import { platformSelect } from "@/utils/platform";
-import type { ServicoListItem, MinhasResponse } from "../../../../shared/types/servico";
+import {
+  NotificationBell,
+  ProfileHeroCard,
+  ProfileRow,
+  ProfileSection,
+  ProfileSwitchRow,
+} from "./profile/components";
 
 type Props = { onLogout: () => void };
+type Navigation = BottomTabNavigationProp<EmpregadorTabParamList>;
 
-function statusLabel(status: string) {
-  const s = status.toUpperCase();
-  if (s === "FINALIZADO" || s === "CONCLUIDO") return "Finalizado";
-  if (s === "ACEITO" || s === "EM_ANDAMENTO") return "Em andamento";
-  if (s === "SOLICITADO") return "Aguardando";
-  if (s === "CANCELADO" || s === "RECUSADO") return "Cancelado";
-  return status;
+const GEO_KEY = "@dular:empregador_geo_enabled";
+
+function firstName(value?: string | null) {
+  return (value || "").trim().split(/\s+/)[0] || "Carolina";
+}
+
+function formatMemberSince(value?: string | null) {
+  if (!value) return "15/04/2023";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "15/04/2023";
+  return date.toLocaleDateString("pt-BR");
+}
+
+function profileLocation(perfil: unknown) {
+  const data = perfil as { cidade?: string | null; estado?: string | null; uf?: string | null };
+  const cidade = data?.cidade?.trim();
+  const estado = data?.estado?.trim() || data?.uf?.trim();
+  if (cidade && estado) return `${cidade}, ${estado}`;
+  if (cidade) return cidade;
+  return "Campinas, SP";
+}
+
+function profileAge(perfil: unknown) {
+  const data = perfil as { idade?: number | string | null };
+  if (data?.idade) return `${data.idade} anos!`;
+  return "23 anos!";
 }
 
 export default function EmpregadorPerfil({ onLogout }: Props) {
-  const insets = useSafeAreaInsets();
-  const setUser = useAuth((s) => s.setUser);
+  const navigation = useNavigation<Navigation>();
+  const setUser = useAuth((state) => state.setUser);
+  const user = useAuth((state) => state.user);
+  const { perfil, loading, saving, error, atualizar, refetch } = usePerfil();
+  const { rooms } = useMensagens();
   const busyRef = useRef(false);
 
-  const { perfil, loading, saving, error, atualizar, refetch } = usePerfil();
-
-  // Edit modal state
+  const [geoEnabled, setGeoEnabled] = useState(true);
+  const [toast, setToast] = useState<string | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [editNome, setEditNome] = useState("");
+  const [editTelefone, setEditTelefone] = useState("");
   const [editBio, setEditBio] = useState("");
-
-  // Avatar
   const [avatarLocal, setAvatarLocal] = useState<string | null>(null);
   const [avatarUploading, setAvatarUploading] = useState(false);
 
-  // History
-  const [historico, setHistorico] = useState<ServicoListItem[]>([]);
-  const [histLoading, setHistLoading] = useState(false);
+  const unreadMessages = useMemo(
+    () => rooms.reduce((total, room) => total + Math.max(0, Number(room.naoLidas) || 0), 0),
+    [rooms],
+  );
+  const messagesBadge = unreadMessages > 0 ? unreadMessages : undefined;
 
-  // Toast
-  const [toast, setToast] = useState<string | null>(null);
-
-  const showToast = (msg: string) => setToast(msg);
+  useEffect(() => {
+    AsyncStorage.getItem(GEO_KEY)
+      .then((value) => {
+        if (value === "0") setGeoEnabled(false);
+        if (value === "1") setGeoEnabled(true);
+      })
+      .catch(() => undefined);
+  }, []);
 
   useEffect(() => {
     if (!toast) return;
-    const t = setTimeout(() => setToast(null), 2500);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => setToast(null), 2500);
+    return () => clearTimeout(timer);
   }, [toast]);
 
-  // Sync edit fields when perfil loads
   useEffect(() => {
-    if (perfil) {
-      setEditNome(perfil.nome ?? "");
-      setEditBio(perfil.bio ?? "");
-    }
-  }, [perfil]);
-
-  // Fetch history
-  const fetchHistorico = useCallback(async () => {
-    setHistLoading(true);
-    try {
-      const res = await api.get<MinhasResponse>("/api/servicos/minhas");
-      const all = res.data?.servicos ?? [];
-      setHistorico(all.slice(0, 3));
-    } catch {
-      // ignore; history is non-critical
-    } finally {
-      setHistLoading(false);
-    }
-  }, []);
+    const nome = perfil?.nome ?? user?.nome ?? "";
+    setEditNome(nome);
+    setEditTelefone(perfil?.telefone ?? user?.telefone ?? "");
+    setEditBio(perfil?.bio ?? user?.bio ?? "");
+  }, [perfil, user]);
 
   useFocusEffect(
     useCallback(() => {
       refetch();
-      void fetchHistorico();
-    }, [refetch, fetchHistorico])
+    }, [refetch]),
   );
 
-  // Avatar picker
+  const showToast = (message: string) => setToast(message);
+
+  const handleBottomNav = useCallback(
+    (tab: "home" | "search" | "new" | "messages" | "profile") => {
+      if (tab === "home") navigation.navigate("Home");
+      else if (tab === "search") navigation.navigate("Buscar");
+      else if (tab === "new") navigation.navigate("SolicitarServico");
+      else if (tab === "messages") navigation.navigate("Mensagens");
+    },
+    [navigation],
+  );
+
+  const openModal = () => {
+    setEditNome(perfil?.nome ?? user?.nome ?? "");
+    setEditTelefone(perfil?.telefone ?? user?.telefone ?? "");
+    setEditBio(perfil?.bio ?? user?.bio ?? "");
+    setModalVisible(true);
+  };
+
+  const saveEdits = async () => {
+    const nomeTrim = editNome.trim();
+    if (!nomeTrim) {
+      Alert.alert("Nome inválido", "O nome não pode ficar vazio.");
+      return;
+    }
+
+    const ok = await atualizar({
+      nome: nomeTrim,
+      telefone: editTelefone.trim(),
+      bio: editBio.trim(),
+    });
+
+    if (!ok) {
+      showToast("Falha ao salvar. Tente novamente.");
+      return;
+    }
+
+    setUser((current) =>
+      current
+        ? {
+            ...current,
+            nome: nomeTrim,
+            telefone: editTelefone.trim(),
+            bio: editBio.trim(),
+          }
+        : current,
+    );
+    setModalVisible(false);
+    showToast("Perfil atualizado.");
+  };
+
   const pickAvatar = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
       showToast("Permissão negada para acessar fotos.");
       return;
     }
+
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       aspect: [1, 1],
-      quality: 0.8,
+      quality: 0.82,
       base64: true,
     });
+
     if (result.canceled) return;
     const asset = result.assets?.[0];
-    if (!asset?.uri || !asset.base64) return;
+    if (!asset?.uri || !asset.base64 || busyRef.current) return;
+
     setAvatarLocal(asset.uri);
-    if (busyRef.current) return;
-    busyRef.current = true;
     setAvatarUploading(true);
+    busyRef.current = true;
+
     try {
-      const mime = (asset as any).mimeType ?? "image/jpeg";
+      const mime = (asset as { mimeType?: string }).mimeType ?? "image/jpeg";
       const dataUrl = `data:${mime};base64,${asset.base64}`;
-      const up = await uploadAvatarDataUrl(dataUrl);
-      const finalUrl = up?.user?.avatarUrl ?? dataUrl;
-      setUser((u) => (u ? { ...u, avatarUrl: finalUrl } : u));
+      const uploaded = await uploadAvatarDataUrl(dataUrl);
+      const finalUrl = uploaded?.user?.avatarUrl ?? dataUrl;
+      setUser((current) => (current ? { ...current, avatarUrl: finalUrl } : current));
       showToast("Foto atualizada.");
     } catch {
       showToast("Falha ao atualizar foto.");
@@ -133,169 +206,182 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
     }
   };
 
-  // Open edit modal
-  const openModal = () => {
-    setEditNome(perfil?.nome ?? "");
-    setEditBio(perfil?.bio ?? "");
-    setModalVisible(true);
+  const handleGeoToggle = (value: boolean) => {
+    setGeoEnabled(value);
+    AsyncStorage.setItem(GEO_KEY, value ? "1" : "0").catch(() => undefined);
   };
 
-  // Save from modal
-  const saveEdits = async () => {
-    const nomeTrim = editNome.trim();
-    if (!nomeTrim) {
-      Alert.alert("Nome inválido", "O nome não pode ficar vazio.");
+  const openWhatsApp = async () => {
+    const url = `https://wa.me/5565996203033?text=${encodeURIComponent("Olá! Preciso de suporte no app Dular.")}`;
+    const canOpen = await Linking.canOpenURL(url);
+    if (!canOpen) {
+      Alert.alert("WhatsApp", "Não foi possível abrir o WhatsApp.");
       return;
     }
-    const ok = await atualizar({
-      nome: nomeTrim,
-      bio: editBio.trim(),
-      telefone: perfil?.telefone,
-    });
-    if (ok) {
-      setModalVisible(false);
-      showToast("Dados atualizados.");
-      setUser((u) =>
-        u ? { ...u, nome: nomeTrim } : u
-      );
-    } else {
-      showToast("Falha ao salvar. Tente novamente.");
-    }
+    await Linking.openURL(url);
   };
 
-  // Logout
   const handleLogout = () => {
-    Alert.alert("Sair da conta", "Tem certeza que deseja sair?", [
+    Alert.alert("Sair", "Encerrar sessão da conta?", [
       { text: "Cancelar", style: "cancel" },
       {
         text: "Sair",
         style: "destructive",
         onPress: async () => {
-          try { await api.post("/api/auth/logout"); } catch {}
+          try {
+            await api.post("/api/auth/logout");
+          } catch {}
           onLogout();
         },
       },
     ]);
   };
 
-  const avatarSrc = avatarLocal ?? perfil?.avatarUrl ?? null;
+  const displayName = firstName(perfil?.nome ?? user?.nome);
+  const avatarUri = avatarLocal ?? perfil?.avatarUrl ?? user?.avatarUrl ?? null;
+  const avatarFallback: ImageSourcePropType | null = null;
 
   return (
     <SafeAreaView style={s.safe} edges={["top", "left", "right"]}>
-      {/* Toast */}
       {toast ? (
         <View style={s.toast}>
           <Text style={s.toastText}>{toast}</Text>
         </View>
       ) : null}
 
-      <ScrollView
-        style={{ flex: 1 }}
-        contentContainerStyle={[
-          s.scroll,
-          { paddingBottom: Math.max(32, insets.bottom + 16) },
-        ]}
-        showsVerticalScrollIndicator={false}
-      >
-        {loading ? (
-          <View style={s.center}>
-            <ActivityIndicator color={colors.primary} size="large" />
+      <View style={s.root}>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.scroll}>
+          <View style={s.header}>
+            <View style={s.headerSide} />
+            <Text style={s.title}>Perfil</Text>
+            <View style={s.headerSideRight}>
+              <NotificationBell
+                hasBadge={!!messagesBadge}
+                onPress={() => navigation.navigate("Notificacoes")}
+              />
+            </View>
           </View>
-        ) : error ? (
-          <View style={s.card}>
-            <Text style={s.errorTitle}>Não foi possível carregar.</Text>
-            <Text style={s.errorSub}>{error}</Text>
-            <DButton title="Tentar novamente" onPress={refetch} variant="outline" style={{ marginTop: 8 }} />
-          </View>
-        ) : (
-          <>
-            {/* Avatar */}
-            <View style={[s.card, s.avatarSection]}>
-              <Pressable onPress={pickAvatar} style={s.avatarWrap}>
-                {avatarSrc ? (
-                  <Image source={{ uri: avatarSrc }} style={s.avatarImg} />
-                ) : (
-                  <AppIcon name="User" size={48} color={colors.primary} />
-                )}
-                <View style={s.cameraBadge}>
-                  {avatarUploading ? (
-                    <ActivityIndicator size={10} color={colors.white} />
-                  ) : (
-                    <AppIcon name="Camera" size={12} color={colors.white} />
-                  )}
+
+          {loading ? (
+            <View style={s.centerCard}>
+              <ActivityIndicator color={colors.primary} size="large" />
+            </View>
+          ) : error ? (
+            <DCard style={s.errorCard}>
+              <Text style={s.errorTitle}>Não foi possível carregar.</Text>
+              <Text style={s.errorText}>{error}</Text>
+              <DButton label="Tentar novamente" variant="secondary" onPress={refetch} />
+            </DCard>
+          ) : (
+            <>
+              <ProfileHeroCard
+                nome={displayName}
+                subtitle={profileAge(perfil)}
+                location={profileLocation(perfil)}
+                memberSince={formatMemberSince(perfil?.criadoEm)}
+                avatarUri={avatarUri}
+                avatarFallback={avatarFallback}
+                uploading={avatarUploading}
+                onAvatarPress={pickAvatar}
+              />
+
+              <ProfileSection title="Conta">
+                <ProfileRow
+                  icon="FileText"
+                  title="Enviar documentos"
+                  subtitle="Envie seus documentos"
+                  onPress={() => navigation.navigate("VerificacaoDocs")}
+                />
+                <ProfileRow
+                  icon="ShieldCheck"
+                  title="Verificação de perfil"
+                  subtitle="Acompanhe sua verificação"
+                  onPress={() => Alert.alert("Verificação", "Status disponível na tela de documentos.")}
+                />
+                <ProfileRow
+                  icon="User"
+                  title="Nome, telefone, bio e foto"
+                  subtitle="Edite suas informações pessoais"
+                  onPress={openModal}
+                />
+                <ProfileRow
+                  icon="MapPin"
+                  title="Endereço"
+                  subtitle="Onde você mora"
+                  onPress={() => Alert.alert("Endereço", "Gerenciamento de endereço será conectado em breve.")}
+                  isLast
+                />
+              </ProfileSection>
+
+              <ProfileSection title="Segurança">
+                <ProfileRow
+                  icon="Lock"
+                  title="Alterar senha"
+                  subtitle="Segurança da conta"
+                  onPress={() => navigation.navigate("AlterarSenha")}
+                />
+                <ProfileRow
+                  icon="AlertTriangle"
+                  title="Reportar incidente"
+                  subtitle="Botão SOS"
+                  danger
+                  onPress={() => navigation.navigate("ReportIncident")}
+                />
+                <ProfileRow
+                  icon="MessageCircle"
+                  title="Suporte no WhatsApp"
+                  subtitle="Fale com a equipe"
+                  onPress={openWhatsApp}
+                  isLast
+                />
+              </ProfileSection>
+
+              <ProfileSection title="Privacidade">
+                <ProfileRow
+                  icon="FileText"
+                  title="Termos de uso"
+                  subtitle="Leia as regras da plataforma"
+                  onPress={() => navigation.navigate("Termos")}
+                />
+                <ProfileRow
+                  icon="Shield"
+                  title="Privacidade"
+                  subtitle="Controle seus dados"
+                  onPress={() => navigation.navigate("Privacidade")}
+                />
+                <ProfileSwitchRow
+                  icon="MapPin"
+                  title="Ativar geolocalização"
+                  subtitle="Melhorar sugestões perto de você"
+                  value={geoEnabled}
+                  onValueChange={handleGeoToggle}
+                  isLast
+                />
+              </ProfileSection>
+
+              <DCard style={s.logoutCard} onPress={handleLogout}>
+                <View style={s.logoutIcon}>
+                  <AppIcon name="LogOut" size={21} color={colors.danger} strokeWidth={2.3} />
                 </View>
-              </Pressable>
-              <Text style={s.nomeText}>{perfil?.nome ?? "Empregador"}</Text>
-              <Text style={s.emailText}>{perfil?.email ?? ""}</Text>
-            </View>
+                <View style={s.logoutTextWrap}>
+                  <Text style={s.logoutTitle}>Sair</Text>
+                  <Text style={s.logoutSubtitle}>Encerrar sessão da conta</Text>
+                </View>
+                <AppIcon name="ChevronRight" size={18} color={colors.danger} strokeWidth={2.2} />
+              </DCard>
+            </>
+          )}
+        </ScrollView>
 
-            {/* Dados pessoais */}
-            <View style={s.card}>
-              <View style={s.sectionHeader}>
-                <Text style={s.sectionTitle}>Dados pessoais</Text>
-                <Pressable onPress={openModal} style={s.editBtn}>
-                  <Text style={s.editBtnText}>Editar</Text>
-                </Pressable>
-              </View>
+        <DBottomNav
+          activeTab="profile"
+          variant="empregador"
+          messagesBadge={messagesBadge}
+          onPress={handleBottomNav}
+        />
+      </View>
 
-              <View style={s.fieldRow}>
-                <Text style={s.fieldLabel}>Nome</Text>
-                <Text style={s.fieldValue}>{perfil?.nome ?? "—"}</Text>
-              </View>
-              <View style={s.divider} />
-              <View style={s.fieldRow}>
-                <Text style={s.fieldLabel}>Telefone</Text>
-                <Text style={s.fieldValue}>{perfil?.telefone ?? "—"}</Text>
-              </View>
-              <View style={s.divider} />
-              <View style={s.fieldRow}>
-                <Text style={s.fieldLabel}>Biografia</Text>
-                <Text style={[s.fieldValue, s.bioValue]} numberOfLines={3}>
-                  {perfil?.bio || "Nenhuma bio cadastrada."}
-                </Text>
-              </View>
-            </View>
-
-            {/* Histórico */}
-            <View style={s.card}>
-              <Text style={s.sectionTitle}>Histórico de serviços</Text>
-              {histLoading ? (
-                <ActivityIndicator color={colors.primary} />
-              ) : historico.length === 0 ? (
-                <Text style={s.emptyText}>Nenhum serviço encontrado.</Text>
-              ) : (
-                historico.map((item) => (
-                  <View key={item.id} style={s.historicoItem}>
-                    <View style={s.historicoLeft}>
-                      <Text style={s.historicoTipo}>{item.tipo}</Text>
-                      <Text style={s.historicoData}>
-                        {new Date(item.data).toLocaleDateString("pt-BR")}
-                      </Text>
-                    </View>
-                    <View style={s.statusPill}>
-                      <Text style={s.statusText}>{statusLabel(item.status)}</Text>
-                    </View>
-                  </View>
-                ))
-              )}
-            </View>
-
-            {/* Logout */}
-            <Pressable onPress={handleLogout} style={s.logoutBtn}>
-              <AppIcon name="LogOut" size={18} color={colors.danger} />
-              <Text style={s.logoutText}>Sair da conta</Text>
-            </Pressable>
-          </>
-        )}
-      </ScrollView>
-
-      {/* Edit Modal */}
-      <Modal
-        visible={modalVisible}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setModalVisible(false)}
-      >
+      <Modal visible={modalVisible} animationType="slide" transparent onRequestClose={() => setModalVisible(false)}>
         <KeyboardAvoidingView
           style={s.modalOverlay}
           behavior={platformSelect({ ios: "padding", android: "height" })}
@@ -304,39 +390,48 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
             <View style={s.modalHeader}>
               <Text style={s.modalTitle}>Editar perfil</Text>
               <Pressable onPress={() => setModalVisible(false)} hitSlop={12}>
-                <AppIcon name="XCircle" size={22} color={colors.textSecondary} />
+                <AppIcon name="XCircle" size={23} color={colors.textSecondary} />
               </Pressable>
             </View>
 
-            <Text style={s.modalLabel}>Nome completo</Text>
+            <Text style={s.modalLabel}>Nome</Text>
             <TextInput
               value={editNome}
               onChangeText={setEditNome}
-              style={s.modalInput}
               placeholder="Seu nome"
               placeholderTextColor={colors.textMuted}
+              style={s.modalInput}
               autoCapitalize="words"
-              returnKeyType="next"
             />
 
-            <Text style={s.modalLabel}>Biografia</Text>
+            <Text style={s.modalLabel}>Telefone</Text>
+            <TextInput
+              value={editTelefone}
+              onChangeText={setEditTelefone}
+              placeholder="Telefone"
+              placeholderTextColor={colors.textMuted}
+              style={s.modalInput}
+              keyboardType="phone-pad"
+            />
+
+            <Text style={s.modalLabel}>Bio</Text>
             <TextInput
               value={editBio}
-              onChangeText={(t) => setEditBio(t.slice(0, 300))}
-              style={[s.modalInput, s.modalInputMulti]}
-              placeholder="Conte um pouco sobre você..."
+              onChangeText={(value) => setEditBio(value.slice(0, 300))}
+              placeholder="Conte um pouco sobre você"
               placeholderTextColor={colors.textMuted}
+              style={[s.modalInput, s.modalInputMulti]}
               multiline
               maxLength={300}
-              returnKeyType="done"
+              textAlignVertical="top"
             />
             <Text style={s.charCount}>{editBio.length}/300</Text>
 
             <DButton
-              title={saving ? "Salvando..." : "Salvar"}
+              label={saving ? "Salvando..." : "Salvar alterações"}
               onPress={saveEdits}
               loading={saving}
-              style={{ marginTop: spacing.md }}
+              style={s.saveButton}
             />
           </View>
         </KeyboardAvoidingView>
@@ -350,205 +445,117 @@ const s = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  scroll: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
-    gap: spacing.md,
+  root: {
+    flex: 1,
   },
-  center: {
-    paddingVertical: 64,
+  scroll: {
+    paddingHorizontal: spacing.screenPadding,
+    paddingTop: 10,
+    paddingBottom: 122,
+    gap: 14,
+  },
+  header: {
+    minHeight: 52,
+    flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
+  },
+  headerSide: {
+    width: 48,
+  },
+  headerSideRight: {
+    width: 48,
+    alignItems: "flex-end",
+  },
+  title: {
+    color: colors.textPrimary,
+    fontSize: 24,
+    lineHeight: 29,
+    fontWeight: "700",
+    letterSpacing: 0,
+    textAlign: "center",
+  },
+  centerCard: {
+    minHeight: 420,
+    alignItems: "center",
+    justifyContent: "center",
   },
   toast: {
     position: "absolute",
-    top: spacing.md,
+    top: 14,
     left: spacing.lg,
     right: spacing.lg,
-    zIndex: 99,
-    paddingVertical: spacing.sm,
+    zIndex: 20,
+    borderRadius: radius.lg,
     paddingHorizontal: spacing.md,
-    borderRadius: radius.md,
+    paddingVertical: 12,
     backgroundColor: colors.textPrimary,
+    ...shadows.floating,
   },
   toastText: {
-    ...typography.body,
     color: colors.white,
+    fontSize: 12,
     fontWeight: "700",
     textAlign: "center",
   },
-  card: {
-    backgroundColor: colors.surface,
+  errorCard: {
     borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: spacing.md,
     gap: spacing.sm,
-    ...shadow.card,
-  },
-  avatarSection: {
-    alignItems: "center",
-    paddingVertical: spacing.lg,
-  },
-  avatarWrap: {
-    width: 88,
-    height: 88,
-    borderRadius: 44,
-    backgroundColor: colors.lavender,
-    alignItems: "center",
-    justifyContent: "center",
-    position: "relative",
-  },
-  avatarImg: {
-    width: 88,
-    height: 88,
-    borderRadius: 44,
-  },
-  cameraBadge: {
-    position: "absolute",
-    bottom: 0,
-    right: 0,
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: colors.primary,
-    borderWidth: 2,
-    borderColor: colors.surface,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  nomeText: {
-    ...typography.h2,
-    color: colors.textPrimary,
-    marginTop: spacing.sm,
-  },
-  emailText: {
-    ...typography.body,
-    color: colors.textMuted,
-  },
-  sectionHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  sectionTitle: {
-    ...typography.h3,
-    color: colors.textPrimary,
-  },
-  editBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 4,
-    borderRadius: radius.pill,
-    backgroundColor: colors.lavender,
-  },
-  editBtnText: {
-    ...typography.caption,
-    color: colors.primary,
-    fontWeight: "700",
-  },
-  fieldRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    gap: spacing.sm,
-  },
-  fieldLabel: {
-    ...typography.caption,
-    color: colors.textMuted,
-    width: 80,
-    paddingTop: 1,
-  },
-  fieldValue: {
-    ...typography.body,
-    color: colors.textPrimary,
-    flex: 1,
-    textAlign: "right",
-  },
-  bioValue: {
-    textAlign: "right",
-    color: colors.textSecondary,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: colors.divider,
-  },
-  emptyText: {
-    ...typography.body,
-    color: colors.textMuted,
-    textAlign: "center",
-    paddingVertical: spacing.sm,
-  },
-  historicoItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.divider,
-  },
-  historicoLeft: {
-    gap: 2,
-  },
-  historicoTipo: {
-    ...typography.body,
-    color: colors.textPrimary,
-    fontWeight: "600",
-  },
-  historicoData: {
-    ...typography.caption,
-    color: colors.textMuted,
-  },
-  statusPill: {
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 3,
-    borderRadius: radius.pill,
-    backgroundColor: colors.lavender,
-  },
-  statusText: {
-    ...typography.caption,
-    color: colors.primary,
-    fontWeight: "700",
-  },
-  logoutBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: spacing.sm,
-    height: 48,
-    borderRadius: radius.lg,
-    borderWidth: 1.5,
-    borderColor: colors.dangerSoft,
-    backgroundColor: colors.dangerSoft,
-  },
-  logoutText: {
-    ...typography.body,
-    color: colors.danger,
-    fontWeight: "800",
   },
   errorTitle: {
-    ...typography.body,
-    fontWeight: "800",
     color: colors.danger,
+    fontSize: 14,
+    fontWeight: "700",
   },
-  errorSub: {
-    ...typography.caption,
+  errorText: {
     color: colors.textSecondary,
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: "500",
   },
-
-  // Modal
+  logoutCard: {
+    borderRadius: radius.lg,
+    padding: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    borderColor: colors.dangerSoft,
+    backgroundColor: colors.surface,
+  },
+  logoutIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: radius.md,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.dangerSoft,
+  },
+  logoutTextWrap: {
+    flex: 1,
+    gap: 4,
+  },
+  logoutTitle: {
+    color: colors.danger,
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  logoutSubtitle: {
+    color: colors.textSecondary,
+    fontSize: 12,
+    fontWeight: "500",
+  },
   modalOverlay: {
     flex: 1,
-    backgroundColor: colors.overlay,
     justifyContent: "flex-end",
+    backgroundColor: colors.overlay,
   },
   modalSheet: {
-    backgroundColor: colors.surface,
     borderTopLeftRadius: radius.xl,
     borderTopRightRadius: radius.xl,
-    padding: spacing.lg,
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.md,
     paddingBottom: spacing.xl,
+    backgroundColor: colors.surface,
     gap: spacing.xs,
   },
   modalHeader: {
@@ -558,34 +565,39 @@ const s = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   modalTitle: {
-    ...typography.h3,
     color: colors.textPrimary,
+    fontSize: 18,
+    fontWeight: "700",
   },
   modalLabel: {
-    ...typography.caption,
-    color: colors.textSecondary,
     marginTop: spacing.sm,
-    marginBottom: 4,
+    color: colors.textSecondary,
+    fontSize: 13,
+    fontWeight: "700",
   },
   modalInput: {
+    minHeight: 44,
+    borderRadius: radius.md,
     borderWidth: 1.5,
     borderColor: colors.border,
-    borderRadius: radius.md,
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    ...typography.body,
+    paddingVertical: 8,
     color: colors.textPrimary,
     backgroundColor: colors.background,
+    fontSize: 15,
+    fontWeight: "600",
   },
   modalInputMulti: {
-    minHeight: 88,
-    textAlignVertical: "top",
-    paddingTop: spacing.sm,
+    minHeight: 94,
+    paddingTop: 12,
   },
   charCount: {
-    ...typography.caption,
+    alignSelf: "flex-end",
     color: colors.textMuted,
-    textAlign: "right",
-    marginTop: 2,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  saveButton: {
+    marginTop: spacing.md,
   },
 });

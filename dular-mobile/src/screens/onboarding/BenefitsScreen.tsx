@@ -1,30 +1,43 @@
 import React from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { AppIcon, AppIconName, DAvatar, DButton, DCard } from "@/components/ui";
-import { colors, radius, shadows, spacing, typography } from "@/theme";
+import { AppIcon, AppIconName, DButton } from "@/components/ui";
+import { onboardingAssets } from "@/assets/onboardingAssets";
+import { colors, radius, spacing, typography } from "@/theme";
 import { PageDots } from "@/components/onboarding/PageDots";
-import { markOnboardingSeen } from "@/lib/onboarding";
 import type { OnboardingStackParamList } from "@/navigation/OnboardingNavigator";
 
 type Navigation = NativeStackNavigationProp<OnboardingStackParamList>;
+const LAVENDER_ICON = "#A98AEF";
 
 export function BenefitsScreen() {
   const navigation = useNavigation<Navigation>();
-
-  const skip = async () => {
-    await markOnboardingSeen();
-    navigation.replace("RoleSelect");
+  const handleBack = () => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+      return;
+    }
+    navigation.replace("Welcome");
   };
 
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.header}>
-        <Pressable onPress={skip} hitSlop={12}>
-          <Text style={styles.skip}>Pular</Text>
-        </Pressable>
+        <View style={styles.headerSide}>
+          <Pressable
+            onPress={handleBack}
+            hitSlop={12}
+            accessibilityRole="button"
+            accessibilityLabel="Voltar para introdução"
+            style={({ pressed }) => [styles.backButton, pressed && styles.backButtonPressed]}
+          >
+            <AppIcon name="ArrowLeft" size={20} color={colors.primary} strokeWidth={2.5} />
+          </Pressable>
+        </View>
+        <PageDots total={4} active={1} />
+        <View style={styles.headerSide} />
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
@@ -38,21 +51,7 @@ export function BenefitsScreen() {
         </View>
 
         <View style={styles.illustration}>
-          <DCard style={styles.serviceCard}>
-            <View style={styles.captionRow}>
-              <AppIcon name="Calendar" size={13} color={colors.textSecondary} strokeWidth={2.2} />
-              <Text style={styles.caption}>Próximo serviço</Text>
-            </View>
-            <Text style={styles.serviceTime}>15 Mai • 14:00 – 18:00</Text>
-            <View style={styles.personRow}>
-              <DAvatar size="sm" initials="MS" />
-              <Text style={styles.personName}>Maria Silva</Text>
-            </View>
-            <View style={styles.confirmedBadge}>
-              <AppIcon name="CheckCircle" size={13} color={colors.success} strokeWidth={2.4} />
-              <Text style={styles.confirmedText}>Confirmado</Text>
-            </View>
-          </DCard>
+          <Image source={onboardingAssets.benefitsPhone} style={styles.heroImage} resizeMode="cover" />
         </View>
 
         <View style={styles.benefits}>
@@ -64,7 +63,6 @@ export function BenefitsScreen() {
       </ScrollView>
 
       <View style={styles.footer}>
-        <PageDots total={4} active={1} />
         <DButton label="Próximo" variant="primary" size="lg" onPress={() => navigation.navigate("Security")} />
       </View>
     </SafeAreaView>
@@ -75,7 +73,7 @@ function Benefit({ icon, text }: { icon: AppIconName; text: string }) {
   return (
     <View style={styles.benefitRow}>
       <View style={styles.benefitIcon}>
-        <AppIcon name={icon} size={16} color={colors.primary} strokeWidth={2.3} />
+        <AppIcon name={icon} size={16} color={LAVENDER_ICON} strokeWidth={2.3} />
       </View>
       <Text style={styles.benefitText}>{text}</Text>
     </View>
@@ -90,18 +88,31 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   header: {
-    alignItems: "flex-end",
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: spacing.xl,
-    paddingTop: spacing.sm,
+    paddingTop: spacing.xs,
+    paddingBottom: spacing.xs,
   },
-  skip: {
-    ...typography.bodyMd,
-    color: colors.textSecondary,
-    fontWeight: "600",
+  headerSide: {
+    flex: 1,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  backButtonPressed: {
+    opacity: 0.72,
   },
   scroll: {
     paddingHorizontal: spacing.xl,
-    paddingTop: spacing.lg,
+    paddingTop: spacing.sm,
     paddingBottom: spacing["4xl"],
     gap: spacing.xl,
   },
@@ -109,9 +120,9 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   title: {
-    fontSize: 26,
-    lineHeight: 32,
-    fontWeight: "800",
+    ...typography.h1,
+    
+    fontWeight: "700",
     color: colors.textPrimary,
   },
   titleAccent: {
@@ -122,58 +133,18 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   illustration: {
-    minHeight: 260,
+    height: 260,
     borderRadius: radius.xxl,
-    backgroundColor: colors.primaryLight,
+    backgroundColor: colors.lavenderSoft,
     alignItems: "center",
     justifyContent: "center",
-    padding: spacing.xxl,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: colors.lavenderStrong,
   },
-  serviceCard: {
-    width: 220,
-    borderRadius: radius.lg,
-    gap: spacing.sm,
-    ...shadows.medium,
-  },
-  caption: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    fontWeight: "600",
-  },
-  captionRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.xs,
-  },
-  serviceTime: {
-    ...typography.h4,
-    color: colors.textPrimary,
-    fontWeight: "800",
-  },
-  personRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-  },
-  personName: {
-    ...typography.bodyMd,
-    color: colors.textPrimary,
-    fontWeight: "700",
-  },
-  confirmedBadge: {
-    alignSelf: "flex-start",
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 5,
-    borderRadius: radius.full,
-    backgroundColor: colors.successLight,
-  },
-  confirmedText: {
-    fontSize: 12,
-    fontWeight: "800",
-    color: colors.success,
+  heroImage: {
+    width: "100%",
+    height: "100%",
   },
   benefits: {
     gap: spacing.md,
@@ -187,14 +158,14 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: radius.sm,
-    backgroundColor: colors.primaryLight,
+    backgroundColor: colors.lavenderSoft,
     alignItems: "center",
     justifyContent: "center",
   },
   benefitText: {
     flex: 1,
-    fontSize: 13,
-    lineHeight: 19,
+    ...typography.bodySm,
+    
     color: colors.textSecondary,
   },
   footer: {

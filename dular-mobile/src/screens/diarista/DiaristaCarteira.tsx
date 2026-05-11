@@ -23,7 +23,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { api } from "@/lib/api";
 
-import { colors, radius, shadow, spacing } from "@/theme/tokens";
+import { colors, radius, shadow, spacing, typography } from "@/theme/tokens";
 
 const MONEY_UNIT = (process.env.EXPO_PUBLIC_MONEY_UNIT || "centavos").toLowerCase();
 const brl = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -213,23 +213,23 @@ export default function DiaristaCarteira() {
 const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   scroll: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.sm,
+    paddingHorizontal: spacing.screenPadding,
+    paddingTop: 10,
     paddingBottom: 120,
   },
 
   titulo: {
-    fontSize: 24,
-    fontWeight: "800",
+    ...typography.h2,
+    fontWeight: "700",
     color: colors.foreground,
     letterSpacing: -0.4,
   },
   subtitulo: {
-    fontSize: 13,
+    ...typography.caption,
     color: colors.mutedForeground,
     fontWeight: "600",
     marginTop: 2,
-    marginBottom: 18,
+    marginBottom: 14,
   },
 
   // Métricas
@@ -240,27 +240,27 @@ const s = StyleSheet.create({
     borderRadius: radius.lg,
     borderWidth: 1,
     borderColor: colors.border,
-    padding: 14,
+    padding: 12,
     gap: 6,
     ...shadow.card,
   },
   metricIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
+    width: 34,
+    height: 34,
+    borderRadius: 11,
     backgroundColor: colors.secondary,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 4,
   },
   metricLabel: {
-    fontSize: 12,
+    ...typography.caption,
     color: colors.mutedForeground,
     fontWeight: "600",
   },
   metricValue: {
-    fontSize: 22,
-    fontWeight: "800",
+    ...typography.title,
+    fontWeight: "700",
     color: colors.foreground,
     letterSpacing: -0.6,
   },
@@ -268,15 +268,15 @@ const s = StyleSheet.create({
   // Seção
   sectionHead: { marginTop: 22, marginBottom: 12 },
   sectionTitle: {
-    fontSize: 16,
-    fontWeight: "800",
+    ...typography.bodyMedium,
+    fontWeight: "700",
     color: colors.foreground,
     letterSpacing: -0.2,
   },
 
   // Item
   skeleton: {
-    height: 120,
+    height: 96,
     borderRadius: radius.lg,
     backgroundColor: colors.card,
     opacity: 0.55,
@@ -287,10 +287,10 @@ const s = StyleSheet.create({
     gap: 10,
     backgroundColor: colors.muted,
     borderRadius: radius.lg,
-    padding: 16,
+    padding: 12,
   },
   emptyText: {
-    fontSize: 13,
+    ...typography.bodySm,
     color: colors.mutedForeground,
     fontWeight: "600",
   },
@@ -302,31 +302,31 @@ const s = StyleSheet.create({
     borderRadius: radius.lg,
     borderWidth: 1,
     borderColor: colors.border,
-    padding: 14,
-    marginBottom: 10,
+    padding: 12,
+    marginBottom: 8,
     ...shadow.card,
   },
   itemIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
+    width: 34,
+    height: 34,
+    borderRadius: 11,
     backgroundColor: colors.secondary,
     alignItems: "center",
     justifyContent: "center",
   },
   itemTitle: {
-    fontSize: 14,
-    fontWeight: "800",
+    ...typography.bodySmMedium,
+    fontWeight: "700",
     color: colors.foreground,
   },
   itemSub: {
-    fontSize: 12,
+    ...typography.caption,
     color: colors.mutedForeground,
     fontWeight: "500",
   },
   itemValor: {
-    fontSize: 14,
-    fontWeight: "800",
+    ...typography.bodySmMedium,
+    fontWeight: "700",
     color: colors.primary,
   },
 
@@ -341,18 +341,18 @@ const s = StyleSheet.create({
     gap: 8,
   },
   errorTitle: {
-    fontSize: 14,
-    fontWeight: "800",
+    ...typography.bodySmMedium,
+    fontWeight: "700",
     color: colors.destructive,
   },
   errorSub: {
-    fontSize: 12,
+    ...typography.caption,
     color: colors.mutedForeground,
     fontWeight: "500",
   },
   retryBtn: {
     marginTop: 4,
-    height: 42,
+    height: 38,
     borderRadius: radius.btn,
     alignItems: "center",
     justifyContent: "center",
@@ -360,7 +360,7 @@ const s = StyleSheet.create({
   },
   retryText: {
     color: colors.card,
-    fontWeight: "800",
-    fontSize: 13,
+    ...typography.bodySm,
+    fontWeight: "700",
   },
 });

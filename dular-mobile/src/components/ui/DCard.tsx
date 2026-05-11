@@ -27,8 +27,8 @@ export function DCard({ children, style, onPress, variant = "default" }: Props) 
 const s = StyleSheet.create({
   card: {
     backgroundColor: colors.surface,
-    borderRadius: radius.xl,
-    padding: spacing.lg,
+    borderRadius: radius.lg,
+    padding: spacing.md,
     borderWidth: 1,
     borderColor: colors.border,
   },

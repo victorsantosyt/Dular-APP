@@ -251,9 +251,9 @@ const s = StyleSheet.create({
     paddingVertical: spacing.md,
   },
   sosBtn: {
-    width: 140,
-    height: 140,
-    borderRadius: 70,
+    width: 112,
+    height: 112,
+    borderRadius: 56,
     backgroundColor: colors.error,
     alignItems: "center",
     justifyContent: "center",
@@ -267,9 +267,10 @@ const s = StyleSheet.create({
     opacity: 0.85,
   },
   sosText: {
-    ...typography.h1,
     color: colors.white,
-    fontWeight: "900",
+    fontSize: 24,
+    lineHeight: 29,
+    fontWeight: "700",
     letterSpacing: 2,
   },
   sosHint: {

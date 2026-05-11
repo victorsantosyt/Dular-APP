@@ -184,19 +184,19 @@ export default function VerificacaoDocs() {
     >
         {toast ? (
           <View style={{ padding: 12, borderRadius: 12, backgroundColor: colors.ink }}>
-            <Text style={{ color: colors.white, fontWeight: "800" }}>{toast}</Text>
+            <Text style={{ color: colors.white, fontWeight: "700" }}>{toast}</Text>
           </View>
         ) : null}
 
         {locked ? (
           <View style={{ padding: 12, borderRadius: 12, backgroundColor: colors.lightBlue }}>
-            <Text style={{ color: colors.infoTextDark, fontWeight: "800" }}>
+            <Text style={{ color: colors.infoTextDark, fontWeight: "700" }}>
               {verificacao === "APROVADO" ? "Verificação aprovada." : "Documentos enviados. Análise pendente."}
             </Text>
           </View>
         ) : null}
 
-        <Text style={{ fontSize: 15, fontWeight: "800", color: colors.ink }}>Envie seus documentos</Text>
+        <Text style={{ fontSize: 15, fontWeight: "700", color: colors.ink }}>Envie seus documentos</Text>
         <Text style={{ color: colors.sub }}>
           RG/CNH frente e verso. Usamos isso para manter a comunidade segura.
         </Text>
@@ -219,7 +219,7 @@ export default function VerificacaoDocs() {
           {saving || state === "selecionando" ? (
             <ActivityIndicator color={colors.white} />
           ) : (
-            <Text style={{ color: colors.white, fontWeight: "800" }}>
+            <Text style={{ color: colors.white, fontWeight: "700" }}>
               {state === "sucesso" ? "Documentos enviados" : "Enviar documentos"}
             </Text>
           )}

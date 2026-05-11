@@ -1,7 +1,10 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { AppIcon, DScreen } from "@/components/ui";
-import { colors, gradients, radius, shadows, spacing } from "@/theme";
+import { colors, radius, shadows, spacing, typography } from "@/theme";
+import { useAuth } from "@/stores/authStore";
+import { getProfileTheme } from "@/theme/profileTheme";
+import type { Genero } from "@/theme/profileTheme";
 
 const FEATURES = [
   {
@@ -22,19 +25,25 @@ const FEATURES = [
 ];
 
 export function MontadorHome() {
+  const clearSession = useAuth((state) => state.clearSession);
+  const user = useAuth((state) => state.user);
+  const selectedGenero = useAuth((state) => state.selectedGenero);
+  const genero: Genero = user?.genero ?? selectedGenero ?? null;
+  const profileTheme = getProfileTheme("MONTADOR", genero);
+
   return (
     <DScreen scroll contentContainerStyle={{ paddingHorizontal: 0, paddingTop: 0 }} backgroundColor={colors.background}>
       {/* Header */}
       <View style={s.header}>
-        <View style={s.logoMark}>
-          <AppIcon name="Wrench" size={18} color={colors.teal} strokeWidth={2.2} />
+        <View style={[s.logoMark, { backgroundColor: profileTheme.primarySoft }]}>
+          <AppIcon name="Wrench" size={18} color={profileTheme.primary} strokeWidth={2.2} />
         </View>
         <Text style={s.headerTitle}>Dular Montador</Text>
       </View>
 
       {/* Hero */}
       <LinearGradient
-        colors={gradients.montador}
+        colors={profileTheme.gradient}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={s.hero}
@@ -59,8 +68,8 @@ export function MontadorHome() {
       <View style={s.features}>
         {FEATURES.map((f) => (
           <View key={f.title} style={s.featureRow}>
-            <View style={s.featureIcon}>
-              <AppIcon name={f.icon} size={20} color={colors.teal} strokeWidth={2} />
+            <View style={[s.featureIcon, { backgroundColor: profileTheme.primarySoft }]}>
+              <AppIcon name={f.icon} size={20} color={profileTheme.primary} strokeWidth={2} />
             </View>
             <View style={s.featureText}>
               <Text style={s.featureTitle}>{f.title}</Text>
@@ -72,13 +81,26 @@ export function MontadorHome() {
 
       {/* CTA disabled */}
       <View style={s.ctaWrap}>
-        <Pressable disabled style={s.ctaBtn}>
-          <Text style={s.ctaLabel}>Disponível em breve</Text>
-          <AppIcon name="Clock" size={16} color={colors.tealDark} strokeWidth={2.2} />
+        <Pressable disabled style={[s.ctaBtn, { backgroundColor: profileTheme.primarySoft, borderColor: profileTheme.primary }]}>
+          <Text style={[s.ctaLabel, { color: profileTheme.primaryDark }]}>Disponível em breve</Text>
+          <AppIcon name="Clock" size={16} color={profileTheme.primaryDark} strokeWidth={2.2} />
         </Pressable>
         <Text style={s.ctaNote}>
           Estamos preparando tudo para os montadores do Dular.
         </Text>
+      </View>
+
+      <View style={s.logoutWrap}>
+        <Pressable
+          onPress={() => {
+            void clearSession();
+          }}
+          style={({ pressed }) => [s.logoutBtn, pressed && s.logoutBtnPressed]}
+          accessibilityRole="button"
+        >
+          <AppIcon name="LogOut" size={17} color={colors.textSecondary} strokeWidth={2.2} />
+          <Text style={s.logoutLabel}>Sair do perfil</Text>
+        </Pressable>
       </View>
     </DScreen>
   );
@@ -93,29 +115,29 @@ const s = StyleSheet.create({
     alignItems: "center",
     gap: spacing.sm,
     paddingHorizontal: spacing.screenPadding,
-    paddingTop: spacing.lg,
-    paddingBottom: spacing.md,
+    paddingTop: 10,
+    paddingBottom: 12,
   },
   logoMark: {
     width: 36,
     height: 36,
     borderRadius: radius.sm,
-    backgroundColor: colors.tealSoft,
+    backgroundColor: "#EAF7F3",
     alignItems: "center",
     justifyContent: "center",
   },
   headerTitle: {
-    fontSize: 17,
-    fontWeight: "800",
+    ...typography.title,
+    fontWeight: "700",
     color: colors.textPrimary,
   },
 
   // Hero
   hero: {
     marginHorizontal: spacing.screenPadding,
-    borderRadius: radius.xxl,
-    padding: spacing.xl,
-    minHeight: 180,
+    borderRadius: 18,
+    padding: 16,
+    minHeight: 150,
     overflow: "hidden",
     position: "relative",
   },
@@ -142,22 +164,22 @@ const s = StyleSheet.create({
     borderColor: colors.glassBorder,
   },
   heroBadgeText: {
-    fontSize: 11,
+    ...typography.caption,
     fontWeight: "700",
     color: colors.white,
     letterSpacing: 0.5,
     textTransform: "uppercase",
   },
   heroTitle: {
-    fontSize: 26,
-    fontWeight: "800",
+    ...typography.h2,
+    fontWeight: "700",
     color: colors.white,
-    lineHeight: 32,
+    
   },
   heroSub: {
-    fontSize: 13,
+    ...typography.bodySm,
     color: colors.whiteAlpha80,
-    lineHeight: 18,
+    
     fontWeight: "400",
   },
   heroIcon: {
@@ -170,11 +192,11 @@ const s = StyleSheet.create({
   // Features
   features: {
     marginHorizontal: spacing.screenPadding,
-    marginTop: spacing.sectionGap,
+    marginTop: 16,
     backgroundColor: colors.surface,
-    borderRadius: radius.xl,
-    padding: spacing.lg,
-    gap: spacing.lg,
+    borderRadius: 18,
+    padding: 14,
+    gap: 14,
     borderWidth: 1,
     borderColor: colors.border,
     ...shadows.card,
@@ -185,10 +207,10 @@ const s = StyleSheet.create({
     gap: spacing.md,
   },
   featureIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: radius.md,
-    backgroundColor: colors.tealSoft,
+    width: 38,
+    height: 38,
+    borderRadius: 13,
+    backgroundColor: "#EAF7F3",
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
@@ -197,22 +219,22 @@ const s = StyleSheet.create({
     flex: 1,
   },
   featureTitle: {
-    fontSize: 14,
+    ...typography.bodySmMedium,
     fontWeight: "700",
     color: colors.textPrimary,
   },
   featureSub: {
-    fontSize: 12,
+    ...typography.caption,
     color: colors.textSecondary,
     marginTop: 2,
-    lineHeight: 16,
+    
   },
 
   // CTA
   ctaWrap: {
     paddingHorizontal: spacing.screenPadding,
-    marginTop: spacing.sectionGap,
-    marginBottom: spacing.xl,
+    marginTop: 16,
+    marginBottom: 20,
     gap: spacing.sm,
     alignItems: "center",
   },
@@ -222,21 +244,47 @@ const s = StyleSheet.create({
     justifyContent: "center",
     gap: spacing.sm,
     width: "100%",
-    height: 52,
-    borderRadius: radius.xl,
-    backgroundColor: colors.tealSoft,
+    height: 48,
+    borderRadius: 18,
+    backgroundColor: "#EAF7F3",
     borderWidth: 1,
-    borderColor: colors.teal,
+    borderColor: "#4FA38F",
   },
   ctaLabel: {
-    fontSize: 15,
+    ...typography.bodySm,
     fontWeight: "700",
-    color: colors.tealDark,
+    color: "#2E6E61",
   },
   ctaNote: {
-    fontSize: 12,
+    ...typography.caption,
     color: colors.textMuted,
     textAlign: "center",
-    lineHeight: 17,
+    
+  },
+
+  // Temporary logout
+  logoutWrap: {
+    paddingHorizontal: spacing.screenPadding,
+    marginBottom: spacing["3xl"],
+  },
+  logoutBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.sm,
+    width: "100%",
+    minHeight: 44,
+    borderRadius: 16,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  logoutBtnPressed: {
+    opacity: 0.72,
+  },
+  logoutLabel: {
+    ...typography.bodySm,
+    fontWeight: "700",
+    color: colors.textSecondary,
   },
 });

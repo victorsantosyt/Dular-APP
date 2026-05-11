@@ -171,7 +171,7 @@ const s = StyleSheet.create({
     ...shadow.card,
   },
   loadingText: { ...typography.sub, textAlign: "center" },
-  errorTitle:  { fontSize: 14, fontWeight: "800", color: colors.danger },
+  errorTitle:  { fontSize: 14, fontWeight: "700", color: colors.danger },
   errorSub:    { ...typography.sub },
 
   sectionHeader: { flexDirection: "row", alignItems: "center", gap: 8 },

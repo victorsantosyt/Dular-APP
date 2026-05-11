@@ -81,7 +81,7 @@ const s = StyleSheet.create({
     alignItems: "center",
   },
   name: {
-    fontWeight: "900",
+    fontWeight: "700",
     color: colors.ink,
     letterSpacing: -0.5,
   },

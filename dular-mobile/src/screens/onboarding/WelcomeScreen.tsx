@@ -1,85 +1,56 @@
 import React from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
+import { Image, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { AppIcon, AppIconName, DAvatar, DButton, DCard } from "@/components/ui";
-import { ClientePhoneImage } from "@/assets/images/people";
-import { colors, radius, shadows, spacing, typography } from "@/theme";
+import { AppIcon, AppIconName, DButton } from "@/components/ui";
+import { onboardingAssets } from "@/assets/onboardingAssets";
+import { colors, radius, spacing, typography } from "@/theme";
 import { PageDots } from "@/components/onboarding/PageDots";
-import { markOnboardingSeen } from "@/lib/onboarding";
 import type { OnboardingStackParamList } from "@/navigation/OnboardingNavigator";
 
 type Navigation = NativeStackNavigationProp<OnboardingStackParamList>;
+const LAVENDER_ICON = "#A98AEF";
 
 export function WelcomeScreen() {
   const navigation = useNavigation<Navigation>();
 
-  const skip = async () => {
-    await markOnboardingSeen();
-    navigation.replace("RoleSelect");
-  };
-
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.header}>
-        <Pressable onPress={skip} hitSlop={12}>
-          <Text style={styles.skip}>Pular</Text>
-        </Pressable>
+        <View style={styles.headerSide} />
+        <PageDots total={4} active={0} />
+        <View style={styles.headerSide} />
+      </View>
+
+      <View style={styles.welcomeLogoWrap}>
+        <Image source={onboardingAssets.welcomeLogo} style={styles.welcomeLogo} resizeMode="contain" />
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        <View style={styles.titleBlock}>
-          <Text style={styles.title}>
-            Bem-vindo ao <Text style={styles.titleAccent}>Dular!</Text>
-          </Text>
-          <Text style={styles.subtitle}>
-            Uma forma mais simples, segura e acolhedora de cuidar da rotina da sua casa.
-          </Text>
-        </View>
-
-        <LinearGradient
-          colors={[colors.primaryLight, colors.accentLight]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.illustration}
-        >
-          <DCard style={styles.floatLeft}>
-            <View style={styles.personRow}>
-              <DAvatar size="sm" initials="MS" />
-              <View>
-                <Text style={styles.floatTitle}>Maria Silva</Text>
-                <View style={styles.stars}>
-                  {[0, 1, 2, 3, 4].map((item) => (
-                    <AppIcon key={item} name="Star" size={10} color={colors.warning} strokeWidth={2.4} />
-                  ))}
-                </View>
-              </View>
-            </View>
-          </DCard>
-
-          <DCard style={styles.floatRight}>
-            <View style={styles.confirmedRow}>
-              <AppIcon name="CheckCircle" size={14} color={colors.success} strokeWidth={2.4} />
-              <Text style={styles.confirmed}>Agendamento confirmado</Text>
-            </View>
-          </DCard>
-
-          <View style={styles.heroPerson}>
-            <ClientePhoneImage />
+        <View style={styles.contentGroup}>
+          <View style={styles.titleBlock}>
+            <Text style={styles.title}>
+              Bem-vindo ao <Text style={styles.titleAccent}>Dular!</Text>
+            </Text>
+            <Text style={styles.subtitle}>
+              Uma forma mais simples, segura e acolhedora de cuidar da rotina da sua casa.
+            </Text>
           </View>
-        </LinearGradient>
 
-        <View style={styles.benefits}>
-          <Benefit icon="Search" text="Encontre com facilidade profissionais confiáveis" />
-          <Benefit icon="Calendar" text="Agende em poucos cliques e economize tempo" />
-          <Benefit icon="ShieldCheck" text="Tudo com mais segurança e praticidade" />
+          <View style={styles.illustration}>
+            <Image source={onboardingAssets.welcomeHero} style={styles.heroImage} resizeMode="cover" />
+          </View>
+
+          <View style={styles.benefits}>
+            <Benefit icon="Search" text="Encontre com facilidade profissionais confiáveis" />
+            <Benefit icon="Calendar" text="Agende em poucos cliques e economize tempo" />
+            <Benefit icon="ShieldCheck" text="Tudo com mais segurança e praticidade" />
+          </View>
         </View>
       </ScrollView>
 
       <View style={styles.footer}>
-        <PageDots total={4} active={0} />
         <DButton label="Próximo" variant="primary" size="lg" onPress={() => navigation.navigate("Benefits")} />
       </View>
     </SafeAreaView>
@@ -90,7 +61,7 @@ function Benefit({ icon, text }: { icon: AppIconName; text: string }) {
   return (
     <View style={styles.benefitRow}>
       <View style={styles.benefitIcon}>
-        <AppIcon name={icon} size={16} color={colors.primary} strokeWidth={2.3} />
+        <AppIcon name={icon} size={16} color={LAVENDER_ICON} strokeWidth={2.3} />
       </View>
       <Text style={styles.benefitText}>{text}</Text>
     </View>
@@ -105,29 +76,48 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   header: {
-    alignItems: "flex-end",
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: spacing.xl,
-    paddingTop: spacing.sm,
+    paddingTop: spacing.xs,
+    paddingBottom: 0,
+    minHeight: 32,
   },
-  skip: {
-    ...typography.bodyMd,
-    color: colors.textSecondary,
-    fontWeight: "600",
+  headerSide: {
+    flex: 1,
+  },
+  welcomeLogoWrap: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingTop: 6,
+    paddingBottom: 2,
+  },
+  welcomeLogo: {
+    width: 212,
+    height: 78,
   },
   scroll: {
+    flexGrow: 1,
+    justifyContent: "center",
     paddingHorizontal: spacing.xl,
-    paddingTop: spacing.lg,
-    paddingBottom: spacing["4xl"],
-    gap: spacing.xl,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.md,
+  },
+  contentGroup: {
+    alignSelf: "stretch",
+    gap: 14,
+    transform: [{ translateY: -8 }],
   },
   titleBlock: {
-    gap: spacing.sm,
+    alignItems: "center",
+    gap: 6,
   },
   title: {
-    fontSize: 26,
-    lineHeight: 32,
-    fontWeight: "800",
+    ...typography.h1,
+    
+    fontWeight: "700",
     color: colors.textPrimary,
+    textAlign: "center",
   },
   titleAccent: {
     color: colors.accent,
@@ -135,84 +125,48 @@ const styles = StyleSheet.create({
   subtitle: {
     ...typography.bodyMd,
     color: colors.textSecondary,
+    textAlign: "center",
+    maxWidth: 316,
   },
   illustration: {
-    height: 260,
+    height: 248,
     borderRadius: radius.xxl,
-    padding: spacing.xxl,
     alignItems: "center",
     justifyContent: "center",
-    overflow: "visible",
+    overflow: "hidden",
+    backgroundColor: colors.lavenderSoft,
+    borderWidth: 1,
+    borderColor: colors.lavenderStrong,
   },
-  floatLeft: {
-    position: "absolute",
-    left: spacing.lg,
-    top: spacing.xl,
-    padding: spacing.md,
-    borderRadius: 14,
-    ...shadows.soft,
-  },
-  floatRight: {
-    position: "absolute",
-    right: spacing.lg,
-    bottom: spacing.xl,
-    padding: spacing.md,
-    borderRadius: 14,
-    ...shadows.soft,
-  },
-  personRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-  },
-  floatTitle: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: colors.textPrimary,
-  },
-  stars: {
-    flexDirection: "row",
-    gap: 1,
-  },
-  confirmed: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: colors.success,
-  },
-  confirmedRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-  },
-  heroPerson: {
-    width: 160,
-    alignSelf: "center",
+  heroImage: {
+    width: "100%",
+    height: "100%",
   },
   benefits: {
-    gap: spacing.md,
+    gap: 10,
   },
   benefitRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.md,
+    minHeight: 42,
   },
   benefitIcon: {
     width: 28,
     height: 28,
     borderRadius: radius.sm,
-    backgroundColor: colors.primaryLight,
+    backgroundColor: colors.lavenderSoft,
     alignItems: "center",
     justifyContent: "center",
   },
   benefitText: {
     flex: 1,
-    fontSize: 13,
-    lineHeight: 19,
+    ...typography.bodySm,
+    
     color: colors.textSecondary,
   },
   footer: {
     paddingHorizontal: spacing.xl,
     paddingBottom: spacing.xl,
-    gap: spacing.lg,
   },
 });

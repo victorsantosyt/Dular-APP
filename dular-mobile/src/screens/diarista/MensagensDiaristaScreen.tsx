@@ -103,13 +103,15 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   header: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
-    paddingBottom: spacing.lg,
+    paddingHorizontal: spacing.screenPadding,
+    paddingTop: 10,
+    paddingBottom: 14,
   },
   title: {
-    ...typography.h1,
     color: colors.textPrimary,
+    ...typography.h1,
+    
+    fontWeight: "700",
     letterSpacing: 0,
   },
   listContent: {
@@ -124,22 +126,26 @@ const styles = StyleSheet.create({
     paddingTop: spacing.xxl,
   },
   emptyIconWrap: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     backgroundColor: colors.lavender,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: spacing.lg,
   },
   emptyTitle: {
-    ...typography.h2,
     color: colors.textPrimary,
+    ...typography.bodyMedium,
+    
+    fontWeight: "700",
     textAlign: "center",
   },
   emptySubtitle: {
-    ...typography.body,
     color: colors.textSecondary,
+    ...typography.caption,
+    
+    fontWeight: "500",
     textAlign: "center",
     marginTop: spacing.sm,
   },

@@ -515,7 +515,7 @@ const s = StyleSheet.create({
   },
   header: {
     paddingBottom: spacing.sm,
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: spacing.screenPadding,
     gap: spacing.sm,
   },
   logoWrap: {
@@ -535,16 +535,16 @@ const s = StyleSheet.create({
   },
   greeting: {
     flex: 1,
-    fontSize: 22,
-    fontWeight: "900",
+    ...typography.title,
+    fontWeight: "700",
     color: colors.ink,
   },
   earningsWrap: {
     alignItems: "flex-end",
   },
   earningsValue: {
-    fontSize: 16,
-    fontWeight: "800",
+    ...typography.bodyMedium,
+    fontWeight: "700",
     color: colors.greenDark,
   },
   earningsLabel: {
@@ -576,13 +576,13 @@ const s = StyleSheet.create({
   },
   pendingTopText: {
     color: colors.card,
-    fontSize: 14,
-    fontWeight: "800",
+    ...typography.bodySmMedium,
+    fontWeight: "700",
   },
   pendingTitle: {
     color: colors.card,
-    fontSize: 16,
-    fontWeight: "800",
+    ...typography.bodyMedium,
+    fontWeight: "700",
   },
   pendingScore: {
     backgroundColor: colors.card,
@@ -609,7 +609,7 @@ const s = StyleSheet.create({
   },
   pendingMetaText: {
     color: colors.card,
-    fontSize: 12,
+    ...typography.caption,
     fontWeight: "700",
   },
   acceptBtn: {
@@ -622,8 +622,8 @@ const s = StyleSheet.create({
     paddingHorizontal: 16,
   },
   acceptText: {
-    fontSize: 13,
-    fontWeight: "800",
+    ...typography.bodySm,
+    fontWeight: "700",
     color: colors.greenDark,
   },
   rejectBtn: {
@@ -637,7 +637,7 @@ const s = StyleSheet.create({
   },
   rejectText: {
     color: colors.card,
-    fontSize: 12,
+    ...typography.caption,
     fontWeight: "700",
   },
   dateRow: {
@@ -681,11 +681,11 @@ const s = StyleSheet.create({
   },
   checkinText: {
     color: colors.greenDark,
-    fontSize: 12,
-    fontWeight: "800",
+    ...typography.caption,
+    fontWeight: "700",
   },
   sosBtn: {
-    width: 88,
+    width: 76,
     height: 42,
     borderRadius: radius.md,
     backgroundColor: colors.danger,
@@ -694,8 +694,8 @@ const s = StyleSheet.create({
   },
   sosText: {
     color: colors.card,
-    fontSize: 13,
-    fontWeight: "800",
+    ...typography.bodySm,
+    fontWeight: "700",
   },
   agendaCard: {
     marginTop: spacing.md,
@@ -714,8 +714,8 @@ const s = StyleSheet.create({
     paddingVertical: 12,
   },
   agendaTitle: {
-    fontSize: 15,
-    fontWeight: "800",
+    ...typography.bodySmMedium,
+    fontWeight: "700",
     color: colors.ink,
   },
   agendaItem: {
@@ -751,8 +751,8 @@ const s = StyleSheet.create({
     borderColor: colors.stroke,
   },
   agendaActionText: {
-    fontSize: 11,
-    fontWeight: "800",
+    ...typography.caption,
+    fontWeight: "700",
     color: colors.card,
   },
   agendaPaidBadge: {
@@ -765,7 +765,7 @@ const s = StyleSheet.create({
     backgroundColor: colors.successSoft,
   },
   agendaPaidText: {
-    fontSize: 11,
+    ...typography.caption,
     fontWeight: "700",
     color: colors.success,
   },
@@ -782,8 +782,8 @@ const s = StyleSheet.create({
     gap: 2,
   },
   itemName: {
-    fontSize: 13,
-    fontWeight: "800",
+    ...typography.bodySm,
+    fontWeight: "700",
     color: colors.ink,
   },
   itemSub: {
@@ -799,8 +799,8 @@ const s = StyleSheet.create({
     paddingVertical: 5,
   },
   timeText: {
-    fontSize: 11,
-    fontWeight: "800",
+    ...typography.caption,
+    fontWeight: "700",
     color: colors.greenDark,
   },
   emptyText: {

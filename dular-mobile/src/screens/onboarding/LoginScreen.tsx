@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -7,7 +7,7 @@ import * as WebBrowser from "expo-web-browser";
 import { Ionicons } from "@expo/vector-icons";
 import { AppIcon, DCard } from "@/components/ui";
 import { DularLogo } from "@/assets/brand";
-import { LoginSecurity3DIcon } from "@/assets/icons";
+import { PageDots } from "@/components/onboarding/PageDots";
 import { colors, radius, shadows, spacing, typography } from "@/theme";
 import { API_BASE_URL } from "@/lib/api";
 import { markOnboardingSeen } from "@/lib/onboarding";
@@ -18,6 +18,29 @@ WebBrowser.maybeCompleteAuthSession();
 
 type Navigation = NativeStackNavigationProp<OnboardingStackParamList>;
 type Provider = "google" | "apple";
+const MOBILE_AUTH_REDIRECT = "dular://auth/callback";
+const LOGIN_LOGO_CENTRAL_ASSET = "assets/images/auth/login_logo_central.png";
+const LOGIN_LOGO_EDGE_COLOR = "#fbf7ff";
+const loginLogoCentral = require("../../../assets/images/auth/login_logo_central.png");
+
+function getGoogleOAuthUrlWarning(value: string) {
+  try {
+    const url = new URL(value);
+    const host = url.hostname;
+    const privateIp =
+      /^192\.168\./.test(host) ||
+      /^10\./.test(host) ||
+      /^172\.(1[6-9]|2\d|3[01])\./.test(host);
+    if (url.protocol !== "https:") {
+      return privateIp
+        ? "O app está apontando para um IP LAN. Para Google OAuth no Expo Go físico, use uma URL HTTPS pública via ngrok."
+        : "Para Google OAuth no Expo Go físico, use uma URL HTTPS pública no EXPO_PUBLIC_API_URL.";
+    }
+    return null;
+  } catch {
+    return "URL da API inválida para iniciar o Google OAuth.";
+  }
+}
 
 function StepperComponent({ step, total }: { step: number; total: number }) {
   return (
@@ -74,6 +97,24 @@ function AppleLogo() {
   );
 }
 
+function LoginLogo() {
+  if (loginLogoCentral) {
+    return (
+      <Image
+        source={loginLogoCentral}
+        style={styles.logoImage}
+        resizeMode="contain"
+      />
+    );
+  }
+
+  return (
+    <View style={styles.logoFallback} accessibilityLabel={`Fallback para ${LOGIN_LOGO_CENTRAL_ASSET}`}>
+      <DularLogo size="md" />
+    </View>
+  );
+}
+
 export function LoginScreen() {
   const navigation = useNavigation<Navigation>();
   const preLoginRole = useAuthStore((state) => state.selectedRole);
@@ -91,10 +132,22 @@ export function LoginScreen() {
           : null;
 
   useEffect(() => {
-    if (!callbackRole) {
+    if (!preLoginRole || !callbackRole) {
       navigation.replace("RoleSelect");
+      return;
     }
-  }, [navigation, callbackRole]);
+    if (!preLoginGenero) {
+      navigation.replace("GeneroSelect");
+    }
+  }, [navigation, callbackRole, preLoginGenero, preLoginRole]);
+
+  const handleBack = () => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+      return;
+    }
+    navigation.replace("GeneroSelect");
+  };
 
   const handleOAuthLogin = async (provider: Provider) => {
     if (!callbackRole) {
@@ -103,21 +156,37 @@ export function LoginScreen() {
       return;
     }
 
+    if (!preLoginGenero) {
+      Alert.alert("Gênero obrigatório", "Escolha Homem ou Mulher antes de fazer login.");
+      navigation.replace("GeneroSelect");
+      return;
+    }
+
     if (!API_BASE_URL) {
       Alert.alert("Erro", "URL da API não configurada.");
       return;
     }
 
+    const googleOAuthWarning = provider === "google" ? getGoogleOAuthUrlWarning(API_BASE_URL) : null;
+    if (googleOAuthWarning) {
+      Alert.alert(
+        "Google OAuth no aparelho",
+        `${googleOAuthWarning}\n\nUse a mesma URL no AUTH_URL do backend para manter os cookies do NextAuth no mesmo domínio.`,
+      );
+      return;
+    }
+
     setLoadingProvider(provider);
     try {
-      const generoSuffix = preLoginGenero ? `&genero=${preLoginGenero}` : "";
-      const callbackUrl = encodeURIComponent(`/auth/callback/${callbackRole}?platform=mobile${generoSuffix}`);
-      const loginUrl =
-        provider === "google"
-          ? `${API_BASE_URL}/api/auth/mobile-google?role=${callbackRole}&callbackUrl=${callbackUrl}`
-          : `${API_BASE_URL}/api/auth/signin/apple?callbackUrl=${callbackUrl}`;
+      const callbackPath = `/auth/callback/${callbackRole}?platform=mobile&genero=${preLoginGenero}`;
+      const loginUrl = new URL(
+        provider === "google" ? "/api/auth/mobile-google" : "/api/auth/signin/apple",
+        API_BASE_URL,
+      );
+      if (provider === "google") loginUrl.searchParams.set("role", callbackRole);
+      loginUrl.searchParams.set("callbackUrl", callbackPath);
 
-      const result = await WebBrowser.openAuthSessionAsync(loginUrl, "dular://auth");
+      const result = await WebBrowser.openAuthSessionAsync(loginUrl.toString(), MOBILE_AUTH_REDIRECT);
       if (result.type !== "success") return;
 
       const url = new URL(result.url);
@@ -147,14 +216,22 @@ export function LoginScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.header}>
-        <StepperComponent step={3} total={3} />
+        <Pressable
+          onPress={handleBack}
+          hitSlop={12}
+          accessibilityRole="button"
+          accessibilityLabel="Voltar para escolha de gênero"
+          style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}
+        >
+          <AppIcon name="ArrowLeft" size={20} color={colors.primary} strokeWidth={2.5} />
+        </Pressable>
+        <View style={styles.headerCenter}>
+          <PageDots total={3} active={2} />
+        </View>
+        <View style={styles.headerSpacer} />
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        <View style={styles.logoWrap}>
-          <DularLogo size="md" />
-        </View>
-
         <View style={styles.titleBlock}>
           <Text style={styles.title}>
             Vamos fazer seu login <Text style={styles.titleAccent}>para continuar</Text>
@@ -165,13 +242,7 @@ export function LoginScreen() {
         </View>
 
         <View style={styles.illustration}>
-          <LoginSecurity3DIcon size={180} />
-          <View style={styles.sparkleTop}>
-            <AppIcon name="Sparkles" size={22} color={colors.primary} strokeWidth={2.4} />
-          </View>
-          <View style={styles.sparkleBottom}>
-            <AppIcon name="Sparkles" size={22} color={colors.accent} strokeWidth={2.4} />
-          </View>
+          <LoginLogo />
         </View>
 
         <View style={styles.loginButtons}>
@@ -191,20 +262,20 @@ export function LoginScreen() {
           />
         </View>
 
+        <View style={styles.infoCard}>
+          <AppIcon name="ShieldCheck" variant="soft" color="purple" />
+          <View style={styles.infoText}>
+            <Text style={styles.infoTitle}>Segurança em primeiro lugar</Text>
+            <Text style={styles.infoSubtitle}>Todas as contas são verificadas para proteger clientes e diaristas.</Text>
+          </View>
+          <AppIcon name="Sparkles" size={20} color={colors.accent} strokeWidth={2.4} />
+        </View>
+
         <View style={styles.securityTextRow}>
           <AppIcon name="Lock" size={16} color="purple" />
           <Text style={styles.securitySmallText}>
             Não compartilhamos seus dados sem autorização. Sua conta fica protegida com autenticação segura.
           </Text>
-        </View>
-
-        <View style={styles.infoCard}>
-          <AppIcon name="ShieldCheck" variant="soft" color="purple" />
-          <View style={styles.infoText}>
-          <Text style={styles.infoTitle}>Segurança em primeiro lugar</Text>
-          <Text style={styles.infoSubtitle}>Todas as contas são verificadas para proteger clientes e diaristas.</Text>
-        </View>
-          <AppIcon name="Sparkles" size={20} color={colors.accent} strokeWidth={2.4} />
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -249,10 +320,32 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   header: {
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
+    justifyContent: "space-between",
     paddingHorizontal: spacing.xl,
     paddingTop: spacing.sm,
+    minHeight: 58,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  pressed: {
+    opacity: 0.72,
+  },
+  headerCenter: {
+    flex: 1,
+    alignItems: "center",
+  },
+  headerSpacer: {
+    width: 40,
   },
   stepperWrap: {
     alignItems: "center",
@@ -278,8 +371,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   stepText: {
-    fontSize: 13,
-    fontWeight: "800",
+    ...typography.bodySm,
+    fontWeight: "700",
   },
   stepTextActive: {
     color: colors.surface,
@@ -308,17 +401,27 @@ const styles = StyleSheet.create({
     paddingBottom: spacing["4xl"],
     gap: spacing.xl,
   },
-  logoWrap: {
-    alignSelf: "center",
+  logoFallback: {
+    width: "100%",
+    height: "100%",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: LOGIN_LOGO_EDGE_COLOR,
+  },
+  logoImage: {
+    width: "100%",
+    height: "100%",
+    backgroundColor: LOGIN_LOGO_EDGE_COLOR,
+    transform: [{ scale: 1.09 }, { translateY: 7 }],
   },
   titleBlock: {
     gap: spacing.sm,
   },
   title: {
     textAlign: "center",
-    fontSize: 26,
-    lineHeight: 32,
-    fontWeight: "800",
+    ...typography.h1,
+    
+    fontWeight: "700",
     color: colors.textPrimary,
   },
   titleAccent: {
@@ -330,23 +433,15 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   illustration: {
-    height: 180,
+    height: 224,
     borderRadius: radius.xxl,
-    backgroundColor: colors.primaryLight,
+    backgroundColor: LOGIN_LOGO_EDGE_COLOR,
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "#eadffd",
     ...shadows.soft,
-  },
-  sparkleTop: {
-    position: "absolute",
-    top: spacing.lg,
-    right: spacing.xl,
-  },
-  sparkleBottom: {
-    position: "absolute",
-    bottom: spacing.lg,
-    left: spacing.xl,
   },
   loginButtons: {
     gap: spacing.md,
@@ -425,42 +520,50 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   googleG: {
-    fontSize: 11,
+    ...typography.caption,
     fontWeight: "700",
     color: colors.googleBlue,
-    lineHeight: 14,
+    
   },
   loginLabel: {
-    fontSize: 15,
+    ...typography.bodySmMedium,
     fontWeight: "700",
     color: colors.textPrimary,
   },
   securityTextRow: {
     flexDirection: "row",
     gap: spacing.sm,
-    alignItems: "flex-start",
+    alignItems: "center",
+    justifyContent: "center",
+    alignSelf: "center",
+    maxWidth: 330,
+    marginTop: -spacing.sm,
+    paddingHorizontal: spacing.sm,
   },
   securitySmallText: {
-    flex: 1,
-    fontSize: 12,
-    lineHeight: 18,
+    flexShrink: 1,
+    ...typography.caption,
+    
     color: colors.textSecondary,
+    textAlign: "center",
   },
   infoCard: {
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.md,
-    backgroundColor: colors.primaryLight,
+    backgroundColor: colors.lavenderSoft,
     borderRadius: radius.lg,
     padding: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.lavender,
   },
   infoText: {
     flex: 1,
     gap: spacing.xs,
   },
   infoTitle: {
-    fontSize: 14,
-    fontWeight: "800",
+    ...typography.bodySmMedium,
+    fontWeight: "700",
     color: colors.primary,
   },
   infoSubtitle: {

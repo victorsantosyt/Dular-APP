@@ -29,3 +29,7 @@ export async function resetOnboardingSeen(): Promise<void> {
     await AsyncStorage.removeItem(ONBOARDING_KEY);
   } catch {}
 }
+
+export function shouldResetOnboardingInDev(): boolean {
+  return __DEV__ && process.env.EXPO_PUBLIC_RESET_ONBOARDING === "true";
+}

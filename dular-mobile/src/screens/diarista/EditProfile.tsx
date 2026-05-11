@@ -291,7 +291,7 @@ const s = StyleSheet.create({
   },
   errorTitle: {
     ...typography.body,
-    fontWeight: "800",
+    fontWeight: "700",
     color: colors.danger,
   },
   errorSub: {

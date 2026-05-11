@@ -78,7 +78,7 @@ const f = StyleSheet.create({
     backgroundColor: colors.greenLight,
     alignItems: "center", justifyContent: "center",
   },
-  label:    { fontSize: 14, fontWeight: "800", color: colors.ink },
+  label:    { fontSize: 14, fontWeight: "700", color: colors.ink },
   sub:      { ...typography.sub, marginTop: 1 },
   inputWrap: {
     flexDirection: "row",
@@ -95,7 +95,7 @@ const f = StyleSheet.create({
   currency: { fontSize: 13, fontWeight: "700", color: colors.sub },
   input: {
     fontSize: 16,
-    fontWeight: "800",
+    fontWeight: "700",
     color: colors.ink,
     minWidth: 52,
     textAlign: "right",
@@ -214,7 +214,7 @@ const s = StyleSheet.create({
     ...shadow.card,
   },
   loadingText: { ...typography.sub, textAlign: "center" },
-  errorTitle:  { fontSize: 14, fontWeight: "800", color: colors.danger },
+  errorTitle:  { fontSize: 14, fontWeight: "700", color: colors.danger },
   errorSub:    { ...typography.sub },
   hint:        { ...typography.sub },
 

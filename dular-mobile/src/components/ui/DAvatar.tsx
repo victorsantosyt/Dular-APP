@@ -198,7 +198,7 @@ const s = StyleSheet.create({
   },
   initialsText: {
     color: colors.primary,
-    fontWeight: "800",
+    fontWeight: "600",
     letterSpacing: 0,
   },
 });

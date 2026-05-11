@@ -18,7 +18,7 @@ import { apiMsg } from "@/utils/apiMsg";
 import { useAuth } from "@/stores/authStore";
 import { AppIcon, AppIconName } from "@/components/ui";
 import { PaperPlane3DIcon, SOSIcon } from "@/assets/icons";
-import { colors, radius, shadow, spacing } from "@/theme/tokens";
+import { colors, radius, shadow, spacing, typography } from "@/theme/tokens";
 
 const RED = colors.incidentRed;
 const RED_DARK = colors.incidentRedDark;
@@ -471,8 +471,8 @@ const s = StyleSheet.create({
   },
   headerTitle: {
     flex: 1,
-    fontSize: 18,
-    fontWeight: "800",
+    ...typography.title,
+    fontWeight: "700",
     color: colors.foreground,
   },
   scroll: {
@@ -506,10 +506,10 @@ const s = StyleSheet.create({
   },
   alertText: {
     flex: 1,
-    fontSize: 12,
+    ...typography.caption,
     fontWeight: "600",
     color: RED_DARK,
-    lineHeight: 17,
+    
   },
   infoBox: {
     flexDirection: "row",
@@ -523,7 +523,7 @@ const s = StyleSheet.create({
   },
   infoText: {
     flex: 1,
-    fontSize: 12,
+    ...typography.caption,
     fontWeight: "700",
     color: colors.foreground,
   },
@@ -539,14 +539,14 @@ const s = StyleSheet.create({
   },
   errorText: {
     flex: 1,
-    fontSize: 12,
+    ...typography.caption,
     fontWeight: "700",
     color: RED_DARK,
-    lineHeight: 17,
+    
   },
   sectionTitle: {
-    fontSize: 13,
-    fontWeight: "900",
+    ...typography.bodySm,
+    fontWeight: "700",
     color: colors.foreground,
     marginTop: 4,
   },
@@ -584,23 +584,23 @@ const s = StyleSheet.create({
   },
   avatarText: {
     color: RED_DARK,
-    fontSize: 20,
-    fontWeight: "900",
+    ...typography.title,
+    fontWeight: "700",
   },
   avatarMutedText: {
     color: colors.primary,
-    fontSize: 20,
-    fontWeight: "900",
+    ...typography.title,
+    fontWeight: "700",
   },
   personLabel: {
-    fontSize: 11,
+    ...typography.caption,
     fontWeight: "700",
     color: colors.mutedForeground,
   },
   personName: {
     marginTop: 2,
-    fontSize: 16,
-    fontWeight: "900",
+    ...typography.bodySmMedium,
+    fontWeight: "700",
     color: colors.foreground,
   },
   categoryGrid: {
@@ -636,8 +636,8 @@ const s = StyleSheet.create({
     backgroundColor: RED,
   },
   categoryTitle: {
-    fontSize: 12,
-    fontWeight: "800",
+    ...typography.caption,
+    fontWeight: "700",
     color: colors.foreground,
     textAlign: "center",
   },
@@ -666,8 +666,8 @@ const s = StyleSheet.create({
   },
   subtypeText: {
     flex: 1,
-    fontSize: 13,
-    fontWeight: "800",
+    ...typography.bodySm,
+    fontWeight: "700",
     color: colors.foreground,
   },
   subtypeTextActive: {
@@ -680,13 +680,13 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     padding: 14,
-    fontSize: 14,
+    ...typography.bodySmMedium,
     color: colors.foreground,
     fontWeight: "500",
   },
   counter: {
     alignSelf: "flex-end",
-    fontSize: 12,
+    ...typography.caption,
     fontWeight: "700",
     color: colors.mutedForeground,
   },
@@ -718,13 +718,13 @@ const s = StyleSheet.create({
     borderRadius: 5,
   },
   gravityTitle: {
-    fontSize: 13,
-    fontWeight: "900",
+    ...typography.bodySm,
+    fontWeight: "700",
     color: colors.foreground,
   },
   gravityDesc: {
     marginTop: 1,
-    fontSize: 11,
+    ...typography.caption,
     fontWeight: "600",
     color: colors.mutedForeground,
   },
@@ -754,7 +754,7 @@ const s = StyleSheet.create({
   },
   checkText: {
     flex: 1,
-    fontSize: 12,
+    ...typography.caption,
     fontWeight: "700",
     color: colors.foreground,
   },
@@ -765,8 +765,8 @@ const s = StyleSheet.create({
   },
   toastText: {
     color: colors.white,
+    ...typography.bodySm,
     fontWeight: "700",
-    fontSize: 13,
   },
   navRow: {
     flexDirection: "row",
@@ -789,8 +789,8 @@ const s = StyleSheet.create({
   },
   primaryText: {
     color: colors.white,
-    fontSize: 14,
-    fontWeight: "900",
+    ...typography.bodySm,
+    fontWeight: "700",
   },
   submitContent: {
     flexDirection: "row",
@@ -810,8 +810,8 @@ const s = StyleSheet.create({
   },
   secondaryText: {
     color: colors.foreground,
-    fontSize: 14,
-    fontWeight: "900",
+    ...typography.bodySm,
+    fontWeight: "700",
   },
   disabledBtn: {
     backgroundColor: colors.muted,

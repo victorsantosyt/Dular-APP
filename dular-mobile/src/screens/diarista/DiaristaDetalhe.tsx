@@ -188,7 +188,7 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
           <View style={s.divider} />
 
           <InfoRow icon="cash-outline" label="Valor">
-            <Text style={[s.infoValue, { color: colors.greenDark, fontWeight: "800" }]}>
+            <Text style={[s.infoValue, { color: colors.greenDark, fontWeight: "700" }]}>
               {formatPrice(svc.precoFinal)}
             </Text>
           </InfoRow>
@@ -329,9 +329,9 @@ const ir = StyleSheet.create({
 const s = StyleSheet.create({
   safe:  { flex: 1, backgroundColor: colors.bg },
   scroll: {
-    padding: spacing.lg,
+    padding: spacing.screenPadding,
     paddingBottom: 40,
-    gap: spacing.xl,
+    gap: 16,
   },
 
   titleRow: {
@@ -339,18 +339,23 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
-  title: { ...typography.h1 },
+  title: {
+    color: colors.ink,
+    fontSize: 22,
+    lineHeight: 27,
+    fontWeight: "700",
+  },
 
   card: {
     backgroundColor: colors.card,
     borderRadius: radius.lg,
     borderWidth: 1,
     borderColor: colors.stroke,
-    padding: 14,
-    gap: 12,
+    padding: 12,
+    gap: 10,
     ...shadow.card,
   },
-  infoValue: { fontSize: 14, fontWeight: "600", color: colors.ink },
+  infoValue: { fontSize: 13, fontWeight: "500", color: colors.ink },
   divider:   { height: 1, backgroundColor: colors.stroke },
 
   addressHint: {
@@ -372,7 +377,7 @@ const s = StyleSheet.create({
   restrictedText: {
     color: colors.danger,
     fontSize: 12,
-    fontWeight: "800",
+    fontWeight: "700",
     textAlign: "center",
   },
 
@@ -382,23 +387,23 @@ const s = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    padding: 14,
+    padding: 12,
     borderRadius: radius.lg,
     backgroundColor: colors.successSoft,
     borderWidth: 1,
     borderColor: colors.success,
   },
-  paidText: { fontSize: 14, fontWeight: "700", color: colors.success },
+  paidText: { fontSize: 12, fontWeight: "700", color: colors.success },
 
   doneCard: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    padding: 14,
+    padding: 12,
     borderRadius: radius.lg,
     backgroundColor: colors.greenLight,
     borderWidth: 1,
     borderColor: colors.green,
   },
-  doneText: { fontSize: 14, fontWeight: "700", color: colors.greenDark },
+  doneText: { fontSize: 12, fontWeight: "700", color: colors.greenDark },
 });

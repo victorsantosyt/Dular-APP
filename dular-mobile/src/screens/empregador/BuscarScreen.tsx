@@ -1,10 +1,26 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, FlatList, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  FlatList,
+  Image,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
-import { AppIcon, AppIconName, DAvatar, DBottomNav, DButton, DCard, DInput } from "@/components/ui";
-import { colors, radius, shadows, spacing } from "@/theme";
+import {
+  AppIcon,
+  type AppIconName,
+  DAvatar,
+  DBottomNav,
+  DButton,
+  DSkeletonCard,
+} from "@/components/ui";
+import { colors, radius, shadows, spacing, typography } from "@/theme";
 import type { EmpregadorTabParamList } from "@/navigation/EmpregadorNavigator";
 import { useBuscar, type ApiDiarista } from "@/hooks/useBuscar";
 import { useGeoDefaults } from "@/hooks/useGeoDefaults";
@@ -12,194 +28,291 @@ import { useMensagens } from "@/hooks/useMensagens";
 
 type Navigation = BottomTabNavigationProp<EmpregadorTabParamList>;
 
+type CategoriaKey = "baba" | "cozinheira" | "diarista";
+
 type CategoriaCardItem = {
+  key: CategoriaKey;
   icon: AppIconName;
   title: string;
   subtitle: string;
-  bgColor: string;
-  tone: "purple" | "pink" | "green" | "yellow";
+  bg: string;
+  iconColor: string;
+  imageUrl: string;
+  imageStyle?: {
+    width: number;
+    height: number;
+    right?: number;
+    left?: number;
+    bottom?: number;
+  };
 };
 
-type CategoriaIconeItem = {
+type CategoriaPopularItem = {
   icon: AppIconName;
   label: string;
-  tone: "purple" | "pink" | "green" | "blue" | "yellow";
+  key: string;
 };
 
 type Profissional = {
   id: string;
-  name: string;
-  category: string;
-  categoryIcon: AppIconName;
-  location: string;
-  rating: string;
-  experience: string;
-  distance: string;
+  nome: string;
+  categoria: string;
+  categoriaIcon: AppIconName;
+  categoriaKey: CategoriaKey;
+  localizacao: string;
+  nota: string;
+  experiencia: string;
+  distancia: string;
   online: boolean;
-  verified: boolean;
-  avatarUrl: string;
+  verificado: boolean;
+  avatarUrl?: string | null;
 };
 
 const CATEGORIAS: CategoriaCardItem[] = [
   {
+    key: "baba",
     icon: "Baby",
     title: "Babá",
-    subtitle: "Cuidados com crianças",
-    bgColor: colors.primaryLight,
-    tone: "purple",
+    subtitle: "Cuidados com\ncrianças",
+    bg: "#F2ECFF",
+    iconColor: colors.primary,
+    imageUrl: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=facearea&facepad=3&w=240&h=240&q=80",
+    imageStyle: { width: 90, height: 90, left: -2, bottom: -3 },
   },
   {
+    key: "cozinheira",
     icon: "ChefHat",
     title: "Cozinheira",
-    subtitle: "Preparo de refeições",
-    bgColor: colors.warningLight,
-    tone: "yellow",
+    subtitle: "Preparo de\nrefeições",
+    bg: "#FFF0E2",
+    iconColor: "#F47A1F",
+    imageUrl: "https://images.unsplash.com/photo-1551836022-d5d88e9218df?auto=format&fit=facearea&facepad=2.5&w=240&h=240&q=80",
+    imageStyle: { width: 90, height: 90, right: 2, bottom: -3 },
   },
   {
-    icon: "Sparkles",
+    key: "diarista",
+    icon: "BrushCleaning",
     title: "Diarista",
-    subtitle: "Limpeza e organização",
-    bgColor: colors.successLight,
-    tone: "green",
+    subtitle: "Limpeza e\norganização",
+    bg: "#E7F7EF",
+    iconColor: "#19A86A",
+    imageUrl: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=facearea&facepad=2.5&w=240&h=240&q=80",
+    imageStyle: { width: 90, height: 90, right: 0, bottom: -3 },
   },
 ];
 
-const CATEGORIAS_POPULARES: CategoriaIconeItem[] = [
-  { icon: "WashingMachine", label: "Lavadeira", tone: "blue" },
-  { icon: "Shirt", label: "Passadeira", tone: "purple" },
-  { icon: "Sprout", label: "Jardineiro", tone: "green" },
-  { icon: "Car", label: "Motorista", tone: "pink" },
-  { icon: "MoreHorizontal", label: "Mais", tone: "yellow" },
+const CATEGORIAS_POPULARES: CategoriaPopularItem[] = [
+  { icon: "Shirt", label: "Lavadeira", key: "lavadeira" },
+  { icon: "BriefcaseBusiness", label: "Passadeira", key: "passadeira" },
+  { icon: "Sprout", label: "Jardineiro", key: "jardineiro" },
+  { icon: "Car", label: "Motorista", key: "motorista" },
+  { icon: "Grid2x2", label: "Mais", key: "mais" },
 ];
 
-function mapApiToUI(d: ApiDiarista, bairro: string, cidade: string): Profissional {
+const MOCK_PROFISSIONAIS: Profissional[] = [
+  {
+    id: "mock-1",
+    nome: "Luciana Silva",
+    categoria: "Diarista",
+    categoriaIcon: "BrushCleaning",
+    categoriaKey: "diarista",
+    localizacao: "Jardim América, SP",
+    nota: "4,9",
+    experiencia: "5 anos exp.",
+    distancia: "1,2 km",
+    online: true,
+    verificado: true,
+    avatarUrl: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=facearea&facepad=2&w=180&h=180&q=80",
+  },
+  {
+    id: "mock-2",
+    nome: "Juliana Castro",
+    categoria: "Babá",
+    categoriaIcon: "Baby",
+    categoriaKey: "baba",
+    localizacao: "Vila Mariana, SP",
+    nota: "4,8",
+    experiencia: "3 anos exp.",
+    distancia: "2,4 km",
+    online: true,
+    verificado: true,
+    avatarUrl: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=facearea&facepad=2&w=180&h=180&q=80",
+  },
+  {
+    id: "mock-3",
+    nome: "Renata Lima",
+    categoria: "Cozinheira",
+    categoriaIcon: "ChefHat",
+    categoriaKey: "cozinheira",
+    localizacao: "Moema, SP",
+    nota: "4,9",
+    experiencia: "7 anos exp.",
+    distancia: "3,1 km",
+    online: true,
+    verificado: true,
+    avatarUrl: "https://images.unsplash.com/photo-1551836022-d5d88e9218df?auto=format&fit=facearea&facepad=2&w=180&h=180&q=80",
+  },
+  {
+    id: "mock-4",
+    nome: "Carla Souza",
+    categoria: "Diarista",
+    categoriaIcon: "BrushCleaning",
+    categoriaKey: "diarista",
+    localizacao: "Perdizes, SP",
+    nota: "4,7",
+    experiencia: "4 anos exp.",
+    distancia: "3,8 km",
+    online: true,
+    verificado: true,
+    avatarUrl: "https://images.unsplash.com/photo-1531123897727-8f129e1688ce?auto=format&fit=facearea&facepad=2&w=180&h=180&q=80",
+  },
+  {
+    id: "mock-5",
+    nome: "Aline Ferreira",
+    categoria: "Babá",
+    categoriaIcon: "Baby",
+    categoriaKey: "baba",
+    localizacao: "Itaim Bibi, SP",
+    nota: "4,8",
+    experiencia: "2 anos exp.",
+    distancia: "4,5 km",
+    online: true,
+    verificado: true,
+    avatarUrl: "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=facearea&facepad=2&w=180&h=180&q=80",
+  },
+];
+
+function mapApiToProf(d: ApiDiarista, bairro: string, cidade: string): Profissional {
   return {
     id: d.userId,
-    name: d.user?.nome ?? "Profissional",
-    category: "Diarista",
-    categoryIcon: "Sparkles",
-    location: bairro && cidade ? `${bairro}, ${cidade}` : cidade || "--",
-    rating: d.notaMedia > 0 ? d.notaMedia.toFixed(1).replace(".", ",") : "--",
-    experience: d.totalServicos > 0 ? `${d.totalServicos} serviços` : "Novo",
-    distance: "",
+    nome: d.user?.nome ?? "Profissional",
+    categoria: "Diarista",
+    categoriaIcon: "BrushCleaning",
+    categoriaKey: "diarista",
+    localizacao: bairro && cidade ? `${bairro}, ${cidade}` : cidade || "--",
+    nota: d.notaMedia > 0 ? d.notaMedia.toFixed(1).replace(".", ",") : "--",
+    experiencia: d.totalServicos > 0 ? `${d.totalServicos} serviços` : "Novo",
+    distancia: "",
     online: false,
-    verified: d.verificacao === "VERIFICADO",
-    avatarUrl: d.fotoUrl ?? "",
+    verificado: d.verificacao === "VERIFICADO",
+    avatarUrl: d.fotoUrl,
   };
 }
 
-function NotificationButton({
-  unreadMessages,
-  onPress,
-}: {
-  unreadMessages: number;
-  onPress: () => void;
-}) {
-  const badgeLabel = unreadMessages > 9 ? "9+" : String(unreadMessages);
-
+function NotifButton({ count, onPress }: { count: number; onPress: () => void }) {
   return (
-    <Pressable hitSlop={spacing.sm} onPress={onPress}>
-      <View style={styles.notificationButton}>
-        <AppIcon name="Bell" size={20} color="purple" />
-        {unreadMessages > 0 ? (
-          <View style={styles.notificationBadge}>
-            <Text style={styles.notificationBadgeText}>{badgeLabel}</Text>
-          </View>
-        ) : null}
-      </View>
+    <Pressable
+      hitSlop={spacing.sm}
+      onPress={onPress}
+      style={({ pressed }) => [s.notifBtn, pressed && { opacity: 0.75 }]}
+    >
+      <AppIcon name="Bell" size={19} color={colors.primary} strokeWidth={2} />
+      {count > 0 ? <View style={s.notifDot} /> : null}
     </Pressable>
   );
 }
 
-function CategoriaCard({ item }: { item: CategoriaCardItem }) {
+function CategoryCard({
+  item,
+  selected,
+  onPress,
+}: {
+  item: CategoriaCardItem;
+  selected: boolean;
+  onPress: () => void;
+}) {
   return (
-    <View style={[styles.categoryCard, { backgroundColor: item.bgColor }]}>
-      <View style={styles.categoryInfo}>
-        <AppIcon name={item.icon} size={22} color={item.tone} variant="soft" />
-        <Text style={styles.categoryTitle}>{item.title}</Text>
-        <Text style={styles.categorySubtitle}>{item.subtitle}</Text>
-      </View>
-      <View style={styles.categoryIconArea}>
-        <AppIcon name={item.icon} size={42} color={item.tone} variant="filled" />
-      </View>
-    </View>
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        s.catCard,
+        { backgroundColor: item.bg },
+        selected && s.catCardSelected,
+        pressed && { opacity: 0.88 },
+      ]}
+    >
+      <AppIcon name={item.icon} size={20} color={item.iconColor} strokeWidth={2} />
+      <Text style={s.catTitle}>{item.title}</Text>
+      <Text style={s.catSubtitle}>{item.subtitle}</Text>
+      <Image source={{ uri: item.imageUrl }} resizeMode="cover" style={[s.catImage, item.imageStyle]} />
+    </Pressable>
   );
 }
 
-function CategoriaIcone({ item }: { item: CategoriaIconeItem }) {
+function PopularItem({ item }: { item: CategoriaPopularItem }) {
   return (
-    <View style={styles.popularCategory}>
-      <View style={styles.popularIconBox}>
-        <AppIcon name={item.icon} size={24} color={item.tone} />
+    <Pressable style={({ pressed }) => [s.popItem, pressed && { opacity: 0.76 }]}>
+      <View style={s.popIconCircle}>
+        <AppIcon name={item.icon} size={20} color={colors.primary} strokeWidth={2} />
       </View>
-      <Text style={styles.popularLabel}>{item.label}</Text>
-    </View>
+      <Text style={s.popLabel}>{item.label}</Text>
+    </Pressable>
   );
 }
 
-function ProfissionalRow({ profissional }: { profissional: Profissional }) {
+function ProfileButton({ onPress }: { onPress: () => void }) {
+  return (
+    <Pressable onPress={onPress} style={({ pressed }) => [s.profileButton, pressed && { opacity: 0.8 }]}>
+      <Text style={s.profileButtonText}>Ver perfil</Text>
+    </Pressable>
+  );
+}
+
+function ProfCard({ prof }: { prof: Profissional }) {
   const navigation = useNavigation<Navigation>();
+  const initials = prof.nome.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
 
   return (
-    <DCard style={styles.professionalCard}>
-      <View style={styles.professionalRow}>
-        <DAvatar
-          size="md"
-          uri={profissional.avatarUrl}
-          initials={profissional.name.slice(0, 2)}
-          online={profissional.online}
-        />
+    <View style={s.profCard}>
+      <View style={s.avatarWrap}>
+        <DAvatar size="md" uri={prof.avatarUrl ?? undefined} initials={initials} />
+        {prof.online ? <View style={s.onlineDot} /> : null}
+      </View>
 
-        <View style={styles.professionalCenter}>
-          <View style={styles.nameRow}>
-            <Text style={styles.professionalName}>{profissional.name}</Text>
-            {profissional.verified ? (
-              <View style={styles.verifiedBadge}>
-                <AppIcon name="Check" size={10} color={colors.white} strokeWidth={3} />
-              </View>
-            ) : null}
-          </View>
-
-          <View style={styles.categoryBadgeRow}>
-            <AppIcon name={profissional.categoryIcon} size={12} color={colors.primary} />
-            <View style={styles.professionalCategoryBadge}>
-              <Text style={styles.professionalCategoryText}>{profissional.category}</Text>
-            </View>
-          </View>
-
-          <View style={styles.locationRow}>
-            <AppIcon name="MapPin" size={12} color={colors.textSecondary} />
-            <Text style={styles.metaText}>{profissional.location}</Text>
-          </View>
-
-          <View style={styles.ratingRow}>
-            <AppIcon name="Star" size={12} color={colors.pink} strokeWidth={2.4} />
-            <Text style={styles.ratingText}>{profissional.rating}</Text>
-            <Text style={styles.separator}>•</Text>
-            <Text style={styles.metaText}>{profissional.experience}</Text>
-          </View>
+      <View style={s.profCenter}>
+        <View style={s.profNameRow}>
+          <Text style={s.profName} numberOfLines={1}>{prof.nome}</Text>
+          {prof.verificado ? <AppIcon name="Diamond" size={13} color={colors.success} strokeWidth={2.4} /> : null}
         </View>
 
-        <View style={styles.professionalRight}>
-          <Text style={styles.distance}>{profissional.distance}</Text>
-          <DButton
-            variant="secondary"
-            size="sm"
-            label="Ver perfil"
-            onPress={() => navigation.navigate("DiaristaProfile", { diaristaId: profissional.id, nome: profissional.name })}
-          />
+        <View style={s.catBadge}>
+          <AppIcon name={prof.categoriaIcon} size={9} color={colors.primary} strokeWidth={2} />
+          <Text style={s.catBadgeText}>{prof.categoria}</Text>
+        </View>
+
+        <Text style={s.locationText} numberOfLines={1}>{prof.localizacao}</Text>
+
+        <View style={s.ratingRow}>
+          <AppIcon name="Star" size={12} color={colors.warning} strokeWidth={2.3} />
+          <Text style={s.ratingText}>{prof.nota}</Text>
+          <Text style={s.metaSep}>•</Text>
+          <Text style={s.metaText}>{prof.experiencia}</Text>
         </View>
       </View>
-    </DCard>
+
+      <View style={s.profRight}>
+        {prof.distancia ? <Text style={s.distText}>{prof.distancia}</Text> : null}
+        <ProfileButton
+          onPress={() =>
+            navigation.navigate("DiaristaProfile", {
+              diaristaId: prof.id,
+              nome: prof.nome,
+            })
+          }
+        />
+      </View>
+    </View>
   );
 }
 
 export function BuscarScreen() {
   const navigation = useNavigation<Navigation>();
   const [searchQuery, setSearchQuery] = useState("");
-  const { profissionais: apiProfissionais, loading, error, buscar } = useBuscar();
+  const [selectedCat, setSelectedCat] = useState<CategoriaKey | null>(null);
+  const { profissionais: apiProfs, loading, error, buscar } = useBuscar();
   const geo = useGeoDefaults();
   const { rooms } = useMensagens();
+
   const unreadMessages = useMemo(
     () => rooms.reduce((total, room) => total + Math.max(0, Number(room.naoLidas) || 0), 0),
     [rooms],
@@ -212,92 +325,115 @@ export function BuscarScreen() {
     }
   }, [geo.cidade, geo.uf, geo.bairro, buscar]);
 
-  const handleSearch = useCallback(
-    (texto: string) => {
-      setSearchQuery(texto);
+  const handleCatPress = useCallback((key: CategoriaKey) => {
+    setSelectedCat((prev) => (prev === key ? null : key));
+  }, []);
+
+  const handleBottomNav = useCallback(
+    (tab: "home" | "search" | "new" | "messages" | "profile") => {
+      if (tab === "home") navigation.navigate("Home");
+      else if (tab === "messages") navigation.navigate("Mensagens");
+      else if (tab === "profile") navigation.navigate("Perfil");
+      else if (tab === "new") navigation.navigate("SolicitarServico");
     },
-    []
+    [navigation],
   );
 
-  const displayProfissionais: Profissional[] =
-    apiProfissionais.map((d) => mapApiToUI(d, geo.bairro, geo.cidade));
+  const baseList: Profissional[] = useMemo(
+    () =>
+      apiProfs.length > 0
+        ? apiProfs.map((d) => mapApiToProf(d, geo.bairro, geo.cidade))
+        : MOCK_PROFISSIONAIS,
+    [apiProfs, geo.bairro, geo.cidade],
+  );
 
-  const handleBottomNav = (tab: "home" | "search" | "new" | "messages" | "profile") => {
-    if (tab === "home") navigation.navigate("Home");
-    if (tab === "messages") navigation.navigate("Mensagens");
-    if (tab === "profile") navigation.navigate("Perfil");
-    if (tab === "new") navigation.navigate("SolicitarServico");
-  };
+  const filteredList = useMemo(() => {
+    let list = baseList;
+    if (selectedCat) {
+      list = list.filter((p) => p.categoriaKey === selectedCat);
+    }
+    if (searchQuery.trim().length > 0) {
+      const q = searchQuery.toLowerCase();
+      list = list.filter(
+        (p) =>
+          p.nome.toLowerCase().includes(q) ||
+          p.localizacao.toLowerCase().includes(q) ||
+          p.categoria.toLowerCase().includes(q),
+      );
+    }
+    return list;
+  }, [baseList, selectedCat, searchQuery]);
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <View style={styles.content}>
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-          <View style={styles.header}>
-            <View style={styles.headerText}>
-              <Text style={styles.screenTitle}>Buscar</Text>
-              <Text style={styles.screenSubtitle}>
-                Encontre o profissional ideal para o que você precisa.
-              </Text>
+    <SafeAreaView style={s.safe} edges={["top", "left", "right"]}>
+      <View style={s.root}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={s.scroll}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={s.header}>
+            <View style={s.headerText}>
+              <Text style={s.title}>Buscar</Text>
+              <Text style={s.subtitle}>Encontre o profissional ideal{"\n"}para o que você precisa.</Text>
             </View>
-            <NotificationButton
-              unreadMessages={unreadMessages}
-              onPress={() => navigation.navigate("Mensagens")}
-            />
+            <NotifButton count={unreadMessages} onPress={() => navigation.navigate("Notificacoes")} />
           </View>
 
-          <View style={styles.searchRow}>
-            <View style={styles.searchInputWrap}>
-              <DInput
-                placeholder="Buscar por nome ou bairro..."
-                icon={<AppIcon name="Search" size={16} color={colors.textDisabled} />}
+          <View style={s.searchRow}>
+            <View style={s.searchBox}>
+              <AppIcon name="Search" size={19} color={colors.textMuted} strokeWidth={2} />
+              <TextInput
                 value={searchQuery}
-                onChangeText={handleSearch}
+                onChangeText={setSearchQuery}
+                placeholder="Buscar por nome ou bairro..."
+                placeholderTextColor="#8C84AA"
+                style={s.searchInput}
+                returnKeyType="search"
               />
             </View>
-            <Pressable hitSlop={spacing.xs}>
-              <View style={styles.filterButton}>
-                <AppIcon name="SlidersHorizontal" size={20} color="purple" />
-              </View>
+            <Pressable hitSlop={spacing.xs} style={({ pressed }) => [s.filterBtn, pressed && { opacity: 0.76 }]}>
+              <AppIcon name="SlidersHorizontal" size={19} color={colors.primary} strokeWidth={2} />
             </Pressable>
           </View>
 
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Escolha uma categoria</Text>
-            <View style={styles.categoryRow}>
+          <View style={s.section}>
+            <Text style={s.sectionTitle}>Escolha uma categoria</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.catScroll}>
               {CATEGORIAS.map((item) => (
-                <CategoriaCard key={item.title} item={item} />
+                <CategoryCard
+                  key={item.key}
+                  item={item}
+                  selected={selectedCat === item.key}
+                  onPress={() => handleCatPress(item.key)}
+                />
+              ))}
+            </ScrollView>
+          </View>
+
+          <View style={s.section}>
+            <Text style={s.sectionTitle}>Categorias populares</Text>
+            <View style={s.popRow}>
+              {CATEGORIAS_POPULARES.map((item) => (
+                <PopularItem key={item.key} item={item} />
               ))}
             </View>
           </View>
 
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Categorias populares</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <View style={styles.popularRow}>
-                {CATEGORIAS_POPULARES.map((item) => (
-                  <CategoriaIcone key={item.label} item={item} />
-                ))}
-              </View>
-            </ScrollView>
-          </View>
-
-          <View style={styles.professionalsSection}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Profissionais em destaque</Text>
-              <Pressable style={styles.sectionLinkButton}>
-                <Text style={styles.sectionLink}>Ver todas</Text>
-                <AppIcon name="ChevronRight" size={14} color={colors.primary} strokeWidth={2.4} />
+          <View style={s.section}>
+            <View style={s.sectionHeaderRow}>
+              <Text style={s.sectionTitle}>Profissionais em destaque</Text>
+              <Pressable style={({ pressed }) => [s.verTodasBtn, pressed && { opacity: 0.75 }]}>
+                <Text style={s.verTodasText}>Ver todas</Text>
+                <AppIcon name="ChevronRight" size={17} color={colors.primary} strokeWidth={2.3} />
               </Pressable>
             </View>
 
             {loading ? (
-              <View style={styles.loadingWrap}>
-                <ActivityIndicator size="small" color={colors.primary} />
-              </View>
+              <DSkeletonCard count={3} height={88} />
             ) : error ? (
-              <View style={styles.loadingWrap}>
-                <Text style={styles.errorText}>Erro ao buscar profissionais</Text>
+              <View style={s.feedbackWrap}>
+                <Text style={s.feedbackText}>Erro ao buscar profissionais</Text>
                 <DButton
                   variant="secondary"
                   size="sm"
@@ -307,34 +443,33 @@ export function BuscarScreen() {
                       buscar({ cidade: geo.cidade, uf: geo.uf, bairro: geo.bairro });
                     }
                   }}
-                  style={styles.retryButton}
                 />
               </View>
-            ) : !loading && apiProfissionais.length === 0 && geo.cidade ? (
-              <View style={styles.loadingWrap}>
-                <AppIcon name="Search" size={36} color={colors.primary} variant="soft" />
-                <Text style={styles.errorText}>Nenhum profissional encontrado</Text>
-                <DButton
-                  variant="secondary"
-                  size="sm"
-                  label="Atualizar"
-                  onPress={() => buscar({ cidade: geo.cidade, uf: geo.uf, bairro: geo.bairro })}
-                  style={styles.retryButton}
-                />
+            ) : filteredList.length === 0 ? (
+              <View style={s.feedbackWrap}>
+                <AppIcon name="Search" size={32} color={colors.textMuted} strokeWidth={1.6} />
+                <Text style={s.feedbackText}>
+                  {searchQuery || selectedCat ? "Nenhum resultado encontrado" : "Nenhum profissional disponível"}
+                </Text>
               </View>
             ) : (
               <FlatList
-                data={displayProfissionais}
+                data={filteredList}
                 keyExtractor={(item) => item.id}
-                renderItem={({ item }) => <ProfissionalRow profissional={item} />}
+                renderItem={({ item }) => <ProfCard prof={item} />}
                 scrollEnabled={false}
-                ItemSeparatorComponent={() => <View style={styles.listSeparator} />}
+                ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
               />
             )}
           </View>
         </ScrollView>
 
-        <DBottomNav activeTab="search" messagesBadge={messagesBadge} onPress={handleBottomNav} />
+        <DBottomNav
+          activeTab="search"
+          variant="empregador"
+          messagesBadge={messagesBadge}
+          onPress={handleBottomNav}
+        />
       </View>
     </SafeAreaView>
   );
@@ -342,262 +477,314 @@ export function BuscarScreen() {
 
 export default BuscarScreen;
 
-const styles = StyleSheet.create({
+const s = StyleSheet.create({
   safe: {
     flex: 1,
     backgroundColor: colors.background,
   },
-  content: {
+  root: {
     flex: 1,
   },
   scroll: {
-    paddingBottom: spacing["5xl"],
+    paddingBottom: 118,
+    gap: 16,
   },
   header: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
-    marginBottom: spacing.lg,
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
+    alignItems: "flex-start",
+    paddingHorizontal: spacing.screenPadding,
+    paddingTop: 10,
   },
   headerText: {
     flex: 1,
     paddingRight: spacing.md,
   },
-  screenTitle: {
-    fontSize: 28,
-    fontWeight: "800",
-    color: colors.textPrimary,
+  title: {
+    ...typography.h1,
+    
+    fontWeight: "700",
+    color: colors.primaryDark,
+    letterSpacing: 0,
   },
-  screenSubtitle: {
-    fontSize: 13,
+  subtitle: {
+    ...typography.bodySm,
+    
     color: colors.textSecondary,
-    marginTop: 2,
+    fontWeight: "500",
+    marginTop: 6,
   },
-  notificationButton: {
+  notifBtn: {
     width: 44,
     height: 44,
-    borderRadius: 22,
+    borderRadius: 14,
     backgroundColor: colors.surface,
     alignItems: "center",
     justifyContent: "center",
-    position: "relative",
+    borderWidth: 1,
+    borderColor: colors.border,
     ...shadows.soft,
   },
-  notificationBadge: {
+  notifDot: {
     position: "absolute",
-    top: 0,
-    right: 0,
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: colors.error,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  notificationBadgeText: {
-    fontSize: 9,
-    fontWeight: "700",
-    color: colors.white,
+    top: 10,
+    right: 10,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.notification,
+    borderWidth: 1.5,
+    borderColor: colors.surface,
   },
   searchRow: {
-    paddingHorizontal: spacing.lg,
-    marginBottom: spacing.xl,
     flexDirection: "row",
-    gap: spacing.sm,
+    alignItems: "center",
+    gap: 9,
+    paddingHorizontal: spacing.screenPadding,
   },
-  searchInputWrap: {
+  searchBox: {
     flex: 1,
+    minHeight: 48,
+    borderRadius: 14,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.lavenderDivider,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 14,
+    gap: 10,
+    ...shadows.soft,
   },
-  filterButton: {
+  searchInput: {
+    flex: 1,
+    color: colors.textPrimary,
+    ...typography.bodySmMedium,
+    
+    fontWeight: "500",
+    paddingVertical: 8,
+  },
+  filterBtn: {
     width: 48,
     height: 48,
-    borderRadius: radius.md,
-    backgroundColor: colors.surface,
+    borderRadius: 14,
+    backgroundColor: colors.lavenderSoft,
     alignItems: "center",
     justifyContent: "center",
+    borderWidth: 1,
+    borderColor: colors.lavenderDivider,
     ...shadows.soft,
   },
   section: {
-    paddingHorizontal: spacing.lg,
-    marginBottom: spacing.xl,
+    paddingHorizontal: spacing.screenPadding,
+    gap: 10,
   },
   sectionTitle: {
-    fontSize: 16,
+    ...typography.bodyMedium,
+    
     fontWeight: "700",
     color: colors.textPrimary,
-    marginBottom: spacing.md,
+    letterSpacing: 0,
   },
-  categoryRow: {
-    flexDirection: "row",
-    gap: spacing.sm,
-  },
-  categoryCard: {
-    flex: 1,
-    borderRadius: radius.xl,
-    overflow: "hidden",
-    ...shadows.soft,
-  },
-  categoryInfo: {
-    padding: spacing.md,
-  },
-  categoryTitle: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: colors.textPrimary,
-    marginTop: spacing.xs,
-  },
-  categorySubtitle: {
-    fontSize: 11,
-    color: colors.textSecondary,
-    marginTop: 2,
-  },
-  categoryIconArea: {
-    height: 80,
-    alignItems: "center",
-    justifyContent: "flex-end",
-    paddingBottom: spacing.sm,
-  },
-  popularRow: {
-    flexDirection: "row",
-    gap: spacing.md,
-    paddingBottom: spacing.sm,
-  },
-  popularCategory: {
-    alignItems: "center",
-    gap: 6,
-  },
-  popularIconBox: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: colors.surface,
-    alignItems: "center",
-    justifyContent: "center",
-    ...shadows.soft,
-  },
-  popularLabel: {
-    fontSize: 11,
-    color: colors.textSecondary,
-    textAlign: "center",
-  },
-  professionalsSection: {
-    paddingHorizontal: spacing.lg,
-    marginBottom: spacing.xl,
-  },
-  sectionHeader: {
+  sectionHeaderRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: spacing.md,
   },
-  sectionLink: {
-    fontSize: 13,
-    color: colors.primary,
-    fontWeight: "600",
-  },
-  sectionLinkButton: {
+  verTodasBtn: {
     flexDirection: "row",
     alignItems: "center",
+    gap: 7,
+  },
+  verTodasText: {
+    ...typography.bodySm,
+    
+    fontWeight: "600",
+    color: colors.primary,
+  },
+  catScroll: {
+    gap: 10,
+    paddingRight: spacing.screenPadding,
+  },
+  catCard: {
+    width: 104,
+    height: 138,
+    borderRadius: 16,
+    paddingTop: 14,
+    paddingHorizontal: 13,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.72)",
+    ...shadows.soft,
+  },
+  catCardSelected: {
+    borderColor: colors.primary,
+  },
+  catTitle: {
+    color: colors.textPrimary,
+    ...typography.bodySm,
+    
+    fontWeight: "700",
+    marginTop: 8,
+  },
+  catSubtitle: {
+    color: colors.textSecondary,
+    ...typography.caption,
+    
+    fontWeight: "500",
+    marginTop: 4,
+  },
+  catImage: {
+    position: "absolute",
+    borderRadius: 54,
+  },
+  popRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  popItem: {
+    width: 54,
+    alignItems: "center",
+    gap: 7,
+  },
+  popIconCircle: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: colors.lavender,
+    alignItems: "center",
+    justifyContent: "center",
+    ...shadows.soft,
+  },
+  popLabel: {
+    color: colors.textSecondary,
+    ...typography.caption,
+    
+    fontWeight: "500",
+    textAlign: "center",
+  },
+  profCard: {
+    minHeight: 88,
+    borderRadius: 15,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 9,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 9,
+    ...shadows.soft,
+  },
+  avatarWrap: {
+    width: 50,
+    height: 50,
+    position: "relative",
+  },
+  onlineDot: {
+    position: "absolute",
+    top: 1,
+    right: 0,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: colors.success,
+    borderWidth: 2,
+    borderColor: colors.surface,
+  },
+  profCenter: {
+    flex: 1,
+    minWidth: 0,
     gap: 2,
   },
-  professionalCard: {
-    padding: spacing.md,
-  },
-  professionalRow: {
-    flexDirection: "row",
-    gap: spacing.md,
-    alignItems: "center",
-  },
-  professionalCenter: {
-    flex: 1,
-  },
-  nameRow: {
+  profNameRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
   },
-  professionalName: {
-    fontSize: 15,
-    fontWeight: "700",
+  profName: {
+    flexShrink: 1,
     color: colors.textPrimary,
+    ...typography.bodySmMedium,
+    
+    fontWeight: "700",
   },
-  verifiedBadge: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  categoryBadgeRow: {
+  catBadge: {
+    alignSelf: "flex-start",
+    minHeight: 18,
+    borderRadius: radius.pill,
+    backgroundColor: colors.lavender,
+    paddingHorizontal: 6,
     flexDirection: "row",
-    gap: spacing.xs,
     alignItems: "center",
-    marginTop: 2,
+    gap: 4,
   },
-  professionalCategoryBadge: {
-    backgroundColor: colors.primaryLight,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 2,
-    borderRadius: radius.full,
-  },
-  professionalCategoryText: {
-    fontSize: 11,
+  catBadgeText: {
     color: colors.primary,
-    fontWeight: "600",
+    ...typography.caption,
+    fontWeight: "700",
   },
-  locationRow: {
-    flexDirection: "row",
-    gap: spacing.xs,
-    alignItems: "center",
-    marginTop: spacing.xs,
-  },
-  metaText: {
-    fontSize: 12,
+  locationText: {
     color: colors.textSecondary,
+    ...typography.caption,
+    
+    fontWeight: "500",
   },
   ratingRow: {
     flexDirection: "row",
-    gap: spacing.sm,
     alignItems: "center",
-    marginTop: spacing.xs,
+    gap: 4,
   },
   ratingText: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: colors.textPrimary,
-  },
-  separator: {
-    color: colors.textDisabled,
-  },
-  professionalRight: {
-    alignItems: "flex-end",
-    gap: spacing.sm,
-  },
-  distance: {
-    fontSize: 12,
     color: colors.textSecondary,
+    ...typography.caption,
     fontWeight: "600",
   },
-  listSeparator: {
-    height: spacing.sm,
+  metaText: {
+    color: colors.textSecondary,
+    ...typography.caption,
+    fontWeight: "500",
   },
-  loadingWrap: {
+  metaSep: {
+    color: colors.textMuted,
+    ...typography.caption,
+    fontWeight: "700",
+  },
+  profRight: {
+    width: 82,
+    alignItems: "flex-end",
+    alignSelf: "stretch",
+    justifyContent: "space-between",
+    paddingVertical: 4,
+  },
+  distText: {
+    color: colors.textSecondary,
+    ...typography.caption,
+    
+    fontWeight: "500",
+  },
+  profileButton: {
+    minHeight: 31,
+    minWidth: 78,
+    borderRadius: 11,
+    borderWidth: 1.3,
+    borderColor: colors.primaryLight,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.surface,
+  },
+  profileButtonText: {
+    color: colors.primary,
+    ...typography.caption,
+    
+    fontWeight: "700",
+  },
+  feedbackWrap: {
     alignItems: "center",
     paddingVertical: spacing.xxl,
     gap: spacing.md,
   },
-  emptyIcon: {
-    fontSize: 36,
-  },
-  errorText: {
-    fontSize: 14,
+  feedbackText: {
+    ...typography.bodySmMedium,
     color: colors.textSecondary,
     textAlign: "center",
-  },
-  retryButton: {
-    marginTop: spacing.xs,
   },
 });

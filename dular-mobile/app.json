@@ -9,7 +9,9 @@
     "newArchEnabled": true,
     "scheme": "dular",
     "splash": {
-      "backgroundColor": "#5B25D9"
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#F7F5FF"
     },
     "ios": {
       "supportsTablet": true,

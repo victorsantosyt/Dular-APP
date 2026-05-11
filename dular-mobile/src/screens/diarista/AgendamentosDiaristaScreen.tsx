@@ -4,7 +4,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import { AppIcon, DAvatar, DBadge, DBottomNav, DButton, DCard } from "@/components/ui";
-import { colors, radius, spacing } from "@/theme";
+import { colors, radius, spacing, typography } from "@/theme";
 import { useAuth } from "@/stores/authStore";
 import type { DiaristaTabParamList } from "@/navigation/DiaristaNavigator";
 import { useAgendamentosDiarista } from "@/hooks/useAgendamentosDiarista";
@@ -283,8 +283,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
+    paddingHorizontal: spacing.screenPadding,
+    paddingTop: 10,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
@@ -294,19 +294,19 @@ const styles = StyleSheet.create({
     paddingRight: spacing.md,
   },
   greeting: {
-    fontSize: 22,
-    fontWeight: "800",
+    ...typography.title,
+    fontWeight: "700",
     color: colors.textPrimary,
   },
   subtitle: {
-    fontSize: 14,
+    ...typography.caption,
     color: colors.textSecondary,
     marginTop: 2,
   },
   calendarButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: colors.surface,
     alignItems: "center",
     justifyContent: "center",
@@ -317,12 +317,12 @@ const styles = StyleSheet.create({
   filtersRow: {
     flexDirection: "row",
     gap: spacing.sm,
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: spacing.screenPadding,
   },
   filterChip: {
     borderRadius: radius.full,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.lg,
+    paddingVertical: 7,
+    paddingHorizontal: 12,
     borderWidth: 1.5,
   },
   filterChipActive: {
@@ -334,7 +334,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   filterLabel: {
-    fontSize: 13,
+    ...typography.caption,
   },
   filterLabelActive: {
     color: colors.white,
@@ -345,7 +345,7 @@ const styles = StyleSheet.create({
     fontWeight: "400",
   },
   calendarCard: {
-    marginHorizontal: spacing.lg,
+    marginHorizontal: spacing.screenPadding,
     marginBottom: spacing.md,
     padding: spacing.md,
   },
@@ -356,12 +356,12 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   calendarTitle: {
-    fontSize: 14,
+    ...typography.bodySmMedium,
     fontWeight: "700",
     color: colors.textPrimary,
   },
   calendarSummary: {
-    fontSize: 12,
+    ...typography.caption,
     color: colors.textSecondary,
     marginTop: 2,
   },
@@ -382,7 +382,7 @@ const styles = StyleSheet.create({
   },
   weekDay: {
     flex: 1,
-    fontSize: 11,
+    ...typography.caption,
     fontWeight: "600",
     color: colors.textDisabled,
     textAlign: "center",
@@ -397,7 +397,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   calendarDayText: {
-    fontSize: 13,
+    ...typography.bodySm,
     color: colors.textPrimary,
   },
   selectedDay: {
@@ -409,7 +409,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   selectedDayText: {
-    fontSize: 13,
+    ...typography.bodySm,
     fontWeight: "700",
     color: colors.white,
   },
@@ -421,14 +421,14 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   listContent: {
-    padding: spacing.lg,
+    padding: spacing.screenPadding,
     paddingBottom: spacing["5xl"],
   },
   listSeparator: {
     height: spacing.sm,
   },
   appointmentCard: {
-    padding: spacing.md,
+    padding: 12,
   },
   statusPendente: {
     borderColor: colors.warning,
@@ -452,7 +452,7 @@ const styles = StyleSheet.create({
   },
   appointmentRow: {
     flexDirection: "row",
-    gap: spacing.md,
+    gap: 10,
     alignItems: "flex-start",
   },
   appointmentCenter: {
@@ -468,7 +468,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   clientName: {
-    fontSize: 15,
+    ...typography.bodySmMedium,
     fontWeight: "700",
     color: colors.textPrimary,
   },
@@ -479,7 +479,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   ratingText: {
-    fontSize: 12,
+    ...typography.caption,
     fontWeight: "600",
     color: colors.textPrimary,
   },
@@ -490,7 +490,7 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   metaText: {
-    fontSize: 12,
+    ...typography.caption,
     color: colors.textSecondary,
   },
   serviceRow: {
@@ -500,18 +500,18 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
   },
   serviceText: {
-    fontSize: 12,
+    ...typography.caption,
     color: colors.textSecondary,
   },
   price: {
-    fontSize: 15,
-    fontWeight: "800",
+    ...typography.bodySmMedium,
+    fontWeight: "700",
     color: colors.primary,
     marginTop: 6,
   },
   actions: {
     alignItems: "flex-end",
-    gap: spacing.sm,
+    gap: 7,
   },
   centerState: {
     flex: 1,
@@ -520,11 +520,11 @@ const styles = StyleSheet.create({
     padding: spacing["3xl"],
   },
   emptyIcon: {
-    fontSize: 40,
+    ...typography.h1,
     marginBottom: spacing.md,
   },
   emptyText: {
-    fontSize: 15,
+    ...typography.bodySm,
     color: colors.textSecondary,
     textAlign: "center",
   },

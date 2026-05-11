@@ -204,7 +204,7 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
           <View style={s.divider} />
           <View style={s.infoRow}>
             <Ionicons name="cash-outline" size={15} color={colors.green} />
-            <Text style={[s.infoText, { fontWeight: "800", color: colors.greenDark }]}>
+            <Text style={[s.infoText, { fontWeight: "700", color: colors.greenDark }]}>
               {formatPrice(svc.precoFinal)}
             </Text>
           </View>
@@ -315,7 +315,7 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
 
 const s = StyleSheet.create({
   safe:    { flex: 1, backgroundColor: colors.bg },
-  scroll:  { padding: spacing.lg, gap: spacing.md, paddingBottom: 48 },
+  scroll:  { padding: spacing.screenPadding, gap: 12, paddingBottom: 48 },
   loading: { ...typography.sub, textAlign: "center", marginTop: 48 },
 
   toast: {
@@ -323,59 +323,64 @@ const s = StyleSheet.create({
     borderRadius: radius.md,
     backgroundColor: colors.ink,
   },
-  toastText: { color: colors.white, fontWeight: "800", fontSize: 13 },
+  toastText: { color: colors.white, fontWeight: "700", fontSize: 13 },
 
   titleRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
-  title: { ...typography.h1 },
+  title: {
+    color: colors.ink,
+    fontSize: 22,
+    lineHeight: 27,
+    fontWeight: "700",
+  },
 
   card: {
     backgroundColor: colors.card,
     borderRadius: radius.lg,
     borderWidth: 1,
     borderColor: colors.stroke,
-    padding: 14,
-    gap: 10,
+    padding: 12,
+    gap: 9,
     ...shadow.card,
   },
   infoRow:  { flexDirection: "row", alignItems: "center", gap: 8 },
-  infoText: { fontSize: 14, fontWeight: "600", color: colors.ink, flex: 1 },
+  infoText: { fontSize: 13, fontWeight: "500", color: colors.ink, flex: 1 },
   divider:  { height: 1, backgroundColor: colors.stroke },
 
   infoBar: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    padding: 12,
+    padding: 10,
     borderRadius: radius.md,
     backgroundColor: colors.lavenderSoft,
   },
-  infoBarText: { fontSize: 13, fontWeight: "600", color: colors.ink, flex: 1 },
+  infoBarText: { fontSize: 12, fontWeight: "500", color: colors.ink, flex: 1 },
 
   successBar: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    padding: 12,
+    padding: 10,
     borderRadius: radius.md,
     backgroundColor: colors.successSoft,
   },
-  successBarText: { fontSize: 14, fontWeight: "700", color: colors.success, flex: 1 },
+  successBarText: { fontSize: 12, fontWeight: "700", color: colors.success, flex: 1 },
 
   doneCard: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    padding: 14,
+    padding: 12,
     borderRadius: radius.lg,
     backgroundColor: colors.greenLight,
     borderWidth: 1,
     borderColor: colors.stroke,
   },
-  doneText: { fontSize: 14, fontWeight: "700", color: colors.greenDark },
+  doneText: { fontSize: 12, fontWeight: "700", color: colors.greenDark },
 
   cancelBtn: {
     borderWidth: 1,

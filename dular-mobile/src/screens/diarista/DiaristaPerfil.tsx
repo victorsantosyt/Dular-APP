@@ -432,7 +432,7 @@ const s = StyleSheet.create({
     backgroundColor: colors.ink,
     marginBottom: 4,
   },
-  toastText: { color: colors.white, fontWeight: "800", fontSize: 13 },
+  toastText: { color: colors.white, fontWeight: "700", fontSize: 13 },
 
   card: {
     backgroundColor: colors.card,
@@ -442,15 +442,15 @@ const s = StyleSheet.create({
     padding: 14,
     ...shadow.card,
   },
-  errorTitle: { fontSize: 14, fontWeight: "800", color: colors.danger },
+  errorTitle: { fontSize: 14, fontWeight: "700", color: colors.danger },
   errorSub:   { ...typography.sub },
 
   // Avatar
   avatarSection: { alignItems: "center", marginTop: 8, gap: 10 },
   avatarWrap: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
+    width: 74,
+    height: 74,
+    borderRadius: 37,
     backgroundColor: colors.greenLight,
     borderWidth: 1,
     borderColor: colors.stroke,
@@ -458,12 +458,12 @@ const s = StyleSheet.create({
     justifyContent: "center",
     overflow: "visible",
   },
-  avatarImg: { width: 90, height: 90, borderRadius: 45 },
+  avatarImg: { width: 74, height: 74, borderRadius: 37 },
   cameraBtn: {
     position: "absolute",
     right: -2, bottom: -2,
-    width: 30, height: 30,
-    borderRadius: 15,
+    width: 24, height: 24,
+    borderRadius: 12,
     backgroundColor: colors.green,
     borderWidth: 2,
     borderColor: colors.card,
@@ -471,7 +471,7 @@ const s = StyleSheet.create({
     justifyContent: "center",
   },
   nameRow: { flexDirection: "row", alignItems: "center" },
-  nameText: { fontSize: 18, fontWeight: "800", color: colors.ink },
+  nameText: { fontSize: 16, fontWeight: "700", color: colors.ink },
 
   // Bio
   fieldLabel: { fontSize: 13, fontWeight: "700", color: colors.ink, marginBottom: 6 },
@@ -535,5 +535,5 @@ const s = StyleSheet.create({
     backgroundColor: colors.dangerSoft,
     marginTop: 4,
   },
-  logoutText: { color: colors.danger, fontWeight: "800", fontSize: 14 },
+  logoutText: { color: colors.danger, fontWeight: "700", fontSize: 14 },
 });

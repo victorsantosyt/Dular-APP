@@ -204,9 +204,9 @@ const s = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: spacing.screenPadding,
     paddingBottom: spacing.lg,
-    gap: spacing.md,
+    gap: 12,
   },
   center: {
     flex: 1,
@@ -241,13 +241,15 @@ const s = StyleSheet.create({
   // Identification section
   identSection: {
     alignItems: "center",
-    gap: spacing.sm,
+    gap: 8,
     paddingTop: spacing.sm,
     paddingBottom: spacing.md,
   },
   nome: {
-    ...typography.h2,
     color: colors.textPrimary,
+    ...typography.h3,
+    
+    fontWeight: "700",
     textAlign: "center",
   },
   ratingRow: {
@@ -256,27 +258,32 @@ const s = StyleSheet.create({
     gap: spacing.xs,
   },
   ratingText: {
-    ...typography.body,
     color: colors.textSecondary,
+    ...typography.caption,
+    
+    fontWeight: "500",
   },
 
   // Cards
   card: {
     backgroundColor: colors.surface,
-    borderRadius: radius.lg,
+    borderRadius: 18,
     borderWidth: 1,
     borderColor: colors.border,
-    padding: spacing.md,
-    gap: spacing.sm,
+    padding: 12,
+    gap: 10,
   },
   sectionTitle: {
-    ...typography.h3,
     color: colors.textPrimary,
+    ...typography.bodyMedium,
+    
+    fontWeight: "700",
   },
   bioText: {
-    ...typography.body,
     color: colors.textSecondary,
-    lineHeight: 22,
+    ...typography.caption,
+    
+    fontWeight: "500",
   },
 
   // Credenciais
@@ -286,8 +293,10 @@ const s = StyleSheet.create({
     gap: spacing.sm,
   },
   credText: {
-    ...typography.body,
     color: colors.textSecondary,
+    ...typography.caption,
+    
+    fontWeight: "500",
   },
 
   // Safety section
@@ -297,7 +306,7 @@ const s = StyleSheet.create({
   safeExplain: {
     ...typography.caption,
     color: colors.textMuted,
-    lineHeight: 18,
+    
   },
   noIncidents: {
     ...typography.caption,

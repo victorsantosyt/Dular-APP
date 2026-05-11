@@ -7,18 +7,40 @@ import DiaristaNavigator from "@/navigation/DiaristaNavigator";
 import MontadorNavigator from "@/navigation/MontadorNavigator";
 import { useAuthStore } from "@/stores/authStore";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
-import { hasSeenOnboarding } from "@/lib/onboarding";
+import { hasSeenOnboarding, resetOnboardingSeen, shouldResetOnboardingInDev } from "@/lib/onboarding";
 import { colors } from "@/theme";
 
-function AuthenticatedFlow({ role }: { role: string | null }) {
+function PushNotificationsGate({ children }: { children: React.ReactNode }) {
   usePushNotifications();
+  return <>{children}</>;
+}
 
+function AuthenticatedFlow({ role, onboardingSeen }: { role: string | null; onboardingSeen: boolean }) {
   const normalizedRole = role?.toLowerCase();
-  if (normalizedRole === "empregador") return <EmpregadorNavigator />;
-  if (normalizedRole === "diarista") return <DiaristaNavigator />;
-  if (normalizedRole === "montador") return <MontadorNavigator />;
+  if (normalizedRole === "empregador") {
+    return (
+      <PushNotificationsGate>
+        <EmpregadorNavigator />
+      </PushNotificationsGate>
+    );
+  }
+  if (normalizedRole === "diarista") {
+    return (
+      <PushNotificationsGate>
+        <DiaristaNavigator />
+      </PushNotificationsGate>
+    );
+  }
+  if (normalizedRole === "montador") {
+    return (
+      <PushNotificationsGate>
+        <MontadorNavigator />
+      </PushNotificationsGate>
+    );
+  }
 
-  return <OnboardingNavigator initialRouteName="RoleSelect" />;
+  const initialRouteName = onboardingSeen ? "RoleSelect" : "Splash";
+  return <OnboardingNavigator key={initialRouteName} initialRouteName={initialRouteName} />;
 }
 
 export function RootNavigator() {
@@ -36,6 +58,9 @@ export function RootNavigator() {
         await hydrate();
       } finally {
         try {
+          if (shouldResetOnboardingInDev()) {
+            await resetOnboardingSeen();
+          }
           const seen = await hasSeenOnboarding();
           if (mounted) setOnboardingSeen(seen);
         } catch {
@@ -61,10 +86,11 @@ export function RootNavigator() {
   }
 
   if (!isAuthenticated) {
-    return <OnboardingNavigator initialRouteName={onboardingSeen ? "RoleSelect" : "Splash"} />;
+    const initialRouteName = onboardingSeen ? "RoleSelect" : "Splash";
+    return <OnboardingNavigator key={initialRouteName} initialRouteName={initialRouteName} />;
   }
 
-  return <AuthenticatedFlow role={role} />;
+  return <AuthenticatedFlow role={role} onboardingSeen={onboardingSeen} />;
 }
 
 export default RootNavigator;

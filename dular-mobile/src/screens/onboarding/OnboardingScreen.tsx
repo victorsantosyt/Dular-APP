@@ -15,7 +15,7 @@ import { onboardingAssets } from "@/assets/onboardingAssets";
 import { DularLogo, DularLogoWhite } from "@/assets/brand";
 import { AppIcon } from "@/components/ui";
 import { markOnboardingSeen } from "@/lib/onboarding";
-import { colors as tc } from "@/theme/tokens";
+import { colors as tc, typography } from "@/theme/tokens";
 
 const colors = {
   background: tc.onboardingBg,
@@ -27,6 +27,7 @@ const colors = {
   pinkSoft: tc.pinkSoftLight,
   lavender: tc.lavenderSoftAlt,
   lavender2: tc.lavenderMid,
+  lavenderIcon: "#A98AEF",
   text: tc.navyDeep,
   textMuted: tc.navyMid,
   border: tc.onboardingBorder,
@@ -43,7 +44,6 @@ type ClearSlide = {
   accentWords: string[];
   subtitle: string;
   hero: keyof typeof onboardingAssets;
-  floatingCards?: Array<keyof typeof onboardingAssets>;
   features: string[];
   buttonLabel: string;
 };
@@ -55,7 +55,6 @@ const clearSlides: ClearSlide[] = [
     accentWords: ["Dular!"],
     subtitle: "O app que conecta você às\nmelhores diaristas da sua região.",
     hero: "welcomeHero",
-    floatingCards: ["clientReviewCard", "confirmedCard"],
     features: [
       "Encontre com facilidade profissionais confiáveis.",
       "Agende em poucos cliques e economize tempo.",
@@ -83,7 +82,6 @@ const clearSlides: ClearSlide[] = [
     accentWords: ["Segurança"],
     subtitle: "Nosso compromisso é com a sua\ntranquilidade.",
     hero: "securityShield",
-    floatingCards: ["safescoreCard"],
     features: [
       "Profissionais verificados",
       "SafeScore: mais confiança na sua escolha",
@@ -156,15 +154,12 @@ export default function OnboardingScreen({ onFinish, showSplash = true }: Onboar
 
   return (
     <SafeAreaView style={styles.safe}>
-      <View style={styles.topBar}>
-        <Pressable hitSlop={12} onPress={finish} style={styles.skipButton}>
-          <Text allowFontScaling={false} style={styles.skipText}>
-            Pular
-          </Text>
-        </Pressable>
+      <View style={styles.dotsHeader}>
+        <OnboardingDots activeIndex={clearIndex} />
       </View>
 
       <ScrollView
+        style={styles.scrollFlex}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[styles.scroll, isSmallScreen && styles.scrollSmall]}
       >
@@ -193,7 +188,6 @@ export default function OnboardingScreen({ onFinish, showSplash = true }: Onboar
       </ScrollView>
 
       <View style={styles.footer}>
-        <OnboardingDots activeIndex={clearIndex} />
         <PrimaryButton
           label={currentSlide.buttonLabel}
           isLast={currentSlide.key === "start"}
@@ -267,29 +261,6 @@ function HeroVisual({ slide, compact }: { slide: ClearSlide; compact: boolean })
         resizeMode="contain"
       />
 
-      {slide.key === "welcome" ? (
-        <>
-          <Image
-            source={onboardingAssets.clientReviewCard}
-            style={[styles.floatReviewCard, compact && styles.floatReviewCardSmall]}
-            resizeMode="contain"
-          />
-          <Image
-            source={onboardingAssets.confirmedCard}
-            style={[styles.floatConfirmedCard, compact && styles.floatConfirmedCardSmall]}
-            resizeMode="contain"
-          />
-        </>
-      ) : null}
-
-      {slide.key === "security" ? (
-        <Image
-          source={onboardingAssets.safescoreCard}
-          style={[styles.floatSafescoreCard, compact && styles.floatSafescoreCardSmall]}
-          resizeMode="contain"
-        />
-      ) : null}
-
       {slide.key === "start" ? <DecorativeIcons compact={compact} /> : null}
     </View>
   );
@@ -299,10 +270,18 @@ function DecorativeIcons({ compact }: { compact: boolean }) {
   const iconSize = compact ? 42 : 48;
   return (
     <>
-      <Image source={onboardingAssets.heartIcon} style={[styles.decorIcon, styles.decorHeart, { width: iconSize, height: iconSize }]} resizeMode="contain" />
-      <Image source={onboardingAssets.calendarIcon} style={[styles.decorIcon, styles.decorCalendar, { width: iconSize, height: iconSize }]} resizeMode="contain" />
-      <Image source={onboardingAssets.shieldIcon} style={[styles.decorIcon, styles.decorShield, { width: iconSize, height: iconSize }]} resizeMode="contain" />
-      <Image source={onboardingAssets.starIcon} style={[styles.decorIcon, styles.decorStar, { width: iconSize, height: iconSize }]} resizeMode="contain" />
+      <View style={[styles.decorIcon, styles.decorHeart, { width: iconSize, height: iconSize }]}>
+        <AppIcon name="Heart" size={22} color={colors.lavenderIcon} strokeWidth={2.4} />
+      </View>
+      <View style={[styles.decorIcon, styles.decorCalendar, { width: iconSize, height: iconSize }]}>
+        <AppIcon name="Calendar" size={22} color={colors.lavenderIcon} strokeWidth={2.4} />
+      </View>
+      <View style={[styles.decorIcon, styles.decorShield, { width: iconSize, height: iconSize }]}>
+        <AppIcon name="ShieldCheck" size={22} color={colors.lavenderIcon} strokeWidth={2.4} />
+      </View>
+      <View style={[styles.decorIcon, styles.decorStar, { width: iconSize, height: iconSize }]}>
+        <AppIcon name="Star" size={22} color={colors.lavenderIcon} strokeWidth={2.4} />
+      </View>
     </>
   );
 }
@@ -311,7 +290,7 @@ function FeatureItem({ text, icon }: { text: string; icon: (typeof featureIcons)
   return (
     <View style={styles.featureItem}>
       <View style={styles.featureIcon}>
-        <AppIcon name={icon} size={18} color={colors.primary} strokeWidth={2.4} />
+        <AppIcon name={icon} size={18} color={colors.lavenderIcon} strokeWidth={2.4} />
       </View>
       <Text allowFontScaling={false} style={styles.featureText}>
         {text}
@@ -323,7 +302,9 @@ function FeatureItem({ text, icon }: { text: string; icon: (typeof featureIcons)
 function StartCard({ compact }: { compact: boolean }) {
   return (
     <View style={[styles.startCard, compact && styles.startCardSmall]}>
-      <Image source={onboardingAssets.giftIcon} style={styles.giftIcon} resizeMode="contain" />
+      <View style={styles.giftIcon}>
+        <AppIcon name="Gift" size={24} color={colors.lavenderIcon} strokeWidth={2.4} />
+      </View>
       <Text allowFontScaling={false} style={styles.startCardText}>
         Comece agora e tenha{"\n"}uma experiência incrível!
       </Text>
@@ -382,22 +363,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  topBar: {
-    alignItems: "flex-end",
-    paddingHorizontal: 24,
-    paddingTop: 6,
-  },
-  skipButton: {
-    minHeight: 34,
-    justifyContent: "center",
-    paddingLeft: 18,
-  },
-  skipText: {
-    color: colors.primary,
-    fontSize: 15,
-    lineHeight: 20,
-    fontWeight: "700",
-  },
   scroll: {
     paddingHorizontal: 24,
     paddingTop: 4,
@@ -416,14 +381,14 @@ const styles = StyleSheet.create({
   title: {
     color: colors.text,
     textAlign: "center",
-    fontSize: 31,
-    lineHeight: 38,
-    fontWeight: "900",
+    ...typography.hero,
+    
+    fontWeight: "700",
     letterSpacing: 0,
   },
   titleSmall: {
-    fontSize: 28,
-    lineHeight: 34,
+    ...typography.h1,
+    
   },
   titleAccent: {
     color: colors.pink,
@@ -431,8 +396,8 @@ const styles = StyleSheet.create({
   subtitle: {
     color: colors.textMuted,
     textAlign: "center",
-    fontSize: 16,
-    lineHeight: 23,
+    ...typography.bodyMedium,
+    
     fontWeight: "500",
     marginTop: 12,
   },
@@ -464,45 +429,12 @@ const styles = StyleSheet.create({
   heroImageSmall: {
     height: 250,
   },
-  floatReviewCard: {
-    position: "absolute",
-    left: 0,
-    top: 38,
-    width: 132,
-    height: 82,
-  },
-  floatReviewCardSmall: {
-    width: 112,
-    height: 70,
-    top: 30,
-  },
-  floatConfirmedCard: {
-    position: "absolute",
-    right: 0,
-    bottom: 32,
-    width: 150,
-    height: 74,
-  },
-  floatConfirmedCardSmall: {
-    width: 128,
-    height: 64,
-    bottom: 24,
-  },
-  floatSafescoreCard: {
-    position: "absolute",
-    right: 12,
-    bottom: 28,
-    width: 164,
-    height: 94,
-  },
-  floatSafescoreCardSmall: {
-    width: 140,
-    height: 80,
-    bottom: 22,
-  },
   decorIcon: {
     position: "absolute",
     borderRadius: 16,
+    backgroundColor: colors.lavender,
+    alignItems: "center",
+    justifyContent: "center",
   },
   decorHeart: {
     left: 20,
@@ -545,15 +477,15 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: colors.primarySoft,
+    backgroundColor: colors.lavender,
     alignItems: "center",
     justifyContent: "center",
   },
   featureText: {
     flex: 1,
     color: colors.text,
-    fontSize: 14,
-    lineHeight: 19,
+    ...typography.bodySmMedium,
+    
     fontWeight: "700",
   },
   startCard: {
@@ -580,13 +512,24 @@ const styles = StyleSheet.create({
     width: 52,
     height: 52,
     borderRadius: 18,
+    backgroundColor: colors.lavender,
+    alignItems: "center",
+    justifyContent: "center",
   },
   startCardText: {
     flex: 1,
     color: colors.text,
-    fontSize: 16,
-    lineHeight: 22,
-    fontWeight: "900",
+    ...typography.bodyMedium,
+    
+    fontWeight: "700",
+  },
+  scrollFlex: {
+    flex: 1,
+  },
+  dotsHeader: {
+    alignItems: "center",
+    paddingTop: 8,
+    paddingBottom: 4,
   },
   footer: {
     paddingHorizontal: 24,
@@ -599,7 +542,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     gap: 7,
-    marginBottom: 16,
   },
   dot: {
     height: 8,
@@ -631,9 +573,9 @@ const styles = StyleSheet.create({
   },
   primaryButtonText: {
     color: colors.surface,
-    fontSize: 17,
-    lineHeight: 22,
-    fontWeight: "800",
+    ...typography.title,
+    
+    fontWeight: "700",
   },
   splashPressable: {
     flex: 1,
@@ -679,9 +621,9 @@ const styles = StyleSheet.create({
   splashTitle: {
     color: colors.surface,
     textAlign: "center",
-    fontSize: 29,
-    lineHeight: 36,
-    fontWeight: "900",
+    ...typography.h1,
+    
+    fontWeight: "700",
     letterSpacing: 0,
   },
   splashTitleAccent: {

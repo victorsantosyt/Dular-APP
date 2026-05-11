@@ -65,9 +65,9 @@ const s = StyleSheet.create({
     gap: spacing.sm,
     backgroundColor: colors.surface,
     borderWidth: 1.5,
-    borderRadius: radius.lg,
+    borderRadius: radius.md,
     paddingHorizontal: spacing.md,
-    minHeight: 48,
+    minHeight: 44,
   },
   icon: {
     alignItems: "center",

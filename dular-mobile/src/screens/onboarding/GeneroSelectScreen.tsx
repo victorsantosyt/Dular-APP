@@ -1,12 +1,15 @@
+import { useEffect } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { AppIcon } from "@/components/ui";
-import { colors } from "@/theme/tokens";
+import { PageDots } from "@/components/onboarding/PageDots";
+import { colors, typography } from "@/theme/tokens";
 import { useAuthStore } from "@/stores/authStore";
 import type { Genero } from "@/stores/authStore";
 import type { OnboardingStackParamList } from "@/navigation/OnboardingNavigator";
+import { getProfileTheme } from "@/theme/profileTheme";
 
 type Navigation = NativeStackNavigationProp<OnboardingStackParamList>;
 
@@ -38,40 +41,59 @@ function GeneroOption({ label, accent, softBg, onPress }: GeneroOptionProps) {
 
 export function GeneroSelectScreen() {
   const navigation = useNavigation<Navigation>();
+  const selectedRole = useAuthStore((state) => state.selectedRole);
   const setSelectedGenero = useAuthStore((state) => state.setSelectedGenero);
+
+  // Derive the role-specific palette (gender not yet chosen — use fallback)
+  const theme = getProfileTheme(selectedRole, null);
+
+  useEffect(() => {
+    if (!selectedRole) {
+      navigation.replace("RoleSelect");
+    }
+  }, [navigation, selectedRole]);
 
   const choose = (genero: Genero) => {
     setSelectedGenero(genero);
     navigation.navigate("Login");
   };
 
+  const handleBack = () => {
+    navigation.reset({
+      index: 0,
+      routes: [{ name: "RoleSelect" }],
+    });
+  };
+
+  // For DIARISTA the "Mulher" option is the default/fallback palette — use Feminino accent
+  // For MONTADOR the "Homem" option is the default/fallback palette — use Masculino accent
+  // Both options always show their respective gender accent regardless of role
+  const masculinoTheme = getProfileTheme(
+    selectedRole === "EMPREGADOR" ? "EMPREGADOR" : "MONTADOR",
+    "MASCULINO",
+  );
+  const femininoTheme = getProfileTheme(
+    selectedRole === "EMPREGADOR" ? "EMPREGADOR" : "DIARISTA",
+    "FEMININO",
+  );
+
   return (
     <SafeAreaView style={s.safe}>
-      {/* Botão de voltar — permite retornar à seleção de perfil */}
-      <Pressable style={s.backRow} onPress={() => navigation.goBack()}>
-        <AppIcon name="ArrowLeft" size={20} color={colors.primary} strokeWidth={2.5} />
-        <Text style={s.backText}>Voltar</Text>
-      </Pressable>
+      <View style={s.header}>
+        <View style={s.headerSide}>
+          <Pressable
+            onPress={handleBack}
+            hitSlop={12}
+            style={({ pressed }) => [s.backButton, pressed && s.backButtonPressed]}
+          >
+            <AppIcon name="ArrowLeft" size={20} color={theme.primary} strokeWidth={2.5} />
+          </Pressable>
+        </View>
+        <PageDots total={3} active={1} />
+        <View style={s.headerSide} />
+      </View>
 
       <View style={s.content}>
-        {/* Step indicator: passo 2 de 3 */}
-        <View style={s.stepWrap}>
-          <View style={s.stepRow}>
-            <View style={[s.step, s.stepDone]}>
-              <AppIcon name="Check" size={13} color={colors.white} strokeWidth={3} />
-            </View>
-            <View style={[s.stepLine, s.stepLineDone]} />
-            <View style={[s.step, s.stepActive]}>
-              <Text style={s.stepActiveNum}>2</Text>
-            </View>
-            <View style={[s.stepLine, s.stepLineIdle]} />
-            <View style={[s.step, s.stepIdle]}>
-              <Text style={s.stepIdleNum}>3</Text>
-            </View>
-          </View>
-          <Text style={s.stepCaption}>2 de 3</Text>
-        </View>
-
         <Text style={s.title}>Você é?</Text>
         <Text style={s.subtitle}>
           Queremos personalizar sua experiência{"\n"}no Dular.
@@ -80,14 +102,14 @@ export function GeneroSelectScreen() {
         <View style={s.options}>
           <GeneroOption
             label="Homem"
-            accent={colors.primary}
-            softBg={colors.lavender}
+            accent={masculinoTheme.primary}
+            softBg={masculinoTheme.primarySoft}
             onPress={() => choose("MASCULINO")}
           />
           <GeneroOption
             label="Mulher"
-            accent={colors.notification}
-            softBg={colors.dangerSoft}
+            accent={femininoTheme.primary}
+            softBg={femininoTheme.primarySoft}
             onPress={() => choose("FEMININO")}
           />
         </View>
@@ -110,96 +132,48 @@ const s = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  backRow: {
+  header: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
     paddingHorizontal: 20,
-    paddingTop: 10,
+    paddingTop: 8,
     paddingBottom: 4,
-    minHeight: 44,
+    minHeight: 40,
   },
-  backText: {
-    color: colors.primary,
-    fontSize: 15,
-    fontWeight: "700",
+  headerSide: {
+    flex: 1,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  backButtonPressed: {
+    opacity: 0.72,
   },
   content: {
     flex: 1,
     paddingHorizontal: 24,
-    paddingTop: 20,
-  },
-  stepWrap: {
-    alignItems: "center",
-    marginBottom: 36,
-  },
-  stepRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  step: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  stepDone: {
-    backgroundColor: colors.primary,
-  },
-  stepActive: {
-    backgroundColor: colors.primary,
-    shadowColor: colors.primary,
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 5 },
-    elevation: 4,
-  },
-  stepIdle: {
-    backgroundColor: colors.white,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-  },
-  stepLine: {
-    width: 48,
-    height: 2,
-    marginHorizontal: 4,
-  },
-  stepLineDone: {
-    backgroundColor: colors.primary,
-  },
-  stepLineIdle: {
-    backgroundColor: colors.border,
-  },
-  stepActiveNum: {
-    color: colors.white,
-    fontSize: 13,
-    fontWeight: "800",
-  },
-  stepIdleNum: {
-    color: colors.textMuted,
-    fontSize: 13,
-    fontWeight: "800",
-  },
-  stepCaption: {
-    color: colors.primary,
-    fontSize: 13,
-    fontWeight: "700",
-    marginTop: 7,
+    paddingTop: 24,
   },
   title: {
     color: colors.textPrimary,
-    fontSize: 30,
-    lineHeight: 36,
-    fontWeight: "900",
+    ...typography.hero,
+    
+    fontWeight: "700",
     letterSpacing: -0.7,
     textAlign: "center",
     marginBottom: 10,
   },
   subtitle: {
     color: colors.textSecondary,
-    fontSize: 15,
-    lineHeight: 22,
+    ...typography.bodySmMedium,
+    
     fontWeight: "400",
     textAlign: "center",
     marginBottom: 36,
@@ -232,7 +206,7 @@ const s = StyleSheet.create({
   optionLabel: {
     flex: 1,
     color: colors.textPrimary,
-    fontSize: 18,
+    ...typography.title,
     fontWeight: "700",
     letterSpacing: -0.3,
   },
@@ -245,7 +219,7 @@ const s = StyleSheet.create({
   noteText: {
     flex: 1,
     color: colors.textMuted,
-    fontSize: 12,
-    lineHeight: 17,
+    ...typography.caption,
+    
   },
 });

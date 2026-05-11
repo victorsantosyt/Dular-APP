@@ -116,7 +116,7 @@ export function ConversaCardSkeleton() {
   );
 }
 
-const CARD_HEIGHT = 76;
+const CARD_HEIGHT = 68;
 
 const styles = StyleSheet.create({
   pressable: {
@@ -129,7 +129,7 @@ const styles = StyleSheet.create({
     height: CARD_HEIGHT,
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: spacing.md,
     gap: spacing.md,
   },
   center: {
@@ -173,14 +173,14 @@ const styles = StyleSheet.create({
   separator: {
     height: 1,
     backgroundColor: colors.border,
-    marginLeft: spacing.lg + 48 + spacing.md,
+    marginLeft: spacing.md + 48 + spacing.md,
   },
   // Skeleton
   skeletonRow: {
     height: CARD_HEIGHT,
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: spacing.md,
     gap: spacing.md,
   },
   skeletonAvatar: {

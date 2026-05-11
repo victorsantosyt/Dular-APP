@@ -1,48 +1,43 @@
-import React, { useEffect, useRef } from "react";
-import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import React from "react";
+import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { AppIcon, AppIconName, DBadge, DButton, DCard } from "@/components/ui";
-import { colors, radius, shadows, spacing, typography } from "@/theme";
+import { AppIcon, AppIconName, DButton } from "@/components/ui";
+import { onboardingAssets } from "@/assets/onboardingAssets";
+import { colors, radius, spacing, typography } from "@/theme";
 import { PageDots } from "@/components/onboarding/PageDots";
-import { markOnboardingSeen } from "@/lib/onboarding";
 import type { OnboardingStackParamList } from "@/navigation/OnboardingNavigator";
 
 type Navigation = NativeStackNavigationProp<OnboardingStackParamList>;
+const LAVENDER_ICON = "#A98AEF";
 
 export function SecurityScreen() {
   const navigation = useNavigation<Navigation>();
-  const floatY = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(floatY, {
-          toValue: -8,
-          duration: 900,
-          useNativeDriver: true,
-        }),
-        Animated.timing(floatY, {
-          toValue: 0,
-          duration: 900,
-          useNativeDriver: true,
-        }),
-      ])
-    ).start();
-  }, [floatY]);
-
-  const skip = async () => {
-    await markOnboardingSeen();
-    navigation.replace("RoleSelect");
+  const handleBack = () => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+      return;
+    }
+    navigation.replace("Benefits");
   };
 
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.header}>
-        <Pressable onPress={skip} hitSlop={12}>
-          <Text style={styles.skip}>Pular</Text>
-        </Pressable>
+        <View style={styles.headerSide}>
+          <Pressable
+            onPress={handleBack}
+            hitSlop={12}
+            accessibilityRole="button"
+            accessibilityLabel="Voltar para benefícios"
+            style={({ pressed }) => [styles.backButton, pressed && styles.backButtonPressed]}
+          >
+            <AppIcon name="ArrowLeft" size={20} color={colors.primary} strokeWidth={2.5} />
+          </Pressable>
+        </View>
+        <PageDots total={4} active={2} />
+        <View style={styles.headerSide} />
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
@@ -56,22 +51,7 @@ export function SecurityScreen() {
         </View>
 
         <View style={styles.illustration}>
-          <Animated.View style={[styles.shield, { transform: [{ translateY: floatY }] }]}>
-            <AppIcon name="ShieldCheck" size={70} color="purple" variant="filled" strokeWidth={2.4} />
-          </Animated.View>
-
-          <DCard style={styles.scoreCard}>
-            <View style={styles.scoreRow}>
-              <View style={styles.scoreIcon}>
-                <AppIcon name="ShieldCheck" size={20} color={colors.primary} strokeWidth={2.4} />
-              </View>
-              <View style={styles.scoreText}>
-                <Text style={styles.caption}>SafeScore</Text>
-                <Text style={styles.scoreValue}>9.8</Text>
-              </View>
-              <DBadge label="Excelente" type="success" />
-            </View>
-          </DCard>
+          <Image source={onboardingAssets.securityShield} style={styles.heroImage} resizeMode="cover" />
         </View>
 
         <View style={styles.benefits}>
@@ -83,7 +63,6 @@ export function SecurityScreen() {
       </ScrollView>
 
       <View style={styles.footer}>
-        <PageDots total={4} active={2} />
         <DButton label="Próximo" variant="primary" size="lg" onPress={() => navigation.navigate("Start")} />
       </View>
     </SafeAreaView>
@@ -94,7 +73,7 @@ function Benefit({ icon, text }: { icon: AppIconName; text: string }) {
   return (
     <View style={styles.benefitRow}>
       <View style={styles.benefitIcon}>
-        <AppIcon name={icon} size={16} color={colors.primary} strokeWidth={2.3} />
+        <AppIcon name={icon} size={16} color={LAVENDER_ICON} strokeWidth={2.3} />
       </View>
       <Text style={styles.benefitText}>{text}</Text>
     </View>
@@ -109,18 +88,31 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   header: {
-    alignItems: "flex-end",
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: spacing.xl,
-    paddingTop: spacing.sm,
+    paddingTop: spacing.xs,
+    paddingBottom: spacing.xs,
   },
-  skip: {
-    ...typography.bodyMd,
-    color: colors.textSecondary,
-    fontWeight: "600",
+  headerSide: {
+    flex: 1,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  backButtonPressed: {
+    opacity: 0.72,
   },
   scroll: {
     paddingHorizontal: spacing.xl,
-    paddingTop: spacing.lg,
+    paddingTop: spacing.sm,
     paddingBottom: spacing["4xl"],
     gap: spacing.xl,
   },
@@ -128,9 +120,9 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   title: {
-    fontSize: 26,
-    lineHeight: 32,
-    fontWeight: "800",
+    ...typography.h1,
+    
+    fontWeight: "700",
     color: colors.textPrimary,
   },
   titleAccent: {
@@ -141,49 +133,16 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   illustration: {
-    minHeight: 260,
+    height: 260,
     borderRadius: radius.xxl,
-    backgroundColor: colors.primaryLight,
-    alignItems: "center",
-    justifyContent: "center",
-    padding: spacing.xxl,
-    gap: spacing.xl,
+    backgroundColor: colors.lavenderSoft,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: colors.lavenderStrong,
   },
-  shield: {
-    width: 134,
-    height: 134,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  scoreCard: {
+  heroImage: {
     width: "100%",
-    borderRadius: 14,
-    ...shadows.soft,
-  },
-  scoreRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-  },
-  scoreIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: radius.md,
-    backgroundColor: colors.primaryLight,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  scoreText: {
-    flex: 1,
-  },
-  caption: {
-    ...typography.caption,
-    color: colors.textSecondary,
-  },
-  scoreValue: {
-    fontSize: 24,
-    fontWeight: "800",
-    color: colors.textPrimary,
+    height: "100%",
   },
   benefits: {
     gap: spacing.md,
@@ -197,14 +156,14 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: radius.sm,
-    backgroundColor: colors.primaryLight,
+    backgroundColor: colors.lavenderSoft,
     alignItems: "center",
     justifyContent: "center",
   },
   benefitText: {
     flex: 1,
-    fontSize: 13,
-    lineHeight: 19,
+    ...typography.bodySm,
+    
     color: colors.textSecondary,
   },
   footer: {

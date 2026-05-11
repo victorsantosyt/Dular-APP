@@ -28,9 +28,9 @@ type Props = {
 };
 
 const sizeMap: Record<Size, { paddingVertical: number; paddingHorizontal: number; fontSize: number }> = {
-  sm: { paddingVertical: 8,  paddingHorizontal: 16, fontSize: 13 },
-  md: { paddingVertical: 12, paddingHorizontal: 24, fontSize: 15 },
-  lg: { paddingVertical: 14, paddingHorizontal: 32, fontSize: 16 },
+  sm: { paddingVertical: 6,  paddingHorizontal: 14, fontSize: 13 },
+  md: { paddingVertical: 10, paddingHorizontal: 22, fontSize: 15 },
+  lg: { paddingVertical: 12, paddingHorizontal: 28, fontSize: 16 },
 };
 
 export function DButton({
@@ -55,10 +55,10 @@ export function DButton({
   const isGradient = variant === "primary" || variant === "accent";
 
   const containerStyle: ViewStyle = {
-    minHeight: 52,
+    minHeight: 44,
     paddingVertical: sz.paddingVertical,
     paddingHorizontal: sz.paddingHorizontal,
-    borderRadius: radius.lg,
+    borderRadius: radius.md,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",

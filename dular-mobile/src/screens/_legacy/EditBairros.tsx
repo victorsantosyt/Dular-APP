@@ -26,7 +26,7 @@ export default function EditBairros() {
         <Pressable onPress={() => nav.goBack()} hitSlop={12}>
           <Ionicons name="chevron-back" size={26} color="#2B3443" />
         </Pressable>
-        <Text style={{ fontSize: 18, fontWeight: "800", color: "#2B3443" }}>Bairros atendidos</Text>
+        <Text style={{ fontSize: 18, fontWeight: "700", color: "#2B3443" }}>Bairros atendidos</Text>
       </View>
 
       <CenterWrap>
@@ -53,7 +53,7 @@ export default function EditBairros() {
         </View>
 
         <Pressable onPress={salvar} style={{ marginTop: 16, backgroundColor: "#4FA38F", borderRadius: 16, padding: 14 }}>
-          <Text style={{ textAlign: "center", color: "#fff", fontWeight: "800" }}>Salvar</Text>
+          <Text style={{ textAlign: "center", color: "#fff", fontWeight: "700" }}>Salvar</Text>
         </Pressable>
       </CenterWrap>
     </ScreenBg>

@@ -135,7 +135,7 @@ const s = StyleSheet.create({
   },
   notifBadgeText: {
     fontSize: 9,
-    fontWeight: "800",
+    fontWeight: "700",
     color: colors.white,
     lineHeight: 12,
   },

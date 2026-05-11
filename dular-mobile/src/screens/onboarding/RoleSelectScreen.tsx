@@ -13,10 +13,11 @@ import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { ComponentProps } from "react";
-import { DularLogo } from "@/assets/brand";
 import { useAuthStore } from "@/stores/authStore";
 import type { OnboardingStackParamList } from "@/navigation/OnboardingNavigator";
-import { colors as tc } from "@/theme/tokens";
+import { PageDots } from "@/components/onboarding/PageDots";
+import { colors as tc, typography } from "@/theme/tokens";
+import { getProfileTheme } from "@/theme/profileTheme";
 
 type Role = "EMPREGADOR" | "DIARISTA" | "MONTADOR";
 
@@ -28,11 +29,14 @@ type IoniconsName = ComponentProps<typeof Ionicons>["name"];
 
 const empregadorImg = require("../../../assets/images/roles/role_cliente_card.png");
 const diaristaImg = require("../../../assets/images/roles/role_diarista_card.png");
-// Imagem placeholder para Montador — substituir quando asset próprio existir
-const montadorImg = require("../../../assets/images/roles/role_diarista_card.png");
+const MONTADOR_IMAGE_ASSET = "assets/images/roles/role_montador_card.png";
+const montadorImg = require("../../../assets/images/roles/role_montador_card.png");
 
-const PURPLE = tc.purpleStep;
-const PINK = tc.pink;
+// Role card accent colors — always use fallback palettes (gender not yet known on this screen)
+const PURPLE = getProfileTheme("EMPREGADOR", null).primary;   // #7B5CFA
+const PINK   = getProfileTheme("DIARISTA",   null).primary;   // #F7658B  (fallback = Feminino)
+const TEAL   = getProfileTheme("MONTADOR",   null).primary;   // #4FA38F  (fallback = Masculino)
+
 const DARK = tc.navyDeep;
 const GRAY = tc.grayMid;
 const GRAY_MID = tc.grayFeat;
@@ -63,33 +67,25 @@ const montadorFeatures: Feature[] = [
 
 // ─── Step Indicator ──────────────────────────────────────────────────────────
 
-function StepIndicator({ onSkip }: { onSkip: () => void }) {
+function StepIndicator({ onBack }: { onBack: () => void }) {
   return (
     <View style={styles.headerRow}>
-      <View style={styles.headerSpacer} />
-
-      <View style={styles.stepCenter}>
-        <View style={styles.stepRow}>
-          <View style={styles.stepCircleActive}>
-            <Text allowFontScaling={false} style={styles.stepActiveText}>1</Text>
-          </View>
-          <View style={styles.stepDash} />
-          <View style={styles.stepCircleInactive}>
-            <Text allowFontScaling={false} style={styles.stepInactiveText}>2</Text>
-          </View>
-          <View style={styles.stepDash} />
-          <View style={styles.stepCircleInactive}>
-            <Text allowFontScaling={false} style={styles.stepInactiveText}>3</Text>
-          </View>
-        </View>
-        <Text allowFontScaling={false} style={styles.stepCaption}>1 de 3</Text>
-      </View>
-
-      <View style={styles.headerRight}>
-        <TouchableOpacity onPress={onSkip} hitSlop={12} accessibilityRole="button" accessibilityLabel="Pular">
-          <Text allowFontScaling={false} style={styles.skipText}>Pular</Text>
+      <View style={styles.headerSide}>
+        <TouchableOpacity
+          onPress={onBack}
+          hitSlop={12}
+          activeOpacity={0.72}
+          accessibilityRole="button"
+          accessibilityLabel="Voltar para onboarding"
+          style={styles.backButton}
+        >
+          <Ionicons name="arrow-back" size={20} color={PURPLE} />
         </TouchableOpacity>
       </View>
+
+      <PageDots total={3} active={0} />
+
+      <View style={styles.headerSide} />
     </View>
   );
 }
@@ -97,7 +93,8 @@ function StepIndicator({ onSkip }: { onSkip: () => void }) {
 // ─── Role Card ────────────────────────────────────────────────────────────────
 
 type RoleCardProps = {
-  image: ReturnType<typeof require>;
+  image?: ReturnType<typeof require>;
+  fallbackIcon?: IoniconsName;
   accent: string;
   bgTop: string;
   bgCard: string;
@@ -112,6 +109,7 @@ type RoleCardProps = {
 
 function RoleCard({
   image,
+  fallbackIcon,
   accent,
   bgTop,
   bgCard,
@@ -127,7 +125,16 @@ function RoleCard({
     <View style={[styles.card, { borderColor: borderHex, backgroundColor: bgCard }]}>
       {/* ── Top photo area ── */}
       <View style={[styles.cardTop, { backgroundColor: bgTop }]}>
-        <Image source={image} style={styles.cardFullImage} resizeMode="cover" />
+        {image ? (
+          <Image source={image} style={styles.cardFullImage} resizeMode="cover" />
+        ) : (
+          <View
+            style={styles.cardFallbackImage}
+            accessibilityLabel={`Fallback visual para ${MONTADOR_IMAGE_ASSET}`}
+          >
+            <Ionicons name={fallbackIcon ?? badgeIcon} size={92} color={accent} />
+          </View>
+        )}
 
         <View style={styles.cardTopText}>
           <Text allowFontScaling={false} style={styles.souText}>Sou</Text>
@@ -181,21 +188,14 @@ export function RoleSelectScreen() {
     navigation.navigate("GeneroSelect");
   };
 
-  const skip = () => navigation.navigate("Login");
-
   return (
     <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
-      <StepIndicator onSkip={skip} />
+      <StepIndicator onBack={() => navigation.replace("Start")} />
 
       <ScrollView
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
       >
-        {/* Logo */}
-        <View style={styles.logoWrap}>
-          <DularLogo size="md" />
-        </View>
-
         {/* Title + subtitle */}
         <View style={styles.titleBlock}>
           <Text allowFontScaling={false} style={styles.title}>
@@ -218,9 +218,9 @@ export function RoleSelectScreen() {
           accent={PURPLE}
           bgTop="#EDE9FF"
           bgCard="#F5F3FF"
-          borderHex="#7C5CFF4D"
+          borderHex={PURPLE + "4D"}
           title="Empregador"
-          description={"Encontre diaristas\nconfiáveis e facilite\nsua rotina."}
+          description={"Encontre profissionais\nconfiáveis e facilite\nsua rotina."}
           badgeIcon="person-outline"
           features={empregadorFeatures}
           buttonLabel="Sou Empregador"
@@ -232,7 +232,7 @@ export function RoleSelectScreen() {
           accent={PINK}
           bgTop="#FFE0EC"
           bgCard="#FFF0F5"
-          borderHex="#FF6B9A4D"
+          borderHex={PINK + "4D"}
           title="Diarista"
           description={"Conquiste mais\noportunidades e\naumente sua renda."}
           badgeIcon="briefcase-outline"
@@ -243,10 +243,11 @@ export function RoleSelectScreen() {
 
         <RoleCard
           image={montadorImg}
-          accent={tc.teal}
+          fallbackIcon="construct-outline"
+          accent={TEAL}
           bgTop="#DFF2ED"
           bgCard="#F0FAF8"
-          borderHex={tc.teal + "4D"}
+          borderHex={TEAL + "4D"}
           title="Montador"
           description={"Instale e monte\ncom qualidade e\nprecisão."}
           badgeIcon="construct-outline"
@@ -258,7 +259,7 @@ export function RoleSelectScreen() {
         {/* Security footer */}
         <View style={styles.footer}>
           <View style={styles.footerIcon}>
-            <Ionicons name="lock-closed" size={18} color={tc.white} />
+            <Ionicons name="lock-closed" size={18} color="#9A7BE8" />
           </View>
           <View style={styles.footerText}>
             <Text allowFontScaling={false} style={styles.footerTitle}>Seguro e confiável</Text>
@@ -292,43 +293,20 @@ const styles = StyleSheet.create({
     paddingTop: 10,
     paddingBottom: 2,
   },
-  headerSpacer: { flex: 1 },
-  headerRight: { flex: 1, alignItems: "flex-end" },
-  stepCenter: { alignItems: "center", gap: 6 },
-  stepRow: { flexDirection: "row", alignItems: "center" },
-  stepCircleActive: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: PURPLE,
+  headerSide: {
+    flex: 1,
+    minWidth: 72,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: PURPLE,
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 3,
-  },
-  stepActiveText: { color: tc.white, fontSize: 13, fontWeight: "800" },
-  stepDash: {
-    width: 36,
-    height: 2,
-    backgroundColor: tc.grayDisabled,
-    marginHorizontal: 6,
-  },
-  stepCircleInactive: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    borderWidth: 1.5,
-    borderColor: tc.grayBorder,
     backgroundColor: tc.white,
-    alignItems: "center",
-    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: tc.grayBorder,
   },
-  stepInactiveText: { color: tc.grayLight, fontSize: 13, fontWeight: "800" },
-  stepCaption: { color: PURPLE, fontSize: 12, fontWeight: "700" },
-  skipText: { color: PURPLE, fontSize: 14, fontWeight: "600" },
 
   // Scroll
   scroll: {
@@ -337,16 +315,12 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
     gap: 20,
   },
-
-  // Logo
-  logoWrap: { alignSelf: "center" },
-
   // Title
   titleBlock: { alignItems: "center", gap: 10 },
   title: {
-    fontSize: 28,
-    lineHeight: 34,
-    fontWeight: "800",
+    ...typography.h1,
+    
+    fontWeight: "700",
     color: DARK,
     textAlign: "center",
   },
@@ -358,14 +332,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   subtitle: {
-    fontSize: 14,
-    lineHeight: 20,
+    ...typography.bodySm,
+    
     color: GRAY,
     textAlign: "center",
     flex: 1,
   },
-  subtitleDecL: { fontSize: 18, color: PINK, fontWeight: "700" },
-  subtitleDecR: { fontSize: 18, color: PURPLE, fontWeight: "700" },
+  subtitleDecL: { ...typography.title, color: PINK, fontWeight: "700" },
+  subtitleDecR: { ...typography.title, color: PURPLE, fontWeight: "700" },
 
   // Card
   card: {
@@ -392,6 +366,16 @@ const styles = StyleSheet.create({
     width: CARD_WIDTH,
     height: 220,
   },
+  cardFallbackImage: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: "center",
+    justifyContent: "center",
+    opacity: 0.16,
+  },
   cardTopText: {
     position: "absolute",
     top: 20,
@@ -399,20 +383,20 @@ const styles = StyleSheet.create({
     zIndex: 2,
   },
   souText: {
-    fontSize: 18,
+    ...typography.title,
     fontWeight: "600",
     color: DARK,
-    lineHeight: 22,
+    
   },
   cardTitle: {
-    fontSize: 26,
-    fontWeight: "800",
-    lineHeight: 30,
+    ...typography.h1,
+    fontWeight: "700",
+    
   },
   cardDesc: {
-    fontSize: 13,
+    ...typography.bodySm,
     color: GRAY_MID,
-    lineHeight: 19,
+    
     marginTop: 6,
   },
   cardBadge: {
@@ -436,6 +420,8 @@ const styles = StyleSheet.create({
   cardBottom: {
     backgroundColor: tc.white,
     padding: 16,
+    borderBottomLeftRadius: 18,
+    borderBottomRightRadius: 18,
   },
   featuresRow: {
     flexDirection: "row",
@@ -448,10 +434,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 2,
   },
   featureText: {
-    fontSize: 10,
+    ...typography.caption,
     color: GRAY_FEAT,
     textAlign: "center",
-    lineHeight: 13,
+    
   },
   button: {
     borderRadius: 14,
@@ -467,7 +453,7 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     color: tc.white,
-    fontSize: 16,
+    ...typography.bodyMedium,
     fontWeight: "700",
     letterSpacing: 0.2,
   },
@@ -479,29 +465,29 @@ const styles = StyleSheet.create({
     gap: 14,
     padding: 16,
     borderRadius: 16,
-    backgroundColor: tc.lavenderSoftAlt,
+    backgroundColor: "#FCF9FF",
     borderWidth: 1,
-    borderColor: tc.lavenderDivider,
+    borderColor: "#EFE7FA",
   },
   footerIcon: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: PURPLE,
+    backgroundColor: "#F3ECFF",
     alignItems: "center",
     justifyContent: "center",
   },
   footerText: { flex: 1 },
   footerTitle: {
-    fontSize: 13,
-    fontWeight: "800",
+    ...typography.bodySm,
+    fontWeight: "700",
     color: DARK,
-    lineHeight: 18,
+    
   },
   footerSubtitle: {
-    fontSize: 11,
+    ...typography.caption,
     color: GRAY,
-    lineHeight: 15,
+    
     marginTop: 2,
   },
 });

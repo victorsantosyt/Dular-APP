@@ -6,12 +6,13 @@ import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import { AppIcon, AppIconName, DAvatar, DBadge, DBottomNav, DCard, DScreen, DSectionHeader } from "@/components/ui";
 import { DularLogo } from "@/assets/brand";
 import { Wallet3DIcon } from "@/assets/icons";
-import { colors, radius, shadows, spacing } from "@/theme";
+import { colors, radius, shadows, spacing, typography } from "@/theme";
 import { useAuthStore } from "@/store/authStore";
 import type { DiaristaTabParamList } from "@/navigation/DiaristaNavigator";
 import { getMyRestrictions, type UserRestriction } from "@/api/safeScoreApi";
 import { useAgendamentosDiarista, type AgendamentoDiarista, type StatusDiarista } from "@/hooks/useAgendamentosDiarista";
 import { useMensagens } from "@/hooks/useMensagens";
+import { getProfileTheme } from "@/theme/profileTheme";
 
 type Navigation = BottomTabNavigationProp<DiaristaTabParamList>;
 type BadgeType = "default" | "success" | "warning" | "error" | "info" | "accent";
@@ -77,14 +78,22 @@ function getAgendaBadge(status: StatusDiarista): { label: string; type: BadgeTyp
   return { label: "Pendente", type: "warning" };
 }
 
-function AgendamentoItem({ agendamento }: { agendamento: AgendamentoDiarista }) {
+function AgendamentoItem({
+  agendamento,
+  accentColor,
+  softBg,
+}: {
+  agendamento: AgendamentoDiarista;
+  accentColor: string;
+  softBg: string;
+}) {
   const badge = getAgendaBadge(agendamento.status);
 
   return (
     <View style={styles.appointmentRow}>
-      <View style={styles.timeBox}>
-        <AppIcon name="Clock" size={18} color="purple" />
-        <Text style={styles.timeText}>{agendamento.hora}</Text>
+      <View style={[styles.timeBox, { backgroundColor: softBg }]}>
+        <AppIcon name="Clock" size={18} color={accentColor} />
+        <Text style={[styles.timeText, { color: accentColor }]}>{agendamento.hora}</Text>
       </View>
       <View style={styles.appointmentText}>
         <Text style={styles.appointmentFamily} numberOfLines={1}>{agendamento.nomeCliente}</Text>
@@ -99,11 +108,23 @@ function AgendamentoItem({ agendamento }: { agendamento: AgendamentoDiarista }) 
   );
 }
 
-function ShortcutBtn({ icon, label, onPress }: { icon: AppIconName; label: string; onPress: () => void }) {
+function ShortcutBtn({
+  icon,
+  label,
+  onPress,
+  accentColor,
+  softBg,
+}: {
+  icon: AppIconName;
+  label: string;
+  onPress: () => void;
+  accentColor: string;
+  softBg: string;
+}) {
   return (
     <Pressable onPress={onPress} style={({ pressed }) => [styles.shortcutItem, pressed && { opacity: 0.75 }]}>
-      <View style={styles.shortcutIcon}>
-        <AppIcon name={icon} size={20} color={colors.primary} strokeWidth={2.1} />
+      <View style={[styles.shortcutIcon, { backgroundColor: softBg }]}>
+        <AppIcon name={icon} size={20} color={accentColor} strokeWidth={2.1} />
       </View>
       <Text style={styles.shortcutLabel}>{label}</Text>
     </Pressable>
@@ -135,6 +156,7 @@ export function DiaristaHomeScreen() {
   const navigation = useNavigation<Navigation>();
   const user = useAuthStore((state) => state.user);
   const firstName = (user?.nome || "Diarista").trim().split(/\s+/)[0];
+  const profileTheme = getProfileTheme("DIARISTA", user?.genero);
   const { agendamentos, loading: agendamentosLoading, error: agendamentosError } = useAgendamentosDiarista();
   const { rooms } = useMensagens();
 
@@ -201,7 +223,7 @@ export function DiaristaHomeScreen() {
           })()}
 
           <LinearGradient
-            colors={[colors.primary, colors.primaryDark]}
+            colors={profileTheme.gradient}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={styles.earningsCard}
@@ -237,21 +259,21 @@ export function DiaristaHomeScreen() {
             <View style={styles.divider} />
             {agendamentosLoading ? (
               <View style={styles.appointmentState}>
-                <ActivityIndicator color={colors.primary} />
+                <ActivityIndicator color={profileTheme.primary} />
               </View>
             ) : agendamentosError ? (
               <Text style={styles.appointmentStateText}>Não foi possível carregar seus agendamentos agora.</Text>
             ) : nextAgendamento ? (
-              <AgendamentoItem agendamento={nextAgendamento} />
+              <AgendamentoItem agendamento={nextAgendamento} accentColor={profileTheme.primary} softBg={profileTheme.primarySoft} />
             ) : (
               <Text style={styles.appointmentStateText}>Nenhum agendamento encontrado.</Text>
             )}
             <View style={styles.divider} />
             <Pressable onPress={() => navigation.navigate("Agendamentos")}>
               <View style={styles.allAppointmentsRow}>
-                <AppIcon name="Calendar" size={17} color={colors.primary} strokeWidth={2.3} />
-                <Text style={styles.allAppointmentsText}>Ver todos os agendamentos</Text>
-                <AppIcon name="ChevronRight" size={16} color={colors.primary} strokeWidth={2.4} />
+                <AppIcon name="Calendar" size={17} color={profileTheme.primary} strokeWidth={2.3} />
+                <Text style={[styles.allAppointmentsText, { color: profileTheme.primary }]}>Ver todos os agendamentos</Text>
+                <AppIcon name="ChevronRight" size={16} color={profileTheme.primary} strokeWidth={2.4} />
               </View>
             </Pressable>
           </DCard>
@@ -272,8 +294,8 @@ export function DiaristaHomeScreen() {
           </View>
 
           <DCard style={styles.tipCard}>
-            <View style={styles.tipIconBox}>
-              <AppIcon name="ShieldCheck" variant="soft" color="purple" />
+            <View style={[styles.tipIconBox, { backgroundColor: profileTheme.primarySoft }]}>
+              <AppIcon name="ShieldCheck" size={22} color={profileTheme.primary} />
             </View>
             <View style={styles.tipText}>
               <Text style={styles.tipTitle}>Dica de hoje</Text>
@@ -297,7 +319,7 @@ export function DiaristaHomeScreen() {
               </View>
               <View style={styles.metricDivider} />
               <View style={styles.metricCard}>
-                <AppIcon name="MessageCircle" size={20} color={colors.primary} strokeWidth={2} />
+                <AppIcon name="MessageCircle" size={20} color={profileTheme.primary} strokeWidth={2} />
                 <Text style={styles.metricValue}>{unreadMessages}</Text>
                 <Text style={styles.metricLabel}>Mensagens</Text>
               </View>
@@ -314,10 +336,10 @@ export function DiaristaHomeScreen() {
           <View style={styles.shortcutsSection}>
             <DSectionHeader title="Atalhos" style={styles.sectionHeaderRow} />
             <View style={styles.shortcutsGrid}>
-              <ShortcutBtn icon="Wallet" label="Carteira" onPress={() => navigation.navigate("Carteira")} />
-              <ShortcutBtn icon="FileText" label="Documentos" onPress={() => navigation.navigate("VerificacaoDocs")} />
-              <ShortcutBtn icon="MessageCircle" label="Mensagens" onPress={() => navigation.navigate("Mensagens")} />
-              <ShortcutBtn icon="HelpCircle" label="Suporte" onPress={() => navigation.navigate("Suporte")} />
+              <ShortcutBtn icon="Wallet" label="Carteira" accentColor={profileTheme.primary} softBg={profileTheme.primarySoft} onPress={() => navigation.navigate("Carteira")} />
+              <ShortcutBtn icon="FileText" label="Documentos" accentColor={profileTheme.primary} softBg={profileTheme.primarySoft} onPress={() => navigation.navigate("VerificacaoDocs")} />
+              <ShortcutBtn icon="MessageCircle" label="Mensagens" accentColor={profileTheme.primary} softBg={profileTheme.primarySoft} onPress={() => navigation.navigate("Mensagens")} />
+              <ShortcutBtn icon="HelpCircle" label="Suporte" accentColor={profileTheme.primary} softBg={profileTheme.primarySoft} onPress={() => navigation.navigate("Suporte")} />
             </View>
           </View>
         </ScrollView>
@@ -338,7 +360,9 @@ const styles = StyleSheet.create({
     paddingBottom: 112,
   },
   topBar: {
-    padding: spacing.lg,
+    paddingHorizontal: spacing.screenPadding,
+    paddingTop: 10,
+    paddingBottom: 12,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
@@ -384,33 +408,33 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   notificationBadgeText: {
-    fontSize: 10,
+    ...typography.caption,
     fontWeight: "700",
     color: colors.white,
   },
   header: {
-    paddingHorizontal: spacing.lg,
-    marginBottom: spacing.lg,
+    paddingHorizontal: spacing.screenPadding,
+    marginBottom: 14,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
   greeting: {
-    fontSize: 22,
-    fontWeight: "800",
+    ...typography.title,
+    fontWeight: "700",
     color: colors.textPrimary,
   },
   greetingSub: {
-    fontSize: 12,
+    ...typography.caption,
     color: colors.textSecondary,
     marginTop: 2,
   },
   earningsCard: {
-    borderRadius: radius.xxl,
-    paddingVertical: spacing.xl,
-    paddingHorizontal: spacing.xl,
-    marginHorizontal: spacing.lg,
-    marginBottom: spacing.lg,
+    borderRadius: 18,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    marginHorizontal: spacing.screenPadding,
+    marginBottom: 14,
     position: "relative",
     overflow: "hidden",
   },
@@ -434,35 +458,35 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   earningsLabel: {
-    fontSize: 14,
+    ...typography.bodySmMedium,
     fontWeight: "600",
     color: colors.whiteAlpha90,
   },
   earningsPeriod: {
-    fontSize: 12,
+    ...typography.caption,
     color: colors.whiteAlpha70,
     marginTop: 2,
   },
   earningsValue: {
-    fontSize: 26,
-    fontWeight: "800",
+    ...typography.h2,
+    fontWeight: "700",
     color: colors.white,
     marginTop: 6,
   },
   cardIconBox: {
-    width: 48,
-    height: 48,
-    borderRadius: radius.md,
+    width: 42,
+    height: 42,
+    borderRadius: 14,
     backgroundColor: colors.whiteAlpha20,
     alignItems: "center",
     justifyContent: "center",
   },
   detailsLinkWrap: {
     alignSelf: "flex-end",
-    marginTop: spacing.md,
+    marginTop: 12,
   },
   detailsLink: {
-    fontSize: 13,
+    ...typography.bodySm,
     color: colors.whiteAlpha80,
   },
   inlineLink: {
@@ -471,8 +495,8 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   todayCard: {
-    marginHorizontal: spacing.lg,
-    marginBottom: spacing.lg,
+    marginHorizontal: spacing.screenPadding,
+    marginBottom: 14,
   },
   divider: {
     height: 1,
@@ -485,15 +509,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   timeBox: {
-    width: 56,
-    height: 56,
-    borderRadius: radius.md,
+    width: 48,
+    height: 48,
+    borderRadius: 14,
     backgroundColor: colors.lavender,
     alignItems: "center",
     justifyContent: "center",
   },
   timeText: {
-    fontSize: 14,
+    ...typography.bodySmMedium,
     fontWeight: "700",
     color: colors.primary,
   },
@@ -502,12 +526,12 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   appointmentFamily: {
-    fontSize: 15,
+    ...typography.bodySmMedium,
     fontWeight: "700",
     color: colors.textPrimary,
   },
   appointmentType: {
-    fontSize: 13,
+    ...typography.bodySm,
     color: colors.textSecondary,
     marginTop: 2,
   },
@@ -519,7 +543,7 @@ const styles = StyleSheet.create({
   },
   appointmentLocation: {
     flex: 1,
-    fontSize: 12,
+    ...typography.caption,
     color: colors.textSecondary,
   },
   appointmentState: {
@@ -531,8 +555,8 @@ const styles = StyleSheet.create({
     minHeight: 56,
     textAlignVertical: "center",
     color: colors.textSecondary,
-    fontSize: 13,
-    lineHeight: 18,
+    ...typography.bodySm,
+    
   },
   allAppointmentsRow: {
     flexDirection: "row",
@@ -542,12 +566,12 @@ const styles = StyleSheet.create({
   },
   allAppointmentsText: {
     color: colors.primary,
-    fontSize: 14,
+    ...typography.bodySmMedium,
     fontWeight: "600",
   },
   quickSection: {
-    paddingHorizontal: spacing.lg,
-    marginBottom: spacing.lg,
+    paddingHorizontal: spacing.screenPadding,
+    marginBottom: 14,
   },
   sectionHeaderRow: {
     marginBottom: spacing.md,
@@ -563,22 +587,22 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   quickIconBox: {
-    width: 60,
-    height: 60,
-    borderRadius: radius.lg,
+    width: 50,
+    height: 50,
+    borderRadius: 16,
     backgroundColor: colors.surface,
     alignItems: "center",
     justifyContent: "center",
     ...shadows.soft,
   },
   quickLabel: {
-    fontSize: 11,
+    ...typography.caption,
     color: colors.textSecondary,
     textAlign: "center",
   },
   tipCard: {
-    marginHorizontal: spacing.lg,
-    marginBottom: spacing.xl,
+    marginHorizontal: spacing.screenPadding,
+    marginBottom: 20,
     flexDirection: "row",
     gap: spacing.md,
     alignItems: "center",
@@ -595,24 +619,24 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   tipTitle: {
-    fontSize: 14,
+    ...typography.bodySmMedium,
     fontWeight: "700",
     color: colors.textPrimary,
   },
   tipSubtitle: {
-    fontSize: 13,
+    ...typography.caption,
     color: colors.textSecondary,
     marginTop: spacing.xs,
-    lineHeight: 18,
+    
   },
   cleaningTipBox: {
-    width: 64,
-    height: 64,
+    width: 54,
+    height: 54,
     alignItems: "center",
     justifyContent: "center",
   },
   cleaningTip: {
-    fontSize: 28,
+    ...typography.h2,
     textAlign: "center",
   },
 
@@ -637,25 +661,25 @@ const styles = StyleSheet.create({
   },
   restrictionTextWarn: {
     color: colors.warningDark,
-    fontSize: 13,
+    ...typography.bodySm,
     fontWeight: "500",
   },
   restrictionTextCrit: {
     color: colors.incidentCritical,
-    fontSize: 13,
+    ...typography.bodySm,
     fontWeight: "500",
   },
 
   // Performance section
   performanceSection: {
-    paddingHorizontal: spacing.lg,
-    marginBottom: spacing.lg,
+    paddingHorizontal: spacing.screenPadding,
+    marginBottom: 14,
   },
   metricsRow: {
     flexDirection: "row",
     backgroundColor: colors.surface,
     borderRadius: radius.xl,
-    padding: spacing.lg,
+    padding: 14,
     borderWidth: 1,
     borderColor: colors.border,
     ...shadows.soft,
@@ -673,20 +697,20 @@ const styles = StyleSheet.create({
     marginHorizontal: spacing.sm,
   },
   metricValue: {
-    fontSize: 20,
-    fontWeight: "800",
+    ...typography.title,
+    fontWeight: "700",
     color: colors.textPrimary,
   },
   metricLabel: {
-    fontSize: 11,
+    ...typography.caption,
     color: colors.textMuted,
     fontWeight: "500",
   },
 
   // Shortcuts section
   shortcutsSection: {
-    paddingHorizontal: spacing.lg,
-    marginBottom: spacing.xl,
+    paddingHorizontal: spacing.screenPadding,
+    marginBottom: 20,
   },
   shortcutsGrid: {
     flexDirection: "row",
@@ -698,8 +722,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: spacing.xs,
     backgroundColor: colors.surface,
-    borderRadius: radius.xl,
-    paddingVertical: spacing.lg,
+    borderRadius: 18,
+    paddingVertical: 14,
     borderWidth: 1,
     borderColor: colors.border,
     ...shadows.soft,
@@ -713,7 +737,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   shortcutLabel: {
-    fontSize: 11,
+    ...typography.caption,
     fontWeight: "600",
     color: colors.textSecondary,
     textAlign: "center",

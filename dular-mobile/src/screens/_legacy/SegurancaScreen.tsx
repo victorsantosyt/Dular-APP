@@ -282,7 +282,7 @@ const s = StyleSheet.create({
   headerTitle: {
     flex: 1,
     fontSize: 20,
-    fontWeight: "800",
+    fontWeight: "700",
     color: colors.foreground,
     letterSpacing: -0.3,
   },
@@ -306,7 +306,7 @@ const s = StyleSheet.create({
   cardHead: { flexDirection: "row", alignItems: "center", gap: 12 },
   cardTitle: {
     fontSize: 15,
-    fontWeight: "800",
+    fontWeight: "700",
     color: colors.foreground,
   },
   cardText: {
@@ -335,7 +335,7 @@ const s = StyleSheet.create({
   sosText: {
     color: "#FFFFFF",
     fontSize: 22,
-    fontWeight: "900",
+    fontWeight: "700",
     letterSpacing: 1,
     marginTop: 4,
   },
@@ -366,14 +366,14 @@ const s = StyleSheet.create({
   },
   activeBadgeText: {
     fontSize: 11,
-    fontWeight: "800",
+    fontWeight: "700",
     color: colors.primary,
   },
 
   // Seções
   sectionLabel: {
     fontSize: 11,
-    fontWeight: "800",
+    fontWeight: "700",
     color: colors.mutedForeground,
     letterSpacing: 1.4,
     marginTop: 8,
@@ -397,7 +397,7 @@ const s = StyleSheet.create({
   },
   emergNumber: {
     fontSize: 22,
-    fontWeight: "900",
+    fontWeight: "700",
     letterSpacing: -0.5,
   },
   emergBtn: {
@@ -422,7 +422,7 @@ const s = StyleSheet.create({
   },
   dicaTitle: {
     fontSize: 13,
-    fontWeight: "800",
+    fontWeight: "700",
     color: colors.foreground,
     marginBottom: 2,
   },
@@ -467,7 +467,7 @@ const s = StyleSheet.create({
   supportTitle: {
     color: "#FFFFFF",
     fontSize: 14,
-    fontWeight: "800",
+    fontWeight: "700",
   },
   supportText: {
     color: "rgba(255,255,255,0.75)",
@@ -485,6 +485,6 @@ const s = StyleSheet.create({
   supportBtnText: {
     color: "#0A4A3A",
     fontSize: 12,
-    fontWeight: "800",
+    fontWeight: "700",
   },
 });

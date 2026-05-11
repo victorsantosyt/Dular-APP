@@ -262,7 +262,7 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.stroke,
   },
-  sender: { fontSize: 11, color: colors.sub, fontWeight: "800" },
+  sender: { fontSize: 11, color: colors.sub, fontWeight: "700" },
   messageText: { color: colors.ink, fontSize: 14, fontWeight: "600", lineHeight: 19 },
   messageTextMine: { color: colors.white },
   time: { alignSelf: "flex-end", color: colors.sub, fontSize: 10, fontWeight: "700" },

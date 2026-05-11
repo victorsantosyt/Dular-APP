@@ -37,6 +37,13 @@ const DIARISTA_ITEMS: Item[] = [
   { id: "profile",  label: "Perfil",    icon: "User"          },
 ];
 
+const MONTADOR_ITEMS: Item[] = [
+  { id: "home",     label: "Início",    icon: "Home"          },
+  { id: "search",   label: "Agenda",    icon: "Calendar"      },
+  { id: "new",      label: "Serviços",  icon: "Plus"          },
+  { id: "messages", label: "Mensagens", icon: "MessageCircle" },
+  { id: "profile",  label: "Perfil",    icon: "User"          },
+];
 // ─── Animated tab item ────────────────────────────────────────────────────────
 
 function TabItem({

@@ -94,9 +94,9 @@ export function GeneroSelectScreen() {
       </View>
 
       <View style={s.content}>
-        <Text style={s.title}>Você é?</Text>
+        <Text style={s.title}>Como você quer configurar sua experiência?</Text>
         <Text style={s.subtitle}>
-          Queremos personalizar sua experiência{"\n"}no Dular.
+          Isso ajuda o Dular a personalizar cores, comunicação e segurança do seu perfil.
         </Text>
 
         <View style={s.options}>

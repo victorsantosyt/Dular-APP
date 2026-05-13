@@ -1,617 +1,397 @@
-/**
- * MontadorPerfil — Tela de perfil do montador.
- *
- * - Layout espelha DiaristaPerfil/EmpregadorPerfil (ProfileHeroCard, ProfileSection,
- *   ProfileRow, ProfileSwitchRow), com identidade teal do Montador.
- * - Nasce com dark mode integrado via useDularColors() — nenhum import direto de
- *   `colors` do theme. StyleSheet criado dentro do componente para reagir ao tema.
- * - Edição de nome/telefone/bio e seleção de especialidades vivem em modais; salvar
- *   apenas fecha o modal (integração de API é tarefa separada).
- */
-import React, { useMemo, useState } from "react";
-import {
-  Alert,
-  KeyboardAvoidingView,
-  Modal,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import React, { useEffect, useMemo, useState } from "react";
+import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
-import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-
-import { AppIcon, DButton, DCard } from "@/components/ui";
-import { useDularColors } from "@/hooks/useDularColors";
-import { useThemeStore } from "@/stores/useThemeStore";
-import { useAuth } from "@/stores/authStore";
-import { radius, shadows, spacing, typography } from "@/theme";
-import { platformSelect } from "@/utils/platform";
-import type { MontadorStackParamList } from "@/navigation/MontadorNavigator";
+import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
+import { AppIcon, DErrorState, DLoadingState, DScreen } from "@/components/ui";
 import {
-  ProfileHeroCard,
-  ProfileRow,
-  ProfileSection,
-  ProfileSwitchRow,
-} from "../empregador/profile/components";
+  MONTADOR_SERVICOS,
+  carregarPerfilMontador,
+  type MontadorServico,
+} from "@/api/montadorApi";
+import { useMontadorServicos } from "@/hooks/useMontadorServicos";
+import { useProfileTheme } from "@/hooks/useProfileTheme";
+import { useAuth } from "@/stores/authStore";
+import type { MontadorTabParamList } from "@/navigation/MontadorNavigator";
+import { colors, radius, shadows, spacing, typography } from "@/theme";
+import { firstName, formatMoneyFromCents, upperStatus } from "./montadorUtils";
 
-type Navigation = NativeStackNavigationProp<MontadorStackParamList>;
+type Navigation = BottomTabNavigationProp<MontadorTabParamList>;
 
-const MONTADOR_ESPECIALIDADES = [
-  "Montagem de Móveis",
-  "Desmontagem de Móveis",
-  "Pequenos Reparos",
-  "Instalação Elétrica",
-  "Instalação Hidráulica",
-  "Pintura",
-  "Gesso / Drywall",
-  "Carpintaria",
-  "Fixação de Quadros e Suportes",
-  "Instalação de Ar-Condicionado",
+const ESPECIALIDADES_INICIAIS = [
+  "Montagem de móveis",
+  "Pequenos reparos",
+  "Instalações",
+  "Manutenção residencial",
+  "Suporte residencial",
 ] as const;
 
-function firstName(value?: string | null) {
-  return (value || "").trim().split(/\s+/)[0] || "Montador";
+function Section({
+  title,
+  borderColor,
+  children,
+}: {
+  title: string;
+  /** Override da borda do card — usar `profileTheme.border` para alinhar com
+   *  a identidade visual do gênero. Default: borda lavanda do tema base. */
+  borderColor?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <View style={styles.section}>
+      <Text style={styles.sectionTitle}>{title}</Text>
+      <View style={[styles.sectionCard, borderColor ? { borderColor } : null]}>
+        {children}
+      </View>
+    </View>
+  );
+}
+
+function Row({
+  icon,
+  title,
+  subtitle,
+  accent,
+  soft,
+  dividerColor,
+  danger,
+  onPress,
+}: {
+  icon: React.ComponentProps<typeof AppIcon>["name"];
+  title: string;
+  subtitle?: string;
+  accent: string;
+  soft: string;
+  /** Override da cor do divisor inferior. Default: lavanda do tema base. */
+  dividerColor?: string;
+  danger?: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.row,
+        dividerColor ? { borderBottomColor: dividerColor } : null,
+        pressed && styles.pressed,
+      ]}
+    >
+      <View style={[styles.rowIcon, { backgroundColor: danger ? colors.dangerSoft : soft }]}>
+        <AppIcon name={icon} size={18} color={danger ? colors.danger : accent} />
+      </View>
+      <View style={styles.rowText}>
+        <Text style={[styles.rowTitle, danger && { color: colors.danger }]}>{title}</Text>
+        {subtitle ? <Text style={styles.rowSub}>{subtitle}</Text> : null}
+      </View>
+      <AppIcon name="ChevronRight" size={18} color={colors.textMuted} />
+    </Pressable>
+  );
+}
+
+function totalGanhos(servicos: MontadorServico[]) {
+  return servicos
+    .filter((item) => ["FINALIZADO", "CONCLUIDO"].includes(upperStatus(item.status)))
+    .reduce((sum, item) => sum + (item.precoFinal ?? item.valorEstimado ?? 0), 0);
 }
 
 export default function MontadorPerfil() {
   const navigation = useNavigation<Navigation>();
-  const colors = useDularColors();
-  const mode = useThemeStore((state) => state.mode);
-  const toggleTheme = useThemeStore((state) => state.toggleTheme);
+  const profileTheme = useProfileTheme("MONTADOR");
   const user = useAuth((state) => state.user);
+  const setUser = useAuth((state) => state.setUser);
   const clearSession = useAuth((state) => state.clearSession);
+  const { agenda } = useMontadorServicos();
+  const [online, setOnline] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // ── State local — sem persistência (integração API é tarefa separada) ────
-  const [editVisible, setEditVisible] = useState(false);
-  const [especialidadesVisible, setEspecialidadesVisible] = useState(false);
-  const [editNome, setEditNome] = useState(user?.nome ?? "");
-  const [editTelefone, setEditTelefone] = useState(user?.telefone ?? "");
-  const [editBio, setEditBio] = useState(user?.bio ?? "");
-  const [especialidades, setEspecialidades] = useState<string[]>([]);
+  const nome = firstName(user?.nome);
+  const verificado = user?.verificacao?.status === "APROVADO" || user?.verificado;
+  const ganhos = useMemo(() => totalGanhos(agenda), [agenda]);
 
-  const displayName = useMemo(() => firstName(user?.nome), [user]);
-  const avatarUri = user?.avatarUrl ?? null;
-
-  const openEdit = () => {
-    setEditNome(user?.nome ?? "");
-    setEditTelefone(user?.telefone ?? "");
-    setEditBio(user?.bio ?? "");
-    setEditVisible(true);
+  const carregarPerfilMontadorAtual = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const profile = await carregarPerfilMontador();
+      setUser((prev) => ({
+        ...(prev ?? { id: profile.id, nome: profile.nome ?? "", role: profile.role ?? "MONTADOR" }),
+        id: profile.id,
+        nome: profile.nome ?? prev?.nome ?? "",
+        telefone: profile.telefone ?? prev?.telefone,
+        role: profile.role ?? prev?.role ?? "MONTADOR",
+        genero: profile.genero ?? prev?.genero,
+        avatarUrl: profile.avatarUrl ?? prev?.avatarUrl,
+        bio: profile.bio ?? prev?.bio,
+        verificado: profile.verificado ?? prev?.verificado,
+        docEnviado: profile.docEnviado ?? prev?.docEnviado,
+        verificacao: profile.verificacao ?? prev?.verificacao,
+      }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Falha ao carregar perfil.");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const closeEdit = () => setEditVisible(false);
+  useEffect(() => {
+    void carregarPerfilMontadorAtual();
+  }, []);
 
-  const toggleEspecialidade = (item: string) => {
-    setEspecialidades((prev) =>
-      prev.includes(item) ? prev.filter((s) => s !== item) : [...prev, item]
-    );
+  const atualizarDadosProfissionais = () => {
+    Alert.alert("Dados profissionais", "Edição avançada será conectada ao perfil do montador.");
   };
-
-  const handleLogout = () => {
+  const atualizarEspecialidades = () => {
+    Alert.alert("Especialidades", ESPECIALIDADES_INICIAIS.join("\n"));
+  };
+  const atualizarAreaAtendimento = () => {
+    Alert.alert("Área de atendimento", "Configuração de bairros será conectada ao perfil do montador.");
+  };
+  const atualizarDisponibilidade = () => setOnline((current) => !current);
+  const atualizarPrecos = () => {
+    Alert.alert("Preços", "Tabela de preços do montador será conectada ao backend.");
+  };
+  const enviarDocumento = () => {
+    Alert.alert("Documentos", "Envio de documentos será conectado ao fluxo de verificação.");
+  };
+  const adicionarFotoPortfolio = () => {
+    Alert.alert("Portfólio", "Adição de fotos será conectada ao perfil do montador.");
+  };
+  const removerFotoPortfolio = () => {
+    Alert.alert("Portfólio", "Remoção de fotos será conectada ao perfil do montador.");
+  };
+  const carregarAvaliacoes = () => {
+    Alert.alert("Avaliações", "Avaliações do montador aparecerão quando houver histórico.");
+  };
+  const sairDaConta = () => {
     Alert.alert("Sair", "Encerrar sessão da conta?", [
-      { text: "Cancelar", style: "cancel" },
-      {
-        text: "Sair",
-        style: "destructive",
-        onPress: () => {
-          void clearSession();
-        },
-      },
+      { text: "Voltar", style: "cancel" },
+      { text: "Sair", style: "destructive", onPress: () => { void clearSession(); } },
     ]);
   };
 
-  const handleAvatarPress = () => {
-    Alert.alert("Foto de perfil", "Edição de foto disponível em breve.");
-  };
-
-  // ── Styles dinâmicos (recriados a cada render para reagir ao tema) ───────
-  const styles = StyleSheet.create({
-    safe: {
-      flex: 1,
-      backgroundColor: colors.background,
-    },
-    root: {
-      flex: 1,
-    },
-    scroll: {
-      paddingHorizontal: spacing.screenPadding,
-      paddingTop: 10,
-      paddingBottom: 122,
-      gap: 14,
-    },
-    header: {
-      minHeight: 52,
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-    },
-    headerSide: {
-      width: 48,
-      flexDirection: "row",
-      alignItems: "center",
-    },
-    headerSideRight: {
-      width: 48,
-      alignItems: "flex-end",
-    },
-    backButton: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      alignItems: "center",
-      justifyContent: "center",
-      backgroundColor: colors.surface,
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-    title: {
-      color: colors.textPrimary,
-      fontSize: 24,
-      lineHeight: 29,
-      fontWeight: "700",
-      letterSpacing: 0,
-      textAlign: "center",
-    },
-    bioText: {
-      color: colors.textPrimary,
-      ...typography.bodySm,
-      lineHeight: 20,
-      fontWeight: "500",
-    },
-    bioPlaceholder: {
-      color: colors.textMuted,
-      ...typography.bodySm,
-      fontWeight: "500",
-      fontStyle: "italic",
-    },
-    bioCardInner: {
-      padding: 14,
-    },
-
-    // Logout card (variante danger)
-    logoutCard: {
-      borderRadius: radius.lg,
-      padding: 10,
-      flexDirection: "row",
-      alignItems: "center",
-      gap: spacing.md,
-      borderColor: colors.dangerSoft,
-      backgroundColor: colors.surface,
-    },
-    logoutIcon: {
-      width: 36,
-      height: 36,
-      borderRadius: radius.md,
-      alignItems: "center",
-      justifyContent: "center",
-      backgroundColor: colors.dangerSoft,
-    },
-    logoutTextWrap: {
-      flex: 1,
-      gap: 4,
-    },
-    logoutTitle: {
-      color: colors.danger,
-      fontSize: 14,
-      fontWeight: "700",
-    },
-    logoutSubtitle: {
-      color: colors.textSecondary,
-      fontSize: 12,
-      fontWeight: "500",
-    },
-
-    // Modal de edição (slide-up sheet)
-    modalOverlay: {
-      flex: 1,
-      justifyContent: "flex-end",
-      backgroundColor: colors.overlay,
-    },
-    modalSheet: {
-      borderTopLeftRadius: radius.xl,
-      borderTopRightRadius: radius.xl,
-      paddingHorizontal: spacing.md,
-      paddingTop: spacing.md,
-      paddingBottom: spacing.xl,
-      backgroundColor: colors.surface,
-      gap: spacing.xs,
-    },
-    modalHeader: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      marginBottom: spacing.sm,
-    },
-    modalTitle: {
-      color: colors.textPrimary,
-      fontSize: 18,
-      fontWeight: "700",
-    },
-    modalLabel: {
-      marginTop: spacing.sm,
-      color: colors.textSecondary,
-      fontSize: 13,
-      fontWeight: "700",
-    },
-    modalInput: {
-      minHeight: 44,
-      borderRadius: radius.md,
-      borderWidth: 1.5,
-      borderColor: colors.border,
-      paddingHorizontal: spacing.md,
-      paddingVertical: 8,
-      color: colors.textPrimary,
-      backgroundColor: colors.background,
-      fontSize: 15,
-      fontWeight: "600",
-    },
-    modalInputMulti: {
-      minHeight: 94,
-      paddingTop: 12,
-    },
-    charCount: {
-      alignSelf: "flex-end",
-      color: colors.textMuted,
-      fontSize: 12,
-      fontWeight: "700",
-    },
-    saveButton: {
-      marginTop: spacing.md,
-    },
-
-    // Trigger "Minhas especialidades" dentro do modal de edição
-    especTrigger: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      gap: spacing.md,
-      paddingHorizontal: 12,
-      paddingVertical: 12,
-      minHeight: 60,
-      borderRadius: radius.md,
-      borderWidth: 1.5,
-      borderColor: colors.border,
-      backgroundColor: colors.background,
-      marginTop: 4,
-    },
-    especTriggerLeft: {
-      flex: 1,
-      flexDirection: "row",
-      alignItems: "center",
-      gap: spacing.md,
-    },
-    especTriggerIcon: {
-      width: 36,
-      height: 36,
-      borderRadius: 13,
-      alignItems: "center",
-      justifyContent: "center",
-      backgroundColor: colors.tealSoft,
-    },
-    especTriggerTitle: {
-      color: colors.textPrimary,
-      ...typography.bodySm,
-      fontWeight: "700",
-    },
-    especTriggerSub: {
-      color: colors.textSecondary,
-      ...typography.caption,
-      fontWeight: "500",
-      marginTop: 2,
-    },
-
-    // Card flutuante de especialidades
-    especOverlay: {
-      flex: 1,
-      alignItems: "center",
-      justifyContent: "center",
-      paddingHorizontal: spacing.lg,
-      backgroundColor: colors.overlay,
-    },
-    especCard: {
-      width: "100%",
-      maxHeight: "82%",
-      borderRadius: radius.xl,
-      paddingHorizontal: spacing.md,
-      paddingTop: spacing.md,
-      paddingBottom: spacing.md,
-      backgroundColor: colors.surface,
-      gap: spacing.sm,
-      ...shadows.floating,
-    },
-    especScroll: {
-      paddingVertical: spacing.sm,
-      gap: 12,
-    },
-    especHeading: {
-      color: colors.textSecondary,
-      ...typography.caption,
-      fontWeight: "700",
-    },
-    chips: {
-      flexDirection: "row",
-      flexWrap: "wrap",
-      gap: 8,
-    },
-    chip: {
-      paddingHorizontal: 12,
-      paddingVertical: 7,
-      borderRadius: radius.pill,
-      backgroundColor: colors.tealSoft,
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-    chipOn: {
-      backgroundColor: colors.teal,
-      borderColor: colors.teal,
-    },
-    chipText: {
-      fontSize: 12,
-      fontWeight: "700",
-      color: colors.textPrimary,
-    },
-    chipTextOn: {
-      color: colors.white,
-    },
-  });
-
   return (
-    <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
-      <View style={styles.root}>
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-          <View style={styles.header}>
-            <View style={styles.headerSide}>
-              {navigation.canGoBack() ? (
-                <Pressable
-                  onPress={() => navigation.goBack()}
-                  hitSlop={12}
-                  accessibilityRole="button"
-                  accessibilityLabel="Voltar"
-                  style={({ pressed }) => [styles.backButton, pressed && { opacity: 0.72 }]}
-                >
-                  <AppIcon name="ArrowLeft" size={20} color={colors.teal} strokeWidth={2.5} />
-                </Pressable>
-              ) : null}
-            </View>
-            <Text style={styles.title}>Perfil</Text>
-            <View style={styles.headerSideRight} />
-          </View>
-
-          <ProfileHeroCard
-            nome={displayName}
-            subtitle="Montador"
-            location="Cidade não informada"
-            memberSince="—"
-            avatarUri={avatarUri}
-            avatarFallback={null}
-            uploading={false}
-            onAvatarPress={handleAvatarPress}
-          />
-
-          {/* ── Bio ── */}
-          <ProfileSection title="Sobre você">
-            <View style={styles.bioCardInner}>
-              {editBio || user?.bio ? (
-                <Text style={styles.bioText}>{editBio || user?.bio}</Text>
-              ) : (
-                <Text style={styles.bioPlaceholder}>
-                  Nenhuma apresentação. Conte sobre seu trabalho no botão abaixo.
-                </Text>
-              )}
-            </View>
-          </ProfileSection>
-
-          {/* ── Meu perfil ── */}
-          <ProfileSection title="Meu perfil">
-            <ProfileRow
-              icon="User"
-              title="Nome, telefone, bio"
-              subtitle="Edite suas informações pessoais"
-              onPress={openEdit}
-            />
-            <ProfileRow
-              icon="Wrench"
-              title="Minhas especialidades"
-              subtitle={
-                especialidades.length > 0
-                  ? `${especialidades.length} selecionada(s)`
-                  : "Selecione os serviços que você faz"
-              }
-              onPress={() => setEspecialidadesVisible(true)}
-              isLast
-            />
-          </ProfileSection>
-
-          {/* ── Conta ── */}
-          <ProfileSection title="Conta">
-            <ProfileRow
-              icon="Lock"
-              title="Alterar senha"
-              subtitle="Segurança da conta"
-              onPress={() => Alert.alert("Em breve", "Alteração de senha será conectada em breve.")}
-            />
-            <ProfileRow
-              icon="FileText"
-              title="Termos de uso"
-              subtitle="Leia as regras da plataforma"
-              onPress={() => Alert.alert("Em breve", "Termos disponíveis em breve.")}
-            />
-            <ProfileRow
-              icon="Shield"
-              title="Política de privacidade"
-              subtitle="Controle seus dados"
-              onPress={() => Alert.alert("Em breve", "Política disponível em breve.")}
-            />
-            <ProfileSwitchRow
-              icon="Sparkles"
-              title="Dark mode"
-              subtitle="Tema escuro do app"
-              value={mode === "dark"}
-              onValueChange={toggleTheme}
-              isLast
-            />
-          </ProfileSection>
-
-          {/* ── Suporte ── */}
-          <ProfileSection title="Suporte">
-            <ProfileRow
-              icon="AlertTriangle"
-              title="Reportar problema"
-              subtitle="Fale com a equipe"
-              danger
-              onPress={() => Alert.alert("Em breve", "Reporte de problema será conectado em breve.")}
-              isLast
-            />
-          </ProfileSection>
-
-          {/* ── Logout ── */}
-          <DCard style={styles.logoutCard} onPress={handleLogout}>
-            <View style={styles.logoutIcon}>
-              <AppIcon name="LogOut" size={21} color={colors.danger} strokeWidth={2.3} />
-            </View>
-            <View style={styles.logoutTextWrap}>
-              <Text style={styles.logoutTitle}>Sair</Text>
-              <Text style={styles.logoutSubtitle}>Encerrar sessão da conta</Text>
-            </View>
-            <AppIcon name="ChevronRight" size={18} color={colors.danger} strokeWidth={2.2} />
-          </DCard>
-        </ScrollView>
+    <DScreen scroll withBottomPadding backgroundColor={profileTheme.background} contentContainerStyle={styles.scroll}>
+      <View style={styles.header}>
+        <Text style={styles.title}>Perfil</Text>
       </View>
 
-      {/* ── Modal de edição (nome/telefone/bio + atalho especialidades) ── */}
-      <Modal
-        visible={editVisible}
-        animationType="slide"
-        transparent
-        onRequestClose={closeEdit}
-      >
-        <KeyboardAvoidingView
-          style={styles.modalOverlay}
-          behavior={platformSelect({ ios: "padding", android: "height" })}
-        >
-          <View style={styles.modalSheet}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Editar perfil</Text>
-              <Pressable onPress={closeEdit} hitSlop={12}>
-                <AppIcon name="XCircle" size={23} color={colors.textSecondary} />
-              </Pressable>
-            </View>
-
-            <Text style={styles.modalLabel}>Nome</Text>
-            <TextInput
-              value={editNome}
-              onChangeText={setEditNome}
-              placeholder="Seu nome"
-              placeholderTextColor={colors.textMuted}
-              style={styles.modalInput}
-              autoCapitalize="words"
-            />
-
-            <Text style={styles.modalLabel}>Telefone</Text>
-            <TextInput
-              value={editTelefone}
-              onChangeText={setEditTelefone}
-              placeholder="Telefone"
-              placeholderTextColor={colors.textMuted}
-              style={styles.modalInput}
-              keyboardType="phone-pad"
-            />
-
-            <Text style={styles.modalLabel}>Bio / Apresentação</Text>
-            <TextInput
-              value={editBio}
-              onChangeText={(value) => setEditBio(value.slice(0, 300))}
-              placeholder="Conte sobre seu trabalho"
-              placeholderTextColor={colors.textMuted}
-              style={[styles.modalInput, styles.modalInputMulti]}
-              multiline
-              maxLength={300}
-              textAlignVertical="top"
-            />
-            <Text style={styles.charCount}>{editBio.length}/300</Text>
-
-            <Text style={styles.modalLabel}>Serviços</Text>
-            <Pressable
-              onPress={() => setEspecialidadesVisible(true)}
-              style={({ pressed }) => [styles.especTrigger, pressed && { opacity: 0.78 }]}
-            >
-              <View style={styles.especTriggerLeft}>
-                <View style={styles.especTriggerIcon}>
-                  <AppIcon name="Wrench" size={18} color={colors.teal} strokeWidth={2.2} />
+      {loading ? (
+        <DLoadingState text="Carregando perfil" color={profileTheme.primary} />
+      ) : error ? (
+        <DErrorState message={error} onRetry={carregarPerfilMontadorAtual} />
+      ) : (
+        <>
+          <View style={[styles.hero, { borderColor: profileTheme.border }]}>
+            <Pressable onPress={adicionarFotoPortfolio} style={[styles.avatar, { backgroundColor: profileTheme.primarySoft }]}>
+              <AppIcon name="UserRound" size={34} color={profileTheme.primary} strokeWidth={2.1} />
+            </Pressable>
+            <View style={styles.heroText}>
+              <Text style={styles.name}>{nome}</Text>
+              <Text style={styles.role}>Tipo: Montador</Text>
+              <View style={styles.heroBadges}>
+                <View style={[styles.badge, { backgroundColor: profileTheme.primarySoft }]}>
+                  <Text style={[styles.badgeText, { color: profileTheme.primary }]}>Avaliação --</Text>
                 </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.especTriggerTitle}>Minhas especialidades</Text>
-                  <Text style={styles.especTriggerSub}>
-                    {especialidades.length > 0
-                      ? `${especialidades.length} selecionada(s)`
-                      : "Selecione os serviços que você faz"}
+                <View style={[styles.badge, { backgroundColor: verificado ? profileTheme.primarySoft : colors.warningSoft }]}>
+                  <Text style={[styles.badgeText, { color: verificado ? profileTheme.primary : colors.warningDark }]}>
+                    {verificado ? "Verificado" : "Verificação pendente"}
                   </Text>
                 </View>
               </View>
-              <AppIcon name="ChevronRight" size={18} color={colors.textMuted} strokeWidth={2.2} />
-            </Pressable>
-
-            <DButton
-              label="Salvar alterações"
-              variant="primary"
-              size="lg"
-              onPress={closeEdit}
-              style={styles.saveButton}
-            />
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
-
-      {/* ── Modal flutuante de especialidades (chips) ── */}
-      <Modal
-        visible={especialidadesVisible}
-        animationType="fade"
-        transparent
-        onRequestClose={() => setEspecialidadesVisible(false)}
-      >
-        <View style={styles.especOverlay}>
-          <View style={styles.especCard}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Minhas especialidades</Text>
-              <Pressable onPress={() => setEspecialidadesVisible(false)} hitSlop={12}>
-                <AppIcon name="XCircle" size={23} color={colors.textSecondary} />
-              </Pressable>
+              <Text style={styles.status}>{online ? "Online" : "Indisponível"}</Text>
             </View>
-
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.especScroll}>
-              <Text style={styles.especHeading}>Selecione todos os serviços que você faz</Text>
-              <View style={styles.chips}>
-                {MONTADOR_ESPECIALIDADES.map((item) => {
-                  const active = especialidades.includes(item);
-                  return (
-                    <Pressable
-                      key={item}
-                      onPress={() => toggleEspecialidade(item)}
-                      style={[styles.chip, active && styles.chipOn]}
-                    >
-                      <Text style={[styles.chipText, active && styles.chipTextOn]}>
-                        {item}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            </ScrollView>
-
-            <DButton
-              label="Salvar especialidades"
-              variant="primary"
-              size="lg"
-              onPress={() => setEspecialidadesVisible(false)}
-              style={styles.saveButton}
-            />
           </View>
-        </View>
-      </Modal>
-    </SafeAreaView>
+
+          <View style={styles.specialties}>
+            {ESPECIALIDADES_INICIAIS.map((item) => (
+              <View key={item} style={[styles.chip, { backgroundColor: profileTheme.primarySoft, borderColor: profileTheme.border }]}>
+                <Text style={[styles.chipText, { color: profileTheme.textAccent }]}>{item}</Text>
+              </View>
+            ))}
+          </View>
+
+          <Section title="Dados profissionais" borderColor={profileTheme.border}>
+            <Row icon="User" title="Nome, telefone e apresentação" subtitle={user?.bio ?? "Complete sua apresentação"} accent={profileTheme.primary} soft={profileTheme.primarySoft} dividerColor={profileTheme.border} onPress={atualizarDadosProfissionais} />
+            <Row icon="Wrench" title="Especialidades" subtitle={`${ESPECIALIDADES_INICIAIS.length} especialidades iniciais`} accent={profileTheme.primary} soft={profileTheme.primarySoft} dividerColor={profileTheme.border} onPress={atualizarEspecialidades} />
+            <Row icon="MapPin" title="Área de atendimento" subtitle="Cidade e bairros atendidos" accent={profileTheme.primary} soft={profileTheme.primarySoft} dividerColor={profileTheme.border} onPress={atualizarAreaAtendimento} />
+            <Row icon="Clock" title="Disponibilidade" subtitle={online ? "Recebendo solicitações" : "Indisponível para novas solicitações"} accent={profileTheme.primary} soft={profileTheme.primarySoft} dividerColor={profileTheme.border} onPress={atualizarDisponibilidade} />
+            <Row icon="Wallet" title="Preços" subtitle="Valores por tipo de montagem" accent={profileTheme.primary} soft={profileTheme.primarySoft} dividerColor={profileTheme.border} onPress={atualizarPrecos} />
+          </Section>
+
+          <Section title="Portfólio" borderColor={profileTheme.border}>
+            <Row icon="Camera" title="Adicionar foto" subtitle="Mostre montagens e reparos realizados" accent={profileTheme.primary} soft={profileTheme.primarySoft} dividerColor={profileTheme.border} onPress={adicionarFotoPortfolio} />
+            <Row icon="Image" title="Remover foto" subtitle="Gerencie imagens publicadas" accent={profileTheme.primary} soft={profileTheme.primarySoft} dividerColor={profileTheme.border} onPress={removerFotoPortfolio} />
+          </Section>
+
+          <Section title="Documentos e segurança" borderColor={profileTheme.border}>
+            <Row icon="FileText" title="Documentos/verificação" subtitle={verificado ? "Documentos aprovados" : "Envie seus documentos"} accent={profileTheme.primary} soft={profileTheme.primarySoft} dividerColor={profileTheme.border} onPress={enviarDocumento} />
+            <Row icon="ShieldCheck" title="Segurança/SafeScore" subtitle="Proteção ativa no perfil profissional" accent={profileTheme.primary} soft={profileTheme.primarySoft} dividerColor={profileTheme.border} onPress={() => navigation.navigate("MontadorHome")} />
+          </Section>
+
+          <Section title="Avaliações e ganhos" borderColor={profileTheme.border}>
+            <Row icon="Star" title="Avaliações" subtitle="Histórico de avaliações recebidas" accent={profileTheme.primary} soft={profileTheme.primarySoft} dividerColor={profileTheme.border} onPress={carregarAvaliacoes} />
+            <Row icon="CreditCard" title="Carteira/Ganhos" subtitle={formatMoneyFromCents(ganhos)} accent={profileTheme.primary} soft={profileTheme.primarySoft} dividerColor={profileTheme.border} onPress={() => Alert.alert("Carteira", "Carteira do montador será conectada ao backend.")} />
+          </Section>
+
+          <Section title="Suporte e termos" borderColor={profileTheme.border}>
+            <Row icon="HelpCircle" title="Suporte" subtitle="Fale com o Dular" accent={profileTheme.primary} soft={profileTheme.primarySoft} dividerColor={profileTheme.border} onPress={() => Alert.alert("Suporte", "Atendimento será conectado em breve.")} />
+            <Row icon="FileText" title="Termos" subtitle="Termos e políticas da plataforma" accent={profileTheme.primary} soft={profileTheme.primarySoft} dividerColor={profileTheme.border} onPress={() => Alert.alert("Termos", "Termos serão exibidos em breve.")} />
+            <Row icon="LogOut" title="Sair" subtitle="Encerrar sessão da conta" accent={profileTheme.primary} soft={profileTheme.primarySoft} dividerColor={profileTheme.border} danger onPress={sairDaConta} />
+          </Section>
+
+          <View style={[styles.catalogCard, { borderColor: profileTheme.border }]}>
+            <Text style={styles.catalogTitle}>Catálogo inicial</Text>
+            <Text style={styles.catalogText}>{MONTADOR_SERVICOS.join(", ")}</Text>
+          </View>
+        </>
+      )}
+    </DScreen>
   );
 }
+
+const styles = StyleSheet.create({
+  scroll: {
+    gap: 16,
+  },
+  header: {
+    minHeight: 40,
+    justifyContent: "center",
+  },
+  title: {
+    ...typography.h1,
+    color: colors.textPrimary,
+    fontWeight: "800",
+  },
+  hero: {
+    flexDirection: "row",
+    gap: 14,
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    padding: 14,
+    ...shadows.card,
+  },
+  avatar: {
+    width: 74,
+    height: 74,
+    borderRadius: 37,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  heroText: {
+    flex: 1,
+    gap: 6,
+  },
+  name: {
+    ...typography.title,
+    color: colors.textPrimary,
+    fontWeight: "800",
+  },
+  role: {
+    ...typography.bodySm,
+    color: colors.textSecondary,
+    fontWeight: "700",
+  },
+  heroBadges: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+  },
+  badge: {
+    borderRadius: radius.pill,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+  },
+  badgeText: {
+    fontSize: 11,
+    fontWeight: "900",
+  },
+  status: {
+    ...typography.caption,
+    color: colors.textMuted,
+    fontWeight: "800",
+  },
+  specialties: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  chip: {
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  chipText: {
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  section: {
+    gap: 8,
+  },
+  sectionTitle: {
+    ...typography.bodySmMedium,
+    color: colors.textPrimary,
+    fontWeight: "800",
+  },
+  sectionCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
+    overflow: "hidden",
+    ...shadows.soft,
+  },
+  row: {
+    minHeight: 64,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  rowIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  rowText: {
+    flex: 1,
+    minWidth: 0,
+  },
+  rowTitle: {
+    ...typography.bodySmMedium,
+    color: colors.textPrimary,
+    fontWeight: "800",
+  },
+  rowSub: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  catalogCard: {
+    borderRadius: radius.xl,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 14,
+  },
+  catalogTitle: {
+    ...typography.bodySmMedium,
+    color: colors.textPrimary,
+    fontWeight: "800",
+  },
+  catalogText: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    marginTop: 6,
+    lineHeight: 18,
+  },
+  pressed: {
+    opacity: 0.74,
+  },
+});

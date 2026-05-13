@@ -7,6 +7,7 @@ import { gradients, radius, shadows, spacing } from "@/theme";
 import { useDularColors } from "@/hooks/useDularColors";
 import { useThemeStore } from "@/stores/useThemeStore";
 import { AppIcon, AppIconName } from "./AppIcon";
+import type { ProfileTheme } from "@/theme/profileTheme";
 
 export type NavTab = "home" | "search" | "new" | "messages" | "profile";
 
@@ -16,7 +17,9 @@ type Props = {
   activeTab?: NavTab | null;
   onPress: (tab: NavTab) => void;
   messagesBadge?: number;
-  variant?: "empregador" | "diarista";
+  requestsBadge?: number;
+  variant?: "empregador" | "diarista" | "montador";
+  profileTheme?: ProfileTheme;
 };
 
 type Item = {
@@ -44,19 +47,33 @@ const DIARISTA_ITEMS: Item[] = [
 const MONTADOR_ITEMS: Item[] = [
   { id: "home",     label: "Início",    icon: "Home"          },
   { id: "search",   label: "Agenda",    icon: "Calendar"      },
-  { id: "new",      label: "Serviços",  icon: "Plus"          },
+  { id: "new",      label: "Solicitações", icon: "BriefcaseBusiness" },
   { id: "messages", label: "Mensagens", icon: "MessageCircle" },
   { id: "profile",  label: "Perfil",    icon: "User"          },
 ];
 
-void MONTADOR_ITEMS; // reservado para quando o navigator do montador virar bottom-tabs
-
 // ─── Animated tab item ────────────────────────────────────────────────────────
 
 function TabItem({
-  item, isActive, isCenter, badge, onPress,
+  item,
+  isActive,
+  isCenter,
+  badge,
+  onPress,
+  activeColor,
+  inactiveColor,
+  activeSoft,
+  centerGradient,
 }: {
-  item: Item; isActive: boolean; isCenter: boolean; badge?: number; onPress: () => void;
+  item: Item;
+  isActive: boolean;
+  isCenter: boolean;
+  badge?: number;
+  onPress: () => void;
+  activeColor?: string;
+  inactiveColor?: string;
+  activeSoft?: string;
+  centerGradient?: readonly [string, string];
 }) {
   const colors = useDularColors();
   const isDark = useThemeStore((state) => state.mode === "dark");
@@ -77,25 +94,33 @@ function TabItem({
   const onPressOut = () =>
     Animated.spring(scaleAnim, { toValue: 1, tension: 150, friction: 8, useNativeDriver: true }).start();
 
-  const iconColor  = isActive ? colors.primary : colors.textMuted;
-  const labelColor = isActive ? colors.primary : colors.textMuted;
+  const selectedColor = activeColor ?? colors.primary;
+  const mutedColor = inactiveColor ?? colors.textMuted;
+  const iconColor  = isActive ? selectedColor : mutedColor;
+  const labelColor = isActive ? selectedColor : mutedColor;
   const pillBg = pillAnim.interpolate({
     inputRange: [0, 1],
     outputRange: [
       isDark ? "rgba(124,92,255,0)" : "rgba(123,78,219,0)",
-      isDark ? "rgba(124,92,255,0.18)" : "rgba(243,236,255,1)",
+      isDark ? "rgba(124,92,255,0.18)" : activeSoft ?? "rgba(243,236,255,1)",
     ],
   });
 
   if (isCenter) {
+    const grad = centerGradient ?? gradients.button;
     return (
       <Pressable onPress={onPress} onPressIn={onPressIn} onPressOut={onPressOut} style={s.centerWrap}>
         <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
-          <LinearGradient colors={gradients.button} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.centerBtn}>
-            <AppIcon name="Plus" size={28} color={colors.white} strokeWidth={2.6} />
+          <LinearGradient colors={grad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.centerBtn}>
+            <AppIcon name={item.icon} size={25} color={colors.white} strokeWidth={2.6} />
+            {badge && badge > 0 ? (
+              <View style={s.centerBadge}>
+                <Text style={s.badgeText}>{badge > 9 ? "9+" : badge}</Text>
+              </View>
+            ) : null}
           </LinearGradient>
         </Animated.View>
-        <Text style={[s.label, s.centerLabel]} numberOfLines={1}>{item.label}</Text>
+        <Text style={[s.label, s.centerLabel, { color: selectedColor }]} numberOfLines={1}>{item.label}</Text>
       </Pressable>
     );
   }
@@ -126,12 +151,26 @@ function TabItem({
 
 // ─── DBottomNav ───────────────────────────────────────────────────────────────
 
-export function DBottomNav({ activeTab, onPress, messagesBadge, variant = "empregador" }: Props) {
+export function DBottomNav({
+  activeTab,
+  onPress,
+  messagesBadge,
+  requestsBadge,
+  variant = "empregador",
+  profileTheme,
+}: Props) {
   const insets = useSafeAreaInsets();
   const colors = useDularColors();
   const isDark = useThemeStore((state) => state.mode === "dark");
   const s = useMemo(() => makeStyles(colors), [colors]);
-  const items = variant === "diarista" ? DIARISTA_ITEMS : EMPREGADOR_ITEMS;
+  const items =
+    variant === "diarista" ? DIARISTA_ITEMS
+    : variant === "montador" ? MONTADOR_ITEMS
+    : EMPREGADOR_ITEMS;
+  const centerGradient = profileTheme?.gradient ?? gradients.button;
+  const activeColor = profileTheme?.tabActive ?? colors.primary;
+  const inactiveColor = profileTheme?.tabInactive ?? colors.textMuted;
+  const activeSoft = profileTheme?.primarySoft ?? colors.lavenderSoft;
   // Encosta a tab bar logo acima do home indicator do iPhone (sem gap extra).
   // Em devices sem safe area inferior (Android sem gesto), mantém 8px de respiro.
   const bottomMargin = Math.max(insets.bottom - 24, 8);
@@ -148,8 +187,12 @@ export function DBottomNav({ activeTab, onPress, messagesBadge, variant = "empre
           item={item}
           isActive={activeTab === item.id}
           isCenter={item.id === "new"}
-          badge={item.id === "messages" ? messagesBadge : undefined}
+          badge={item.id === "messages" ? messagesBadge : item.id === "new" ? requestsBadge : undefined}
           onPress={() => onPress(item.id)}
+          activeColor={activeColor}
+          inactiveColor={inactiveColor}
+          activeSoft={activeSoft}
+          centerGradient={item.id === "new" ? centerGradient : undefined}
         />
       ))}
     </BlurView>
@@ -194,7 +237,15 @@ function makeStyles(colors: ThemeColors) {
       ...shadows.primaryButton,
     },
     centerLabel: {
-      color: colors.primary, fontWeight: "600",
+      color: colors.primary, fontWeight: "600", fontSize: 10, lineHeight: 12,
+    },
+    centerBadge: {
+      position: "absolute", top: -2, right: -2,
+      minWidth: 18, height: 18, paddingHorizontal: 4,
+      borderRadius: radius.pill, backgroundColor: colors.notification,
+      alignItems: "center", justifyContent: "center",
+      borderWidth: 1.5,
+      borderColor: colors.white,
     },
     badge: {
       position: "absolute", top: 2, right: 4,

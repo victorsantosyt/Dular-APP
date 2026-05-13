@@ -1,6 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { create } from "zustand";
-import { setAuthToken, registerClearSession } from "@/lib/api";
+import { api, setAuthToken, registerClearSession } from "@/lib/api";
 import { SecureStorage } from "@/services/secureStorage";
 import { useThemeStore } from "@/stores/useThemeStore";
 
@@ -54,7 +54,7 @@ type AuthState = {
 };
 
 // Non-sensitive keys that stay in AsyncStorage
-const ASYNC_KEYS = ["role", "dular_role", "userName", "userId"] as const;
+const ASYNC_KEYS = ["role", "dular_role", "userName", "userId", "genero"] as const;
 
 function normalizeRole(value: string | null | undefined): Role | null {
   if (value === "EMPREGADOR" || value === "DIARISTA" || value === "MONTADOR" || value === "ADMIN") {
@@ -63,7 +63,22 @@ function normalizeRole(value: string | null | undefined): Role | null {
   return null;
 }
 
-export const useAuth = create<AuthState>((set) => ({
+function normalizeGenero(value: string | null | undefined): Genero | null {
+  if (value === "MASCULINO" || value === "FEMININO") return value;
+  return null;
+}
+
+async function fetchSessionUser(): Promise<User | null> {
+  try {
+    const res = await api.get<{ user?: User } | User>("/api/me");
+    const payload = res.data as { user?: User };
+    return payload.user ?? (res.data as User);
+  } catch {
+    return null;
+  }
+}
+
+export const useAuth = create<AuthState>((set, get) => ({
   user: null,
   token: null,
   role: null,
@@ -77,18 +92,33 @@ export const useAuth = create<AuthState>((set) => ({
   async setSession(data) {
     const { token, role, user } = data;
     await setAuthToken(token);
-
-    // Sensitive: store in SecureStore (encrypted)
     await SecureStorage.saveToken(token);
-    if (user) await SecureStorage.saveUser(user);
+
+    const selectedGenero = get().selectedGenero;
+    const apiUser = await fetchSessionUser();
+    const reconciledUser: User = {
+      ...(user ?? apiUser ?? { id: "", nome: "", role }),
+      ...(apiUser ?? {}),
+      role: (apiUser?.role ?? user?.role ?? role) as Role,
+      genero: apiUser?.genero ?? user?.genero ?? selectedGenero ?? null,
+    };
+
+    await SecureStorage.saveUser(reconciledUser);
 
     // Non-sensitive: store in AsyncStorage
     const entries: [string, string][] = [["role", role]];
-    if (user?.nome) entries.push(["userName", user.nome]);
-    if (user?.id) entries.push(["userId", user.id]);
+    if (reconciledUser.nome) entries.push(["userName", reconciledUser.nome]);
+    if (reconciledUser.id) entries.push(["userId", reconciledUser.id]);
+    if (reconciledUser.genero) entries.push(["genero", reconciledUser.genero]);
     await AsyncStorage.multiSet(entries);
 
-    set({ token, role, user: user ?? null, isAuthenticated: true });
+    set({
+      token,
+      role: reconciledUser.role ?? role,
+      user: reconciledUser,
+      selectedGenero: reconciledUser.genero ?? selectedGenero,
+      isAuthenticated: true,
+    });
   },
 
   async clearSession() {
@@ -111,6 +141,7 @@ export const useAuth = create<AuthState>((set) => ({
     const pairs = await AsyncStorage.multiGet(ASYNC_KEYS as unknown as string[]);
     const map = Object.fromEntries(pairs);
     const role = normalizeRole(map["role"] || map["dular_role"]);
+    const genero = normalizeGenero(map["genero"]);
     const userName = map["userName"];
     const userId = map["userId"];
 
@@ -123,13 +154,15 @@ export const useAuth = create<AuthState>((set) => ({
         return;
       }
 
-      let userObj: User | null = userFromSecure;
+      let userObj: User | null = userFromSecure
+        ? { ...userFromSecure, role, genero: userFromSecure.genero ?? genero }
+        : null;
       if (!userObj && (userName || userId)) {
-        userObj = { id: userId || "", nome: userName || "", role };
+        userObj = { id: userId || "", nome: userName || "", role, genero };
       }
 
       await setAuthToken(token);
-      set({ token, role, user: userObj, hydrated: true, isAuthenticated: true });
+      set({ token, role, user: userObj, selectedGenero: userObj?.genero ?? genero, hydrated: true, isAuthenticated: true });
       return;
     }
     set({ hydrated: true, isAuthenticated: false });

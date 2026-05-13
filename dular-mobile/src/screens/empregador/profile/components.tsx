@@ -33,6 +33,14 @@ type ProfileHeroCardProps = {
   avatarFallback: ImageSourcePropType | null;
   uploading?: boolean;
   onAvatarPress: () => void;
+  /** Override do gradient do hero. Default: roxo do tema (Empregador). */
+  gradient?: readonly [string, string];
+  /** Cor do ícone Check + texto da pílula "Verificado" e ícone do avatar
+   *  fallback. Default: `colors.primary` (roxo). */
+  accentColor?: string;
+  /** Texto do prefixo da data — algumas identidades preferem "Usuário desde"
+   *  no masculino. Default: "Usuária desde". */
+  memberSincePrefix?: string;
 };
 
 export function ProfileHeroCard({
@@ -44,11 +52,16 @@ export function ProfileHeroCard({
   avatarFallback,
   uploading,
   onAvatarPress,
+  gradient,
+  accentColor,
+  memberSincePrefix = "Usuária desde",
 }: ProfileHeroCardProps) {
   const colors = useDularColors();
   const s = useMemo(() => makeStyles(colors), [colors]);
+  const heroGradient = gradient ?? [colors.primary, colors.primaryLight];
+  const accent = accentColor ?? colors.primary;
   return (
-    <LinearGradient colors={[colors.primary, colors.primaryLight]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.hero}>
+    <LinearGradient colors={heroGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.hero}>
       <View style={s.heroGhost}>
         <AppIcon name="Home" size={150} color={colors.whiteAlpha20} strokeWidth={1.2} />
       </View>
@@ -60,7 +73,7 @@ export function ProfileHeroCard({
             <Image source={avatarFallback} style={s.avatarImg} />
           ) : (
             <View style={s.avatarFallback}>
-              <AppIcon name="User" size={42} color={colors.primary} />
+              <AppIcon name="User" size={42} color={accent} />
             </View>
           )}
           <View style={s.cameraBadge}>
@@ -79,8 +92,8 @@ export function ProfileHeroCard({
             {nome}
           </Text>
           <View style={s.verifiedPill}>
-            <AppIcon name="Check" size={12} color={colors.primary} strokeWidth={3} />
-            <Text style={s.verifiedText}>Verificado</Text>
+            <AppIcon name="Check" size={12} color={accent} strokeWidth={3} />
+            <Text style={[s.verifiedText, { color: accent }]}>Verificado</Text>
           </View>
         </View>
         <Text style={s.heroSubtitle}>{subtitle}</Text>
@@ -91,7 +104,7 @@ export function ProfileHeroCard({
         </View>
         <View style={s.infoLine}>
           <AppIcon name="Calendar" size={15} color={colors.whiteAlpha90} strokeWidth={2.2} />
-          <Text style={s.infoLineText}>Usuária desde {memberSince}</Text>
+          <Text style={s.infoLineText}>{memberSincePrefix} {memberSince}</Text>
         </View>
       </View>
     </LinearGradient>
@@ -121,15 +134,36 @@ type ProfileRowProps = {
   onPress: () => void;
   danger?: boolean;
   isLast?: boolean;
+  /** Cor do ícone à esquerda. Default: `colors.primary` (roxo). */
+  accentColor?: string;
+  /** Cor de fundo do quadrado do ícone à esquerda. Default: `colors.lavenderSoft`. */
+  accentSoft?: string;
 };
 
-export function ProfileRow({ icon, title, subtitle, onPress, danger, isLast }: ProfileRowProps) {
+export function ProfileRow({
+  icon,
+  title,
+  subtitle,
+  onPress,
+  danger,
+  isLast,
+  accentColor,
+  accentSoft,
+}: ProfileRowProps) {
   const colors = useDularColors();
   const s = useMemo(() => makeStyles(colors), [colors]);
-  const tone = danger ? colors.danger : colors.primary;
+  const accent = accentColor ?? colors.primary;
+  const accentBg = accentSoft ?? colors.lavenderSoft;
+  const tone = danger ? colors.danger : accent;
   return (
     <Pressable onPress={onPress} style={({ pressed }) => [s.row, !isLast && s.rowDivider, pressed && { opacity: 0.74 }]}>
-      <View style={[s.rowIcon, danger && s.rowIconDanger]}>
+      <View
+        style={[
+          s.rowIcon,
+          { backgroundColor: accentBg },
+          danger && s.rowIconDanger,
+        ]}
+      >
         <AppIcon name={icon} size={20} color={tone} strokeWidth={2.2} />
       </View>
       <View style={s.rowText}>
@@ -148,15 +182,34 @@ type ProfileSwitchRowProps = {
   value: boolean;
   onValueChange: (value: boolean) => void;
   isLast?: boolean;
+  /** Cor do ícone, do thumb e da track (estado ativo). Default: `colors.primary`. */
+  accentColor?: string;
+  /** Cor mais clara usada no track ativo. Default: `colors.primaryLight`. */
+  accentLight?: string;
+  /** Background do quadrado do ícone à esquerda. Default: `colors.lavenderSoft`. */
+  accentSoft?: string;
 };
 
-export function ProfileSwitchRow({ icon, title, subtitle, value, onValueChange, isLast }: ProfileSwitchRowProps) {
+export function ProfileSwitchRow({
+  icon,
+  title,
+  subtitle,
+  value,
+  onValueChange,
+  isLast,
+  accentColor,
+  accentLight,
+  accentSoft,
+}: ProfileSwitchRowProps) {
   const colors = useDularColors();
   const s = useMemo(() => makeStyles(colors), [colors]);
+  const accent = accentColor ?? colors.primary;
+  const accentLightFinal = accentLight ?? colors.primaryLight;
+  const accentBg = accentSoft ?? colors.lavenderSoft;
   return (
     <View style={[s.row, !isLast && s.rowDivider]}>
-      <View style={s.rowIcon}>
-        <AppIcon name={icon} size={20} color={colors.primary} strokeWidth={2.2} />
+      <View style={[s.rowIcon, { backgroundColor: accentBg }]}>
+        <AppIcon name={icon} size={20} color={accent} strokeWidth={2.2} />
       </View>
       <View style={s.rowText}>
         <Text style={s.rowTitle}>{title}</Text>
@@ -165,8 +218,8 @@ export function ProfileSwitchRow({ icon, title, subtitle, value, onValueChange, 
       <Switch
         value={value}
         onValueChange={onValueChange}
-        trackColor={{ false: colors.lavenderStrong, true: colors.primaryLight }}
-        thumbColor={value ? colors.primary : colors.white}
+        trackColor={{ false: colors.lavenderStrong, true: accentLightFinal }}
+        thumbColor={value ? accent : colors.white}
         ios_backgroundColor={colors.lavenderStrong}
       />
     </View>

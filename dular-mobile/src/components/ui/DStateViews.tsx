@@ -11,10 +11,11 @@ import { AppIcon, type AppIconName } from "./AppIcon";
 
 type LoadingProps = {
   text?: string;
+  color?: string;
   style?: ViewStyle;
 };
 
-export function DLoadingState({ text, style }: LoadingProps) {
+export function DLoadingState({ text, color = colors.primary, style }: LoadingProps) {
   const pulse = useRef(new Animated.Value(0.5)).current;
 
   useEffect(() => {
@@ -28,9 +29,9 @@ export function DLoadingState({ text, style }: LoadingProps) {
 
   return (
     <View style={[s.center, style]}>
-      <Animated.View style={[s.loadingDot, { opacity: pulse }]} />
-      <Animated.View style={[s.loadingDot, s.loadingDotMid, { opacity: pulse }]} />
-      <Animated.View style={[s.loadingDot, { opacity: pulse }]} />
+      <Animated.View style={[s.loadingDot, { backgroundColor: color, opacity: pulse }]} />
+      <Animated.View style={[s.loadingDot, s.loadingDotMid, { backgroundColor: color, opacity: pulse }]} />
+      <Animated.View style={[s.loadingDot, { backgroundColor: color, opacity: pulse }]} />
       {text ? <Text style={s.loadingText}>{text}</Text> : null}
     </View>
   );
@@ -81,6 +82,8 @@ type EmptyProps = {
   subtitle?: string;
   action?: string;
   onAction?: () => void;
+  accentColor?: string;
+  softBg?: string;
   style?: ViewStyle;
 };
 
@@ -90,17 +93,19 @@ export function DEmptyState({
   subtitle,
   action,
   onAction,
+  accentColor = colors.primaryLight,
+  softBg = colors.lavender,
   style,
 }: EmptyProps) {
   return (
     <View style={[s.stateCard, s.emptyCard, style]}>
-      <View style={s.emptyIconWrap}>
-        <AppIcon name={icon} size={28} color={colors.primaryLight} strokeWidth={1.5} />
+      <View style={[s.emptyIconWrap, { backgroundColor: softBg }]}>
+        <AppIcon name={icon} size={28} color={accentColor} strokeWidth={1.5} />
       </View>
       <Text style={s.emptyTitle}>{title}</Text>
       {subtitle ? <Text style={s.emptySub}>{subtitle}</Text> : null}
       {action ? (
-        <Pressable onPress={onAction} style={s.emptyAction}>
+        <Pressable onPress={onAction} style={[s.emptyAction, { backgroundColor: accentColor }]}>
           <Text style={s.emptyActionLabel}>{action}</Text>
         </Pressable>
       ) : null}

@@ -11,7 +11,7 @@ type Params = { params: Promise<{ id: string }> };
 export async function POST(req: Request, { params }: Params) {
   try {
     const auth = requireAuth(req);
-    assertRole(auth.role as UserRole, ["DIARISTA"]);
+    assertRole(auth.role as UserRole, ["DIARISTA", "MONTADOR"]);
 
     const { id } = await params;
     const body = await req.json().catch(() => ({}));
@@ -44,7 +44,7 @@ export async function POST(req: Request, { params }: Params) {
     await sendPushNotification(
       servico.clientId,
       "Serviço aceito",
-      "A diarista aceitou sua solicitação. Confira os detalhes.",
+      "O profissional aceitou sua solicitação. Confira os detalhes.",
       { servicoId: servico.id, tipo: "SERVICO_ACEITO" }
     );
 

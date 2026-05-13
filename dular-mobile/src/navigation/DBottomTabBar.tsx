@@ -44,6 +44,10 @@ const TAB_BY_ROUTE: Record<Variant, Record<string, NavTab>> = {
   ) as Record<string, NavTab>,
 };
 
+TAB_BY_ROUTE.montador.MontadorDetalheSolicitacao = "new";
+TAB_BY_ROUTE.montador.MontadorDetalheServico = "search";
+TAB_BY_ROUTE.montador.MontadorChat = "messages";
+
 type Props = BottomTabBarProps & {
   variant: Variant;
   messagesBadge?: number;

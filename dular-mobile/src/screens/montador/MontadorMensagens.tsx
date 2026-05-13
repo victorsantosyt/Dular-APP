@@ -32,6 +32,7 @@ export default function MontadorMensagens() {
       withBottomPadding
       backgroundColor={profileTheme.background}
       refreshing={refreshing}
+      refreshTintColor={profileTheme.primary}
       onRefresh={refetch}
       contentContainerStyle={styles.scroll}
     >
@@ -104,9 +105,11 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   title: {
-    ...typography.h1,
     color: colors.textPrimary,
-    fontWeight: "800",
+    fontSize: 24,
+    lineHeight: 29,
+    fontWeight: "700",
+    letterSpacing: 0,
   },
   subtitle: {
     ...typography.bodySm,
@@ -138,15 +141,15 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   employerName: {
-    ...typography.bodyMedium,
+    ...typography.bodySm,
     color: colors.textPrimary,
-    fontWeight: "800",
+    fontWeight: "700",
   },
   serviceLine: {
     ...typography.caption,
     color: colors.textSecondary,
     marginTop: 2,
-    fontWeight: "700",
+    fontWeight: "500",
   },
   lastMessage: {
     ...typography.caption,
@@ -158,8 +161,8 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   statusText: {
-    fontSize: 11,
-    fontWeight: "800",
+    ...typography.caption,
+    fontWeight: "700",
   },
   unreadBadge: {
     minWidth: 20,
@@ -172,7 +175,7 @@ const styles = StyleSheet.create({
   unreadText: {
     color: colors.white,
     fontSize: 10,
-    fontWeight: "900",
+    fontWeight: "700",
   },
   pressed: {
     opacity: 0.76,

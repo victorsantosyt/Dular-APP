@@ -8,6 +8,7 @@ import { EmpregadorServiceFlowNavigator } from "@/navigation/EmpregadorServiceFl
 import { MensagensEmpregadorScreen } from "@/screens/empregador/MensagensEmpregadorScreen";
 import { NotificacoesEmpregadorScreen } from "@/screens/empregador/NotificacoesEmpregadorScreen";
 import { DiaristaProfileScreen } from "@/screens/empregador/DiaristaProfileScreen";
+import MontadorPublicProfile from "@/screens/empregador/MontadorPublicProfile";
 import EmpregadorPerfil from "@/screens/empregador/EmpregadorPerfil";
 import EmpregadorDetalhe from "@/screens/empregador/EmpregadorDetalhe";
 import { ChatAbertoScreen } from "@/screens/shared/ChatAbertoScreen";
@@ -19,18 +20,24 @@ import ReportIncident from "@/screens/perfil/ReportIncident";
 import Termos from "@/screens/perfil/Termos";
 import VerificacaoDocs from "@/screens/perfil/VerificacaoDocs";
 import { useAuth } from "@/stores/authStore";
+import type { ServiceCategory } from "@/screens/empregador/service-flow/ServiceFlowContext";
 
 export type EmpregadorTabParamList = {
   Home: undefined;
   Buscar: undefined;
   Agendamentos: undefined;
-  SolicitarServico: undefined;
+  /** Pode receber pré-seleção da Home / Busca / perfil público. Sem params,
+   *  abre o flow no estado inicial. */
+  SolicitarServico:
+    | undefined
+    | { categoriaInicial?: ServiceCategory; profissionalId?: string };
   Mensagens: undefined;
   Notificacoes: undefined;
   ChatAberto: ChatAbertoParams;
   Perfil: undefined;
   ProfissionalPerfil: { id: string };
   DiaristaProfile: { diaristaId: string; nome: string };
+  MontadorPublicProfile: { montadorId: string; nome?: string };
   DetalheServico: { id: string };
   EmpregadorDetalhe: { servicoId: string };
   Paywall: { mensagem?: string };
@@ -71,6 +78,7 @@ export function EmpregadorNavigator() {
       <Tab.Screen name="Perfil" component={PerfilScreen} />
       <Tab.Screen name="ProfissionalPerfil" component={DiaristaProfileScreen} />
       <Tab.Screen name="DiaristaProfile" component={DiaristaProfileScreen} />
+      <Tab.Screen name="MontadorPublicProfile" component={MontadorPublicProfile} />
       <Tab.Screen name="DetalheServico" component={DetalheServicoScreen} />
       <Tab.Screen name="EmpregadorDetalhe" component={DetalheServicoScreen} />
       <Tab.Screen name="Paywall" component={PaywallScreen} />

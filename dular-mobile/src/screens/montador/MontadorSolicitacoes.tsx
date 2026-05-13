@@ -246,6 +246,7 @@ export default function MontadorSolicitacoes() {
       withBottomPadding
       backgroundColor={profileTheme.background}
       refreshing={refreshing}
+      refreshTintColor={profileTheme.primary}
       onRefresh={refetch}
       contentContainerStyle={styles.scroll}
     >
@@ -315,9 +316,11 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   title: {
-    ...typography.h1,
     color: colors.textPrimary,
-    fontWeight: "800",
+    fontSize: 24,
+    lineHeight: 29,
+    fontWeight: "700",
+    letterSpacing: 0,
   },
   subtitle: {
     ...typography.bodySm,
@@ -336,7 +339,7 @@ const styles = StyleSheet.create({
   },
   tabText: {
     ...typography.caption,
-    fontWeight: "800",
+    fontWeight: "700",
   },
   list: {
     gap: 12,
@@ -367,9 +370,9 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   cardTitle: {
-    ...typography.bodyMedium,
+    ...typography.bodySm,
     color: colors.textPrimary,
-    fontWeight: "800",
+    fontWeight: "700",
   },
   cardSub: {
     ...typography.caption,
@@ -383,22 +386,21 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   statusText: {
-    fontSize: 11,
-    fontWeight: "800",
+    ...typography.caption,
+    fontWeight: "700",
   },
   infoGrid: {
     gap: 4,
   },
   infoLabel: {
-    fontSize: 11,
+    ...typography.caption,
     color: colors.textMuted,
-    fontWeight: "800",
-    textTransform: "uppercase",
+    fontWeight: "700",
   },
   infoValue: {
     ...typography.bodySm,
     color: colors.textPrimary,
-    fontWeight: "700",
+    fontWeight: "500",
     marginBottom: 4,
   },
   notes: {
@@ -409,7 +411,7 @@ const styles = StyleSheet.create({
   notesLabel: {
     ...typography.caption,
     color: colors.textMuted,
-    fontWeight: "800",
+    fontWeight: "700",
     marginBottom: 4,
   },
   notesText: {
@@ -429,7 +431,7 @@ const styles = StyleSheet.create({
   },
   photosText: {
     ...typography.caption,
-    fontWeight: "900",
+    fontWeight: "700",
   },
   scoreLine: {
     flexDirection: "row",
@@ -440,7 +442,7 @@ const styles = StyleSheet.create({
     flex: 1,
     ...typography.caption,
     color: colors.textSecondary,
-    fontWeight: "700",
+    fontWeight: "500",
   },
   actions: {
     flexDirection: "row",
@@ -455,7 +457,7 @@ const styles = StyleSheet.create({
   primaryActionText: {
     ...typography.caption,
     color: colors.white,
-    fontWeight: "900",
+    fontWeight: "700",
   },
   rejectAction: {
     borderRadius: radius.pill,
@@ -467,7 +469,7 @@ const styles = StyleSheet.create({
   rejectText: {
     ...typography.caption,
     color: colors.danger,
-    fontWeight: "900",
+    fontWeight: "700",
   },
   softAction: {
     borderRadius: radius.pill,
@@ -476,7 +478,7 @@ const styles = StyleSheet.create({
   },
   softActionText: {
     ...typography.caption,
-    fontWeight: "900",
+    fontWeight: "700",
   },
   ghostAction: {
     borderRadius: radius.pill,
@@ -487,6 +489,6 @@ const styles = StyleSheet.create({
   ghostActionText: {
     ...typography.caption,
     color: colors.textSecondary,
-    fontWeight: "800",
+    fontWeight: "700",
   },
 });

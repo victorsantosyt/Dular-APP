@@ -98,8 +98,8 @@ export function DEmptyState({
   style,
 }: EmptyProps) {
   return (
-    <View style={[s.stateCard, s.emptyCard, style]}>
-      <View style={[s.emptyIconWrap, { backgroundColor: softBg }]}>
+    <View style={[s.stateCard, s.emptyCard, { backgroundColor: softBg }, style]}>
+      <View style={[s.emptyIconWrap, { backgroundColor: colors.surface }]}>
         <AppIcon name={icon} size={28} color={accentColor} strokeWidth={1.5} />
       </View>
       <Text style={s.emptyTitle}>{title}</Text>

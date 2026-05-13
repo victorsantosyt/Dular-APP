@@ -72,6 +72,44 @@ export async function GET(req: Request) {
       });
     }
 
+    if (auth.role === "MONTADOR") {
+      const profile = await prisma.montadorPerfil.findUnique({
+        where: { userId: auth.userId },
+        select: {
+          bio: true,
+          fotoPerfil: true,
+          documentoFrente: true,
+          documentoVerso: true,
+          selfieDoc: true,
+          verificado: true,
+          rating: true,
+          totalServicos: true,
+          especialidades: true,
+          cidade: true,
+          estado: true,
+        },
+      });
+
+      const hasDocs = Boolean(profile?.documentoFrente || profile?.documentoVerso || profile?.selfieDoc);
+
+      return NextResponse.json({
+        ok: true,
+        user: {
+          ...user,
+          bio: profile?.bio ?? null,
+          avatarUrl: profile?.fotoPerfil ?? user.avatarUrl ?? null,
+          verificado: Boolean(profile?.verificado),
+          docEnviado: hasDocs,
+          verificacao: { status: profile?.verificado ? "APROVADO" : hasDocs ? "PENDENTE" : "NAO_ENVIADO" },
+          notaMedia: profile?.rating ?? 0,
+          totalServicos: profile?.totalServicos ?? 0,
+          especialidades: profile?.especialidades ?? [],
+          cidade: profile?.cidade ?? null,
+          estado: profile?.estado ?? null,
+        },
+      });
+    }
+
     // Cliente: devolve dados básicos; verificação opcional
     return NextResponse.json({
       ok: true,
@@ -196,6 +234,44 @@ export async function PUT(req: Request) {
           precoLeve: true,
           precoMedio: true,
           precoPesada: true,
+        },
+      });
+    } else if (Object.keys(profileData).length > 0 && auth.role === "MONTADOR") {
+      const montador = await prisma.montadorPerfil.upsert({
+        where: { userId: auth.userId },
+        update: {
+          ...(profileData.bio !== undefined ? { bio: profileData.bio } : {}),
+        },
+        create: {
+          userId: auth.userId,
+          especialidades: [],
+          bio: profileData.bio,
+        },
+        select: {
+          bio: true,
+          fotoPerfil: true,
+          verificado: true,
+          documentoFrente: true,
+          documentoVerso: true,
+          selfieDoc: true,
+        },
+      });
+
+      return NextResponse.json({
+        ok: true,
+        user: {
+          ...user,
+          bio: montador.bio,
+          avatarUrl: montador.fotoPerfil ?? user.avatarUrl ?? null,
+          verificado: montador.verificado,
+          docEnviado: Boolean(montador.documentoFrente || montador.documentoVerso || montador.selfieDoc),
+          verificacao: {
+            status: montador.verificado
+              ? "APROVADO"
+              : montador.documentoFrente || montador.documentoVerso || montador.selfieDoc
+                ? "PENDENTE"
+                : "NAO_ENVIADO",
+          },
         },
       });
     } else if (auth.role === "DIARISTA") {

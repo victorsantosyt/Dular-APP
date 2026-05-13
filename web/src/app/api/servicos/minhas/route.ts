@@ -11,9 +11,11 @@ export async function GET(req: Request) {
         ? { clientId: auth.userId }
         : auth.role === "DIARISTA"
           ? { diaristaId: auth.userId }
-          : auth.role === "ADMIN"
-            ? {}
-            : null;
+          : auth.role === "MONTADOR"
+            ? { diaristaId: auth.userId }
+            : auth.role === "ADMIN"
+              ? {}
+              : null;
 
     if (!where) {
       return NextResponse.json({ ok: false, error: "Perfil sem serviços neste fluxo." }, { status: 403 });
@@ -37,7 +39,7 @@ export async function GET(req: Request) {
         s.status === "CONCLUIDO" ||
         s.status === "CONFIRMADO" ||
         s.status === "FINALIZADO" ||
-        (auth.role === "DIARISTA" && s.status === "SOLICITADO");
+        ((auth.role === "DIARISTA" || auth.role === "MONTADOR") && s.status === "SOLICITADO");
 
       const endereco = canSeeAddress ? s.enderecoCompleto : null;
 

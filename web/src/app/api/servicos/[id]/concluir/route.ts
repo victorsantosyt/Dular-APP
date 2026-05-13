@@ -11,7 +11,7 @@ type Params = { params: Promise<{ id: string }> };
 export async function POST(req: Request, { params }: Params) {
   try {
     const auth = requireAuth(req);
-    assertRole(auth.role as UserRole, ["DIARISTA"]);
+    assertRole(auth.role as UserRole, ["DIARISTA", "MONTADOR"]);
 
     const { id } = await params;
     const servico = await prisma.servico.findUnique({ where: { id } });
@@ -33,7 +33,7 @@ export async function POST(req: Request, { params }: Params) {
     await sendPushNotification(
       servico.clientId,
       "Serviço concluído",
-      "A diarista finalizou o serviço. Avalie o atendimento!",
+      "O profissional finalizou o serviço. Avalie o atendimento!",
       { servicoId: servico.id, tipo: "SERVICO_CONCLUIDO" }
     );
 

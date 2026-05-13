@@ -266,7 +266,7 @@ export function LoginScreen() {
           <AppIcon name="ShieldCheck" variant="soft" color="purple" />
           <View style={styles.infoText}>
             <Text style={styles.infoTitle}>Segurança em primeiro lugar</Text>
-            <Text style={styles.infoSubtitle}>Todas as contas são verificadas para proteger clientes e diaristas.</Text>
+            <Text style={styles.infoSubtitle}>Todas as contas são verificadas para proteger empregadores e profissionais.</Text>
           </View>
           <AppIcon name="Sparkles" size={20} color={colors.accent} strokeWidth={2.4} />
         </View>

@@ -1,4 +1,4 @@
-import { ReactElement, ReactNode } from "react";
+import { ReactNode, useMemo } from "react";
 import {
   KeyboardAvoidingView,
   Platform,
@@ -10,12 +10,15 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
-import { colors, spacing } from "@/theme";
+import { useDularColors } from "@/hooks/useDularColors";
+import { useThemeStore } from "@/stores/useThemeStore";
+import { spacing } from "@/theme";
 
 // Extra bottom breathing room when scroll content lives above a floating bottom nav.
 export const BOTTOM_NAV_CLEARANCE = 108;
 
 type EdgeValue = "top" | "bottom" | "left" | "right";
+type ThemeColors = ReturnType<typeof useDularColors>;
 
 type Props = {
   children: ReactNode;
@@ -23,7 +26,8 @@ type Props = {
   scroll?: boolean;
   /** @deprecated alias for scroll — kept for backward compat */
   scrollable?: boolean;
-  /** Background color of the safe area + content */
+  /** Background color of the safe area + content. Override do tema; cor explícita
+   *  passada externamente tem precedência sobre `colors.background`. */
   backgroundColor?: string;
   /** Style applied to the SafeAreaView root */
   style?: ViewStyle;
@@ -31,7 +35,8 @@ type Props = {
   contentContainerStyle?: ViewStyle;
   /** Which safe-area edges to inset. Default: top, left, right */
   safeAreaEdges?: EdgeValue[];
-  /** Status bar appearance */
+  /** Status bar appearance. "auto" (default) deriva do tema; "light"/"dark"
+   *  forçam o estilo independentemente do modo. */
   statusBarStyle?: "dark" | "light" | "auto";
   /** When scroll=true, adds BOTTOM_NAV_CLEARANCE at the end of scroll content */
   withBottomPadding?: boolean;
@@ -56,10 +61,26 @@ export function DScreen({
   refreshing,
   onRefresh,
 }: Props) {
+  const colors = useDularColors();
+  const mode = useThemeStore((state) => state.mode);
+  const s = useMemo(() => makeStyles(colors), [colors]);
+
   const isScrollable = scroll ?? scrollable ?? false;
   const bg = backgroundColor ?? colors.background;
 
   const safeStyle = [s.safe, { backgroundColor: bg }, style];
+
+  // Status bar: se o caller passou explicitamente "light", respeita.
+  // Se passou "dark" (default histórico) e o tema atual é dark, vira "light"
+  // pra texto da status bar permanecer legível. "auto" segue o tema do app.
+  const effectiveStatusBarStyle =
+    statusBarStyle === "auto"
+      ? mode === "dark"
+        ? "light"
+        : "dark"
+      : statusBarStyle === "dark" && mode === "dark"
+      ? "light"
+      : statusBarStyle;
 
   const refreshControl =
     isScrollable && onRefresh ? (
@@ -102,22 +123,27 @@ export function DScreen({
 
   return (
     <SafeAreaView style={safeStyle} edges={safeAreaEdges}>
-      <StatusBar style={statusBarStyle} />
+      <StatusBar style={effectiveStatusBarStyle} />
       {body}
     </SafeAreaView>
   );
 }
 
-const s = StyleSheet.create({
-  safe: {
-    flex: 1,
-  },
-  flex: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingHorizontal: spacing.screenPadding,
-    paddingTop: spacing.lg,
-    paddingBottom: spacing.xl,
-  },
-});
+function makeStyles(_colors: ThemeColors) {
+  // _colors reservado: o background é aplicado inline (suporta override externo).
+  // Esta função existe pra manter o padrão consistente com os outros componentes
+  // e pra acomodar futuras cores temáticas no shell da tela.
+  return StyleSheet.create({
+    safe: {
+      flex: 1,
+    },
+    flex: {
+      flex: 1,
+    },
+    scrollContent: {
+      paddingHorizontal: spacing.screenPadding,
+      paddingTop: spacing.lg,
+      paddingBottom: spacing.xl,
+    },
+  });
+}

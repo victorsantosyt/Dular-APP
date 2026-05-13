@@ -60,7 +60,7 @@ export function SolicitarServicoScreen() {
         </ScrollView>
       </ScrollView>
       <SafeAreaView style={flowStyles.footer}>
-        <DButton label="Continuar" size="lg" onPress={() => navigation.navigate("EscolherData")} />
+        <DButton label="Continuar" variant="primary" size="lg" onPress={() => navigation.navigate("EscolherData")} />
       </SafeAreaView>
     </SafeAreaView>
   );

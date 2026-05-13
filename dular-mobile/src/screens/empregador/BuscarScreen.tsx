@@ -16,7 +16,6 @@ import {
   AppIcon,
   type AppIconName,
   DAvatar,
-  DBottomNav,
   DButton,
   DSkeletonCard,
 } from "@/components/ui";
@@ -329,16 +328,6 @@ export function BuscarScreen() {
     setSelectedCat((prev) => (prev === key ? null : key));
   }, []);
 
-  const handleBottomNav = useCallback(
-    (tab: "home" | "search" | "new" | "messages" | "profile") => {
-      if (tab === "home") navigation.navigate("Home");
-      else if (tab === "messages") navigation.navigate("Mensagens");
-      else if (tab === "profile") navigation.navigate("Perfil");
-      else if (tab === "new") navigation.navigate("SolicitarServico");
-    },
-    [navigation],
-  );
-
   const baseList: Profissional[] = useMemo(
     () =>
       apiProfs.length > 0
@@ -463,13 +452,6 @@ export function BuscarScreen() {
             )}
           </View>
         </ScrollView>
-
-        <DBottomNav
-          activeTab="search"
-          variant="empregador"
-          messagesBadge={messagesBadge}
-          onPress={handleBottomNav}
-        />
       </View>
     </SafeAreaView>
   );

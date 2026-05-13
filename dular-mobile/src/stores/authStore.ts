@@ -2,6 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { create } from "zustand";
 import { setAuthToken, registerClearSession } from "@/lib/api";
 import { SecureStorage } from "@/services/secureStorage";
+import { useThemeStore } from "@/stores/useThemeStore";
 
 function isJwtExpired(token: string): boolean {
   try {
@@ -94,6 +95,10 @@ export const useAuth = create<AuthState>((set) => ({
     await setAuthToken(null);
     await SecureStorage.clearAll();
     await AsyncStorage.multiRemove(ASYNC_KEYS as unknown as string[]);
+    // Reseta o tema para "light" — onboarding/login devem nascer claros pro
+    // próximo usuário (também garantido pelo ThemeScope forceLight, mas
+    // limpar o store evita que o próximo login herde o dark mode anterior).
+    useThemeStore.getState().setTheme("light");
     set({ token: null, role: null, user: null, isAuthenticated: false, selectedRole: null, selectedGenero: null });
   },
 

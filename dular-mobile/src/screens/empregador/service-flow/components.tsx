@@ -140,9 +140,11 @@ export const flowStyles = StyleSheet.create({
     gap: spacing.md,
   },
   footer: {
-    paddingHorizontal: spacing.screenPadding,
+    paddingHorizontal: spacing.xl,
     paddingTop: spacing.sm,
-    paddingBottom: 18,
+    paddingBottom: spacing.xl,
+    gap: spacing.lg,
+    alignItems: "stretch",
     backgroundColor: colors.background,
   },
 });

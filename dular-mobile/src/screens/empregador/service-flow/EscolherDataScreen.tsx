@@ -147,7 +147,7 @@ export function EscolherDataScreen() {
       </ScrollView>
 
       <SafeAreaView style={flowStyles.footer}>
-        <DButton label="Continuar" size="lg" onPress={continueFlow} />
+        <DButton label="Continuar" variant="primary" size="lg" onPress={continueFlow} />
       </SafeAreaView>
     </SafeAreaView>
   );

@@ -84,7 +84,7 @@ export function EnderecoServicoScreen() {
       </ScrollView>
 
       <SafeAreaView style={flowStyles.footer}>
-        <DButton label="Continuar" size="lg" onPress={() => navigation.navigate("ObservacoesServico")} />
+        <DButton label="Continuar" variant="primary" size="lg" onPress={() => navigation.navigate("ObservacoesServico")} />
       </SafeAreaView>
     </SafeAreaView>
   );

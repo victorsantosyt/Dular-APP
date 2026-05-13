@@ -44,7 +44,7 @@ export function SolicitacaoSucessoScreen() {
       </View>
 
       <SafeAreaView style={flowStyles.footer}>
-        <DButton label="Acompanhar solicitação" size="lg" onPress={goHome} />
+        <DButton label="Acompanhar solicitação" variant="primary" size="lg" onPress={goHome} />
         <DButton label="Voltar ao início" variant="ghost" onPress={goHome} style={s.secondaryButton} />
       </SafeAreaView>
     </SafeAreaView>

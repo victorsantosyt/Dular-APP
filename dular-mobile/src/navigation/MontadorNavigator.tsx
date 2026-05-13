@@ -6,6 +6,7 @@ import MontadorAgenda from "@/screens/montador/MontadorAgenda";
 import MontadorSolicitacoes from "@/screens/montador/MontadorSolicitacoes";
 import MontadorMensagens from "@/screens/montador/MontadorMensagens";
 import MontadorPerfil from "@/screens/montador/MontadorPerfil";
+import MontadorNotificacoes from "@/screens/montador/MontadorNotificacoes";
 import MontadorDetalheSolicitacao from "@/screens/montador/MontadorDetalheSolicitacao";
 import MontadorDetalheServico from "@/screens/montador/MontadorDetalheServico";
 import ChatScreen from "@/screens/chat/ChatScreen";
@@ -17,6 +18,7 @@ export type MontadorTabParamList = {
   MontadorSolicitacoes: undefined;
   MontadorMensagens: undefined;
   MontadorPerfil: undefined;
+  MontadorNotificacoes: undefined;
   MontadorDetalheSolicitacao: { servicoId: string };
   MontadorDetalheServico: { servicoId: string };
   MontadorChat: { servicoId: string };
@@ -46,6 +48,7 @@ export function MontadorNavigator() {
       <Tab.Screen name="MontadorSolicitacoes" component={MontadorSolicitacoes} />
       <Tab.Screen name="MontadorMensagens" component={MontadorMensagens} />
       <Tab.Screen name="MontadorPerfil" component={MontadorPerfil} />
+      <Tab.Screen name="MontadorNotificacoes" component={MontadorNotificacoes} />
       <Tab.Screen name="MontadorDetalheSolicitacao" component={MontadorDetalheSolicitacao} />
       <Tab.Screen name="MontadorDetalheServico" component={MontadorDetalheServico} />
       <Tab.Screen name="MontadorChat" component={ChatScreen} />

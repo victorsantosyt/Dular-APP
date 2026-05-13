@@ -80,7 +80,7 @@ export function MontadorHome() {
           <Text style={styles.subtitle}>Sua rotina profissional no Dular</Text>
         </View>
         <Pressable
-          onPress={() => navigation.navigate("MontadorSolicitacoes")}
+          onPress={() => navigation.navigate("MontadorNotificacoes")}
           hitSlop={12}
           style={[styles.notificationButton, { borderColor: profileTheme.border }]}
         >

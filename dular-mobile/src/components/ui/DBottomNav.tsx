@@ -1,15 +1,19 @@
-import React, { useRef, useEffect } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { colors, gradients, radius, shadows, spacing } from "@/theme";
+import { gradients, radius, shadows, spacing } from "@/theme";
+import { useDularColors } from "@/hooks/useDularColors";
+import { useThemeStore } from "@/stores/useThemeStore";
 import { AppIcon, AppIconName } from "./AppIcon";
 
 export type NavTab = "home" | "search" | "new" | "messages" | "profile";
 
+type ThemeColors = ReturnType<typeof useDularColors>;
+
 type Props = {
-  activeTab: NavTab;
+  activeTab?: NavTab | null;
   onPress: (tab: NavTab) => void;
   messagesBadge?: number;
   variant?: "empregador" | "diarista";
@@ -44,6 +48,9 @@ const MONTADOR_ITEMS: Item[] = [
   { id: "messages", label: "Mensagens", icon: "MessageCircle" },
   { id: "profile",  label: "Perfil",    icon: "User"          },
 ];
+
+void MONTADOR_ITEMS; // reservado para quando o navigator do montador virar bottom-tabs
+
 // ─── Animated tab item ────────────────────────────────────────────────────────
 
 function TabItem({
@@ -51,6 +58,10 @@ function TabItem({
 }: {
   item: Item; isActive: boolean; isCenter: boolean; badge?: number; onPress: () => void;
 }) {
+  const colors = useDularColors();
+  const isDark = useThemeStore((state) => state.mode === "dark");
+  const s = useMemo(() => makeStyles(colors), [colors]);
+
   const pillAnim = useRef(new Animated.Value(isActive && !isCenter ? 1 : 0)).current;
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
@@ -70,7 +81,10 @@ function TabItem({
   const labelColor = isActive ? colors.primary : colors.textMuted;
   const pillBg = pillAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: ["rgba(123,78,219,0)", "rgba(243,236,255,1)"],
+    outputRange: [
+      isDark ? "rgba(124,92,255,0)" : "rgba(123,78,219,0)",
+      isDark ? "rgba(124,92,255,0.18)" : "rgba(243,236,255,1)",
+    ],
   });
 
   if (isCenter) {
@@ -114,11 +128,20 @@ function TabItem({
 
 export function DBottomNav({ activeTab, onPress, messagesBadge, variant = "empregador" }: Props) {
   const insets = useSafeAreaInsets();
+  const colors = useDularColors();
+  const isDark = useThemeStore((state) => state.mode === "dark");
+  const s = useMemo(() => makeStyles(colors), [colors]);
   const items = variant === "diarista" ? DIARISTA_ITEMS : EMPREGADOR_ITEMS;
-  const bottomMargin = insets.bottom + spacing.sm;
+  // Encosta a tab bar logo acima do home indicator do iPhone (sem gap extra).
+  // Em devices sem safe area inferior (Android sem gesto), mantém 8px de respiro.
+  const bottomMargin = Math.max(insets.bottom - 24, 8);
 
   return (
-    <BlurView intensity={80} tint="light" style={[s.bar, { marginBottom: bottomMargin }]}>
+    <BlurView
+      intensity={60}
+      tint={isDark ? "dark" : "light"}
+      style={[s.bar, { marginBottom: bottomMargin }]}
+    >
       {items.map((item) => (
         <TabItem
           key={item.id}
@@ -135,50 +158,52 @@ export function DBottomNav({ activeTab, onPress, messagesBadge, variant = "empre
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 
-const s = StyleSheet.create({
-  bar: {
-    flexDirection: "row",
-    backgroundColor: "rgba(255,255,255,0.6)",
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.sm,
-    paddingHorizontal: spacing.sm,
-    marginHorizontal: spacing.md,
-    borderRadius: radius.xxl,
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignItems: "flex-start",
-    overflow: "hidden",
-    ...shadows.floating,
-  },
-  item: {
-    flex: 1, alignItems: "center", gap: 4, paddingTop: 2,
-  },
-  iconPill: {
-    width: 44, height: 36, borderRadius: radius.lg,
-    alignItems: "center", justifyContent: "center", position: "relative",
-  },
-  label: {
-    fontSize: 11, lineHeight: 14, textAlign: "center", width: "100%",
-  },
-  centerWrap: {
-    flex: 1, alignItems: "center", justifyContent: "flex-start",
-    gap: 4, marginTop: 0, paddingTop: 0,
-  },
-  centerBtn: {
-    width: 48, height: 48, borderRadius: 24,
-    alignItems: "center", justifyContent: "center",
-    ...shadows.primaryButton,
-  },
-  centerLabel: {
-    color: colors.primary, fontWeight: "600",
-  },
-  badge: {
-    position: "absolute", top: 2, right: 4,
-    minWidth: 18, height: 18, paddingHorizontal: 4,
-    borderRadius: radius.pill, backgroundColor: colors.notification,
-    alignItems: "center", justifyContent: "center",
-  },
-  badgeText: {
-    color: colors.white, fontSize: 10, fontWeight: "800", lineHeight: 13,
-  },
-});
+function makeStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    bar: {
+      flexDirection: "row",
+      backgroundColor: "rgba(255,255,255,0.32)",
+      paddingTop: 6,
+      paddingBottom: 6,
+      paddingHorizontal: spacing.sm,
+      marginHorizontal: spacing.md,
+      borderRadius: radius.xxl,
+      borderWidth: 1,
+      borderColor: "rgba(255,255,255,0.55)",
+      alignItems: "flex-start",
+      overflow: "hidden",
+      ...shadows.floating,
+    },
+    item: {
+      flex: 1, alignItems: "center", gap: 4, paddingTop: 2,
+    },
+    iconPill: {
+      width: 44, height: 36, borderRadius: radius.lg,
+      alignItems: "center", justifyContent: "center", position: "relative",
+    },
+    label: {
+      fontSize: 11, lineHeight: 14, textAlign: "center", width: "100%",
+    },
+    centerWrap: {
+      flex: 1, alignItems: "center", justifyContent: "flex-start",
+      gap: 4, marginTop: 0, paddingTop: 0,
+    },
+    centerBtn: {
+      width: 48, height: 48, borderRadius: 24,
+      alignItems: "center", justifyContent: "center",
+      ...shadows.primaryButton,
+    },
+    centerLabel: {
+      color: colors.primary, fontWeight: "600",
+    },
+    badge: {
+      position: "absolute", top: 2, right: 4,
+      minWidth: 18, height: 18, paddingHorizontal: 4,
+      borderRadius: radius.pill, backgroundColor: colors.notification,
+      alignItems: "center", justifyContent: "center",
+    },
+    badgeText: {
+      color: colors.white, fontSize: 10, fontWeight: "800", lineHeight: 13,
+    },
+  });
+}

@@ -3,7 +3,7 @@ import { ActivityIndicator, Alert, FlatList, Pressable, RefreshControl, ScrollVi
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
-import { AppIcon, DAvatar, DBadge, DBottomNav, DButton, DCard } from "@/components/ui";
+import { AppIcon, DAvatar, DBadge, DButton, DCard } from "@/components/ui";
 import { colors, radius, spacing, typography } from "@/theme";
 import { useAuth } from "@/stores/authStore";
 import type { DiaristaTabParamList } from "@/navigation/DiaristaNavigator";
@@ -200,12 +200,6 @@ export function AgendamentosDiaristaScreen() {
     return sourceData;
   }, [sourceData, activeFilter]);
 
-  const handleBottomNav = (tab: "home" | "search" | "new" | "messages" | "profile") => {
-    if (tab === "home") navigation.navigate("Home");
-    if (tab === "messages") navigation.navigate("Mensagens");
-    if (tab === "profile") navigation.navigate("Perfil");
-  };
-
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.content}>
@@ -265,8 +259,6 @@ export function AgendamentosDiaristaScreen() {
             refreshControl={<RefreshControl refreshing={loading} onRefresh={refetch} colors={[colors.primary]} />}
           />
         )}
-
-        <DBottomNav variant="diarista" activeTab="new" messagesBadge={messagesBadge} onPress={handleBottomNav} />
       </View>
     </SafeAreaView>
   );

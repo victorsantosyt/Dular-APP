@@ -79,7 +79,7 @@ export function ObservacoesServicoScreen() {
       </ScrollView>
 
       <SafeAreaView style={flowStyles.footer}>
-        <DButton label="Continuar" size="lg" onPress={() => navigation.navigate("ConfirmarSolicitacao")} />
+        <DButton label="Continuar" variant="primary" size="lg" onPress={() => navigation.navigate("ConfirmarSolicitacao")} />
       </SafeAreaView>
     </SafeAreaView>
   );

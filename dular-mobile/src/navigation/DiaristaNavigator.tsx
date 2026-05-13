@@ -1,5 +1,6 @@
 import React from "react";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
+import { DBottomTabBar } from "@/navigation/DBottomTabBar";
 import { DiaristaHomeScreen } from "@/screens/diarista/DiaristaHomeScreen";
 import { AgendamentosDiaristaScreen } from "@/screens/diarista/AgendamentosDiaristaScreen";
 import { MensagensDiaristaScreen } from "@/screens/diarista/MensagensDiaristaScreen";
@@ -50,9 +51,10 @@ function DetalheServicoScreen(props: any) {
 export function DiaristaNavigator() {
   return (
     <Tab.Navigator
-      tabBar={() => null}
+      tabBar={(props) => <DBottomTabBar {...props} variant="diarista" />}
       screenOptions={{
         headerShown: false,
+        tabBarStyle: { position: "absolute", borderTopWidth: 0, elevation: 0, backgroundColor: "transparent" },
       }}
     >
       <Tab.Screen name="Home" component={DiaristaHomeScreen} />

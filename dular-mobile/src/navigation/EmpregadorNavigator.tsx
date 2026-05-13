@@ -1,5 +1,6 @@
 import React from "react";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
+import { DBottomTabBar } from "@/navigation/DBottomTabBar";
 import { AgendamentosEmpregadorScreen } from "@/screens/empregador/AgendamentosEmpregadorScreen";
 import EmpregadorHome from "@/screens/empregador/EmpregadorHome";
 import { BuscarScreen } from "@/screens/empregador/BuscarScreen";
@@ -54,9 +55,10 @@ function DetalheServicoScreen(props: any) {
 export function EmpregadorNavigator() {
   return (
     <Tab.Navigator
-      tabBar={() => null}
+      tabBar={(props) => <DBottomTabBar {...props} variant="empregador" />}
       screenOptions={{
         headerShown: false,
+        tabBarStyle: { position: "absolute", borderTopWidth: 0, elevation: 0, backgroundColor: "transparent" },
       }}
     >
       <Tab.Screen name="Home" component={EmpregadorHome} />

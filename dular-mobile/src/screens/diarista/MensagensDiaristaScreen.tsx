@@ -67,30 +67,32 @@ export function MensagensDiaristaScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Mensagens</Text>
-      </View>
+      <View style={styles.content}>
+        <View style={styles.header}>
+          <Text style={styles.title}>Mensagens</Text>
+        </View>
 
-      {loading ? (
-        <SkeletonList />
-      ) : (
-        <FlatList
-          data={rooms}
-          keyExtractor={(item) => item.id}
-          renderItem={renderItem}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.listContent}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              tintColor={colors.primary}
-              colors={[colors.primary]}
-            />
-          }
-          ListEmptyComponent={<EmptyState />}
-        />
-      )}
+        {loading ? (
+          <SkeletonList />
+        ) : (
+          <FlatList
+            data={rooms}
+            keyExtractor={(item) => item.id}
+            renderItem={renderItem}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.listContent}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                tintColor={colors.primary}
+                colors={[colors.primary]}
+              />
+            }
+            ListEmptyComponent={<EmptyState />}
+          />
+        )}
+      </View>
     </SafeAreaView>
   );
 }
@@ -102,6 +104,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
+  content: {
+    flex: 1,
+  },
   header: {
     paddingHorizontal: spacing.screenPadding,
     paddingTop: 10,
@@ -110,13 +115,13 @@ const styles = StyleSheet.create({
   title: {
     color: colors.textPrimary,
     ...typography.h1,
-    
+
     fontWeight: "700",
     letterSpacing: 0,
   },
   listContent: {
     flexGrow: 1,
-    paddingBottom: 80,
+    paddingBottom: 112,
   },
   emptyWrap: {
     flex: 1,
@@ -137,14 +142,14 @@ const styles = StyleSheet.create({
   emptyTitle: {
     color: colors.textPrimary,
     ...typography.bodyMedium,
-    
+
     fontWeight: "700",
     textAlign: "center",
   },
   emptySubtitle: {
     color: colors.textSecondary,
     ...typography.caption,
-    
+
     fontWeight: "500",
     textAlign: "center",
     marginTop: spacing.sm,

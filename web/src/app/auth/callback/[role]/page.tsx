@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { ensureUserRoleProfile } from "@/lib/userProfiles";
 import { redirect } from "next/navigation";
 
+export const dynamic = "force-dynamic";
+
 const ROLE_MAP = { cliente: "EMPREGADOR", empregador: "EMPREGADOR", diarista: "DIARISTA", montador: "MONTADOR" } as const;
 type UrlRole = keyof typeof ROLE_MAP;
 

@@ -25,7 +25,6 @@ import {
   AppIcon,
   type AppIconName,
   DAvatar,
-  DBottomNav,
   DScreen,
   DSectionHeader,
   DSkeletonCard,
@@ -265,16 +264,6 @@ export default function EmpregadorHome() {
     [bairro, categoria, cidade, geo.cidade, geo.coords, geo.loading, geo.uf, selectedTipo, uf],
   );
 
-  const handleNav = useCallback(
-    (tab: "home" | "search" | "new" | "messages" | "profile") => {
-      if (tab === "search") navigation.navigate("Buscar");
-      else if (tab === "new") navigation.navigate("SolicitarServico");
-      else if (tab === "messages") navigation.navigate("Mensagens");
-      else if (tab === "profile") navigation.navigate("Perfil");
-    },
-    [navigation],
-  );
-
   useEffect(() => {
     let mounted = true;
     getCatalogoServicos()
@@ -473,13 +462,6 @@ export default function EmpregadorHome() {
             </View>
           </View>
         </ScrollView>
-
-        <DBottomNav
-          activeTab="home"
-          variant="empregador"
-          messagesBadge={messagesBadge}
-          onPress={handleNav}
-        />
       </View>
     </DScreen>
   );

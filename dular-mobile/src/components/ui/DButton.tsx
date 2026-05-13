@@ -10,10 +10,12 @@ import {
   ViewStyle,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { colors, radius, shadows } from "@/theme";
+import { useDularColors } from "@/hooks/useDularColors";
+import { radius, shadows } from "@/theme";
 
 type Variant = "primary" | "secondary" | "outline" | "accent" | "ghost" | "danger";
 type Size = "sm" | "md" | "lg";
+type ThemeColors = ReturnType<typeof useDularColors>;
 
 type Props = {
   label: string;
@@ -30,7 +32,7 @@ type Props = {
 const sizeMap: Record<Size, { paddingVertical: number; paddingHorizontal: number; fontSize: number }> = {
   sm: { paddingVertical: 6,  paddingHorizontal: 14, fontSize: 13 },
   md: { paddingVertical: 10, paddingHorizontal: 22, fontSize: 15 },
-  lg: { paddingVertical: 12, paddingHorizontal: 28, fontSize: 16 },
+  lg: { paddingVertical: 16, paddingHorizontal: 28, fontSize: 16 },
 };
 
 export function DButton({
@@ -44,6 +46,7 @@ export function DButton({
   style,
   labelStyle,
 }: Props) {
+  const colors = useDularColors();
   const scale = useRef(new Animated.Value(1)).current;
 
   const onIn = () =>
@@ -58,7 +61,7 @@ export function DButton({
     minHeight: 44,
     paddingVertical: sz.paddingVertical,
     paddingHorizontal: sz.paddingHorizontal,
-    borderRadius: radius.md,
+    borderRadius: radius.pill,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
@@ -71,11 +74,11 @@ export function DButton({
   const renderInner = () => (
     <>
       {loading ? (
-        <ActivityIndicator size="small" color={textColorFor(variant)} />
+        <ActivityIndicator size="small" color={textColorFor(variant, colors)} />
       ) : (
         <>
           {icon ? <View>{icon}</View> : null}
-          <Text style={[textStyle, { color: textColorFor(variant) }, labelStyle]}>{label}</Text>
+          <Text style={[textStyle, { color: textColorFor(variant, colors) }, labelStyle]}>{label}</Text>
         </>
       )}
     </>
@@ -87,7 +90,7 @@ export function DButton({
         ? [colors.primary, colors.primaryDark]
         : [colors.accent, colors.accentDark];
     return (
-      <Animated.View style={[{ transform: [{ scale }] }, gradientShadow(variant), style]}>
+      <Animated.View style={[{ transform: [{ scale }] }, gradientShadow(variant, colors), style]}>
         <Pressable
           onPress={onPress}
           onPressIn={onIn}
@@ -107,7 +110,7 @@ export function DButton({
     );
   }
 
-  const flat = flatStyle(variant);
+  const flat = flatStyle(variant, colors);
   return (
     <Animated.View style={[{ transform: [{ scale }] }, style]}>
       <Pressable
@@ -123,7 +126,7 @@ export function DButton({
   );
 }
 
-function textColorFor(v: Variant): string {
+function textColorFor(v: Variant, colors: ThemeColors): string {
   switch (v) {
     case "primary":
     case "accent":
@@ -139,7 +142,7 @@ function textColorFor(v: Variant): string {
   }
 }
 
-function flatStyle(v: Variant): ViewStyle {
+function flatStyle(v: Variant, colors: ThemeColors): ViewStyle {
   switch (v) {
     case "secondary":
       return { borderWidth: 1, borderColor: colors.lavenderSoft, backgroundColor: colors.lavenderSoft };
@@ -154,12 +157,12 @@ function flatStyle(v: Variant): ViewStyle {
   }
 }
 
-function gradientShadow(v: Variant): ViewStyle {
+function gradientShadow(v: Variant, colors: ThemeColors): ViewStyle {
   const color = v === "primary" ? colors.primary : colors.accent;
   return {
     ...shadows.primaryButton,
     shadowColor: color,
-    borderRadius: radius.lg,
+    borderRadius: radius.pill,
   };
 }
 

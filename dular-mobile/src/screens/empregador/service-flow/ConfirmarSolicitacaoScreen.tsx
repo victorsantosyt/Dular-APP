@@ -88,7 +88,7 @@ export function ConfirmarSolicitacaoScreen() {
       </ScrollView>
 
       <SafeAreaView style={flowStyles.footer}>
-        <DButton label="Confirmar solicitação" size="lg" onPress={confirmRequest} />
+        <DButton label="Confirmar solicitação" variant="primary" size="lg" onPress={confirmRequest} />
         <DButton
           label="Editar informações"
           variant="ghost"

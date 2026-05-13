@@ -8,6 +8,7 @@ import MontadorNavigator from "@/navigation/MontadorNavigator";
 import { useAuthStore } from "@/stores/authStore";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { hasSeenOnboarding, resetOnboardingSeen, shouldResetOnboardingInDev } from "@/lib/onboarding";
+import { ThemeScope } from "@/contexts/ThemeContext";
 import { colors } from "@/theme";
 
 function PushNotificationsGate({ children }: { children: React.ReactNode }) {
@@ -40,7 +41,11 @@ function AuthenticatedFlow({ role, onboardingSeen }: { role: string | null; onbo
   }
 
   const initialRouteName = onboardingSeen ? "RoleSelect" : "Splash";
-  return <OnboardingNavigator key={initialRouteName} initialRouteName={initialRouteName} />;
+  return (
+    <ThemeScope forceLight>
+      <OnboardingNavigator key={initialRouteName} initialRouteName={initialRouteName} />
+    </ThemeScope>
+  );
 }
 
 export function RootNavigator() {
@@ -87,7 +92,11 @@ export function RootNavigator() {
 
   if (!isAuthenticated) {
     const initialRouteName = onboardingSeen ? "RoleSelect" : "Splash";
-    return <OnboardingNavigator key={initialRouteName} initialRouteName={initialRouteName} />;
+    return (
+      <ThemeScope forceLight>
+        <OnboardingNavigator key={initialRouteName} initialRouteName={initialRouteName} />
+      </ThemeScope>
+    );
   }
 
   return <AuthenticatedFlow role={role} onboardingSeen={onboardingSeen} />;

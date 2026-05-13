@@ -3,7 +3,7 @@ import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View
 import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
-import { AppIcon, AppIconName, DAvatar, DBadge, DBottomNav, DCard, DScreen, DSectionHeader } from "@/components/ui";
+import { AppIcon, AppIconName, DAvatar, DBadge, DCard, DScreen, DSectionHeader } from "@/components/ui";
 import { DularLogo } from "@/assets/brand";
 import { Wallet3DIcon } from "@/assets/icons";
 import { colors, radius, shadows, spacing, typography } from "@/theme";
@@ -174,13 +174,6 @@ export function DiaristaHomeScreen() {
       .catch(() => []);
   }, []);
 
-  const handleBottomNav = useCallback((tab: "home" | "search" | "new" | "messages" | "profile") => {
-    if (tab === "new") navigation.navigate("Novo");
-    if (tab === "messages") navigation.navigate("Mensagens");
-    if (tab === "profile") navigation.navigate("Perfil");
-    if (tab === "search") navigation.navigate("Agendamentos");
-  }, [navigation]);
-
   const handleQuickAction = useCallback((action: QuickActionId) => {
     if (action === "agendamentos") navigation.navigate("Agendamentos");
     if (action === "carteira") navigation.navigate("Carteira");
@@ -343,8 +336,6 @@ export function DiaristaHomeScreen() {
             </View>
           </View>
         </ScrollView>
-
-        <DBottomNav activeTab="home" messagesBadge={messagesBadge} variant="diarista" onPress={handleBottomNav} />
       </View>
     </DScreen>
   );

@@ -3,7 +3,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
-import { AppIcon, DBottomNav, DCard } from "@/components/ui";
+import { AppIcon, DCard } from "@/components/ui";
 import { useMensagens } from "@/hooks/useMensagens";
 import type { EmpregadorTabParamList } from "@/navigation/EmpregadorNavigator";
 import { colors, radius, shadows, spacing, typography } from "@/theme";
@@ -113,16 +113,6 @@ export function MensagensEmpregadorScreen() {
   );
   const messagesBadge = unreadMessages > 0 ? unreadMessages : undefined;
 
-  const handleBottomNav = useCallback(
-    (tab: "home" | "search" | "new" | "messages" | "profile") => {
-      if (tab === "home") navigation.navigate("Home");
-      else if (tab === "search") navigation.navigate("Buscar");
-      else if (tab === "new") navigation.navigate("SolicitarServico");
-      else if (tab === "profile") navigation.navigate("Perfil");
-    },
-    [navigation],
-  );
-
   const openChat = useCallback(
     (item: ConversationItem) => {
       navigation.navigate("ChatAberto", {
@@ -177,13 +167,6 @@ export function MensagensEmpregadorScreen() {
             </View>
           )}
         </ScrollView>
-
-        <DBottomNav
-          activeTab="messages"
-          variant="empregador"
-          messagesBadge={messagesBadge}
-          onPress={handleBottomNav}
-        />
       </View>
     </SafeAreaView>
   );

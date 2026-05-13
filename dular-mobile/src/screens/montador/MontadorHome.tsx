@@ -1,10 +1,13 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { AppIcon, DScreen } from "@/components/ui";
 import { colors, radius, shadows, spacing, typography } from "@/theme";
 import { useAuth } from "@/stores/authStore";
 import { getProfileTheme } from "@/theme/profileTheme";
 import type { Genero } from "@/theme/profileTheme";
+import type { MontadorStackParamList } from "@/navigation/MontadorNavigator";
 
 const FEATURES = [
   {
@@ -25,6 +28,7 @@ const FEATURES = [
 ];
 
 export function MontadorHome() {
+  const navigation = useNavigation<NativeStackNavigationProp<MontadorStackParamList>>();
   const clearSession = useAuth((state) => state.clearSession);
   const user = useAuth((state) => state.user);
   const selectedGenero = useAuth((state) => state.selectedGenero);
@@ -39,6 +43,20 @@ export function MontadorHome() {
           <AppIcon name="Wrench" size={18} color={profileTheme.primary} strokeWidth={2.2} />
         </View>
         <Text style={s.headerTitle}>Dular Montador</Text>
+        <View style={s.headerSpacer} />
+        <Pressable
+          onPress={() => navigation.navigate("MontadorPerfil")}
+          hitSlop={12}
+          accessibilityRole="button"
+          accessibilityLabel="Abrir perfil"
+          style={({ pressed }) => [
+            s.profileBtn,
+            { borderColor: profileTheme.primary, backgroundColor: profileTheme.primarySoft },
+            pressed && { opacity: 0.72 },
+          ]}
+        >
+          <AppIcon name="User" size={20} color={profileTheme.primary} strokeWidth={2.2} />
+        </Pressable>
       </View>
 
       {/* Hero */}
@@ -130,6 +148,17 @@ const s = StyleSheet.create({
     ...typography.title,
     fontWeight: "700",
     color: colors.textPrimary,
+  },
+  headerSpacer: {
+    flex: 1,
+  },
+  profileBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
   },
 
   // Hero

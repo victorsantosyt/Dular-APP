@@ -3,7 +3,7 @@ import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-nati
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
-import { AppIcon, DBottomNav } from "@/components/ui";
+import { AppIcon } from "@/components/ui";
 import { useMensagens } from "@/hooks/useMensagens";
 import type { EmpregadorTabParamList } from "@/navigation/EmpregadorNavigator";
 import { colors, radius, shadows, spacing } from "@/theme";
@@ -114,16 +114,6 @@ export function NotificacoesEmpregadorScreen() {
     [filtered],
   );
 
-  const handleBottomNav = useCallback(
-    (tab: "home" | "search" | "new" | "messages" | "profile") => {
-      if (tab === "home") navigation.navigate("Home");
-      else if (tab === "search") navigation.navigate("Buscar");
-      else if (tab === "new") navigation.navigate("SolicitarServico");
-      else if (tab === "messages") navigation.navigate("Mensagens");
-      else if (tab === "profile") navigation.navigate("Perfil");
-    },
-    [navigation],
-  );
 
   const openNotification = (item: NotificationItem) => {
     Alert.alert(item.title, item.text);
@@ -165,13 +155,6 @@ export function NotificacoesEmpregadorScreen() {
             </NotificationSection>
           ) : null}
         </ScrollView>
-
-        <DBottomNav
-          activeTab={null}
-          variant="empregador"
-          messagesBadge={messagesBadge}
-          onPress={handleBottomNav}
-        />
       </View>
     </SafeAreaView>
   );

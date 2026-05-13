@@ -1,9 +1,12 @@
-import React, { ReactNode } from "react";
+import React, { ReactNode, useMemo } from "react";
 import { Image, ImageSourcePropType, Pressable, StyleSheet, Switch, Text, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { AppIcon, AppIconName } from "@/components/ui/AppIcon";
 import { DCard } from "@/components/ui/DCard";
-import { colors, radius, shadows, spacing, typography } from "@/theme";
+import { useDularColors } from "@/hooks/useDularColors";
+import { radius, shadows, spacing, typography } from "@/theme";
+
+type ThemeColors = ReturnType<typeof useDularColors>;
 
 type NotificationBellProps = {
   hasBadge?: boolean;
@@ -11,6 +14,8 @@ type NotificationBellProps = {
 };
 
 export function NotificationBell({ hasBadge, onPress }: NotificationBellProps) {
+  const colors = useDularColors();
+  const s = useMemo(() => makeStyles(colors), [colors]);
   return (
     <Pressable onPress={onPress} style={({ pressed }) => [s.notificationButton, pressed && { opacity: 0.78 }]}>
       <AppIcon name="Bell" size={21} color={colors.primary} strokeWidth={2.2} />
@@ -40,6 +45,8 @@ export function ProfileHeroCard({
   uploading,
   onAvatarPress,
 }: ProfileHeroCardProps) {
+  const colors = useDularColors();
+  const s = useMemo(() => makeStyles(colors), [colors]);
   return (
     <LinearGradient colors={[colors.primary, colors.primaryLight]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.hero}>
       <View style={s.heroGhost}>
@@ -97,6 +104,8 @@ type ProfileSectionProps = {
 };
 
 export function ProfileSection({ title, children }: ProfileSectionProps) {
+  const colors = useDularColors();
+  const s = useMemo(() => makeStyles(colors), [colors]);
   return (
     <View style={s.sectionWrap}>
       <Text style={s.sectionTitle}>{title}</Text>
@@ -115,6 +124,8 @@ type ProfileRowProps = {
 };
 
 export function ProfileRow({ icon, title, subtitle, onPress, danger, isLast }: ProfileRowProps) {
+  const colors = useDularColors();
+  const s = useMemo(() => makeStyles(colors), [colors]);
   const tone = danger ? colors.danger : colors.primary;
   return (
     <Pressable onPress={onPress} style={({ pressed }) => [s.row, !isLast && s.rowDivider, pressed && { opacity: 0.74 }]}>
@@ -140,6 +151,8 @@ type ProfileSwitchRowProps = {
 };
 
 export function ProfileSwitchRow({ icon, title, subtitle, value, onValueChange, isLast }: ProfileSwitchRowProps) {
+  const colors = useDularColors();
+  const s = useMemo(() => makeStyles(colors), [colors]);
   return (
     <View style={[s.row, !isLast && s.rowDivider]}>
       <View style={s.rowIcon}>
@@ -161,196 +174,200 @@ export function ProfileSwitchRow({ icon, title, subtitle, value, onValueChange, 
 }
 
 export function ProfileChevron({ danger }: { danger?: boolean }) {
+  const colors = useDularColors();
   return <AppIcon name="ChevronRight" size={18} color={danger ? colors.danger : colors.textMuted} strokeWidth={2.2} />;
 }
 
-const s = StyleSheet.create({
-  notificationButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    ...shadows.soft,
-  },
-  notificationDot: {
-    position: "absolute",
-    top: 11,
-    right: 12,
-    width: 9,
-    height: 9,
-    borderRadius: 5,
-    borderWidth: 2,
-    borderColor: colors.surface,
-    backgroundColor: colors.notification,
-  },
-  hero: {
-    minHeight: 160,
-    borderRadius: radius.lg,
-    padding: 12,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-    overflow: "hidden",
-    ...shadows.primaryButton,
-  },
-  heroGhost: {
-    position: "absolute",
-    right: -28,
-    bottom: -30,
-    opacity: 0.4,
-  },
-  avatarColumn: {
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  avatarWrap: {
-    width: 74,
-    height: 74,
-    borderRadius: 37,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.white,
-    borderWidth: 4,
-    borderColor: colors.whiteAlpha70,
-    position: "relative",
-  },
-  avatarImg: {
-    width: 68,
-    height: 68,
-    borderRadius: 34,
-  },
-  avatarFallback: {
-    width: 68,
-    height: 68,
-    borderRadius: 34,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.lavenderSoft,
-  },
-  cameraBadge: {
-    position: "absolute",
-    right: -1,
-    bottom: 2,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.pink,
-    borderWidth: 3,
-    borderColor: colors.white,
-  },
-  heroInfo: {
-    flex: 1,
-    minWidth: 0,
-    gap: 5,
-  },
-  nameRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  heroName: {
-    flex: 1,
-    color: colors.white,
-    ...typography.h3,
-    
-    fontWeight: "700",
-    letterSpacing: 0,
-  },
-  verifiedPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    borderRadius: radius.pill,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    backgroundColor: colors.whiteAlpha90,
-  },
-  verifiedText: {
-    color: colors.primary,
-    ...typography.caption,
-    fontWeight: "700",
-  },
-  heroSubtitle: {
-    color: colors.whiteAlpha90,
-    ...typography.bodySm,
-    fontWeight: "500",
-  },
-  heroDivider: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: colors.whiteAlpha20,
-    marginVertical: 4,
-  },
-  infoLine: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 7,
-  },
-  infoLineText: {
-    flex: 1,
-    color: colors.whiteAlpha90,
-    ...typography.caption,
-    fontWeight: "500",
-  },
-  sectionWrap: {
-    gap: spacing.sm,
-  },
-  sectionTitle: {
-    color: colors.textPrimary,
-    ...typography.bodyMedium,
-    fontWeight: "700",
-    paddingHorizontal: 2,
-  },
-  sectionCard: {
-    padding: 0,
-    borderRadius: 18,
-    overflow: "hidden",
-  },
-  row: {
-    minHeight: 60,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    backgroundColor: colors.surface,
-  },
-  rowDivider: {
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.divider,
-  },
-  rowIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 13,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.lavenderSoft,
-  },
-  rowIconDanger: {
-    backgroundColor: colors.dangerSoft,
-  },
-  rowText: {
-    flex: 1,
-    gap: 4,
-  },
-  rowTitle: {
-    color: colors.textPrimary,
-    ...typography.bodySm,
-    fontWeight: "700",
-  },
-  rowTitleDanger: {
-    color: colors.danger,
-  },
-  rowSubtitle: {
-    color: colors.textSecondary,
-    ...typography.caption,
-    
-    fontWeight: "500",
-  },
-});
+function makeStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    notificationButton: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      ...shadows.soft,
+    },
+    notificationDot: {
+      position: "absolute",
+      top: 11,
+      right: 12,
+      width: 9,
+      height: 9,
+      borderRadius: 5,
+      borderWidth: 2,
+      borderColor: colors.surface,
+      backgroundColor: colors.notification,
+    },
+    hero: {
+      minHeight: 160,
+      borderRadius: radius.lg,
+      padding: 12,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.md,
+      overflow: "hidden",
+      ...shadows.primaryButton,
+    },
+    heroGhost: {
+      position: "absolute",
+      right: -28,
+      bottom: -30,
+      opacity: 0.4,
+    },
+    avatarColumn: {
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    avatarWrap: {
+      width: 74,
+      height: 74,
+      borderRadius: 37,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: colors.white,
+      borderWidth: 4,
+      borderColor: colors.whiteAlpha70,
+      position: "relative",
+    },
+    avatarImg: {
+      width: 68,
+      height: 68,
+      borderRadius: 34,
+    },
+    avatarFallback: {
+      width: 68,
+      height: 68,
+      borderRadius: 34,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: colors.lavenderSoft,
+    },
+    cameraBadge: {
+      position: "absolute",
+      right: -1,
+      bottom: 2,
+      width: 24,
+      height: 24,
+      borderRadius: 12,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: colors.pink,
+      borderWidth: 3,
+      borderColor: colors.white,
+    },
+    heroInfo: {
+      flex: 1,
+      minWidth: 0,
+      gap: 5,
+    },
+    nameRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+    },
+    heroName: {
+      flex: 1,
+      color: colors.white,
+      ...typography.h3,
+
+      fontWeight: "700",
+      letterSpacing: 0,
+    },
+    verifiedPill: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 4,
+      borderRadius: radius.pill,
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      backgroundColor: colors.whiteAlpha90,
+    },
+    verifiedText: {
+      color: colors.primary,
+      ...typography.caption,
+      fontWeight: "700",
+    },
+    heroSubtitle: {
+      color: colors.whiteAlpha90,
+      ...typography.bodySm,
+      fontWeight: "500",
+    },
+    heroDivider: {
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: colors.whiteAlpha20,
+      marginVertical: 4,
+    },
+    infoLine: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 7,
+    },
+    infoLineText: {
+      flex: 1,
+      color: colors.whiteAlpha90,
+      ...typography.caption,
+      fontWeight: "500",
+    },
+    sectionWrap: {
+      gap: spacing.sm,
+    },
+    sectionTitle: {
+      color: colors.textPrimary,
+      ...typography.bodyMedium,
+      fontWeight: "700",
+      paddingHorizontal: 2,
+    },
+    sectionCard: {
+      padding: 0,
+      borderRadius: 18,
+      overflow: "hidden",
+      backgroundColor: colors.surface,
+    },
+    row: {
+      minHeight: 60,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.md,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      backgroundColor: colors.surface,
+    },
+    rowDivider: {
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.divider,
+    },
+    rowIcon: {
+      width: 36,
+      height: 36,
+      borderRadius: 13,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: colors.lavenderSoft,
+    },
+    rowIconDanger: {
+      backgroundColor: colors.dangerSoft,
+    },
+    rowText: {
+      flex: 1,
+      gap: 4,
+    },
+    rowTitle: {
+      color: colors.textPrimary,
+      ...typography.bodySm,
+      fontWeight: "700",
+    },
+    rowTitleDanger: {
+      color: colors.danger,
+    },
+    rowSubtitle: {
+      color: colors.textSecondary,
+      ...typography.caption,
+
+      fontWeight: "500",
+    },
+  });
+}

@@ -20,12 +20,14 @@ import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import * as ImagePicker from "expo-image-picker";
 import { api } from "@/lib/api";
 import { uploadAvatarDataUrl } from "@/api/perfilApi";
-import { AppIcon, DBottomNav, DButton, DCard } from "@/components/ui";
+import { AppIcon, DButton, DCard } from "@/components/ui";
 import { useMensagens } from "@/hooks/useMensagens";
 import { usePerfil } from "@/hooks/usePerfil";
 import type { EmpregadorTabParamList } from "@/navigation/EmpregadorNavigator";
 import { useAuth } from "@/stores/authStore";
-import { colors, radius, shadows, spacing } from "@/theme";
+import { radius, shadows, spacing } from "@/theme";
+import { useDularColors } from "@/hooks/useDularColors";
+import { useThemeStore } from "@/stores/useThemeStore";
 import { platformSelect } from "@/utils/platform";
 import {
   NotificationBell,
@@ -68,6 +70,10 @@ function profileAge(perfil: unknown) {
 
 export default function EmpregadorPerfil({ onLogout }: Props) {
   const navigation = useNavigation<Navigation>();
+  const colors = useDularColors();
+  const themeMode = useThemeStore((state) => state.mode);
+  const toggleTheme = useThemeStore((state) => state.toggleTheme);
+  const s = useMemo(() => makeStyles(colors), [colors]);
   const setUser = useAuth((state) => state.setUser);
   const user = useAuth((state) => state.user);
   const { perfil, loading, saving, error, atualizar, refetch } = usePerfil();
@@ -118,16 +124,6 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
   );
 
   const showToast = (message: string) => setToast(message);
-
-  const handleBottomNav = useCallback(
-    (tab: "home" | "search" | "new" | "messages" | "profile") => {
-      if (tab === "home") navigation.navigate("Home");
-      else if (tab === "search") navigation.navigate("Buscar");
-      else if (tab === "new") navigation.navigate("SolicitarServico");
-      else if (tab === "messages") navigation.navigate("Mensagens");
-    },
-    [navigation],
-  );
 
   const openModal = () => {
     setEditNome(perfil?.nome ?? user?.nome ?? "");
@@ -355,6 +351,13 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
                   subtitle="Melhorar sugestões perto de você"
                   value={geoEnabled}
                   onValueChange={handleGeoToggle}
+                />
+                <ProfileSwitchRow
+                  icon="Sparkles"
+                  title="Dark mode"
+                  subtitle="Tema escuro do app"
+                  value={themeMode === "dark"}
+                  onValueChange={toggleTheme}
                   isLast
                 />
               </ProfileSection>
@@ -372,13 +375,6 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
             </>
           )}
         </ScrollView>
-
-        <DBottomNav
-          activeTab="profile"
-          variant="empregador"
-          messagesBadge={messagesBadge}
-          onPress={handleBottomNav}
-        />
       </View>
 
       <Modal visible={modalVisible} animationType="slide" transparent onRequestClose={() => setModalVisible(false)}>
@@ -440,7 +436,10 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
   );
 }
 
-const s = StyleSheet.create({
+type ThemeColors = ReturnType<typeof useDularColors>;
+
+function makeStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   safe: {
     flex: 1,
     backgroundColor: colors.background,
@@ -600,4 +599,5 @@ const s = StyleSheet.create({
   saveButton: {
     marginTop: spacing.md,
   },
-});
+  });
+}

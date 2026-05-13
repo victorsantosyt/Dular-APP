@@ -45,7 +45,7 @@ const DIARISTA_ITEMS: Item[] = [
 ];
 
 const MONTADOR_ITEMS: Item[] = [
-  { id: "home",     label: "Início",    icon: "Home"          },
+  { id: "home",     label: "Home",      icon: "Home"          },
   { id: "search",   label: "Agenda",    icon: "Calendar"      },
   { id: "new",      label: "Solicitações", icon: "BriefcaseBusiness" },
   { id: "messages", label: "Mensagens", icon: "MessageCircle" },

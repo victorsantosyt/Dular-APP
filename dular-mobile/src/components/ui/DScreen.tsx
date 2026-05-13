@@ -45,6 +45,7 @@ type Props = {
   /** Pull-to-refresh — only used when scroll=true */
   refreshing?: boolean;
   onRefresh?: () => void;
+  refreshTintColor?: string;
 };
 
 export function DScreen({
@@ -60,6 +61,7 @@ export function DScreen({
   keyboardAvoiding = false,
   refreshing,
   onRefresh,
+  refreshTintColor,
 }: Props) {
   const colors = useDularColors();
   const mode = useThemeStore((state) => state.mode);
@@ -87,7 +89,8 @@ export function DScreen({
       <RefreshControl
         refreshing={refreshing ?? false}
         onRefresh={onRefresh}
-        tintColor={colors.primary}
+        tintColor={refreshTintColor ?? colors.primary}
+        colors={[refreshTintColor ?? colors.primary]}
       />
     ) : undefined;
 
@@ -96,8 +99,8 @@ export function DScreen({
       style={s.flex}
       contentContainerStyle={[
         s.scrollContent,
-        withBottomPadding && { paddingBottom: BOTTOM_NAV_CLEARANCE },
         contentContainerStyle,
+        withBottomPadding && { paddingBottom: BOTTOM_NAV_CLEARANCE },
       ]}
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"

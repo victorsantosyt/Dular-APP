@@ -3,6 +3,8 @@ import * as Notifications from "expo-notifications";
 import * as Device from "expo-device";
 import { Platform } from "react-native";
 import { api } from "@/lib/api";
+import { navRef } from "@/navigation/nav";
+import { useAuth } from "@/stores/authStore";
 import { colors } from "@/theme/tokens";
 
 Notifications.setNotificationHandler({
@@ -47,6 +49,34 @@ async function registerForPushNotifications(): Promise<string | null> {
   return tokenData.data;
 }
 
+type NotificationData = {
+  tipo?: unknown;
+  servicoId?: unknown;
+};
+
+function navigateWhenReady(routeName: string, params?: object) {
+  const navigate = () => {
+    if (!navRef.isReady()) return;
+    (navRef.navigate as unknown as (name: string, params?: object) => void)(routeName, params);
+  };
+
+  if (navRef.isReady()) {
+    navigate();
+    return;
+  }
+
+  setTimeout(navigate, 500);
+}
+
+function handleNotificationResponse(data: NotificationData) {
+  const { role, user } = useAuth.getState();
+  const activeRole = role ?? user?.role;
+
+  if (activeRole === "MONTADOR" && data.tipo === "NOVA_SOLICITACAO") {
+    navigateWhenReady("MontadorSolicitacoes");
+  }
+}
+
 export function usePushNotifications() {
   const notificationListener = useRef<Notifications.EventSubscription | null>(null);
   const responseListener = useRef<Notifications.EventSubscription | null>(null);
@@ -63,7 +93,9 @@ export function usePushNotifications() {
 
     notificationListener.current = Notifications.addNotificationReceivedListener(() => {});
 
-    responseListener.current = Notifications.addNotificationResponseReceivedListener(() => {});
+    responseListener.current = Notifications.addNotificationResponseReceivedListener((response) => {
+      handleNotificationResponse(response.notification.request.content.data as NotificationData);
+    });
 
     return () => {
       notificationListener.current?.remove();

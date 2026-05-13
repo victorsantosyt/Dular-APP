@@ -227,6 +227,7 @@ export default function MontadorAgenda() {
       withBottomPadding
       backgroundColor={profileTheme.background}
       refreshing={refreshing}
+      refreshTintColor={profileTheme.primary}
       onRefresh={refetch}
       contentContainerStyle={styles.scroll}
     >
@@ -290,9 +291,11 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   title: {
-    ...typography.h1,
     color: colors.textPrimary,
-    fontWeight: "800",
+    fontSize: 24,
+    lineHeight: 29,
+    fontWeight: "700",
+    letterSpacing: 0,
   },
   subtitle: {
     ...typography.bodySm,
@@ -311,7 +314,7 @@ const styles = StyleSheet.create({
   },
   filterLabel: {
     ...typography.caption,
-    fontWeight: "800",
+    fontWeight: "700",
   },
   list: {
     gap: 12,
@@ -342,9 +345,9 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   cardTitle: {
-    ...typography.bodyMedium,
+    ...typography.bodySm,
     color: colors.textPrimary,
-    fontWeight: "800",
+    fontWeight: "700",
   },
   cardSub: {
     ...typography.caption,
@@ -358,8 +361,8 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   statusText: {
-    fontSize: 11,
-    fontWeight: "800",
+    ...typography.caption,
+    fontWeight: "700",
   },
   infoRow: {
     flexDirection: "row",
@@ -370,7 +373,7 @@ const styles = StyleSheet.create({
     flex: 1,
     ...typography.bodySm,
     color: colors.textSecondary,
-    fontWeight: "600",
+    fontWeight: "500",
   },
   actions: {
     flexDirection: "row",
@@ -384,7 +387,7 @@ const styles = StyleSheet.create({
   },
   actionText: {
     ...typography.caption,
-    fontWeight: "900",
+    fontWeight: "700",
   },
   ghostButton: {
     borderRadius: radius.pill,
@@ -395,6 +398,6 @@ const styles = StyleSheet.create({
   ghostText: {
     ...typography.caption,
     color: colors.textSecondary,
-    fontWeight: "800",
+    fontWeight: "700",
   },
 });

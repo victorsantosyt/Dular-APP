@@ -3,62 +3,23 @@ import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
-import { AppIcon, DCard, DEmptyState, DErrorState, DLoadingState, DScreen, DSectionHeader } from "@/components/ui";
-import { acionarSosMontador, type MontadorServico } from "@/api/montadorApi";
+import { AppIcon, DCard, DEmptyState, DErrorState, DLoadingState, DScreen } from "@/components/ui";
+import { acionarSosMontador } from "@/api/montadorApi";
 import { useMontadorServicos } from "@/hooks/useMontadorServicos";
 import { useProfileTheme } from "@/hooks/useProfileTheme";
 import { useAuth } from "@/stores/authStore";
 import type { MontadorTabParamList } from "@/navigation/MontadorNavigator";
-import { colors, radius, shadows, spacing, typography } from "@/theme";
+import { colors, radius, shadows, typography } from "@/theme";
 import {
   firstName,
   formatDateTime,
   formatMoneyFromCents,
-  isToday,
   labelServico,
   localResumo,
-  statusLabel,
   upperStatus,
 } from "./montadorUtils";
 
 type Navigation = BottomTabNavigationProp<MontadorTabParamList>;
-
-function MetricCard({ label, value, accent }: { label: string; value: string; accent: string }) {
-  return (
-    <View style={styles.metricCard}>
-      <Text style={[styles.metricValue, { color: accent }]}>{value}</Text>
-      <Text style={styles.metricLabel}>{label}</Text>
-    </View>
-  );
-}
-
-function ServicoMiniCard({
-  servico,
-  accent,
-  soft,
-  onPress,
-}: {
-  servico: MontadorServico;
-  accent: string;
-  soft: string;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable onPress={onPress} style={({ pressed }) => [styles.miniCard, pressed && styles.pressed]}>
-      <View style={[styles.miniIcon, { backgroundColor: soft }]}>
-        <AppIcon name="Wrench" size={18} color={accent} strokeWidth={2.2} />
-      </View>
-      <View style={styles.miniText}>
-        <Text style={styles.miniTitle} numberOfLines={1}>{labelServico(servico)}</Text>
-        <Text style={styles.miniSub} numberOfLines={1}>{formatDateTime(servico)}</Text>
-        <Text style={styles.miniSub} numberOfLines={1}>{localResumo(servico)}</Text>
-      </View>
-      <View style={[styles.statusPill, { backgroundColor: soft, borderColor: accent }]}>
-        <Text style={[styles.statusText, { color: accent }]}>{statusLabel(servico.status)}</Text>
-      </View>
-    </Pressable>
-  );
-}
 
 export function MontadorHome() {
   const navigation = useNavigation<Navigation>();
@@ -69,30 +30,21 @@ export function MontadorHome() {
   const [sosLoading, setSosLoading] = useState(false);
 
   const displayName = firstName(user?.nome);
-  const hoje = useMemo(() => agenda.filter(isToday), [agenda]);
   const proximoServico = agenda.find((item) => !["FINALIZADO", "CONCLUIDO"].includes(upperStatus(item.status)));
   const concluIds = useMemo(
     () => servicos.filter((item) => ["FINALIZADO", "CONCLUIDO"].includes(upperStatus(item.status))),
     [servicos],
   );
-  const ganhosMes = useMemo(() => {
-    const now = new Date();
-    return concluIds
-      .filter((item) => {
-        const date = item.data ? new Date(item.data) : null;
-        return date && !Number.isNaN(date.getTime()) && date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
-      })
-      .reduce((sum, item) => sum + (item.precoFinal ?? item.valorEstimado ?? 0), 0);
-  }, [concluIds]);
+  const ganhosTotais = useMemo(
+    () => concluIds.reduce((sum, item) => sum + (item.precoFinal ?? item.valorEstimado ?? 0), 0),
+    [concluIds],
+  );
 
   const perfilPendente = user?.verificacao?.status && user.verificacao.status !== "APROVADO";
 
   const carregarResumoMontador = refetch;
-  const carregarServicosDeHoje = refetch;
-  const carregarSolicitacoesPendentes = refetch;
   const alternarDisponibilidade = () => setOnline((current) => !current);
   const abrirDetalheServico = (servicoId: string) => navigation.navigate("MontadorDetalheServico", { servicoId });
-  const abrirDetalheSolicitacao = (servicoId: string) => navigation.navigate("MontadorDetalheSolicitacao", { servicoId });
   const acionarSOS = async () => {
     const servicoId = proximoServico?.id ?? agenda[0]?.id;
     if (!servicoId) {
@@ -115,10 +67,9 @@ export function MontadorHome() {
       scroll
       withBottomPadding
       refreshing={loading}
+      refreshTintColor={profileTheme.primary}
       onRefresh={() => {
         carregarResumoMontador();
-        carregarServicosDeHoje();
-        carregarSolicitacoesPendentes();
       }}
       backgroundColor={profileTheme.background}
       contentContainerStyle={styles.scroll}
@@ -129,7 +80,7 @@ export function MontadorHome() {
           <Text style={styles.subtitle}>Sua rotina profissional no Dular</Text>
         </View>
         <Pressable
-          onPress={() => navigation.navigate("MontadorMensagens")}
+          onPress={() => navigation.navigate("MontadorSolicitacoes")}
           hitSlop={12}
           style={[styles.notificationButton, { borderColor: profileTheme.border }]}
         >
@@ -148,15 +99,24 @@ export function MontadorHome() {
       ) : null}
 
       <LinearGradient colors={profileTheme.gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
-        <View>
-          <Text style={styles.heroKicker}>Status profissional</Text>
-          <Text style={styles.heroTitle}>{online ? "Online" : "Indisponível"}</Text>
-          <Text style={styles.heroSub}>
-            {online ? "Você pode receber novas solicitações." : "Você não aparecerá para novas solicitações."}
-          </Text>
+        <View style={styles.heroContent}>
+          <View style={styles.heroTextBlock}>
+            <Text style={styles.heroKicker}>Ganhos totais</Text>
+            <Text style={styles.heroTitle}>{formatMoneyFromCents(ganhosTotais)}</Text>
+            <Text style={styles.heroSub}>
+              {concluIds.length > 0
+                ? `${concluIds.length} serviço(s) finalizado(s) no Dular.`
+                : "Seus ganhos aparecerão após finalizar serviços."}
+            </Text>
+          </View>
+          <View style={styles.walletIconWrap}>
+            <AppIcon name="Wallet" size={34} color={colors.white} strokeWidth={2.1} />
+          </View>
         </View>
         <Pressable onPress={alternarDisponibilidade} style={styles.availabilityButton}>
-          <Text style={styles.availabilityText}>{online ? "Ficar indisponível" : "Ficar online"}</Text>
+          <Text style={styles.availabilityText}>
+            {online ? "Online - Ficar indisponível" : "Indisponível - Ficar online"}
+          </Text>
         </Pressable>
       </LinearGradient>
 
@@ -185,67 +145,6 @@ export function MontadorHome() {
           />
         )}
       </DCard>
-
-      <View style={styles.metricsGrid}>
-        <MetricCard label="Ganhos do mês" value={formatMoneyFromCents(ganhosMes)} accent={profileTheme.primary} />
-        <MetricCard label="Concluídos" value={String(concluIds.length)} accent={profileTheme.primary} />
-        <MetricCard label="Avaliação média" value="--" accent={profileTheme.primary} />
-        <MetricCard label="Pendentes" value={String(pendentes.length)} accent={profileTheme.primary} />
-      </View>
-
-      <View style={styles.section}>
-        <DSectionHeader title="Hoje" />
-        {loading ? (
-          <DLoadingState text="Carregando agenda" color={profileTheme.primary} />
-        ) : hoje.length > 0 ? (
-          hoje.slice(0, 3).map((item) => (
-            <ServicoMiniCard
-              key={item.id}
-              servico={item}
-              accent={profileTheme.primary}
-              soft={profileTheme.primarySoft}
-              onPress={() => abrirDetalheServico(item.id)}
-            />
-          ))
-        ) : (
-          <DEmptyState
-            icon="Clock"
-            title="Nenhum serviço hoje"
-            subtitle="Sua agenda do dia está livre."
-            accentColor={profileTheme.primary}
-            softBg={profileTheme.primarySoft}
-          />
-        )}
-      </View>
-
-      <View style={styles.section}>
-        <DSectionHeader
-          title="Novas solicitações"
-          action={pendentes.length > 0 ? "Ver todas" : undefined}
-          onAction={() => navigation.navigate("MontadorSolicitacoes")}
-        />
-        {loading ? (
-          <DLoadingState text="Carregando solicitações" color={profileTheme.primary} />
-        ) : pendentes.length > 0 ? (
-          pendentes.slice(0, 3).map((item) => (
-            <ServicoMiniCard
-              key={item.id}
-              servico={item}
-              accent={profileTheme.primary}
-              soft={profileTheme.primarySoft}
-              onPress={() => abrirDetalheSolicitacao(item.id)}
-            />
-          ))
-        ) : (
-          <DEmptyState
-            icon="BriefcaseBusiness"
-            title="Sem novas solicitações"
-            subtitle="Novos pedidos aparecerão nesta área."
-            accentColor={profileTheme.primary}
-            softBg={profileTheme.primarySoft}
-          />
-        )}
-      </View>
 
       <View style={styles.securityGrid}>
         <View style={[styles.securityCard, { borderColor: profileTheme.border }]}>
@@ -283,9 +182,11 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   greeting: {
-    ...typography.h2,
     color: colors.textPrimary,
+    fontSize: 24,
+    lineHeight: 29,
     fontWeight: "700",
+    letterSpacing: 0,
   },
   subtitle: {
     ...typography.bodySm,
@@ -329,23 +230,42 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     ...shadows.primaryButton,
   },
+  heroContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 14,
+  },
+  heroTextBlock: {
+    flex: 1,
+    minWidth: 0,
+  },
   heroKicker: {
     ...typography.caption,
     color: colors.whiteAlpha80,
     fontWeight: "700",
-    textTransform: "uppercase",
   },
   heroTitle: {
     marginTop: 6,
-    fontSize: 32,
-    lineHeight: 38,
+    fontSize: 30,
+    lineHeight: 36,
     color: colors.white,
-    fontWeight: "800",
+    fontWeight: "700",
   },
   heroSub: {
     ...typography.bodySm,
     color: colors.whiteAlpha85,
     marginTop: 4,
+  },
+  walletIconWrap: {
+    width: 68,
+    height: 68,
+    borderRadius: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.whiteAlpha20,
+    borderWidth: 1,
+    borderColor: colors.glassBorder,
   },
   availabilityButton: {
     alignSelf: "flex-start",
@@ -359,7 +279,7 @@ const styles = StyleSheet.create({
   availabilityText: {
     ...typography.caption,
     color: colors.white,
-    fontWeight: "800",
+    fontWeight: "700",
   },
   nextCard: {
     gap: 12,
@@ -370,7 +290,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   cardTitle: {
-    ...typography.title,
+    ...typography.bodyMedium,
     color: colors.textPrimary,
     fontWeight: "700",
   },
@@ -380,81 +300,11 @@ const styles = StyleSheet.create({
   nextTitle: {
     ...typography.bodyMedium,
     color: colors.textPrimary,
-    fontWeight: "800",
+    fontWeight: "700",
   },
   nextSub: {
     ...typography.bodySm,
     color: colors.textSecondary,
-  },
-  metricsGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
-  },
-  metricCard: {
-    width: "48%",
-    minHeight: 86,
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: 12,
-    justifyContent: "center",
-    ...shadows.soft,
-  },
-  metricValue: {
-    fontSize: 19,
-    fontWeight: "800",
-  },
-  metricLabel: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    marginTop: 6,
-    fontWeight: "600",
-  },
-  section: {
-    gap: 10,
-  },
-  miniCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.lg,
-    padding: 12,
-  },
-  miniIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  miniText: {
-    flex: 1,
-    minWidth: 0,
-  },
-  miniTitle: {
-    ...typography.bodySmMedium,
-    color: colors.textPrimary,
-    fontWeight: "800",
-  },
-  miniSub: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    marginTop: 2,
-  },
-  statusPill: {
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  statusText: {
-    fontSize: 11,
-    fontWeight: "800",
   },
   securityGrid: {
     flexDirection: "row",
@@ -472,14 +322,14 @@ const styles = StyleSheet.create({
   securityTitle: {
     ...typography.caption,
     color: colors.textPrimary,
-    fontWeight: "800",
+    fontWeight: "700",
     marginTop: 8,
   },
   securitySub: {
     fontSize: 11,
     color: colors.textSecondary,
     marginTop: 3,
-    fontWeight: "600",
+    fontWeight: "500",
   },
   sosCard: {
     flex: 1,
@@ -493,7 +343,8 @@ const styles = StyleSheet.create({
   sosTitle: {
     color: colors.white,
     fontSize: 18,
-    fontWeight: "900",
+    lineHeight: 23,
+    fontWeight: "700",
   },
   sosSub: {
     color: colors.whiteAlpha80,

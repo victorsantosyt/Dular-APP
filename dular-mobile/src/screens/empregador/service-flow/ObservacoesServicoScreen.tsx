@@ -12,11 +12,27 @@ import { flowStyles, StepHeader, UploadChip } from "./components";
 
 type Navigation = NativeStackNavigationProp<EmpregadorServiceFlowStackParamList, "ObservacoesServico">;
 
-const CHIPS = ["Levar produtos", "Tom geral", "Falar ambiente", "Detalhes"];
+const CHIPS_DIARISTA = ["Levar produtos", "Tom geral", "Falar ambiente", "Detalhes"];
+const CHIPS_MONTADOR = [
+  "Montagem de móveis",
+  "Pequenos reparos",
+  "Instalação elétrica",
+  "Instalação hidráulica",
+  "Pintura",
+];
 
 export function ObservacoesServicoScreen() {
   const navigation = useNavigation<Navigation>();
   const { draft, updateDraft } = useServiceFlow();
+  const isMontador = draft.tipoProfissional === "MONTADOR";
+  const chipsList = isMontador ? CHIPS_MONTADOR : CHIPS_DIARISTA;
+  const uploadTitle = isMontador ? "Tipo de trabalho" : "Fotos opcionais";
+  const uploadSubtitle = isMontador
+    ? "Selecione as categorias que se aplicam — ajuda o profissional a dar um orçamento mais preciso."
+    : "Inclua referências visuais depois, se precisar.";
+  const observacoesPlaceholder = isMontador
+    ? "Descreva o serviço em detalhes (objeto, ambiente, urgência)…"
+    : "Descreva detalhes ou preferências para o(a) profissional…";
 
   const toggleChip = (label: string) => {
     const next = draft.chips.includes(label)
@@ -40,7 +56,7 @@ export function ObservacoesServicoScreen() {
           <TextInput
             value={draft.observacoes}
             onChangeText={(observacoes) => updateDraft({ observacoes })}
-            placeholder="Descreva detalhes ou preferências para o(a) profissional..."
+            placeholder={observacoesPlaceholder}
             placeholderTextColor={colors.textDisabled}
             multiline
             maxLength={300}
@@ -52,14 +68,14 @@ export function ObservacoesServicoScreen() {
 
         <DCard style={s.uploadCard}>
           <View style={s.uploadHeader}>
-            <AppIcon name="Camera" size={21} color="purple" variant="soft" />
+            <AppIcon name={isMontador ? "Wrench" : "Camera"} size={21} color="purple" variant="soft" />
             <View style={s.uploadText}>
-              <Text style={s.uploadTitle}>Fotos opcionais</Text>
-              <Text style={s.uploadSubtitle}>Inclua referências visuais depois, se precisar.</Text>
+              <Text style={s.uploadTitle}>{uploadTitle}</Text>
+              <Text style={s.uploadSubtitle}>{uploadSubtitle}</Text>
             </View>
           </View>
           <View style={s.chips}>
-            {CHIPS.map((chip) => (
+            {chipsList.map((chip) => (
               <UploadChip key={chip} label={chip} selected={draft.chips.includes(chip)} onPress={() => toggleChip(chip)} />
             ))}
           </View>

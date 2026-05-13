@@ -74,7 +74,7 @@ export default function MontadorDetalheServico({ route, navigation }: Props) {
   };
 
   return (
-    <DScreen scroll backgroundColor={profileTheme.background} contentContainerStyle={styles.scroll}>
+    <DScreen scroll withBottomPadding backgroundColor={profileTheme.background} contentContainerStyle={styles.scroll}>
       <View style={styles.header}>
         <Pressable onPress={() => navigation.goBack()} hitSlop={12} style={styles.backButton}>
           <AppIcon name="ArrowLeft" size={20} color={profileTheme.primary} />
@@ -217,9 +217,9 @@ const styles = StyleSheet.create({
   },
   title: {
     flex: 1,
-    ...typography.title,
+    ...typography.bodyMedium,
     color: colors.textPrimary,
-    fontWeight: "800",
+    fontWeight: "700",
   },
   hero: {
     flexDirection: "row",
@@ -242,9 +242,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   serviceTitle: {
-    ...typography.bodyMedium,
+    ...typography.bodySm,
     color: colors.textPrimary,
-    fontWeight: "900",
+    fontWeight: "700",
   },
   serviceSub: {
     ...typography.bodySm,
@@ -263,15 +263,14 @@ const styles = StyleSheet.create({
     gap: 3,
   },
   infoLabel: {
-    fontSize: 11,
+    ...typography.caption,
     color: colors.textMuted,
-    fontWeight: "900",
-    textTransform: "uppercase",
+    fontWeight: "700",
   },
   infoValue: {
     ...typography.bodySm,
     color: colors.textPrimary,
-    fontWeight: "700",
+    fontWeight: "500",
   },
   actions: {
     gap: 10,
@@ -285,8 +284,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   actionText: {
-    ...typography.bodySmMedium,
-    fontWeight: "900",
+    ...typography.bodySm,
+    fontWeight: "700",
   },
   sosButton: {
     minHeight: 50,
@@ -297,7 +296,7 @@ const styles = StyleSheet.create({
   },
   sosText: {
     color: colors.white,
-    fontWeight: "900",
+    fontWeight: "700",
   },
   pressed: {
     opacity: 0.72,

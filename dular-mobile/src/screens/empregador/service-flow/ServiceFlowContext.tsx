@@ -2,8 +2,23 @@ import React, { createContext, ReactNode, useContext, useMemo, useState } from "
 
 export type ServiceCategory = "baba" | "cozinheira" | "diarista" | "montador";
 
+/**
+ * Tipo do profissional alvo da contratação. Derivado da categoria escolhida —
+ * Babá/Cozinheira/Diarista entram como "DIARISTA" (modelo de serviço doméstico),
+ * Montador entra como "MONTADOR".
+ *
+ * Manter esse tipo separado de `ServiceCategory` permite que telas do flow
+ * bifurquem por tipo (chips, observações, copy do botão) sem precisar olhar
+ * a categoria específica.
+ */
+export type TipoProfissional = "DIARISTA" | "MONTADOR";
+
 export type ServiceDraft = {
   categoria: ServiceCategory;
+  tipoProfissional: TipoProfissional;
+  /** Quando o flow inicia a partir do perfil público de um profissional,
+   *  guardamos o id para envio na confirmação. Opcional. */
+  profissionalId?: string;
   dataISO: string;
   horario: string;
   numero: string;
@@ -20,8 +35,15 @@ type ServiceFlowContextValue = {
   resetDraft: () => void;
 };
 
+export function tipoProfissionalFromCategoria(
+  categoria: ServiceCategory,
+): TipoProfissional {
+  return categoria === "montador" ? "MONTADOR" : "DIARISTA";
+}
+
 const INITIAL_DRAFT: ServiceDraft = {
-  categoria: "montador",
+  categoria: "diarista",
+  tipoProfissional: "DIARISTA",
   dataISO: "",
   horario: "",
   numero: "",
@@ -43,15 +65,40 @@ const ServiceFlowContext = createContext<ServiceFlowContextValue | null>(null);
 
 type Props = {
   children: ReactNode;
+  /** Pré-seleção opcional vinda da rota — usada quando o flow é aberto a
+   *  partir de um card de categoria ou do perfil público de um profissional. */
+  initialCategoria?: ServiceCategory;
+  initialProfissionalId?: string;
 };
 
-export function ServiceFlowProvider({ children }: Props) {
-  const [draft, setDraft] = useState<ServiceDraft>(INITIAL_DRAFT);
+export function ServiceFlowProvider({
+  children,
+  initialCategoria,
+  initialProfissionalId,
+}: Props) {
+  const [draft, setDraft] = useState<ServiceDraft>(() => {
+    if (!initialCategoria && !initialProfissionalId) return INITIAL_DRAFT;
+    const categoria = initialCategoria ?? INITIAL_DRAFT.categoria;
+    return {
+      ...INITIAL_DRAFT,
+      categoria,
+      tipoProfissional: tipoProfissionalFromCategoria(categoria),
+      ...(initialProfissionalId ? { profissionalId: initialProfissionalId } : {}),
+    };
+  });
 
   const value = useMemo<ServiceFlowContextValue>(
     () => ({
       draft,
-      updateDraft: (patch) => setDraft((current) => ({ ...current, ...patch })),
+      updateDraft: (patch) =>
+        setDraft((current) => {
+          const next = { ...current, ...patch };
+          // Sincroniza tipoProfissional com a categoria automaticamente.
+          if (patch.categoria && !patch.tipoProfissional) {
+            next.tipoProfissional = tipoProfissionalFromCategoria(patch.categoria);
+          }
+          return next;
+        }),
       resetDraft: () => setDraft(INITIAL_DRAFT),
     }),
     [draft],

@@ -172,6 +172,50 @@ function SuggestedProfCard({
   );
 }
 
+// ─── Categoria Card (grid "Quem você precisa hoje?") ─────────────────────────
+
+function CategoriaCard({
+  icon,
+  title,
+  onPress,
+  disabled,
+}: {
+  icon: AppIconName;
+  title: string;
+  onPress?: () => void;
+  /** Mostra a tag "Em breve" e desabilita o toque. */
+  disabled?: boolean;
+}) {
+  return (
+    <Pressable
+      onPress={disabled ? undefined : onPress}
+      disabled={disabled}
+      style={({ pressed }) => [
+        s.catCard,
+        disabled && s.catCardDisabled,
+        !disabled && pressed && { opacity: 0.85 },
+      ]}
+    >
+      <View style={[s.catIconWrap, disabled && s.catIconWrapDisabled]}>
+        <AppIcon
+          name={icon}
+          size={24}
+          color={disabled ? colors.textMuted : colors.primary}
+          strokeWidth={2.1}
+        />
+      </View>
+      <Text style={[s.catTitle, disabled && s.catTitleDisabled]} numberOfLines={1}>
+        {title}
+      </Text>
+      {disabled ? (
+        <View style={s.catBadge}>
+          <Text style={s.catBadgeText}>Em breve</Text>
+        </View>
+      ) : null}
+    </Pressable>
+  );
+}
+
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function EmpregadorHome() {
@@ -407,6 +451,27 @@ export default function EmpregadorHome() {
               {quickActions.map((qa) => (
                 <QuickActionCard key={qa.label} {...qa} />
               ))}
+            </View>
+          </View>
+
+          {/* ── Categorias de profissional ── */}
+          <View style={s.section}>
+            <DSectionHeader title="Quem você precisa hoje?" />
+            <View style={s.catGrid}>
+              <CategoriaCard
+                icon="WashingMachine"
+                title="Diarista"
+                onPress={() => navigation.navigate("Buscar")}
+              />
+              <CategoriaCard
+                icon="Wrench"
+                title="Montador"
+                onPress={() =>
+                  navigation.navigate("SolicitarServico", { categoriaInicial: "montador" })
+                }
+              />
+              <CategoriaCard icon="Baby" title="Babá" disabled />
+              <CategoriaCard icon="ChefHat" title="Cozinheira" disabled />
             </View>
           </View>
 
@@ -843,5 +908,62 @@ const s = StyleSheet.create({
     ...typography.caption,
     fontWeight: "700",
     color: colors.white,
+  },
+
+  // Categoria grid (Quem você precisa hoje?)
+  catGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  catCard: {
+    flexBasis: "48%",
+    flexGrow: 1,
+    minHeight: 78,
+    borderRadius: radius.lg,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    ...shadows.soft,
+  },
+  catCardDisabled: {
+    opacity: 0.6,
+  },
+  catIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.lavenderSoft,
+  },
+  catIconWrapDisabled: {
+    backgroundColor: colors.skeletonBg,
+  },
+  catTitle: {
+    flex: 1,
+    color: colors.textPrimary,
+    ...typography.bodySmMedium,
+    fontWeight: "700",
+  },
+  catTitleDisabled: {
+    color: colors.textMuted,
+  },
+  catBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: radius.pill,
+    backgroundColor: colors.warningSoft,
+  },
+  catBadgeText: {
+    ...typography.caption,
+    color: colors.warningDark,
+    fontWeight: "800",
+    fontSize: 10,
   },
 });

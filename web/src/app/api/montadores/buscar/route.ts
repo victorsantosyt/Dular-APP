@@ -25,20 +25,14 @@ export async function GET(req: Request) {
     const especialidade = searchParams.get("especialidade") || undefined;
     const especialidadeNormalizada = especialidade ? normalizeEspecialidades([especialidade])[0] : undefined;
 
-    if (!cidade || !uf || !bairro) {
+    if (!cidade || !uf) {
       return NextResponse.json(
-        { error: "Informe cidade, uf e bairro" },
+        { error: "Informe cidade e uf" },
         { status: 400 },
       );
     }
 
     const montadores = await prisma.montadorPerfil.findMany({
-      where: {
-        ativo: true,
-        ...(cidade ? { cidade: { equals: cidade, mode: "insensitive" } } : {}),
-        ...(uf ? { estado: { equals: uf, mode: "insensitive" } } : {}),
-        user: { status: "ATIVO" },
-      },
       select: {
         id: true,
         userId: true,
@@ -48,6 +42,7 @@ export async function GET(req: Request) {
         cidade: true,
         estado: true,
         bairros: true,
+        atendeTodaCidade: true,
         raioAtendimentoKm: true,
         fotoPerfil: true,
         portfolioFotos: true,
@@ -73,10 +68,16 @@ export async function GET(req: Request) {
           },
         },
       },
-      take: 60,
+      take: 300,
     });
 
+    const cidadeBusca = normalizeText(cidade);
+    const ufBusca = normalizeText(uf);
     const bairroBusca = normalizeText(bairro);
+    let totalAtivos = 0;
+    let totalCompletos = 0;
+    let totalLocalizacao = 0;
+
     const publicos = montadores
       .map((montador) => {
         const especialidades = normalizeEspecialidades(montador.especialidades);
@@ -87,15 +88,24 @@ export async function GET(req: Request) {
           cidade: montador.cidade,
           estado: montador.estado,
           bairros: montador.bairros,
+          atendeTodaCidade: montador.atendeTodaCidade,
           ativo: montador.ativo,
           userStatus: montador.user.status,
         });
         const score = montador.user.safeScoreProfile?.currentScore ?? montador.user.safeScore?.score ?? 500;
         const faixa = getFaixa(score);
+        const cidadeNormalizada = normalizeText(montador.cidade);
+        const ufNormalizada = normalizeText(montador.estado);
+        const bairrosNormalizados = montador.bairros.map((item) => normalizeText(item));
         return {
           ...montador,
+          nome: montador.user.nome,
+          apresentacao: montador.bio,
+          avatarUrl: montador.fotoPerfil ?? montador.user.avatarUrl,
+          uf: montador.estado,
           especialidades,
           profileCompleto: completude.completo,
+          perfilCompleto: completude.completo,
           profileProgresso: completude.progresso,
           precoLabel: montador.valorACombinar
             ? "A combinar"
@@ -111,14 +121,37 @@ export async function GET(req: Request) {
             totalServicos: montador.totalServicos,
             verificado: montador.verificado,
           },
+          _diagnostico: {
+            ativo: montador.ativo === true && montador.user.status === "ATIVO",
+            completo: completude.completo,
+            localizacao:
+              cidadeNormalizada === cidadeBusca &&
+              ufNormalizada === ufBusca &&
+              (!bairroBusca || montador.atendeTodaCidade || bairrosNormalizados.includes(bairroBusca)),
+          },
         };
       })
       .filter((montador) => {
-        if (!montador.profileCompleto) return false;
+        if (montador._diagnostico.ativo) totalAtivos += 1;
+        if (!montador._diagnostico.ativo) return false;
+        if (montador._diagnostico.completo) totalCompletos += 1;
+        if (!montador._diagnostico.completo) return false;
+        if (montador._diagnostico.localizacao) totalLocalizacao += 1;
+        if (!montador._diagnostico.localizacao) return false;
         if (especialidadeNormalizada && !montador.especialidades.includes(especialidadeNormalizada)) return false;
-        if (bairroBusca && !montador.bairros.some((item) => normalizeText(item) === bairroBusca)) return false;
         return true;
+      })
+      .map(({ _diagnostico, ...montador }) => montador);
+
+    if (process.env.NODE_ENV !== "production") {
+      console.log("[montadores/buscar]", {
+        query: { cidade, uf, bairro },
+        totalAntesFiltros: montadores.length,
+        totalAtivos,
+        totalCompletos,
+        totalLocalizacao,
       });
+    }
 
     return NextResponse.json({ ok: true, montadores: publicos });
   } catch (err) {

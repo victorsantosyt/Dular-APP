@@ -18,13 +18,17 @@
       "bundleIdentifier": "com.dular.app",
       "buildNumber": "1",
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "Usamos sua localização para sugerir diaristas e serviços próximos.",
-        "NSLocationAlwaysAndWhenInUseUsageDescription": "Usamos sua localização para sugerir diaristas e serviços próximos."
+        "NSLocationWhenInUseUsageDescription": "Usamos sua localização para sugerir profissionais e serviços próximos.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Usamos sua localização para sugerir profissionais e serviços próximos."
       }
     },
     "android": {
       "package": "com.dular.app",
       "versionCode": 1,
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION"
+      ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
@@ -39,6 +43,7 @@
       "expo-font",
       "expo-secure-store",
       ["expo-location", {
+        "locationWhenInUsePermission": "O Dular usa sua localização para sugerir profissionais e serviços próximos.",
         "locationAlwaysAndWhenInUsePermission": "O Dular usa sua localização durante o serviço para segurança."
       }]
     ],

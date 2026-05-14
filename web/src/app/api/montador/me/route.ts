@@ -29,6 +29,7 @@ const patchSchema = z.object({
   estado: z.string().trim().min(2).max(2).nullable().optional(),
   bairros: z.array(z.string().trim().min(2).max(80)).max(30).optional(),
   raioAtendimentoKm: z.number().int().min(1).max(200).nullable().optional(),
+  atendeTodaCidade: z.boolean().optional(),
   precoBase: centsSchema,
   taxaMinima: centsSchema,
   cobraDeslocamento: z.boolean().optional(),
@@ -67,7 +68,15 @@ async function buildMontadorMeResponse(userId: string) {
       anosExperiencia: true,
       cidade: true,
       estado: true,
+      cidadeAtual: true,
+      estadoAtual: true,
+      bairroAtual: true,
+      latitude: true,
+      longitude: true,
+      localizacaoPermitida: true,
+      localizacaoAtualizadaEm: true,
       bairros: true,
+      atendeTodaCidade: true,
       raioAtendimentoKm: true,
       fotoPerfil: true,
       portfolioFotos: true,
@@ -123,6 +132,7 @@ async function buildMontadorMeResponse(userId: string) {
     cidade: perfil.cidade,
     estado: perfil.estado,
     bairros: perfil.bairros,
+    atendeTodaCidade: perfil.atendeTodaCidade,
     ativo: perfil.ativo,
     userStatus: user.status,
   });
@@ -143,6 +153,11 @@ async function buildMontadorMeResponse(userId: string) {
       especialidades: perfil.especialidades,
       cidade: perfil.cidade,
       estado: perfil.estado,
+      cidadeAtual: perfil.cidadeAtual,
+      estadoAtual: perfil.estadoAtual,
+      bairroAtual: perfil.bairroAtual,
+      localizacaoPermitida: perfil.localizacaoPermitida,
+      localizacaoAtualizadaEm: perfil.localizacaoAtualizadaEm,
       bairros: perfil.bairros,
     },
     perfil: {
@@ -220,6 +235,7 @@ export async function PATCH(req: Request) {
     if (data.estado !== undefined) profileData.estado = data.estado?.trim().toUpperCase() || null;
     if (data.bairros !== undefined) profileData.bairros = cleanStringArray(data.bairros);
     if (data.raioAtendimentoKm !== undefined) profileData.raioAtendimentoKm = data.raioAtendimentoKm;
+    if (data.atendeTodaCidade !== undefined) profileData.atendeTodaCidade = data.atendeTodaCidade;
     if (data.precoBase !== undefined) profileData.precoBase = data.precoBase;
     if (data.taxaMinima !== undefined) profileData.taxaMinima = data.taxaMinima;
     if (data.cobraDeslocamento !== undefined) profileData.cobraDeslocamento = data.cobraDeslocamento;

@@ -19,11 +19,14 @@ import {
   DButton,
   DSkeletonCard,
 } from "@/components/ui";
+import { LocationPermissionCard } from "@/components/location/LocationPermissionCard";
 import { colors, radius, shadows, spacing, typography } from "@/theme";
 import type { EmpregadorTabParamList } from "@/navigation/EmpregadorNavigator";
 import { useBuscar, type ApiDiarista } from "@/hooks/useBuscar";
+import { salvarLocalizacaoAtual } from "@/api/localizacaoApi";
+import { useAuth } from "@/stores/authStore";
+import { useCurrentRegion, type CurrentRegion } from "@/hooks/useCurrentRegion";
 import { MONTADOR_ESPECIALIDADES as MONTADOR_ESPECIALIDADES_PUBLICAS, type MontadorItem } from "@/types/montador";
-import { useGeoDefaults } from "@/hooks/useGeoDefaults";
 import { useMensagens } from "@/hooks/useMensagens";
 
 type Navigation = BottomTabNavigationProp<EmpregadorTabParamList>;
@@ -386,8 +389,22 @@ export function BuscarScreen() {
   const route = useRoute<BuscarRoute>();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCat, setSelectedCat] = useState<CategoriaKey | null>(route.params?.categoriaInicial ?? null);
-  const { profissionais: apiProfs, montadores: apiMontadores, loading, error, buscar } = useBuscar();
-  const geo = useGeoDefaults();
+  const authUser = useAuth((state) => state.user);
+  const setUser = useAuth((state) => state.setUser);
+  const currentRegion = useCurrentRegion();
+  const [region, setRegion] = useState<CurrentRegion>({ cidade: "", uf: "", bairro: "" });
+  const [regionConfirmed, setRegionConfirmed] = useState(false);
+  const [savingRegion, setSavingRegion] = useState(false);
+  const [regionError, setRegionError] = useState<string | null>(null);
+  const {
+    profissionais: apiProfs,
+    montadores: apiMontadores,
+    loading,
+    error,
+    diaristasError,
+    montadoresError,
+    buscar,
+  } = useBuscar();
   const { rooms } = useMensagens();
 
   const unreadMessages = useMemo(
@@ -397,10 +414,20 @@ export function BuscarScreen() {
   const messagesBadge = unreadMessages > 0 ? unreadMessages : undefined;
 
   useEffect(() => {
-    if (geo.cidade && geo.uf && geo.bairro) {
-      buscar({ cidade: geo.cidade, uf: geo.uf, bairro: geo.bairro });
+    const savedCidade = authUser?.cidadeAtual ?? authUser?.cidade ?? "";
+    const savedUf = authUser?.estadoAtual ?? authUser?.estado ?? "";
+    const savedBairro = authUser?.bairroAtual ?? "";
+    if (savedCidade && savedUf && !regionConfirmed) {
+      setRegion({ cidade: savedCidade, uf: savedUf, bairro: savedBairro });
+      setRegionConfirmed(true);
     }
-  }, [geo.cidade, geo.uf, geo.bairro, buscar]);
+  }, [authUser?.bairroAtual, authUser?.cidade, authUser?.cidadeAtual, authUser?.estado, authUser?.estadoAtual, regionConfirmed]);
+
+  useEffect(() => {
+    if (regionConfirmed && region.cidade && region.uf) {
+      buscar({ cidade: region.cidade, uf: region.uf, bairro: region.bairro });
+    }
+  }, [buscar, region.bairro, region.cidade, region.uf, regionConfirmed]);
 
   useEffect(() => {
     if (route.params?.categoriaInicial) {
@@ -412,15 +439,59 @@ export function BuscarScreen() {
     setSelectedCat((prev) => (prev === key ? null : key));
   }, []);
 
+  const requestRegion = async () => {
+    return currentRegion.requestRegion();
+  };
+
+  const handleDetectedRegion = (detected: CurrentRegion) => {
+    setRegion(detected);
+    setRegionConfirmed(false);
+    setRegionError(null);
+  };
+
+  const confirmRegion = async (nextRegion = region) => {
+    if (!nextRegion.cidade.trim() || nextRegion.uf.trim().length !== 2) {
+      setRegionError("Informe cidade e UF para buscar profissionais.");
+      return;
+    }
+
+    try {
+      setSavingRegion(true);
+      setRegionError(null);
+      await salvarLocalizacaoAtual({
+        latitude: nextRegion.latitude ?? null,
+        longitude: nextRegion.longitude ?? null,
+        cidade: nextRegion.cidade.trim(),
+        estado: nextRegion.uf.trim().toUpperCase(),
+        bairro: nextRegion.bairro.trim() || null,
+        localizacaoPermitida: currentRegion.permissionStatus === "granted",
+      });
+      setUser((prev) => prev ? {
+        ...prev,
+        cidadeAtual: nextRegion.cidade.trim(),
+        estadoAtual: nextRegion.uf.trim().toUpperCase(),
+        bairroAtual: nextRegion.bairro.trim() || null,
+        localizacaoPermitida: currentRegion.permissionStatus === "granted",
+        localizacaoAtualizadaEm: new Date().toISOString(),
+      } : prev);
+      setRegion(nextRegion);
+      setRegionConfirmed(true);
+    } catch (err) {
+      setRegionError(err instanceof Error ? err.message : "Não foi possível salvar a região.");
+    } finally {
+      setSavingRegion(false);
+    }
+  };
+
   const baseList: Profissional[] = useMemo(
     () =>
-      apiProfs.length > 0 || apiMontadores.length > 0
+      regionConfirmed && (apiProfs.length > 0 || apiMontadores.length > 0)
         ? [
-            ...apiProfs.map((d) => mapApiToProf(d, geo.bairro, geo.cidade)),
+            ...apiProfs.map((d) => mapApiToProf(d, region.bairro, region.cidade)),
             ...apiMontadores.map(mapMontadorToProf),
           ]
-        : MOCK_PROFISSIONAIS,
-    [apiMontadores, apiProfs, geo.bairro, geo.cidade],
+        : [],
+    [apiMontadores, apiProfs, region.bairro, region.cidade, regionConfirmed],
   );
 
   const filteredList = useMemo(() => {
@@ -439,6 +510,21 @@ export function BuscarScreen() {
     }
     return list;
   }, [baseList, selectedCat, searchQuery]);
+  const categoryError = selectedCat === "montador"
+    ? montadoresError
+    : selectedCat
+      ? diaristasError
+      : error;
+  const emptyText = selectedCat === "montador"
+    ? "Nenhum montador disponível nesta região ainda."
+    : !regionConfirmed
+      ? "Informe sua região para encontrar profissionais disponíveis."
+      : searchQuery || selectedCat
+      ? "Nenhum resultado encontrado"
+      : "Nenhum profissional disponível";
+  const regionText = region.bairro
+    ? `${region.bairro}, ${region.cidade} - ${region.uf}`
+    : [region.cidade, region.uf].filter(Boolean).join(" - ");
 
   return (
     <SafeAreaView style={s.safe} edges={["top", "left", "right"]}>
@@ -472,6 +558,26 @@ export function BuscarScreen() {
               <AppIcon name="SlidersHorizontal" size={19} color={colors.primary} strokeWidth={2} />
             </Pressable>
           </View>
+
+          <LocationPermissionCard
+            title="Região da busca"
+            subtitle="Use sua localização ou informe uma região para encontrar profissionais disponíveis."
+            region={region}
+            permissionStatus={currentRegion.permissionStatus}
+            loading={currentRegion.loading}
+            saving={savingRegion}
+            error={regionError ?? currentRegion.error}
+            confirmed={regionConfirmed}
+            confirmLabel="Usar esta região"
+            onRegionChange={(next) => {
+              setRegion(next);
+              setRegionConfirmed(false);
+            }}
+            onRequestLocation={requestRegion}
+            onDetected={handleDetectedRegion}
+            onManual={() => setRegionConfirmed(false)}
+            onConfirm={confirmRegion}
+          />
 
           <View style={s.section}>
             <Text style={s.sectionTitle}>Escolha uma categoria</Text>
@@ -507,16 +613,16 @@ export function BuscarScreen() {
 
             {loading ? (
               <DSkeletonCard count={3} height={88} />
-            ) : error ? (
+            ) : categoryError ? (
               <View style={s.feedbackWrap}>
-                <Text style={s.feedbackText}>Erro ao buscar profissionais</Text>
+                <Text style={s.feedbackText}>{categoryError}</Text>
                 <DButton
                   variant="secondary"
                   size="sm"
                   label="Tentar novamente"
                   onPress={() => {
-                    if (geo.cidade && geo.uf && geo.bairro) {
-                      buscar({ cidade: geo.cidade, uf: geo.uf, bairro: geo.bairro });
+                    if (region.cidade && region.uf) {
+                      buscar({ cidade: region.cidade, uf: region.uf, bairro: region.bairro });
                     }
                   }}
                 />
@@ -524,9 +630,10 @@ export function BuscarScreen() {
             ) : filteredList.length === 0 ? (
               <View style={s.feedbackWrap}>
                 <AppIcon name="Search" size={32} color={colors.textMuted} strokeWidth={1.6} />
-                <Text style={s.feedbackText}>
-                  {searchQuery || selectedCat ? "Nenhum resultado encontrado" : "Nenhum profissional disponível"}
-                </Text>
+                <Text style={s.feedbackText}>{emptyText}</Text>
+                {selectedCat === "montador" && regionText ? (
+                  <Text style={s.feedbackHint}>Busca por {regionText}</Text>
+                ) : null}
               </View>
             ) : (
               <FlatList
@@ -855,5 +962,11 @@ const s = StyleSheet.create({
     ...typography.bodySmMedium,
     color: colors.textSecondary,
     textAlign: "center",
+  },
+  feedbackHint: {
+    ...typography.caption,
+    color: colors.textMuted,
+    textAlign: "center",
+    marginTop: -8,
   },
 });

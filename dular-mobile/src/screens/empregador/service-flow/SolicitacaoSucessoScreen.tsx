@@ -25,6 +25,12 @@ export function SolicitacaoSucessoScreen() {
     if (parent) parent.navigate("Home");
   };
 
+  const acompanharSolicitacoes = () => {
+    resetDraft();
+    const parent = navigation.getParent<BottomTabNavigationProp<EmpregadorTabParamList>>();
+    if (parent) parent.navigate("Agendamentos");
+  };
+
   return (
     <SafeAreaView style={flowStyles.screen}>
       <View style={s.content}>
@@ -46,7 +52,7 @@ export function SolicitacaoSucessoScreen() {
       </View>
 
       <SafeAreaView style={flowStyles.footer}>
-        <FlowPrimaryButton label="Acompanhar solicitação" theme={flowTheme} onPress={goHome} />
+        <FlowPrimaryButton label="Acompanhar solicitações" theme={flowTheme} onPress={acompanharSolicitacoes} />
         <DButton label="Voltar ao início" variant="ghost" onPress={goHome} style={s.secondaryButton} />
       </SafeAreaView>
     </SafeAreaView>

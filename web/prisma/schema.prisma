@@ -263,27 +263,31 @@ model MontadorPerfil {
   userId String @unique
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  bio               String?
-  especialidades    String[]
-  anosExperiencia   Int?
-  cidade            String?
-  estado            String?
+  bio             String?
+  especialidades  String[] @default([])
+  anosExperiencia Int?
+  cidade          String?
+  estado          String?
+
   bairros           String[] @default([])
   raioAtendimentoKm Int?
   fotoPerfil        String?
   portfolioFotos    String[] @default([])
-  precoBase         Int?
-  taxaMinima        Int?
+
+  precoBase         Decimal? @db.Decimal(10, 2)
+  taxaMinima        Decimal? @db.Decimal(10, 2)
   cobraDeslocamento Boolean  @default(false)
   observacaoPreco   String?
   valorACombinar    Boolean  @default(true)
-  documentoFrente   String?
-  documentoVerso    String?
-  selfieDoc         String?
-  verificado        Boolean  @default(false)
-  ativo             Boolean  @default(true)
-  rating            Float    @default(0)
-  totalServicos     Int      @default(0)
+
+  documentoFrente String?
+  documentoVerso  String?
+  selfieDoc       String?
+
+  verificado    Boolean @default(false)
+  ativo         Boolean @default(true)
+  rating        Float   @default(0)
+  totalServicos Int     @default(0)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

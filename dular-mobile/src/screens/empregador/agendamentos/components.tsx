@@ -179,81 +179,85 @@ export function AppointmentCard({ item, onDetails }: { item: AgendamentoItem; on
 
   return (
     <DCard style={s.card}>
-      <View style={s.contentCol}>
-        <Text style={s.name} numberOfLines={1}>{firstName}</Text>
+      <View style={s.mainRow}>
+        <View style={s.contentCol}>
+          <Text allowFontScaling={false} style={s.name} numberOfLines={1}>{firstName}</Text>
 
-        <View style={s.categoryPill}>
-          <AppIcon name={item.categoriaIcon} size={13} color={colors.primary} strokeWidth={2.2} />
-          <Text style={s.categoryPillText}>{item.categoria}</Text>
+          <View style={s.categoryPill}>
+            <AppIcon name={item.categoriaIcon} size={12} color={colors.primary} strokeWidth={2.2} />
+            <Text allowFontScaling={false} style={s.categoryPillText} numberOfLines={1}>{item.categoria}</Text>
+          </View>
+
+          <View style={s.metaStack}>
+            <View style={s.inlineRow}>
+              <AppIcon name="MapPin" size={14} color={colors.textMuted} strokeWidth={2.1} />
+              <Text allowFontScaling={false} style={s.metaText} numberOfLines={1}>{item.local}</Text>
+            </View>
+            <View style={s.inlineRow}>
+              <AppIcon name="Calendar" size={14} color={colors.textMuted} strokeWidth={2.1} />
+              <Text allowFontScaling={false} style={s.metaText} numberOfLines={1}>{dateLine}</Text>
+            </View>
+            <View style={s.inlineRow}>
+              <AppIcon name="Star" size={14} color={colors.warning} strokeWidth={2.2} />
+              <Text allowFontScaling={false} style={s.metaStrong}>{item.nota}</Text>
+              <Text allowFontScaling={false} style={s.metaMuted}>•</Text>
+              <Text allowFontScaling={false} style={s.metaText} numberOfLines={1}>{item.experiencia}</Text>
+            </View>
+          </View>
+
+          <View style={s.divider} />
+
+          <Text allowFontScaling={false} style={s.observacao} numberOfLines={2}>
+            {item.observacao || item.idade}
+          </Text>
         </View>
 
-        <View style={s.metaStack}>
-          <View style={s.inlineRow}>
-            <AppIcon name="MapPin" size={15} color={colors.textMuted} strokeWidth={2.1} />
-            <Text style={s.metaText} numberOfLines={1}>{item.local}</Text>
+        <View style={s.visualCol}>
+          <View style={s.avatarRing}>
+            <DAvatar size="lg" uri={item.avatarUrl} />
           </View>
-          <View style={s.inlineRow}>
-            <AppIcon name="Calendar" size={15} color={colors.textMuted} strokeWidth={2.1} />
-            <Text style={s.metaText} numberOfLines={1}>{dateLine}</Text>
-          </View>
-          <View style={s.inlineRow}>
-            <AppIcon name="Star" size={15} color={colors.warning} strokeWidth={2.2} />
-            <Text style={s.metaStrong}>{item.nota}</Text>
-            <Text style={s.metaMuted}>•</Text>
-            <Text style={s.metaText} numberOfLines={1}>{item.experiencia}</Text>
-          </View>
-        </View>
-
-        <View style={s.divider} />
-
-        <Text style={s.observacao} numberOfLines={2}>
-          {item.observacao || item.idade}
-        </Text>
-
-        <View style={s.divider} />
-
-        <View style={s.actionsRow}>
-          <View style={s.valueButton}>
-            <AppIcon name="CircleUserRound" size={15} color={colors.primary} strokeWidth={2.2} />
-            <Text style={s.valueButtonText}>{valorLabel}</Text>
-          </View>
-          <Pressable
-            onPress={onDetails ?? (() => Alert.alert("Agendamentos", "Detalhes do agendamento em breve."))}
-            style={({ pressed }) => [pressed && { opacity: 0.9 }]}
+          <View
+            style={[
+              s.statusPillCard,
+              { backgroundColor: item.status === "pendente" ? "#FFF1E2" : status.bg },
+            ]}
           >
-            <LinearGradient colors={["#FFB347", "#FF9F1C"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.detailsButton}>
-              <Text style={s.detailsText}>Detalhes</Text>
-              <AppIcon name="ChevronRight" size={15} color={colors.white} strokeWidth={2.7} />
-            </LinearGradient>
-          </Pressable>
+            <AppIcon
+              name={status.actionIcon}
+              size={13}
+              color={item.status === "pendente" ? "#E98A15" : status.actionColor}
+              strokeWidth={2.4}
+            />
+            <Text
+              allowFontScaling={false}
+              style={[
+                s.statusPillText,
+                { color: item.status === "pendente" ? "#E98A15" : status.actionColor },
+              ]}
+              numberOfLines={1}
+            >
+              {status.label}
+            </Text>
+          </View>
         </View>
       </View>
 
-      <View style={s.visualCol}>
-        <View style={s.avatarRing}>
-          <DAvatar size="xl" uri={item.avatarUrl} />
+      <View style={s.divider} />
+
+      <View style={s.actionsRow}>
+        <View style={s.valueButton}>
+          <AppIcon name="CircleUserRound" size={14} color={colors.primary} strokeWidth={2.2} />
+          <Text allowFontScaling={false} style={s.valueButtonText} numberOfLines={1}>{valorLabel}</Text>
         </View>
-        <View
-          style={[
-            s.statusPillCard,
-            { backgroundColor: item.status === "pendente" ? "#FFF1E2" : status.bg },
-          ]}
+        <Pressable
+          onPress={onDetails ?? (() => Alert.alert("Agendamentos", "Detalhes do agendamento em breve."))}
+          style={({ pressed }) => [pressed && { opacity: 0.9 }]}
         >
-          <AppIcon
-            name={status.actionIcon}
-            size={14}
-            color={item.status === "pendente" ? "#E98A15" : status.actionColor}
-            strokeWidth={2.4}
-          />
-          <Text
-            style={[
-              s.statusPillText,
-              { color: item.status === "pendente" ? "#E98A15" : status.actionColor },
-            ]}
-          >
-            {status.label}
-          </Text>
-        </View>
+          <LinearGradient colors={["#FFB347", "#FF9F1C"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.detailsButton}>
+            <Text allowFontScaling={false} style={s.detailsText} numberOfLines={1}>Detalhes</Text>
+            <AppIcon name="ChevronRight" size={14} color={colors.white} strokeWidth={2.7} />
+          </LinearGradient>
+        </Pressable>
       </View>
     </DCard>
   );
@@ -351,19 +355,22 @@ const s = StyleSheet.create({
   },
   card: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 28,
+    borderRadius: 24,
     borderWidth: 0,
-    paddingHorizontal: 22,
-    paddingVertical: 22,
+    paddingHorizontal: 18,
+    paddingVertical: 18,
+    gap: 13,
+    ...shadows.card,
+  },
+  mainRow: {
     flexDirection: "row",
     alignItems: "flex-start",
-    gap: 14,
-    ...shadows.card,
+    gap: 12,
   },
   contentCol: {
     flex: 1,
     minWidth: 0,
-    gap: 10,
+    gap: 8,
   },
   name: {
     color: "#1F1B2D",
@@ -373,10 +380,10 @@ const s = StyleSheet.create({
   },
   categoryPill: {
     alignSelf: "flex-start",
-    minHeight: 26,
+    minHeight: 24,
     borderRadius: radius.pill,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
@@ -388,7 +395,7 @@ const s = StyleSheet.create({
     fontWeight: "800",
   },
   metaStack: {
-    gap: 7,
+    gap: 5,
     paddingTop: 1,
   },
   inlineRow: {
@@ -429,17 +436,17 @@ const s = StyleSheet.create({
   actionsRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 10,
   },
   valueButton: {
     flex: 1,
     minWidth: 0,
-    minHeight: 36,
+    minHeight: 38,
     borderRadius: radius.pill,
     borderWidth: 1.2,
     borderColor: colors.primary,
     backgroundColor: "#FFFFFF",
-    paddingHorizontal: 9,
+    paddingHorizontal: 12,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
@@ -452,33 +459,33 @@ const s = StyleSheet.create({
     letterSpacing: 0,
   },
   visualCol: {
-    width: 106,
+    width: 86,
     alignItems: "center",
-    gap: 10,
-    paddingTop: 1,
+    gap: 8,
+    paddingTop: 2,
   },
   avatarRing: {
-    width: 108,
-    height: 108,
-    borderRadius: 54,
+    width: 76,
+    height: 76,
+    borderRadius: 38,
     backgroundColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
     shadowColor: "#3B2A66",
     shadowOpacity: 0.11,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 4,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 3,
   },
   detailsButton: {
-    width: 84,
-    minHeight: 36,
+    width: 118,
+    minHeight: 38,
     borderRadius: radius.pill,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 10,
     flexDirection: "row",
-    gap: 2,
+    gap: 3,
     shadowColor: "#FF9F1C",
     shadowOpacity: 0.22,
     shadowRadius: 14,
@@ -493,13 +500,13 @@ const s = StyleSheet.create({
     textAlign: "center",
   },
   statusPillCard: {
-    minHeight: 32,
+    minHeight: 28,
     borderRadius: radius.pill,
-    paddingHorizontal: 10,
+    paddingHorizontal: 8,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 5,
+    gap: 4,
     alignSelf: "stretch",
   },
   statusPillText: {

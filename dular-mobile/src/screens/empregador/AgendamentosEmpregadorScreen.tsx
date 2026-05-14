@@ -107,7 +107,8 @@ function formatMoney(value?: number | null) {
 function mapServicoToAgendamento(servico: ServicoEmpregador): AgendamentoItem {
   const category = categoryInfo(servico);
   const profissional = category.key === "montador" ? servico.montador : servico.diarista;
-  const local = [servico.bairro, servico.cidade, servico.uf].filter(Boolean).join(", ");
+  const cidadeUf = [servico.cidade, servico.uf].filter(Boolean).join(" - ");
+  const local = [servico.bairro, cidadeUf].filter(Boolean).join(", ");
 
   return {
     id: servico.id,

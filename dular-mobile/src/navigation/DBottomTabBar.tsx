@@ -51,7 +51,7 @@ TAB_BY_ROUTE.montador.MontadorChat = "messages";
 
 const HIDDEN_ROUTES: Record<Variant, Set<string>> = {
   diarista: new Set(["ChatAberto"]),
-  empregador: new Set(["SolicitarServico", "ChatAberto", "Notificacoes"]),
+  empregador: new Set(["SolicitarServico", "ChatAberto", "Notificacoes", "MontadorPublicProfile"]),
   montador: new Set([]),
 };
 

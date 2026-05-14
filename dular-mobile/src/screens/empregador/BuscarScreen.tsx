@@ -928,7 +928,8 @@ const s = StyleSheet.create({
     width: 82,
     alignItems: "flex-end",
     alignSelf: "stretch",
-    justifyContent: "space-between",
+    justifyContent: "flex-start",
+    gap: 8,
     paddingVertical: 4,
   },
   distText: {

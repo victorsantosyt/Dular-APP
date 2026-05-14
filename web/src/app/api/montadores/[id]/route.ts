@@ -84,7 +84,7 @@ export async function GET(_req: Request, { params }: Params) {
         precoLabel: montador.valorACombinar
           ? "A combinar"
           : montador.precoBase
-            ? `A partir de R$ ${(montador.precoBase / 100).toFixed(2).replace(".", ",")}`
+            ? `A partir de R$ ${(Number(montador.precoBase) / 100).toFixed(2).replace(".", ",")}`
             : "A combinar",
         safeScore: {
           score,

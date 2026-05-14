@@ -41,9 +41,15 @@ export function EmpregadorServiceFlowNavigator() {
   // o INITIAL_DRAFT padrão.
   const route = useRoute<RouteProp<EmpregadorTabParamList, "SolicitarServico">>();
   const params = route.params as SolicitarServicoRouteParams | undefined;
+  const flowKey = [
+    params?.tipoInicial ?? "GERAL",
+    params?.categoriaInicial ?? "sem-categoria",
+    params?.profissionalId ?? "sem-profissional",
+  ].join(":");
 
   return (
     <ServiceFlowProvider
+      key={flowKey}
       initialCategoria={params?.categoriaInicial}
       initialTipo={params?.tipoInicial}
       initialProfissionalId={params?.profissionalId}

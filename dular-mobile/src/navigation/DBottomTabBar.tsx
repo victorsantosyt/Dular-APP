@@ -1,6 +1,7 @@
 import React, { useCallback } from "react";
 import { StyleSheet, View } from "react-native";
 import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
+import { CommonActions } from "@react-navigation/native";
 import { DBottomNav } from "@/components/ui";
 import type { NavTab } from "@/components/ui/DBottomNav";
 import { useAuth } from "@/stores/authStore";
@@ -75,7 +76,20 @@ export function DBottomTabBar({ state, navigation, variant, messagesBadge, reque
   const handlePress = useCallback(
     (tab: NavTab) => {
       const target = ROUTE_BY_TAB[variant][tab];
-      if (target) navigation.navigate(target as never);
+      if (!target) return;
+
+      if (variant === "empregador" && target === "SolicitarServico") {
+        navigation.dispatch(
+          CommonActions.navigate({
+            name: target,
+            params: undefined,
+            merge: false,
+          }),
+        );
+        return;
+      }
+
+      navigation.navigate(target as never);
     },
     [navigation, variant]
   );

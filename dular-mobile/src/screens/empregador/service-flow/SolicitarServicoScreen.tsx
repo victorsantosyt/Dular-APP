@@ -22,12 +22,12 @@ const SERVICES: Array<{
   { id: "baba", title: "Babá", subtitle: "Cuidado infantil com segurança e carinho.", icon: "Baby" },
   { id: "cozinheira", title: "Cozinheira", subtitle: "Refeições do dia, preparo e organização.", icon: "ChefHat" },
   { id: "diarista", title: "Diarista", subtitle: "Limpeza residencial com profissional verificado.", icon: "WashingMachine" },
-  { id: "montador", title: "Montador", subtitle: "Montagem, ajustes e pequenos reparos.", icon: "Wrench" },
+  { id: "montador", title: "Montador", subtitle: "Para montagem, escolha primeiro um profissional disponível.", icon: "Wrench" },
 ];
 
 export function SolicitarServicoScreen() {
   const navigation = useNavigation<Navigation>();
-  const { draft, updateDraft } = useServiceFlow();
+  const { draft, updateDraft, resetDraft } = useServiceFlow();
   const flowTheme = getServiceFlowTheme(draft.tipo);
   const isMontador = draft.tipo === "MONTADOR";
   const missingMontador = isMontador && !draft.profissionalId;
@@ -43,12 +43,31 @@ export function SolicitarServicoScreen() {
   };
 
   const goToMontadores = () => {
+    resetDraft();
     const parent = navigation.getParent<BottomTabNavigationProp<EmpregadorTabParamList>>();
     if (parent) {
       parent.navigate("Buscar", { categoriaInicial: "montador" });
       return;
     }
     if (navigation.canGoBack()) navigation.goBack();
+  };
+
+  const selectGeneralService = (service: ServiceCategory) => {
+    if (service === "montador") {
+      goToMontadores();
+      return;
+    }
+
+    const sameProfessionalCategory = draft.tipo === "DIARISTA" && draft.categoria === service;
+    updateDraft({
+      categoria: service,
+      tipo: "DIARISTA",
+      tipoProfissional: "DIARISTA",
+      ...(sameProfessionalCategory ? {} : { profissionalId: undefined, profissionalNome: undefined }),
+      especialidadeId: undefined,
+      especialidadeLabel: undefined,
+      categoriaBackend: undefined,
+    });
   };
 
   if (missingMontador) {
@@ -60,7 +79,7 @@ export function SolicitarServicoScreen() {
             subtitle="Selecione um profissional antes de solicitar o serviço."
             step={1}
             total={5}
-            onBack={leaveFlow}
+            onBack={goToMontadores}
             theme={flowTheme}
           />
 
@@ -77,7 +96,7 @@ export function SolicitarServicoScreen() {
 
         <SafeAreaView style={flowStyles.footer}>
           <FlowPrimaryButton
-            label="Voltar para busca"
+            label="Escolher montador"
             theme={flowTheme}
             onPress={goToMontadores}
           />
@@ -127,7 +146,7 @@ export function SolicitarServicoScreen() {
                   icon={service.icon}
                   selected={draft.categoria === service.id}
                   theme={flowTheme}
-                  onPress={() => updateDraft({ categoria: service.id })}
+                  onPress={() => selectGeneralService(service.id)}
                 />
               ))}
         </ScrollView>

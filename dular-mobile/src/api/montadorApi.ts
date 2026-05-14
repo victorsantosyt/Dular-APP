@@ -71,6 +71,101 @@ export const MONTADOR_SERVICOS = [
   "Manutenção residencial",
 ] as const;
 
+export const MONTADOR_ESPECIALIDADES = [
+  { id: "montagem", label: "Montagem de móveis" },
+  { id: "reparos", label: "Pequenos reparos" },
+  { id: "eletrica", label: "Instalação elétrica" },
+  { id: "hidraulica", label: "Instalação hidráulica" },
+  { id: "pintura", label: "Pintura" },
+  { id: "carpintaria", label: "Carpintaria" },
+] as const;
+
+export type MontadorEspecialidadeId = (typeof MONTADOR_ESPECIALIDADES)[number]["id"];
+
+export type MontadorPerfilCompletude = {
+  completo: boolean;
+  progresso: number;
+  requisitos: {
+    nome: boolean;
+    apresentacao: boolean;
+    especialidades: boolean;
+    areaAtendimento: boolean;
+    ativo: boolean;
+  };
+};
+
+export type MontadorPerfilProfissional = {
+  id: string;
+  userId: string;
+  bio?: string | null;
+  especialidades: MontadorEspecialidadeId[];
+  anosExperiencia?: number | null;
+  cidade?: string | null;
+  estado?: string | null;
+  bairros: string[];
+  raioAtendimentoKm?: number | null;
+  fotoPerfil?: string | null;
+  portfolioFotos: string[];
+  precoBase?: number | null;
+  taxaMinima?: number | null;
+  cobraDeslocamento: boolean;
+  observacaoPreco?: string | null;
+  valorACombinar: boolean;
+  documentoFrente?: string | null;
+  documentoVerso?: string | null;
+  selfieDoc?: string | null;
+  documentosEnviados: boolean;
+  verificacaoStatus: "NAO_ENVIADO" | "PENDENTE" | "APROVADO" | "REPROVADO";
+  verificado: boolean;
+  ativo: boolean;
+  rating: number;
+  totalServicos: number;
+  completude: MontadorPerfilCompletude;
+  safeScore?: (MontadorSafeScore & { score?: number; tier?: string }) | null;
+  avaliacoes?: {
+    media: number;
+    total: number;
+    itens: Array<{
+      id: string;
+      notaGeral: number;
+      comentario?: string | null;
+      createdAt: string;
+    }>;
+  };
+};
+
+export type MontadorPerfilMe = {
+  ok?: boolean;
+  user: Me & {
+    notaMedia?: number;
+    totalServicos?: number;
+    especialidades?: MontadorEspecialidadeId[];
+    cidade?: string | null;
+    estado?: string | null;
+    bairros?: string[];
+  };
+  perfil: MontadorPerfilProfissional;
+};
+
+export type AtualizarPerfilMontadorPayload = {
+  nome?: string;
+  telefone?: string | null;
+  bio?: string | null;
+  anosExperiencia?: number | null;
+  especialidades?: MontadorEspecialidadeId[];
+  cidade?: string | null;
+  estado?: string | null;
+  bairros?: string[];
+  raioAtendimentoKm?: number | null;
+  precoBase?: number | null;
+  taxaMinima?: number | null;
+  cobraDeslocamento?: boolean;
+  observacaoPreco?: string | null;
+  valorACombinar?: boolean;
+  ativo?: boolean;
+  portfolioFotos?: string[];
+};
+
 export async function carregarServicosMontador(): Promise<MontadorServico[]> {
   const res = await api.get<ServicosResponse>("/api/servicos/minhas");
   const list = Array.isArray(res.data?.servicos) ? res.data.servicos : [];
@@ -107,20 +202,13 @@ export async function cancelarServicoMontador(servicoId: string) {
   return res.data;
 }
 
-export async function carregarPerfilMontador(): Promise<Me> {
-  const res = await api.get<{ user?: Me } | Me>("/api/me");
-  const payload = res.data as { user?: Me };
-  return payload.user ?? (res.data as Me);
+export async function carregarPerfilMontador(): Promise<MontadorPerfilMe> {
+  const res = await api.get<MontadorPerfilMe>("/api/montador/me");
+  return res.data;
 }
 
-export async function atualizarPerfilMontador(payload: {
-  nome?: string;
-  bio?: string;
-  precoLeve?: number;
-  precoMedio?: number;
-  precoPesada?: number;
-}) {
-  const res = await api.put("/api/me", payload);
+export async function atualizarPerfilMontador(payload: AtualizarPerfilMontadorPayload): Promise<MontadorPerfilMe> {
+  const res = await api.patch<MontadorPerfilMe>("/api/montador/me", payload);
   return res.data;
 }
 

@@ -10,15 +10,37 @@ export type MontadorItem = {
   anosExperiencia?: number | null;
   cidade?: string | null;
   estado?: string | null;
+  bairros?: string[];
+  raioAtendimentoKm?: number | null;
   fotoPerfil?: string | null;
+  portfolioFotos?: string[];
+  precoBase?: number | null;
+  taxaMinima?: number | null;
+  cobraDeslocamento?: boolean;
+  observacaoPreco?: string | null;
+  valorACombinar?: boolean;
+  precoLabel?: string;
   verificado: boolean;
+  ativo?: boolean;
   rating: number;
   totalServicos: number;
+  profileCompleto?: boolean;
+  profileProgresso?: number;
+  safeScore?: {
+    score?: number;
+    faixa?: string;
+    cor?: string;
+    bloqueado?: boolean;
+    tier?: string;
+    totalServicos?: number;
+    verificado?: boolean;
+  } | null;
   user: {
     id: string;
     nome: string;
     telefone?: string | null;
     genero?: "MASCULINO" | "FEMININO" | null;
+    status?: string;
     avatarUrl?: string | null;
   };
 };
@@ -39,6 +61,7 @@ export const MONTADOR_ESPECIALIDADES = [
   { id: "eletrica", label: "Instalação elétrica" },
   { id: "hidraulica", label: "Instalação hidráulica" },
   { id: "pintura", label: "Pintura" },
+  { id: "carpintaria", label: "Carpintaria" },
 ] as const;
 
 export type MontadorEspecialidadeId = (typeof MONTADOR_ESPECIALIDADES)[number]["id"];

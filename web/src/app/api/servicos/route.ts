@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/requireAuth";
 import { criarServicoSchema } from "@/lib/schemas/servicos";
 import { sendPushNotification } from "@/lib/notifications";
+import { calcularCompletudeMontador } from "@/lib/montadorProfile";
 
 export async function POST(req: Request) {
   try {
@@ -75,7 +76,19 @@ export async function POST(req: Request) {
       const montadorPerfil = await prisma.montadorPerfil.findUnique({
         where: { userId: profissionalId },
       });
-      if (!montadorPerfil || !montadorPerfil.ativo) {
+      const completudeMontador = montadorPerfil
+        ? calcularCompletudeMontador({
+            nome: userMontador.nome,
+            bio: montadorPerfil.bio,
+            especialidades: montadorPerfil.especialidades,
+            cidade: montadorPerfil.cidade,
+            estado: montadorPerfil.estado,
+            bairros: montadorPerfil.bairros,
+            ativo: montadorPerfil.ativo,
+            userStatus: userMontador.status,
+          })
+        : null;
+      if (!montadorPerfil || !completudeMontador?.completo) {
         return NextResponse.json(
           { ok: false, error: "Montador indisponível." },
           { status: 400 },

@@ -179,16 +179,16 @@ enum FeatureKey {
 }
 
 model User {
-  id             String     @id @default(cuid())
+  id             String        @id @default(cuid())
   nome           String
-  telefone       String?    @unique
-  cpf            String?    @unique
+  telefone       String?       @unique
+  cpf            String?       @unique
   dataNascimento DateTime?
   genero         Genero?
-  email          String?    @unique
+  email          String?       @unique
   senhaHash      String?
   role           UserRole?
-  status         UserStatus @default(ATIVO)
+  status         UserStatus    @default(ATIVO)
   scoreAtual     Float         @default(500)
   riskScore      Float         @default(0)
   riskTier       SafeScoreTier @default(BRONZE)
@@ -263,19 +263,27 @@ model MontadorPerfil {
   userId String @unique
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  bio             String?
-  especialidades  String[]
-  anosExperiencia Int?
-  cidade          String?
-  estado          String?
-  fotoPerfil      String?
-  documentoFrente String?
-  documentoVerso  String?
-  selfieDoc       String?
-  verificado      Boolean  @default(false)
-  ativo           Boolean  @default(true)
-  rating          Float    @default(0)
-  totalServicos   Int      @default(0)
+  bio               String?
+  especialidades    String[]
+  anosExperiencia   Int?
+  cidade            String?
+  estado            String?
+  bairros           String[] @default([])
+  raioAtendimentoKm Int?
+  fotoPerfil        String?
+  portfolioFotos    String[] @default([])
+  precoBase         Int?
+  taxaMinima        Int?
+  cobraDeslocamento Boolean  @default(false)
+  observacaoPreco   String?
+  valorACombinar    Boolean  @default(true)
+  documentoFrente   String?
+  documentoVerso    String?
+  selfieDoc         String?
+  verificado        Boolean  @default(false)
+  ativo             Boolean  @default(true)
+  rating            Float    @default(0)
+  totalServicos     Int      @default(0)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -612,15 +620,15 @@ enum UserRestrictionType {
 }
 
 model SafeScoreProfile {
-  id           String          @id @default(cuid())
-  userId       String          @unique
-  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  currentScore Float           @default(500)
-  riskScore    Float           @default(0)
-  tier         SafeScoreTier   @default(BRONZE)
+  id           String           @id @default(cuid())
+  userId       String           @unique
+  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  currentScore Float            @default(500)
+  riskScore    Float            @default(0)
+  tier         SafeScoreTier    @default(BRONZE)
   lastRecalcAt DateTime?
-  createdAt    DateTime        @default(now())
-  updatedAt    DateTime        @updatedAt
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
   events       SafeScoreEvent[]
 }
 

@@ -22,7 +22,7 @@ import {
 import { colors, radius, shadows, spacing, typography } from "@/theme";
 import type { EmpregadorTabParamList } from "@/navigation/EmpregadorNavigator";
 import { useBuscar, type ApiDiarista } from "@/hooks/useBuscar";
-import type { MontadorItem } from "@/types/montador";
+import { MONTADOR_ESPECIALIDADES as MONTADOR_ESPECIALIDADES_PUBLICAS, type MontadorItem } from "@/types/montador";
 import { useGeoDefaults } from "@/hooks/useGeoDefaults";
 import { useMensagens } from "@/hooks/useMensagens";
 
@@ -73,7 +73,12 @@ type Profissional = {
   cidade?: string | null;
   estado?: string | null;
   rating?: number;
+  precoLabel?: string;
 };
+
+const MONTADOR_LABELS = Object.fromEntries(
+  MONTADOR_ESPECIALIDADES_PUBLICAS.map((item) => [item.id, item.label]),
+) as Record<string, string>;
 
 const CATEGORIAS: CategoriaCardItem[] = [
   {
@@ -230,7 +235,10 @@ function mapApiToProf(d: ApiDiarista, bairro: string, cidade: string): Profissio
 
 function mapMontadorToProf(m: MontadorItem): Profissional {
   const cidadeEstado = [m.cidade, m.estado].filter(Boolean).join(", ");
-  const anos = m.anosExperiencia ? `${m.anosExperiencia} anos exp.` : "Montador verificado";
+  const principais = (m.especialidades ?? [])
+    .map((item) => MONTADOR_LABELS[item] ?? item)
+    .slice(0, 2)
+    .join(" • ");
   return {
     id: m.id,
     userId: m.userId ?? m.user.id,
@@ -241,8 +249,8 @@ function mapMontadorToProf(m: MontadorItem): Profissional {
     categoriaKey: "montador",
     localizacao: cidadeEstado || "Localização a confirmar",
     nota: m.rating > 0 ? m.rating.toFixed(1).replace(".", ",") : "--",
-    experiencia: m.totalServicos > 0 ? `${m.totalServicos} serviços` : anos,
-    distancia: "",
+    experiencia: principais || (m.totalServicos > 0 ? `${m.totalServicos} serviços` : "Perfil profissional completo"),
+    distancia: m.precoLabel ?? (m.valorACombinar ? "A combinar" : ""),
     online: false,
     verificado: m.verificado,
     avatarUrl: m.fotoPerfil ?? m.user.avatarUrl,
@@ -250,6 +258,7 @@ function mapMontadorToProf(m: MontadorItem): Profissional {
     cidade: m.cidade,
     estado: m.estado,
     rating: m.rating,
+    precoLabel: m.precoLabel,
   };
 }
 

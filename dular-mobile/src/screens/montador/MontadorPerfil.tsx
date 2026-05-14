@@ -1,47 +1,110 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import {
+  ActivityIndicator,
+  Alert,
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  TextInput,
+  View,
+  type KeyboardTypeOptions,
+} from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { useNavigation } from "@react-navigation/native";
-import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import { AppIcon, DErrorState, DLoadingState, DScreen } from "@/components/ui";
 import {
-  MONTADOR_SERVICOS,
+  MONTADOR_ESPECIALIDADES,
+  atualizarPerfilMontador,
   carregarPerfilMontador,
-  type MontadorServico,
+  type AtualizarPerfilMontadorPayload,
+  type MontadorEspecialidadeId,
+  type MontadorPerfilMe,
 } from "@/api/montadorApi";
 import { useMontadorServicos } from "@/hooks/useMontadorServicos";
 import { useProfileTheme } from "@/hooks/useProfileTheme";
 import { useAuth } from "@/stores/authStore";
-import type { MontadorTabParamList } from "@/navigation/MontadorNavigator";
-import type { ProfileTheme } from "@/theme/profileTheme";
 import { colors, radius, shadows, spacing, typography } from "@/theme";
+import type { ProfileTheme } from "@/theme/profileTheme";
 import { firstName, formatMoneyFromCents, upperStatus } from "./montadorUtils";
 
-type Navigation = BottomTabNavigationProp<MontadorTabParamList>;
+type ModalType = "dados" | "especialidades" | "area" | "precos" | "portfolio" | "documentos" | null;
 
-const ESPECIALIDADES_INICIAIS = [
-  "Montagem de móveis",
-  "Pequenos reparos",
-  "Instalações",
-  "Manutenção residencial",
-  "Suporte residencial",
-] as const;
+type DadosForm = {
+  nome: string;
+  telefone: string;
+  bio: string;
+  anosExperiencia: string;
+};
+
+type AreaForm = {
+  cidade: string;
+  estado: string;
+  bairros: string;
+  raioAtendimentoKm: string;
+  ativo: boolean;
+};
+
+type PrecosForm = {
+  valorACombinar: boolean;
+  precoBase: string;
+  taxaMinima: string;
+  cobraDeslocamento: boolean;
+  observacaoPreco: string;
+};
+
+const ESPECIALIDADE_LABELS = Object.fromEntries(
+  MONTADOR_ESPECIALIDADES.map((item) => [item.id, item.label]),
+) as Record<MontadorEspecialidadeId, string>;
+
+function especialidadeLabel(id: string) {
+  return ESPECIALIDADE_LABELS[id as MontadorEspecialidadeId] ?? id;
+}
+
+function centsToInput(value?: number | null) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return "";
+  return (value / 100).toFixed(2).replace(".", ",");
+}
+
+function inputToCents(value: string) {
+  const normalized = value.replace(/\./g, "").replace(",", ".").trim();
+  if (!normalized) return null;
+  const number = Number(normalized);
+  if (!Number.isFinite(number) || number < 0) return NaN;
+  return Math.round(number * 100);
+}
+
+function splitBairros(value: string) {
+  return Array.from(
+    new Set(
+      value
+        .split(",")
+        .map((item) => item.trim())
+        .filter((item) => item.length >= 2),
+    ),
+  );
+}
+
+function totalGanhos(servicos: Array<{ status: string; precoFinal?: number | null; valorEstimado?: number | null }>) {
+  return servicos
+    .filter((item) => ["FINALIZADO", "CONCLUIDO"].includes(upperStatus(item.status)))
+    .reduce((sum, item) => sum + (item.precoFinal ?? item.valorEstimado ?? 0), 0);
+}
 
 function Section({
   title,
-  borderColor,
   children,
+  borderColor,
 }: {
   title: string;
-  borderColor?: string;
   children: React.ReactNode;
+  borderColor: string;
 }) {
   return (
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>{title}</Text>
-      <View style={[styles.sectionCard, borderColor ? { borderColor } : null]}>
-        {children}
-      </View>
+      <View style={[styles.sectionCard, { borderColor }]}>{children}</View>
     </View>
   );
 }
@@ -50,36 +113,25 @@ function Row({
   icon,
   title,
   subtitle,
-  accent,
-  soft,
-  dividerColor,
+  theme,
   danger,
   onPress,
 }: {
   icon: React.ComponentProps<typeof AppIcon>["name"];
   title: string;
   subtitle?: string;
-  accent: string;
-  soft: string;
-  dividerColor?: string;
+  theme: ProfileTheme;
   danger?: boolean;
   onPress: () => void;
 }) {
   return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.row,
-        dividerColor ? { borderBottomColor: dividerColor } : null,
-        pressed && styles.pressed,
-      ]}
-    >
-      <View style={[styles.rowIcon, { backgroundColor: danger ? colors.dangerSoft : soft }]}>
-        <AppIcon name={icon} size={18} color={danger ? colors.danger : accent} />
+    <Pressable onPress={onPress} style={({ pressed }) => [styles.row, { borderBottomColor: theme.border }, pressed && styles.pressed]}>
+      <View style={[styles.rowIcon, { backgroundColor: danger ? colors.dangerSoft : theme.primarySoft }]}>
+        <AppIcon name={icon} size={18} color={danger ? colors.danger : theme.primary} />
       </View>
       <View style={styles.rowText}>
         <Text style={[styles.rowTitle, danger && { color: colors.danger }]}>{title}</Text>
-        {subtitle ? <Text style={styles.rowSub}>{subtitle}</Text> : null}
+        {subtitle ? <Text style={styles.rowSub} numberOfLines={2}>{subtitle}</Text> : null}
       </View>
       <AppIcon name="ChevronRight" size={18} color={colors.textMuted} />
     </Pressable>
@@ -121,88 +173,268 @@ function FloatingCard({
   );
 }
 
-function totalGanhos(servicos: MontadorServico[]) {
-  return servicos
-    .filter((item) => ["FINALIZADO", "CONCLUIDO"].includes(upperStatus(item.status)))
-    .reduce((sum, item) => sum + (item.precoFinal ?? item.valorEstimado ?? 0), 0);
+function Field({
+  label,
+  value,
+  onChangeText,
+  placeholder,
+  multiline,
+  keyboardType,
+}: {
+  label: string;
+  value: string;
+  onChangeText: (value: string) => void;
+  placeholder?: string;
+  multiline?: boolean;
+  keyboardType?: KeyboardTypeOptions;
+}) {
+  return (
+    <View style={styles.field}>
+      <Text style={styles.fieldLabel}>{label}</Text>
+      <TextInput
+        value={value}
+        onChangeText={onChangeText}
+        placeholder={placeholder}
+        placeholderTextColor={colors.textMuted}
+        multiline={multiline}
+        keyboardType={keyboardType}
+        style={[styles.input, multiline && styles.inputMultiline]}
+      />
+    </View>
+  );
+}
+
+function ModalActions({
+  saving,
+  theme,
+  onCancel,
+  onSave,
+}: {
+  saving: boolean;
+  theme: ProfileTheme;
+  onCancel: () => void;
+  onSave: () => void;
+}) {
+  return (
+    <View style={styles.modalActions}>
+      <Pressable onPress={onCancel} style={styles.secondaryButton}>
+        <Text style={styles.secondaryButtonText}>Cancelar</Text>
+      </Pressable>
+      <Pressable onPress={onSave} disabled={saving} style={[styles.primaryButton, { backgroundColor: theme.primary }, saving && styles.disabled]}>
+        {saving ? <ActivityIndicator size="small" color={colors.white} /> : <Text style={styles.primaryButtonText}>Salvar</Text>}
+      </Pressable>
+    </View>
+  );
 }
 
 export default function MontadorPerfil() {
-  const navigation = useNavigation<Navigation>();
   const profileTheme = useProfileTheme("MONTADOR");
-  const user = useAuth((state) => state.user);
+  const authUser = useAuth((state) => state.user);
   const setUser = useAuth((state) => state.setUser);
   const clearSession = useAuth((state) => state.clearSession);
   const { agenda } = useMontadorServicos();
-  const [online, setOnline] = useState(true);
+
+  const [profile, setProfile] = useState<MontadorPerfilMe | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [especialidades, setEspecialidades] = useState<string[]>([...ESPECIALIDADES_INICIAIS]);
-  const [novaEspecialidade, setNovaEspecialidade] = useState("");
-  const [especialidadesModalVisible, setEspecialidadesModalVisible] = useState(false);
-  const [portfolioModalVisible, setPortfolioModalVisible] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [savedMessage, setSavedMessage] = useState<string | null>(null);
+  const [modal, setModal] = useState<ModalType>(null);
 
-  const nome = firstName(user?.nome);
-  const verificado = user?.verificacao?.status === "APROVADO" || user?.verificado;
+  const [dadosForm, setDadosForm] = useState<DadosForm>({ nome: "", telefone: "", bio: "", anosExperiencia: "" });
+  const [especialidadesForm, setEspecialidadesForm] = useState<MontadorEspecialidadeId[]>([]);
+  const [areaForm, setAreaForm] = useState<AreaForm>({ cidade: "", estado: "", bairros: "", raioAtendimentoKm: "", ativo: true });
+  const [precosForm, setPrecosForm] = useState<PrecosForm>({
+    valorACombinar: true,
+    precoBase: "",
+    taxaMinima: "",
+    cobraDeslocamento: false,
+    observacaoPreco: "",
+  });
+
   const ganhos = useMemo(() => totalGanhos(agenda), [agenda]);
-  const catalogoEspecialidades = useMemo(
-    () => Array.from(new Set([...MONTADOR_SERVICOS, ...especialidades])),
-    [especialidades],
-  );
 
-  const carregarPerfilMontadorAtual = async () => {
+  const perfil = profile?.perfil;
+  const user = profile?.user;
+  const nome = firstName(user?.nome ?? authUser?.nome);
+  const progresso = perfil?.completude.progresso ?? 0;
+  const completo = Boolean(perfil?.completude.completo);
+  const verificado = Boolean(perfil?.verificado);
+  const ativo = perfil?.ativo ?? true;
+  const statusLabel = !completo ? "Incompleto" : !ativo ? "Indisponível" : verificado ? "Ativo" : "Verificação pendente";
+  const especialidadesResumo = perfil?.especialidades?.length
+    ? perfil.especialidades.map(especialidadeLabel).join(", ")
+    : "Selecione ao menos uma especialidade";
+  const areaResumo = perfil?.cidade && perfil.estado
+    ? `${perfil.cidade}, ${perfil.estado}${perfil.bairros.length ? ` • ${perfil.bairros.length} bairro(s)` : ""}`
+    : "Defina cidade, UF e bairros";
+  const precoResumo = perfil?.valorACombinar
+    ? "Valor a combinar"
+    : perfil?.precoBase
+      ? formatMoneyFromCents(perfil.precoBase)
+      : "Configure preço ou valor a combinar";
+
+  const syncForms = (next: MontadorPerfilMe) => {
+    setDadosForm({
+      nome: next.user.nome ?? "",
+      telefone: next.user.telefone ?? "",
+      bio: next.perfil.bio ?? "",
+      anosExperiencia: next.perfil.anosExperiencia != null ? String(next.perfil.anosExperiencia) : "",
+    });
+    setEspecialidadesForm(next.perfil.especialidades ?? []);
+    setAreaForm({
+      cidade: next.perfil.cidade ?? "",
+      estado: next.perfil.estado ?? "",
+      bairros: next.perfil.bairros?.join(", ") ?? "",
+      raioAtendimentoKm: next.perfil.raioAtendimentoKm != null ? String(next.perfil.raioAtendimentoKm) : "",
+      ativo: next.perfil.ativo,
+    });
+    setPrecosForm({
+      valorACombinar: next.perfil.valorACombinar,
+      precoBase: centsToInput(next.perfil.precoBase),
+      taxaMinima: centsToInput(next.perfil.taxaMinima),
+      cobraDeslocamento: next.perfil.cobraDeslocamento,
+      observacaoPreco: next.perfil.observacaoPreco ?? "",
+    });
+  };
+
+  const applyProfile = (next: MontadorPerfilMe) => {
+    setProfile(next);
+    syncForms(next);
+    setUser((prev) => ({
+      ...(prev ?? { id: next.user.id, nome: next.user.nome ?? "", role: "MONTADOR" }),
+      id: next.user.id,
+      nome: next.user.nome ?? prev?.nome ?? "",
+      telefone: next.user.telefone ?? prev?.telefone,
+      role: "MONTADOR",
+      genero: next.user.genero ?? prev?.genero,
+      avatarUrl: next.user.avatarUrl ?? prev?.avatarUrl,
+      bio: next.user.bio ?? prev?.bio,
+      verificado: next.user.verificado ?? prev?.verificado,
+      docEnviado: next.user.docEnviado ?? prev?.docEnviado,
+      verificacao: next.user.verificacao ?? prev?.verificacao,
+    }));
+  };
+
+  const loadProfile = async (mode: "initial" | "refresh" = "initial") => {
     try {
-      setLoading(true);
+      if (mode === "initial") setLoading(true);
+      if (mode === "refresh") setRefreshing(true);
       setError(null);
-      const profile = await carregarPerfilMontador();
-      setUser((prev) => ({
-        ...(prev ?? { id: profile.id, nome: profile.nome ?? "", role: profile.role ?? "MONTADOR" }),
-        id: profile.id,
-        nome: profile.nome ?? prev?.nome ?? "",
-        telefone: profile.telefone ?? prev?.telefone,
-        role: profile.role ?? prev?.role ?? "MONTADOR",
-        genero: profile.genero ?? prev?.genero,
-        avatarUrl: profile.avatarUrl ?? prev?.avatarUrl,
-        bio: profile.bio ?? prev?.bio,
-        verificado: profile.verificado ?? prev?.verificado,
-        docEnviado: profile.docEnviado ?? prev?.docEnviado,
-        verificacao: profile.verificacao ?? prev?.verificacao,
-      }));
+      const next = await carregarPerfilMontador();
+      applyProfile(next);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Falha ao carregar perfil.");
+      setError(err instanceof Error ? err.message : "Falha ao carregar perfil do montador.");
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
   useEffect(() => {
-    void carregarPerfilMontadorAtual();
+    void loadProfile("initial");
   }, []);
 
-  const atualizarDadosProfissionais = () => {
-    Alert.alert("Dados profissionais", "Edição avançada será conectada ao perfil do montador.");
+  const openModal = (type: Exclude<ModalType, null>) => {
+    if (profile) syncForms(profile);
+    setFormError(null);
+    setModal(type);
   };
-  const abrirEspecialidades = () => setEspecialidadesModalVisible(true);
-  const atualizarAreaAtendimento = () => {
-    Alert.alert("Área de atendimento", "Configuração de bairros será conectada ao perfil do montador.");
+
+  const saveProfile = async (payload: AtualizarPerfilMontadorPayload, success: string) => {
+    try {
+      setSaving(true);
+      setFormError(null);
+      const next = await atualizarPerfilMontador(payload);
+      applyProfile(next);
+      setModal(null);
+      setSavedMessage(success);
+      setTimeout(() => setSavedMessage(null), 2600);
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : "Não foi possível salvar agora.");
+    } finally {
+      setSaving(false);
+    }
   };
-  const atualizarDisponibilidade = () => setOnline((current) => !current);
-  const atualizarPrecos = () => {
-    Alert.alert("Preços", "Tabela de preços do montador será conectada ao backend.");
+
+  const saveDados = () => {
+    const anosExperiencia = dadosForm.anosExperiencia.trim() ? Number(dadosForm.anosExperiencia) : null;
+    if (dadosForm.nome.trim().length < 2) {
+      setFormError("Informe seu nome profissional.");
+      return;
+    }
+    if (dadosForm.bio.trim().length > 0 && dadosForm.bio.trim().length < 20) {
+      setFormError("A apresentação precisa ter pelo menos 20 caracteres.");
+      return;
+    }
+    if (anosExperiencia != null && (!Number.isInteger(anosExperiencia) || anosExperiencia < 0)) {
+      setFormError("Informe anos de experiência válidos.");
+      return;
+    }
+    void saveProfile({
+      nome: dadosForm.nome,
+      telefone: dadosForm.telefone || null,
+      bio: dadosForm.bio || null,
+      anosExperiencia,
+    }, "Dados profissionais salvos.");
   };
-  const enviarDocumento = () => {
-    Alert.alert("Documentos", "Envio de documentos será conectado ao fluxo de verificação.");
+
+  const saveEspecialidades = () => {
+    if (especialidadesForm.length === 0) {
+      setFormError("Selecione pelo menos uma especialidade.");
+      return;
+    }
+    void saveProfile({ especialidades: especialidadesForm }, "Especialidades salvas.");
   };
-  const abrirPortfolio = () => setPortfolioModalVisible(true);
-  const editarPortfolio = () => {
-    Alert.alert("Portfólio", "Edição e envio de fotos serão conectados ao perfil do montador.");
+
+  const saveArea = () => {
+    const bairros = splitBairros(areaForm.bairros);
+    const raio = areaForm.raioAtendimentoKm.trim() ? Number(areaForm.raioAtendimentoKm) : null;
+    if (!areaForm.cidade.trim() || areaForm.estado.trim().length !== 2 || bairros.length === 0) {
+      setFormError("Informe cidade, UF e pelo menos um bairro.");
+      return;
+    }
+    if (raio != null && (!Number.isInteger(raio) || raio <= 0)) {
+      setFormError("Informe um raio de atendimento válido.");
+      return;
+    }
+    void saveProfile({
+      cidade: areaForm.cidade,
+      estado: areaForm.estado,
+      bairros,
+      raioAtendimentoKm: raio,
+      ativo: areaForm.ativo,
+    }, "Área de atendimento salva.");
   };
-  const removerFotoPortfolio = () => {
-    Alert.alert("Portfólio", "Remoção de fotos será conectada ao perfil do montador.");
+
+  const savePrecos = () => {
+    const precoBase = inputToCents(precosForm.precoBase);
+    const taxaMinima = inputToCents(precosForm.taxaMinima);
+    if (Number.isNaN(precoBase) || Number.isNaN(taxaMinima)) {
+      setFormError("Informe valores válidos.");
+      return;
+    }
+    if (!precosForm.valorACombinar && !precoBase && !taxaMinima) {
+      setFormError("Informe um preço base, taxa mínima ou marque valor a combinar.");
+      return;
+    }
+    void saveProfile({
+      valorACombinar: precosForm.valorACombinar,
+      precoBase,
+      taxaMinima,
+      cobraDeslocamento: precosForm.cobraDeslocamento,
+      observacaoPreco: precosForm.observacaoPreco || null,
+    }, "Preços salvos.");
   };
-  const carregarAvaliacoes = () => {
-    Alert.alert("Avaliações", "Avaliações do montador aparecerão quando houver histórico.");
+
+  const toggleEspecialidade = (id: MontadorEspecialidadeId) => {
+    setEspecialidadesForm((current) =>
+      current.includes(id) ? current.filter((item) => item !== id) : [...current, id],
+    );
   };
+
   const sairDaConta = () => {
     Alert.alert("Sair", "Encerrar sessão da conta?", [
       { text: "Voltar", style: "cancel" },
@@ -210,191 +442,199 @@ export default function MontadorPerfil() {
     ]);
   };
 
-  const toggleEspecialidade = (label: string) => {
-    setEspecialidades((current) =>
-      current.includes(label)
-        ? current.filter((item) => item !== label)
-        : [...current, label],
+  if (loading) {
+    return (
+      <DScreen backgroundColor={profileTheme.background}>
+        <DLoadingState text="Carregando perfil" color={profileTheme.primary} />
+      </DScreen>
     );
-  };
+  }
 
-  const adicionarEspecialidade = () => {
-    const value = novaEspecialidade.trim();
-    if (!value) return;
-    setEspecialidades((current) => {
-      const exists = current.some((item) => item.toLowerCase() === value.toLowerCase());
-      return exists ? current : [...current, value];
-    });
-    setNovaEspecialidade("");
-  };
-
-  const removerEspecialidade = (label: string) => {
-    setEspecialidades((current) => current.filter((item) => item !== label));
-  };
+  if (error || !profile || !perfil) {
+    return (
+      <DScreen backgroundColor={profileTheme.background}>
+        <DErrorState message={error ?? "Perfil não encontrado."} onRetry={() => loadProfile("initial")} />
+      </DScreen>
+    );
+  }
 
   return (
-    <DScreen scroll withBottomPadding backgroundColor={profileTheme.background} contentContainerStyle={styles.scroll}>
+    <DScreen
+      scroll
+      keyboardAvoiding
+      withBottomPadding
+      backgroundColor={profileTheme.background}
+      contentContainerStyle={styles.scroll}
+      refreshing={refreshing}
+      onRefresh={() => loadProfile("refresh")}
+      refreshTintColor={profileTheme.primary}
+    >
       <View style={styles.header}>
         <Text style={styles.title}>Perfil</Text>
       </View>
 
-      {loading ? (
-        <DLoadingState text="Carregando perfil" color={profileTheme.primary} />
-      ) : error ? (
-        <DErrorState message={error} onRetry={carregarPerfilMontadorAtual} />
-      ) : (
-        <>
-          <LinearGradient colors={profileTheme.gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
-            <Pressable onPress={abrirPortfolio} style={styles.avatar}>
-              <AppIcon name="UserRound" size={34} color={colors.white} strokeWidth={2.1} />
-            </Pressable>
-            <View style={styles.heroText}>
-              <Text style={styles.name}>{nome}</Text>
-              <Text style={styles.role}>Tipo: Montador</Text>
-              <View style={styles.heroBadges}>
-                <View style={styles.badge}>
-                  <Text style={styles.badgeText}>Avaliação --</Text>
-                </View>
-                <View style={styles.badge}>
-                  <Text style={styles.badgeText}>
-                    {verificado ? "Verificado" : "Verificação pendente"}
-                  </Text>
-                </View>
-              </View>
-              <Text style={styles.status}>{online ? "Online" : "Indisponível"}</Text>
+      <LinearGradient colors={profileTheme.gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
+        <View style={styles.avatar}>
+          <AppIcon name="UserRound" size={34} color={colors.white} strokeWidth={2.1} />
+        </View>
+        <View style={styles.heroText}>
+          <Text style={styles.name}>{nome}</Text>
+          <Text style={styles.role}>Montador profissional</Text>
+          <View style={styles.heroBadges}>
+            <View style={styles.badge}><Text style={styles.badgeText}>{perfil.rating > 0 ? perfil.rating.toFixed(1) : "Sem avaliações"}</Text></View>
+            <View style={styles.badge}><Text style={styles.badgeText}>{perfil.totalServicos} serviço(s)</Text></View>
+            <View style={styles.badge}><Text style={styles.badgeText}>{statusLabel}</Text></View>
+          </View>
+          <View style={styles.progressTop}>
+            <Text style={styles.progressLabel}>Perfil {progresso}% completo</Text>
+            <View style={styles.progressTrack}>
+              <View style={[styles.progressFill, { width: `${progresso}%` }]} />
             </View>
-          </LinearGradient>
+          </View>
+        </View>
+      </LinearGradient>
 
-          <Section title="Dados profissionais" borderColor={profileTheme.border}>
-            <Row icon="User" title="Nome, telefone e apresentação" subtitle={user?.bio ?? "Complete sua apresentação"} accent={profileTheme.primary} soft={profileTheme.primarySoft} dividerColor={profileTheme.border} onPress={atualizarDadosProfissionais} />
-            <Row icon="Wrench" title="Especialidades" subtitle={`${especialidades.length} tag(s) selecionada(s) • ${online ? "Online" : "Indisponível"}`} accent={profileTheme.primary} soft={profileTheme.primarySoft} dividerColor={profileTheme.border} onPress={abrirEspecialidades} />
-            <Row icon="MapPin" title="Área de atendimento" subtitle="Cidade e bairros atendidos" accent={profileTheme.primary} soft={profileTheme.primarySoft} dividerColor={profileTheme.border} onPress={atualizarAreaAtendimento} />
-            <Row icon="Wallet" title="Preços" subtitle="Valores por tipo de montagem" accent={profileTheme.primary} soft={profileTheme.primarySoft} dividerColor={profileTheme.border} onPress={atualizarPrecos} />
-            <Row icon="Camera" title="Portfólio" subtitle="Fotos e trabalhos realizados" accent={profileTheme.primary} soft={profileTheme.primarySoft} dividerColor={profileTheme.border} onPress={abrirPortfolio} />
-            <Row icon="Star" title="Avaliações" subtitle="Histórico de avaliações recebidas" accent={profileTheme.primary} soft={profileTheme.primarySoft} dividerColor={profileTheme.border} onPress={carregarAvaliacoes} />
-            <Row icon="CreditCard" title="Carteira/Ganhos" subtitle={formatMoneyFromCents(ganhos)} accent={profileTheme.primary} soft={profileTheme.primarySoft} dividerColor={profileTheme.border} onPress={() => Alert.alert("Carteira", "Carteira do montador será conectada ao backend.")} />
-          </Section>
+      {!completo ? (
+        <View style={[styles.ctaCard, { borderColor: profileTheme.border, backgroundColor: profileTheme.primarySoft }]}>
+          <AppIcon name="AlertTriangle" size={18} color={profileTheme.primary} />
+          <View style={styles.ctaText}>
+            <Text style={[styles.ctaTitle, { color: profileTheme.textAccent }]}>Complete seu perfil para aparecer para empregadores</Text>
+            <Text style={styles.ctaSub}>Nome, apresentação, especialidades e área de atendimento liberam sua visibilidade na busca.</Text>
+          </View>
+        </View>
+      ) : null}
 
-          <Section title="Documentos e segurança" borderColor={profileTheme.border}>
-            <Row icon="FileText" title="Documentos/verificação" subtitle={verificado ? "Documentos aprovados" : "Envie seus documentos"} accent={profileTheme.primary} soft={profileTheme.primarySoft} dividerColor={profileTheme.border} onPress={enviarDocumento} />
-            <Row icon="ShieldCheck" title="Segurança/SafeScore" subtitle="Proteção ativa no perfil profissional" accent={profileTheme.primary} soft={profileTheme.primarySoft} dividerColor={profileTheme.border} onPress={() => navigation.navigate("MontadorHome")} />
-          </Section>
+      {savedMessage ? (
+        <View style={[styles.savedCard, { borderColor: profileTheme.border }]}>
+          <AppIcon name="CheckCircle" size={17} color={profileTheme.primary} />
+          <Text style={[styles.savedText, { color: profileTheme.textAccent }]}>{savedMessage}</Text>
+        </View>
+      ) : null}
 
-          <Section title="Suporte e termos" borderColor={profileTheme.border}>
-            <Row icon="HelpCircle" title="Suporte" subtitle="Fale com o Dular" accent={profileTheme.primary} soft={profileTheme.primarySoft} dividerColor={profileTheme.border} onPress={() => Alert.alert("Suporte", "Atendimento será conectado em breve.")} />
-            <Row icon="FileText" title="Termos" subtitle="Termos e políticas da plataforma" accent={profileTheme.primary} soft={profileTheme.primarySoft} dividerColor={profileTheme.border} onPress={() => Alert.alert("Termos", "Termos serão exibidos em breve.")} />
-            <Row icon="LogOut" title="Sair" subtitle="Encerrar sessão da conta" accent={profileTheme.primary} soft={profileTheme.primarySoft} dividerColor={profileTheme.border} danger onPress={sairDaConta} />
-          </Section>
+      <Section title="Dados profissionais" borderColor={profileTheme.border}>
+        <Row icon="User" title="Nome, telefone e apresentação" subtitle={perfil.bio || "Complete sua apresentação"} theme={profileTheme} onPress={() => openModal("dados")} />
+        <Row icon="Wrench" title="Especialidades" subtitle={especialidadesResumo} theme={profileTheme} onPress={() => openModal("especialidades")} />
+        <Row icon="MapPin" title="Área de atendimento" subtitle={areaResumo} theme={profileTheme} onPress={() => openModal("area")} />
+        <Row icon="Wallet" title="Preços" subtitle={precoResumo} theme={profileTheme} onPress={() => openModal("precos")} />
+        <Row icon="Camera" title="Portfólio" subtitle={perfil.portfolioFotos.length ? `${perfil.portfolioFotos.length} foto(s)` : "Sem fotos no portfólio"} theme={profileTheme} onPress={() => openModal("portfolio")} />
+        <Row icon="Star" title="Avaliações" subtitle={perfil.avaliacoes?.total ? `${perfil.avaliacoes.total} avaliação(ões)` : "Sem avaliações ainda"} theme={profileTheme} onPress={() => openModal("portfolio")} />
+        <Row icon="CreditCard" title="Carteira/Ganhos" subtitle={formatMoneyFromCents(ganhos)} theme={profileTheme} onPress={() => Alert.alert("Carteira", "Carteira do montador será conectada ao backend.")} />
+      </Section>
 
-          <FloatingCard
-            visible={especialidadesModalVisible}
-            title="Especialidades"
-            subtitle="Gerencie seus tipos de trabalho e disponibilidade."
-            theme={profileTheme}
-            onClose={() => setEspecialidadesModalVisible(false)}
-          >
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalScroll}>
-              <View style={[styles.availabilityCard, { borderColor: profileTheme.border, backgroundColor: profileTheme.primarySoft }]}>
-                <View style={styles.availabilityText}>
-                  <Text style={[styles.availabilityTitle, { color: profileTheme.textAccent }]}>Disponibilidade</Text>
-                  <Text style={styles.availabilitySub}>
-                    {online ? "Recebendo solicitações" : "Indisponível para novas solicitações"}
-                  </Text>
-                </View>
-                <Pressable onPress={atualizarDisponibilidade} style={[styles.availabilityButton, { backgroundColor: profileTheme.primary }]}>
-                  <Text style={styles.availabilityButtonText}>{online ? "Ficar indisponível" : "Ficar online"}</Text>
+      <Section title="Documentos e segurança" borderColor={profileTheme.border}>
+        <Row icon="FileText" title="Documentos/verificação" subtitle={perfil.verificacaoStatus === "APROVADO" ? "Documentos aprovados" : "Documentos pendentes"} theme={profileTheme} onPress={() => openModal("documentos")} />
+        <Row icon="ShieldCheck" title="Segurança/SafeScore" subtitle={perfil.safeScore?.faixa ?? "SafeScore em análise"} theme={profileTheme} onPress={() => openModal("documentos")} />
+      </Section>
+
+      <Section title="Suporte e termos" borderColor={profileTheme.border}>
+        <Row icon="HelpCircle" title="Suporte" subtitle="Fale com o Dular" theme={profileTheme} onPress={() => Alert.alert("Suporte", "Atendimento será conectado em breve.")} />
+        <Row icon="FileText" title="Termos" subtitle="Termos e políticas da plataforma" theme={profileTheme} onPress={() => Alert.alert("Termos", "Termos serão exibidos em breve.")} />
+        <Row icon="LogOut" title="Sair" subtitle="Encerrar sessão da conta" theme={profileTheme} danger onPress={sairDaConta} />
+      </Section>
+
+      <FloatingCard visible={modal === "dados"} title="Dados profissionais" subtitle="Essas informações aparecem no seu perfil público." theme={profileTheme} onClose={() => setModal(null)}>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalScroll}>
+          <Field label="Nome profissional" value={dadosForm.nome} onChangeText={(nomeValue) => setDadosForm((prev) => ({ ...prev, nome: nomeValue }))} />
+          <Field label="Telefone" value={dadosForm.telefone} onChangeText={(telefone) => setDadosForm((prev) => ({ ...prev, telefone }))} keyboardType="phone-pad" />
+          <Field label="Apresentação" value={dadosForm.bio} onChangeText={(bio) => setDadosForm((prev) => ({ ...prev, bio }))} multiline placeholder="Conte sua experiência, tipo de montagem que atende e diferenciais." />
+          <Field label="Anos de experiência" value={dadosForm.anosExperiencia} onChangeText={(anosExperiencia) => setDadosForm((prev) => ({ ...prev, anosExperiencia }))} keyboardType="number-pad" />
+          {formError ? <Text style={styles.errorText}>{formError}</Text> : null}
+          <ModalActions saving={saving} theme={profileTheme} onCancel={() => setModal(null)} onSave={saveDados} />
+        </ScrollView>
+      </FloatingCard>
+
+      <FloatingCard visible={modal === "especialidades"} title="Especialidades" subtitle="Selecione os tipos de serviço que você atende." theme={profileTheme} onClose={() => setModal(null)}>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalScroll}>
+          <View style={styles.tagsWrap}>
+            {MONTADOR_ESPECIALIDADES.map((item) => {
+              const selected = especialidadesForm.includes(item.id);
+              return (
+                <Pressable
+                  key={item.id}
+                  onPress={() => toggleEspecialidade(item.id)}
+                  style={[
+                    styles.tag,
+                    selected
+                      ? { backgroundColor: profileTheme.primary, borderColor: profileTheme.primary }
+                      : { backgroundColor: colors.surface, borderColor: profileTheme.border },
+                  ]}
+                >
+                  <Text style={[styles.tagText, selected ? styles.tagTextActive : { color: colors.textSecondary }]}>{item.label}</Text>
                 </Pressable>
-              </View>
+              );
+            })}
+          </View>
+          {formError ? <Text style={styles.errorText}>{formError}</Text> : null}
+          <ModalActions saving={saving} theme={profileTheme} onCancel={() => setModal(null)} onSave={saveEspecialidades} />
+        </ScrollView>
+      </FloatingCard>
 
-              <View style={styles.modalBlock}>
-                <Text style={styles.modalLabel}>Tags selecionadas</Text>
-                <View style={styles.tagsWrap}>
-                  {especialidades.map((item) => (
-                    <Pressable
-                      key={item}
-                      onPress={() => removerEspecialidade(item)}
-                      style={[styles.tag, { backgroundColor: profileTheme.primary, borderColor: profileTheme.primary }]}
-                    >
-                      <Text style={[styles.tagText, styles.tagTextActive]}>{item}</Text>
-                      <AppIcon name="XCircle" size={14} color={colors.white} strokeWidth={2.4} />
-                    </Pressable>
-                  ))}
-                </View>
-              </View>
-
-              <View style={styles.modalBlock}>
-                <Text style={styles.modalLabel}>Adicionar especialidade</Text>
-                <View style={styles.addRow}>
-                  <TextInput
-                    value={novaEspecialidade}
-                    onChangeText={setNovaEspecialidade}
-                    placeholder="Ex.: Instalação de cortina"
-                    placeholderTextColor={colors.textMuted}
-                    style={[styles.input, { borderColor: profileTheme.border }]}
-                  />
-                  <Pressable onPress={adicionarEspecialidade} style={[styles.addButton, { backgroundColor: profileTheme.primary }]}>
-                    <Text style={styles.addButtonText}>Adicionar</Text>
-                  </Pressable>
-                </View>
-              </View>
-
-              <View style={styles.modalBlock}>
-                <Text style={styles.modalLabel}>Catálogo sugerido</Text>
-                <View style={styles.tagsWrap}>
-                  {catalogoEspecialidades.map((item) => {
-                    const active = especialidades.includes(item);
-                    return (
-                      <Pressable
-                        key={item}
-                        onPress={() => toggleEspecialidade(item)}
-                        style={[
-                          styles.tag,
-                          active
-                            ? { backgroundColor: profileTheme.primary, borderColor: profileTheme.primary }
-                            : { backgroundColor: colors.surface, borderColor: profileTheme.border },
-                        ]}
-                      >
-                        <Text style={[styles.tagText, active ? styles.tagTextActive : { color: colors.textSecondary }]}>
-                          {active ? "Remover" : "Adicionar"} {item}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              </View>
-            </ScrollView>
-          </FloatingCard>
-
-          <FloatingCard
-            visible={portfolioModalVisible}
-            title="Portfólio"
-            subtitle="Organize fotos de montagens e reparos em um só lugar."
-            theme={profileTheme}
-            onClose={() => setPortfolioModalVisible(false)}
-          >
-            <View style={[styles.portfolioCard, { borderColor: profileTheme.border, backgroundColor: profileTheme.primarySoft }]}>
-              <View style={[styles.portfolioIcon, { backgroundColor: colors.surface }]}>
-                <AppIcon name="Camera" size={24} color={profileTheme.primary} />
-              </View>
-              <View style={styles.portfolioText}>
-                <Text style={[styles.portfolioTitle, { color: profileTheme.textAccent }]}>Fotos do portfólio</Text>
-                <Text style={styles.portfolioSub}>
-                  Mostre trabalhos concluídos, detalhes de acabamento e reparos realizados.
-                </Text>
-              </View>
+      <FloatingCard visible={modal === "area"} title="Área de atendimento" subtitle="Use bairros separados por vírgula." theme={profileTheme} onClose={() => setModal(null)}>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalScroll}>
+          <Field label="Cidade" value={areaForm.cidade} onChangeText={(cidade) => setAreaForm((prev) => ({ ...prev, cidade }))} />
+          <Field label="UF" value={areaForm.estado} onChangeText={(estado) => setAreaForm((prev) => ({ ...prev, estado: estado.toUpperCase().slice(0, 2) }))} />
+          <Field label="Bairros atendidos" value={areaForm.bairros} onChangeText={(bairros) => setAreaForm((prev) => ({ ...prev, bairros }))} multiline placeholder="Ex.: Jardim América, Centro, Moema" />
+          <Field label="Raio de atendimento em km" value={areaForm.raioAtendimentoKm} onChangeText={(raioAtendimentoKm) => setAreaForm((prev) => ({ ...prev, raioAtendimentoKm }))} keyboardType="number-pad" />
+          <View style={styles.switchRow}>
+            <View style={styles.switchText}>
+              <Text style={styles.switchTitle}>Perfil ativo</Text>
+              <Text style={styles.switchSubtitle}>Receber novas solicitações de empregadores</Text>
             </View>
+            <Switch value={areaForm.ativo} onValueChange={(ativoValue) => setAreaForm((prev) => ({ ...prev, ativo: ativoValue }))} trackColor={{ false: colors.border, true: profileTheme.primarySoft }} thumbColor={areaForm.ativo ? profileTheme.primary : colors.textMuted} />
+          </View>
+          {formError ? <Text style={styles.errorText}>{formError}</Text> : null}
+          <ModalActions saving={saving} theme={profileTheme} onCancel={() => setModal(null)} onSave={saveArea} />
+        </ScrollView>
+      </FloatingCard>
 
-            <View style={styles.portfolioActions}>
-              <Pressable onPress={editarPortfolio} style={[styles.portfolioPrimary, { backgroundColor: profileTheme.primary }]}>
-                <Text style={styles.portfolioPrimaryText}>Editar ou adicionar</Text>
-              </Pressable>
-              <Pressable onPress={removerFotoPortfolio} style={styles.portfolioRemove}>
-                <Text style={styles.portfolioRemoveText}>Remover foto</Text>
-              </Pressable>
+      <FloatingCard visible={modal === "precos"} title="Preços" subtitle="Defina uma referência de valor ou deixe a combinar." theme={profileTheme} onClose={() => setModal(null)}>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalScroll}>
+          <View style={styles.switchRow}>
+            <View style={styles.switchText}>
+              <Text style={styles.switchTitle}>Valor a combinar</Text>
+              <Text style={styles.switchSubtitle}>Use quando o preço depender da avaliação do serviço</Text>
             </View>
-          </FloatingCard>
-        </>
-      )}
+            <Switch value={precosForm.valorACombinar} onValueChange={(valorACombinar) => setPrecosForm((prev) => ({ ...prev, valorACombinar }))} trackColor={{ false: colors.border, true: profileTheme.primarySoft }} thumbColor={precosForm.valorACombinar ? profileTheme.primary : colors.textMuted} />
+          </View>
+          <Field label="Preço base em R$" value={precosForm.precoBase} onChangeText={(precoBase) => setPrecosForm((prev) => ({ ...prev, precoBase }))} keyboardType="decimal-pad" placeholder="Ex.: 120,00" />
+          <Field label="Taxa mínima em R$" value={precosForm.taxaMinima} onChangeText={(taxaMinima) => setPrecosForm((prev) => ({ ...prev, taxaMinima }))} keyboardType="decimal-pad" placeholder="Ex.: 80,00" />
+          <View style={styles.switchRow}>
+            <View style={styles.switchText}>
+              <Text style={styles.switchTitle}>Cobra deslocamento</Text>
+              <Text style={styles.switchSubtitle}>Informe detalhes na observação de preço</Text>
+            </View>
+            <Switch value={precosForm.cobraDeslocamento} onValueChange={(cobraDeslocamento) => setPrecosForm((prev) => ({ ...prev, cobraDeslocamento }))} trackColor={{ false: colors.border, true: profileTheme.primarySoft }} thumbColor={precosForm.cobraDeslocamento ? profileTheme.primary : colors.textMuted} />
+          </View>
+          <Field label="Observação de preço" value={precosForm.observacaoPreco} onChangeText={(observacaoPreco) => setPrecosForm((prev) => ({ ...prev, observacaoPreco }))} multiline placeholder="Ex.: Valor pode variar conforme tamanho do móvel e local." />
+          {formError ? <Text style={styles.errorText}>{formError}</Text> : null}
+          <ModalActions saving={saving} theme={profileTheme} onCancel={() => setModal(null)} onSave={savePrecos} />
+        </ScrollView>
+      </FloatingCard>
+
+      <FloatingCard visible={modal === "portfolio"} title="Portfólio e avaliações" subtitle="Uploads avançados entram em uma etapa posterior." theme={profileTheme} onClose={() => setModal(null)}>
+        <View style={[styles.emptyCard, { borderColor: profileTheme.border }]}>
+          <AppIcon name="Camera" size={24} color={profileTheme.primary} />
+          <Text style={styles.emptyTitle}>{perfil.portfolioFotos.length ? "Fotos cadastradas" : "Sem fotos no portfólio"}</Text>
+          <Text style={styles.emptyText}>Adicione fotos de montagens, reparos e acabamentos quando o upload estiver disponível.</Text>
+          <Pressable onPress={() => Alert.alert("Portfólio", "Upload de fotos será conectado em breve.")} style={[styles.primaryButton, { backgroundColor: profileTheme.primary }]}>
+            <Text style={styles.primaryButtonText}>Adicionar foto</Text>
+          </Pressable>
+        </View>
+        <View style={[styles.emptyCard, { borderColor: profileTheme.border }]}>
+          <AppIcon name="Star" size={24} color={profileTheme.primary} />
+          <Text style={styles.emptyTitle}>Avaliações</Text>
+          <Text style={styles.emptyText}>{perfil.avaliacoes?.total ? `${perfil.avaliacoes.total} avaliação(ões) recebida(s).` : "Você ainda não recebeu avaliações."}</Text>
+        </View>
+      </FloatingCard>
+
+      <FloatingCard visible={modal === "documentos"} title="Documentos e segurança" subtitle="Acompanhe sua verificação e SafeScore." theme={profileTheme} onClose={() => setModal(null)}>
+        <View style={[styles.emptyCard, { borderColor: profileTheme.border }]}>
+          <AppIcon name="ShieldCheck" size={24} color={profileTheme.primary} />
+          <Text style={styles.emptyTitle}>{perfil.verificacaoStatus === "APROVADO" ? "Verificação aprovada" : "Documentos pendentes"}</Text>
+          <Text style={styles.emptyText}>Status: {perfil.verificacaoStatus}. O envio de documentos será conectado ao fluxo de verificação.</Text>
+          <Text style={styles.emptyText}>SafeScore: {perfil.safeScore?.faixa ?? "Em análise"}</Text>
+        </View>
+      </FloatingCard>
     </DScreen>
   );
 }
@@ -404,7 +644,7 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   header: {
-    minHeight: 52,
+    minHeight: 48,
     justifyContent: "center",
   },
   title: {
@@ -419,7 +659,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.md,
-    minHeight: 160,
+    minHeight: 168,
     borderRadius: radius.lg,
     padding: 12,
     ...shadows.primaryButton,
@@ -468,10 +708,58 @@ const styles = StyleSheet.create({
     ...typography.caption,
     fontWeight: "700",
   },
-  status: {
+  progressTop: {
+    gap: 5,
+    marginTop: 3,
+  },
+  progressLabel: {
     ...typography.caption,
     color: colors.whiteAlpha85,
-    fontWeight: "500",
+    fontWeight: "700",
+  },
+  progressTrack: {
+    height: 6,
+    borderRadius: 999,
+    backgroundColor: colors.whiteAlpha20,
+    overflow: "hidden",
+  },
+  progressFill: {
+    height: "100%",
+    borderRadius: 999,
+    backgroundColor: colors.white,
+  },
+  ctaCard: {
+    flexDirection: "row",
+    gap: 10,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    padding: 12,
+  },
+  ctaText: {
+    flex: 1,
+    gap: 3,
+  },
+  ctaTitle: {
+    ...typography.bodySmMedium,
+    fontWeight: "800",
+  },
+  ctaSub: {
+    ...typography.caption,
+    color: colors.textSecondary,
+  },
+  savedCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: colors.surface,
+  },
+  savedText: {
+    ...typography.bodySmMedium,
+    fontWeight: "700",
   },
   section: {
     gap: spacing.sm,
@@ -486,7 +774,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: colors.border,
     overflow: "hidden",
     ...shadows.soft,
   },
@@ -498,7 +785,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
   },
   rowIcon: {
     width: 36,
@@ -532,7 +818,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.overlay,
   },
   modalCard: {
-    maxHeight: "82%",
+    maxHeight: "84%",
     borderRadius: radius.xl,
     borderWidth: 1,
     backgroundColor: colors.surface,
@@ -553,6 +839,7 @@ const styles = StyleSheet.create({
   modalTitle: {
     color: colors.textPrimary,
     fontSize: 18,
+    lineHeight: 23,
     fontWeight: "700",
   },
   modalSubtitle: {
@@ -569,48 +856,32 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   modalScroll: {
-    gap: 16,
+    gap: 14,
     paddingBottom: 2,
   },
-  modalBlock: {
-    gap: 10,
+  field: {
+    gap: 6,
   },
-  modalLabel: {
+  fieldLabel: {
     color: colors.textSecondary,
-    fontSize: 13,
-    fontWeight: "700",
+    ...typography.caption,
+    fontWeight: "800",
   },
-  availabilityCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    borderRadius: radius.lg,
+  input: {
+    minHeight: 46,
+    borderRadius: radius.md,
     borderWidth: 1,
-    padding: 12,
-  },
-  availabilityText: {
-    flex: 1,
-    minWidth: 0,
-  },
-  availabilityTitle: {
-    ...typography.bodySmMedium,
-    fontWeight: "700",
-  },
-  availabilitySub: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    fontWeight: "500",
-    marginTop: 3,
-  },
-  availabilityButton: {
-    borderRadius: radius.pill,
+    borderColor: colors.border,
+    backgroundColor: colors.background,
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 10,
+    color: colors.textPrimary,
+    ...typography.bodySm,
+    fontWeight: "600",
   },
-  availabilityButtonText: {
-    ...typography.caption,
-    color: colors.white,
-    fontWeight: "700",
+  inputMultiline: {
+    minHeight: 96,
+    textAlignVertical: "top",
   },
   tagsWrap: {
     flexDirection: "row",
@@ -618,98 +889,97 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   tag: {
-    minHeight: 34,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
     borderRadius: radius.pill,
     borderWidth: 1,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
   },
   tagText: {
-    fontSize: 12,
-    fontWeight: "700",
+    ...typography.caption,
+    fontWeight: "800",
   },
   tagTextActive: {
     color: colors.white,
   },
-  addRow: {
-    gap: 8,
-  },
-  input: {
-    minHeight: 44,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    paddingHorizontal: 12,
-    color: colors.textPrimary,
-    backgroundColor: colors.surface,
-    fontSize: 15,
-    fontWeight: "600",
-  },
-  addButton: {
-    minHeight: 42,
-    borderRadius: radius.lg,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  addButtonText: {
-    color: colors.white,
-    fontWeight: "700",
-  },
-  portfolioCard: {
+  switchRow: {
     flexDirection: "row",
-    gap: 12,
-    borderRadius: radius.lg,
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 14,
+    borderRadius: radius.md,
     borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.background,
     padding: 12,
   },
-  portfolioIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 18,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  portfolioText: {
+  switchText: {
     flex: 1,
-    minWidth: 0,
+    gap: 3,
   },
-  portfolioTitle: {
+  switchTitle: {
+    color: colors.textPrimary,
     ...typography.bodySmMedium,
-    fontWeight: "700",
+    fontWeight: "800",
   },
-  portfolioSub: {
-    ...typography.caption,
+  switchSubtitle: {
     color: colors.textSecondary,
-    fontWeight: "500",
-    lineHeight: 18,
-    marginTop: 4,
+    ...typography.caption,
   },
-  portfolioActions: {
+  modalActions: {
+    flexDirection: "row",
     gap: 10,
+    justifyContent: "flex-end",
   },
-  portfolioPrimary: {
-    minHeight: 46,
-    borderRadius: radius.lg,
+  secondaryButton: {
+    minHeight: 42,
+    borderRadius: radius.pill,
+    paddingHorizontal: 16,
     alignItems: "center",
     justifyContent: "center",
-  },
-  portfolioPrimaryText: {
-    color: colors.white,
-    fontWeight: "700",
-  },
-  portfolioRemove: {
-    minHeight: 46,
-    borderRadius: radius.lg,
-    alignItems: "center",
-    justifyContent: "center",
+    backgroundColor: colors.background,
     borderWidth: 1,
-    borderColor: colors.danger,
-    backgroundColor: colors.dangerSoft,
+    borderColor: colors.border,
   },
-  portfolioRemoveText: {
+  secondaryButtonText: {
+    color: colors.textSecondary,
+    ...typography.bodySmMedium,
+    fontWeight: "800",
+  },
+  primaryButton: {
+    minHeight: 42,
+    borderRadius: radius.pill,
+    paddingHorizontal: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  primaryButtonText: {
+    color: colors.white,
+    ...typography.bodySmMedium,
+    fontWeight: "800",
+  },
+  disabled: {
+    opacity: 0.58,
+  },
+  errorText: {
     color: colors.danger,
+    ...typography.caption,
     fontWeight: "700",
+  },
+  emptyCard: {
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    padding: 14,
+    gap: 8,
+    backgroundColor: colors.background,
+  },
+  emptyTitle: {
+    color: colors.textPrimary,
+    ...typography.bodySmMedium,
+    fontWeight: "800",
+  },
+  emptyText: {
+    color: colors.textSecondary,
+    ...typography.caption,
+    fontWeight: "500",
   },
 });

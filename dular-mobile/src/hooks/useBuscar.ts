@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
 import { apiService } from "@/services/api";
 import { useAuth } from "@/stores/authStore";
+import type { BuscarMontadoresResponse, MontadorItem } from "@/types/montador";
 
 export interface ApiDiarista {
   id: string;
@@ -36,6 +37,7 @@ interface BuscarResponse {
 export function useBuscar() {
   const { token } = useAuth();
   const [profissionais, setProfissionais] = useState<ApiDiarista[]>([]);
+  const [montadores, setMontadores] = useState<MontadorItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -53,11 +55,26 @@ export function useBuscar() {
         if (params.tipo) query.set("tipo", params.tipo);
         if (params.categoria) query.set("categoria", params.categoria);
 
-        const res = await apiService.get<BuscarResponse>(
-          `/api/diaristas/buscar?${query.toString()}`,
-          token
-        );
-        setProfissionais(res.data?.diaristas ?? []);
+        const [diaristasResult, montadoresResult] = await Promise.allSettled([
+          apiService.get<BuscarResponse>(`/api/diaristas/buscar?${query.toString()}`, token),
+          apiService.get<BuscarMontadoresResponse>(`/api/montadores/buscar?${query.toString()}`, token),
+        ]);
+
+        if (diaristasResult.status === "fulfilled") {
+          setProfissionais(diaristasResult.value.data?.diaristas ?? []);
+        } else {
+          setProfissionais([]);
+        }
+
+        if (montadoresResult.status === "fulfilled") {
+          setMontadores(montadoresResult.value.data?.montadores ?? []);
+        } else {
+          setMontadores([]);
+        }
+
+        if (diaristasResult.status === "rejected" && montadoresResult.status === "rejected") {
+          throw new Error("Erro ao buscar profissionais");
+        }
       } catch {
         setError("Erro ao buscar profissionais");
       } finally {
@@ -67,5 +84,5 @@ export function useBuscar() {
     [token]
   );
 
-  return { profissionais, loading, error, buscar };
+  return { profissionais, montadores, loading, error, buscar };
 }

@@ -12,6 +12,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -39,7 +40,16 @@ export default function MontadorPublicProfile() {
   const route = useRoute<RouteProps>();
   const insets = useSafeAreaInsets();
   const colors = useDularColors();
-  const { montadorId, nome: nomeParam } = route.params;
+  const {
+    montadorId,
+    montadorUserId: routeMontadorUserId,
+    nome: nomeParam,
+    rating: ratingParam,
+    especialidades: especialidadesParam,
+    cidade: cidadeParam,
+    estado: estadoParam,
+    avatarUrl: avatarUrlParam,
+  } = route.params;
 
   const [montador, setMontador] = useState<MontadorItem | null>(null);
   const [loading, setLoading] = useState(true);
@@ -73,6 +83,7 @@ export default function MontadorPublicProfile() {
     };
   }, [montadorId]);
 
+  const profissionalId = montador?.userId ?? montador?.user.id ?? routeMontadorUserId ?? null;
   const nome = montador?.user.nome ?? nomeParam ?? "Montador";
   const genero: Genero = (montador?.user.genero ?? null) as Genero;
   const theme = useMemo(
@@ -80,12 +91,12 @@ export default function MontadorPublicProfile() {
     [genero],
   );
 
-  const especialidades = montador?.especialidades ?? [];
+  const especialidades = montador?.especialidades ?? especialidadesParam ?? [];
   const totalServicos = montador?.totalServicos ?? 0;
-  const rating = montador?.rating ?? 0;
+  const rating = montador?.rating ?? ratingParam ?? 0;
   const verificado = montador?.verificado ?? false;
-  const cidade = montador?.cidade ?? "—";
-  const estado = montador?.estado ?? "—";
+  const cidade = montador?.cidade ?? cidadeParam ?? "—";
+  const estado = montador?.estado ?? estadoParam ?? "—";
 
   const styles = useMemo(
     () => makeStyles({ theme, surface: colors.surface, textPrimary: colors.textPrimary, textSecondary: colors.textSecondary, textMuted: colors.textMuted, border: colors.border, background: colors.background }),
@@ -93,10 +104,18 @@ export default function MontadorPublicProfile() {
   );
 
   const handleContratar = () => {
+    if (!profissionalId) {
+      Alert.alert(
+        "Montador não identificado",
+        "Não foi possível identificar o montador selecionado. Volte e escolha um profissional novamente.",
+      );
+      return;
+    }
+
     navigation.navigate("SolicitarServico", {
       categoriaInicial: "montador",
       tipoInicial: "MONTADOR",
-      profissionalId: montadorId,
+      profissionalId,
       profissionalNome: nome,
     });
   };
@@ -135,7 +154,7 @@ export default function MontadorPublicProfile() {
         {/* Hero */}
         <View style={[styles.hero, { borderColor: theme.border }]}>
           <DAvatar
-            uri={montador?.fotoPerfil ?? montador?.user.avatarUrl ?? undefined}
+            uri={montador?.fotoPerfil ?? montador?.user.avatarUrl ?? avatarUrlParam ?? undefined}
             size="xl"
             initials={nome.slice(0, 2).toUpperCase()}
           />
@@ -215,7 +234,12 @@ export default function MontadorPublicProfile() {
       </ScrollView>
 
       <View style={[styles.footer, { borderTopColor: theme.border }]}>
-        <DButton label="Contratar" variant="primary" size="lg" onPress={handleContratar} />
+        <DButton
+          label="Contratar"
+          variant="primary"
+          size="lg"
+          onPress={handleContratar}
+        />
       </View>
     </SafeAreaView>
   );

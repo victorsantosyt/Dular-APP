@@ -102,7 +102,13 @@ export type MontadorPerfilProfissional = {
   anosExperiencia?: number | null;
   cidade?: string | null;
   estado?: string | null;
+  cidadeAtual?: string | null;
+  estadoAtual?: string | null;
+  bairroAtual?: string | null;
+  localizacaoPermitida?: boolean;
+  localizacaoAtualizadaEm?: string | null;
   bairros: string[];
+  atendeTodaCidade: boolean;
   raioAtendimentoKm?: number | null;
   fotoPerfil?: string | null;
   portfolioFotos: string[];
@@ -142,6 +148,11 @@ export type MontadorPerfilMe = {
     especialidades?: MontadorEspecialidadeId[];
     cidade?: string | null;
     estado?: string | null;
+    cidadeAtual?: string | null;
+    estadoAtual?: string | null;
+    bairroAtual?: string | null;
+    localizacaoPermitida?: boolean;
+    localizacaoAtualizadaEm?: string | null;
     bairros?: string[];
   };
   perfil: MontadorPerfilProfissional;
@@ -156,6 +167,7 @@ export type AtualizarPerfilMontadorPayload = {
   cidade?: string | null;
   estado?: string | null;
   bairros?: string[];
+  atendeTodaCidade?: boolean;
   raioAtendimentoKm?: number | null;
   precoBase?: number | null;
   taxaMinima?: number | null;

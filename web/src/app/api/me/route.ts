@@ -87,6 +87,11 @@ export async function GET(req: Request) {
           especialidades: true,
           cidade: true,
           estado: true,
+          cidadeAtual: true,
+          estadoAtual: true,
+          bairroAtual: true,
+          localizacaoPermitida: true,
+          localizacaoAtualizadaEm: true,
         },
       });
 
@@ -106,6 +111,43 @@ export async function GET(req: Request) {
           especialidades: profile?.especialidades ?? [],
           cidade: profile?.cidade ?? null,
           estado: profile?.estado ?? null,
+          cidadeAtual: profile?.cidadeAtual ?? null,
+          estadoAtual: profile?.estadoAtual ?? null,
+          bairroAtual: profile?.bairroAtual ?? null,
+          localizacaoPermitida: profile?.localizacaoPermitida ?? false,
+          localizacaoAtualizadaEm: profile?.localizacaoAtualizadaEm ?? null,
+        },
+      });
+    }
+
+    if (auth.role === "EMPREGADOR") {
+      const profile = await prisma.empregadorPerfil.findUnique({
+        where: { userId: auth.userId },
+        select: {
+          cidade: true,
+          estado: true,
+          cidadeAtual: true,
+          estadoAtual: true,
+          bairroAtual: true,
+          localizacaoPermitida: true,
+          localizacaoAtualizadaEm: true,
+        },
+      });
+
+      return NextResponse.json({
+        ok: true,
+        user: {
+          ...user,
+          cidade: profile?.cidade ?? null,
+          estado: profile?.estado ?? null,
+          cidadeAtual: profile?.cidadeAtual ?? null,
+          estadoAtual: profile?.estadoAtual ?? null,
+          bairroAtual: profile?.bairroAtual ?? null,
+          localizacaoPermitida: profile?.localizacaoPermitida ?? false,
+          localizacaoAtualizadaEm: profile?.localizacaoAtualizadaEm ?? null,
+          bio: null,
+          avatarUrl: user.avatarUrl ?? null,
+          verificacao: { status: "PENDENTE" },
         },
       });
     }

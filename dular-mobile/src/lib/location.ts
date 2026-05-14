@@ -27,7 +27,7 @@ export async function confirmLocationPermission(): Promise<boolean> {
   return new Promise((resolve) => {
     Alert.alert(
       "Permitir localização",
-      "Usamos sua localização para sugerir diaristas e serviços próximos. Deseja permitir agora?",
+      "Usamos sua localização para sugerir profissionais e serviços próximos. Deseja permitir agora?",
       [
         { text: "Recusar", style: "cancel", onPress: () => resolve(false) },
         {

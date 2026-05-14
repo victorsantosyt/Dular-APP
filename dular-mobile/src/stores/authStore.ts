@@ -28,6 +28,13 @@ type User = {
   genero?: "MASCULINO" | "FEMININO" | null;
   avatarUrl?: string | null;
   bio?: string | null;
+  cidade?: string | null;
+  estado?: string | null;
+  cidadeAtual?: string | null;
+  estadoAtual?: string | null;
+  bairroAtual?: string | null;
+  localizacaoPermitida?: boolean;
+  localizacaoAtualizadaEm?: string | null;
   verificado?: boolean;
   docEnviado?: boolean;
   verificacao?: {

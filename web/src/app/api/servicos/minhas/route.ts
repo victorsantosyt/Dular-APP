@@ -12,7 +12,7 @@ export async function GET(req: Request) {
         : auth.role === "DIARISTA"
           ? { diaristaId: auth.userId }
           : auth.role === "MONTADOR"
-            ? { diaristaId: auth.userId }
+            ? { montadorId: auth.userId }
             : auth.role === "ADMIN"
               ? {}
               : null;
@@ -27,6 +27,7 @@ export async function GET(req: Request) {
       include: {
         cliente: { select: { id: true, nome: true, telefone: true } },
         diarista: { select: { id: true, nome: true, telefone: true } },
+        montador: { select: { id: true, nome: true, telefone: true } },
         avaliacao: true,
       },
       take: 50,

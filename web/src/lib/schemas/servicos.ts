@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const criarServicoSchema = z.object({
-  tipo: z.enum(["FAXINA", "BABA", "COZINHEIRA", "PASSA_ROUPA"]),
+  tipo: z.enum(["FAXINA", "BABA", "COZINHEIRA", "PASSA_ROUPA", "MONTADOR"]),
   categoria: z
     .enum([
       "FAXINA_LEVE",
@@ -14,6 +14,12 @@ export const criarServicoSchema = z.object({
       "COZINHEIRA_EVENTO",
       "PASSA_ROUPA_BASICO",
       "PASSA_ROUPA_COMPLETO",
+      "MONTADOR_MONTAGEM",
+      "MONTADOR_REPAROS",
+      "MONTADOR_ELETRICA",
+      "MONTADOR_HIDRAULICA",
+      "MONTADOR_PINTURA",
+      "MONTADOR_CARPINTARIA",
     ])
     .optional(),
   dataISO: z.string().min(10), // "2026-01-08" ou ISO completo
@@ -21,7 +27,11 @@ export const criarServicoSchema = z.object({
   cidade: z.string().min(2),
   uf: z.string().length(2),
   bairro: z.string().min(2),
-  diaristaUserId: z.string().min(8), // userId do diarista escolhido
+  // userId do profissional. Para tipo DIARISTA usar diaristaUserId; para
+  // tipo MONTADOR aceita-se também montadorUserId (alias preferido). Pelo
+  // menos um dos dois precisa estar presente — validado no endpoint.
+  diaristaUserId: z.string().min(8).optional(),
+  montadorUserId: z.string().min(8).optional(),
   // endereço completo só depois do aceite (pode enviar já, mas armazenamos só após ACEITO)
   enderecoCompleto: z.string().min(5).optional(),
   observacoes: z.string().max(1000).optional(),

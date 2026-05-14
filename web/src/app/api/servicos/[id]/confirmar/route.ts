@@ -31,9 +31,12 @@ export async function POST(req: Request, { params }: Params) {
     });
 
     await registrarEvento(servico.id, servico.status as ServicoStatus, "CONFIRMADO", auth.role, auth.userId);
+    const profissionalId = servico.montadorId ?? servico.diaristaId;
     await Promise.all([
       aplicarEvento(servico.clientId, "SERVICO_CONCLUIDO", servico.id, "Serviço confirmado pelo empregador."),
-      aplicarEvento(servico.diaristaId, "SERVICO_CONCLUIDO", servico.id, "Serviço confirmado pelo empregador."),
+      profissionalId
+        ? aplicarEvento(profissionalId, "SERVICO_CONCLUIDO", servico.id, "Serviço confirmado pelo empregador.")
+        : Promise.resolve(),
     ]);
 
     return NextResponse.json({ ok: true, servico: updated });

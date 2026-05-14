@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/requireAuth";
 import { avaliarServicoSchema } from "@/lib/schemas/servicos";
-import { assertStatus, recomputeDiaristaStats } from "@/lib/regrasServico";
+import { assertStatus, recomputeDiaristaStats, recomputeMontadorStats } from "@/lib/regrasServico";
 import { ServicoStatus } from "@prisma/client";
 import { registrarEvento } from "@/lib/servicoEvento";
 import { aplicarEvento } from "@/lib/safeScore";
@@ -40,11 +40,21 @@ export async function POST(req: Request, { params }: Params) {
 
     assertStatus(servico.status as ServicoStatus, ["CONFIRMADO"]);
 
+    const profissionalId = servico.montadorId ?? servico.diaristaId;
+    if (!profissionalId) {
+      return NextResponse.json(
+        { ok: false, error: "Serviço sem profissional vinculado." },
+        { status: 400 },
+      );
+    }
+    const isMontadorServico = !!servico.montadorId;
+
     const avaliacao = await prisma.avaliacao.create({
       data: {
         servicoId: servico.id,
         clientId: servico.clientId,
-        diaristaId: servico.diaristaId,
+        diaristaId: isMontadorServico ? null : servico.diaristaId,
+        montadorId: isMontadorServico ? servico.montadorId : null,
         ...parsed.data,
       },
     });
@@ -56,10 +66,14 @@ export async function POST(req: Request, { params }: Params) {
 
     await registrarEvento(servico.id, servico.status as ServicoStatus, "FINALIZADO", auth.role, auth.userId);
 
-    await recomputeDiaristaStats(servico.diaristaId);
+    if (isMontadorServico && servico.montadorId) {
+      await recomputeMontadorStats(servico.montadorId);
+    } else if (!isMontadorServico && servico.diaristaId) {
+      await recomputeDiaristaStats(servico.diaristaId);
+    }
 
     await aplicarEvento(
-      servico.diaristaId,
+      profissionalId,
       parsed.data.notaGeral >= 4 ? "AVALIACAO_POSITIVA" : "AVALIACAO_NEGATIVA",
       avaliacao.id,
       `nota=${parsed.data.notaGeral}`,

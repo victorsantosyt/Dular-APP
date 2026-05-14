@@ -50,3 +50,35 @@ export async function recomputeDiaristaStats(userIdDiarista: string) {
     },
   });
 }
+
+/**
+ * Equivalente a recomputeDiaristaStats, mas para MontadorPerfil.
+ * MontadorPerfil usa o campo `rating` no lugar de `notaMedia`; demais
+ * campos seguem o mesmo padrão.
+ */
+export async function recomputeMontadorStats(userIdMontador: string) {
+  const perfil = await prisma.montadorPerfil.findUnique({
+    where: { userId: userIdMontador },
+  });
+  if (!perfil) return;
+
+  const avals = await prisma.avaliacao.findMany({
+    where: { montadorId: userIdMontador },
+    select: { notaGeral: true },
+  });
+
+  const total = avals.length;
+  const media = total ? avals.reduce((a, b) => a + b.notaGeral, 0) / total : 0;
+
+  const servicosConcluidos = await prisma.servico.count({
+    where: { montadorId: userIdMontador, status: { in: ["CONFIRMADO", "FINALIZADO"] } },
+  });
+
+  await prisma.montadorPerfil.update({
+    where: { userId: userIdMontador },
+    data: {
+      rating: Number(media.toFixed(2)),
+      totalServicos: servicosConcluidos,
+    },
+  });
+}

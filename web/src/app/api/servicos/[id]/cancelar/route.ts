@@ -26,8 +26,10 @@ export async function POST(req: Request, { params }: Params) {
 
     const isCliente = servico.clientId === auth.userId;
     const isDiarista = servico.diaristaId === auth.userId;
+    const isMontador = servico.montadorId === auth.userId;
+    const isProfissional = isDiarista || isMontador;
 
-    if (!isCliente && !isDiarista && auth.role !== "ADMIN") {
+    if (!isCliente && !isProfissional && auth.role !== "ADMIN") {
       return NextResponse.json({ ok: false, error: "Não autorizado." }, { status: 403 });
     }
 
@@ -53,14 +55,17 @@ export async function POST(req: Request, { params }: Params) {
 
     await aplicarEvento(auth.userId, "CANCELAMENTO", id).catch(() => null);
 
-    const destinoId = isCliente ? servico.diaristaId : servico.clientId;
+    const profissionalId = servico.montadorId ?? servico.diaristaId;
+    const destinoId = isCliente ? profissionalId : servico.clientId;
     if (destinoId) {
       await sendPushNotification(
         destinoId,
         "Serviço cancelado",
         isCliente
           ? "O empregador cancelou a solicitação."
-          : "A diarista cancelou o serviço.",
+          : isMontador
+            ? "O montador cancelou o serviço."
+            : "A diarista cancelou o serviço.",
         { servicoId: servico.id, tipo: "SERVICO_CANCELADO", tardio }
       );
     }

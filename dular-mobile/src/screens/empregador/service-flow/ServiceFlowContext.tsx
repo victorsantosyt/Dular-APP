@@ -106,11 +106,13 @@ export function ServiceFlowProvider({
       draft,
       updateDraft: (patch) =>
         setDraft((current) => {
+          const hasProfissionalId = Object.prototype.hasOwnProperty.call(patch, "profissionalId");
+          const hasProfissionalNome = Object.prototype.hasOwnProperty.call(patch, "profissionalNome");
           const next = { ...current, ...patch };
-          if (patch.profissionalId === undefined && current.profissionalId) {
+          if (!hasProfissionalId && current.profissionalId) {
             next.profissionalId = current.profissionalId;
           }
-          if (patch.profissionalNome === undefined && current.profissionalNome) {
+          if (!hasProfissionalNome && current.profissionalNome) {
             next.profissionalNome = current.profissionalNome;
           }
           // Sincroniza tipoProfissional com a categoria automaticamente.
@@ -119,6 +121,12 @@ export function ServiceFlowProvider({
             next.tipo = tipo;
             next.tipoProfissional = tipo;
             if (tipo === "DIARISTA") {
+              if (current.tipo === "MONTADOR" && !hasProfissionalId) {
+                next.profissionalId = undefined;
+              }
+              if (current.tipo === "MONTADOR" && !hasProfissionalNome) {
+                next.profissionalNome = undefined;
+              }
               next.especialidadeId = undefined;
               next.especialidadeLabel = undefined;
               next.categoriaBackend = undefined;

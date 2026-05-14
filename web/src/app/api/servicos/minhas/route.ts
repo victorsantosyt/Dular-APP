@@ -25,9 +25,9 @@ export async function GET(req: Request) {
       where,
       orderBy: { createdAt: "desc" },
       include: {
-        cliente: { select: { id: true, nome: true, telefone: true } },
-        diarista: { select: { id: true, nome: true, telefone: true } },
-        montador: { select: { id: true, nome: true, telefone: true } },
+        cliente: { select: { id: true, nome: true, telefone: true, avatarUrl: true } },
+        diarista: { select: { id: true, nome: true, telefone: true, avatarUrl: true } },
+        montador: { select: { id: true, nome: true, telefone: true, avatarUrl: true } },
         avaliacao: true,
       },
       take: 50,

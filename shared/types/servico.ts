@@ -12,7 +12,7 @@ export type ServicoStatus =
   | "CONFIRMADO"
   | "FINALIZADO";
 
-export type ServicoTipo = "FAXINA" | "BABA" | "COZINHEIRA" | "PASSA_ROUPA";
+export type ServicoTipo = "FAXINA" | "BABA" | "COZINHEIRA" | "PASSA_ROUPA" | "MONTADOR";
 
 export type ServicoCategoria =
   | "FAXINA_LEVE"
@@ -24,7 +24,13 @@ export type ServicoCategoria =
   | "COZINHEIRA_DIARIA"
   | "COZINHEIRA_EVENTO"
   | "PASSA_ROUPA_BASICO"
-  | "PASSA_ROUPA_COMPLETO";
+  | "PASSA_ROUPA_COMPLETO"
+  | "MONTADOR_MONTAGEM"
+  | "MONTADOR_REPAROS"
+  | "MONTADOR_ELETRICA"
+  | "MONTADOR_HIDRAULICA"
+  | "MONTADOR_PINTURA"
+  | "MONTADOR_CARPINTARIA";
 
 // Sincronizar com schema.prisma se o modelo mudar
 export type Servico = {
@@ -44,11 +50,13 @@ export type Servico = {
   banheiros2Mais: boolean;
   precoFinal: number;
   clientId: string;
-  diaristaId: string;
+  diaristaId: string | null;
+  montadorId?: string | null;
   createdAt: DateString;
   updatedAt: DateString;
-  cliente?: Pick<Usuario, "id" | "nome" | "telefone"> | null;
-  diarista?: Pick<Usuario, "id" | "nome" | "telefone"> | null;
+  cliente?: Pick<Usuario, "id" | "nome" | "telefone" | "avatarUrl"> | null;
+  diarista?: Pick<Usuario, "id" | "nome" | "telefone" | "avatarUrl"> | null;
+  montador?: Pick<Usuario, "id" | "nome" | "telefone" | "avatarUrl"> | null;
 };
 
 // Sincronizar com schema.prisma se o modelo mudar
@@ -77,7 +85,8 @@ export type CriarServicoPayload = {
   cidade: string;
   uf: string;
   bairro: string;
-  diaristaUserId: string;
+  diaristaUserId?: string;
+  montadorUserId?: string;
   enderecoCompleto?: string;
   temPet?: boolean;
   quartos3Mais?: boolean;

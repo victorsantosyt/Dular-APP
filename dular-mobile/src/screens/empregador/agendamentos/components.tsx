@@ -5,8 +5,8 @@ import { AppIcon, AppIconName, DAvatar } from "@/components/ui";
 import { DCard } from "@/components/ui/DCard";
 import { colors, gradients, radius, shadows, spacing, typography } from "@/theme";
 
-export type CategoriaFiltro = "todas" | "diarista" | "baba" | "cozinheira" | "exp";
-export type StatusFiltro = "todas" | "aceitas" | "andamento" | "concluidas" | "canceladas";
+export type CategoriaFiltro = "todas" | "diarista" | "baba" | "cozinheira" | "montador";
+export type StatusFiltro = "todas" | "pendentes" | "aceitas" | "andamento" | "concluidas" | "canceladas";
 export type StatusAgendamento = "pendente" | "aceita" | "andamento" | "concluida" | "cancelada";
 
 export type AgendamentoItem = {
@@ -23,6 +23,7 @@ export type AgendamentoItem = {
   nota: string;
   experiencia: string;
   valor: string;
+  observacao?: string | null;
   avatarUrl?: string;
 };
 
@@ -31,11 +32,12 @@ export const CATEGORIAS: Array<{ label: string; value: CategoriaFiltro; icon: Ap
   { label: "Diarista", value: "diarista", icon: "BrushCleaning" },
   { label: "Babá", value: "baba", icon: "Baby" },
   { label: "Cozinheira", value: "cozinheira", icon: "ChefHat" },
-  { label: "Exp", value: "exp", icon: "UserRound" },
+  { label: "Montador", value: "montador", icon: "Wrench" },
 ];
 
 export const STATUS_FILTERS: Array<{ label: string; value: StatusFiltro; color?: string }> = [
   { label: "Todas", value: "todas" },
+  { label: "Pendentes", value: "pendentes", color: colors.warning },
   { label: "Aceitas", value: "aceitas", color: colors.success },
   { label: "Em andamento", value: "andamento", color: colors.primary },
   { label: "Concluídas", value: "concluidas", color: colors.textMuted },
@@ -43,6 +45,7 @@ export const STATUS_FILTERS: Array<{ label: string; value: StatusFiltro; color?:
 ];
 
 const STATUS_FILTER_MAP: Record<Exclude<StatusFiltro, "todas">, StatusAgendamento> = {
+  pendentes: "pendente",
   aceitas: "aceita",
   andamento: "andamento",
   concluidas: "concluida",
@@ -166,69 +169,91 @@ export function StatusFilterBar({ children }: { children: React.ReactNode }) {
   return <View style={s.statusBar}>{children}</View>;
 }
 
-export function AppointmentCard({ item }: { item: AgendamentoItem }) {
+export function AppointmentCard({ item, onDetails }: { item: AgendamentoItem; onDetails?: () => void }) {
   const status = STATUS_UI[item.status];
   const firstName = item.nome.split(" ")[0];
+  const valorLabel = item.valor === "A combinar" ? "A combinar!" : item.valor;
+  const dateLine = item.horario && item.horario !== "Horário a combinar"
+    ? `${item.data} (${item.horario.toLowerCase()})`
+    : item.data;
 
   return (
     <DCard style={s.card}>
-      {/* Avatar column: badge above photo */}
-      <View style={s.leftCol}>
-        <View style={[s.floatingBadge, { backgroundColor: status.bg }]}>
-          <Text style={[s.floatingBadgeText, { color: status.color }]}>{status.label}</Text>
-        </View>
-        <DAvatar size="md" uri={item.avatarUrl} />
-      </View>
-
-      <View style={s.centerCol}>
+      <View style={s.contentCol}>
         <Text style={s.name} numberOfLines={1}>{firstName}</Text>
-        <Text style={s.age}>{item.idade}</Text>
 
         <View style={s.categoryPill}>
-          <AppIcon name={item.categoriaIcon} size={12} color={colors.primary} strokeWidth={2.1} />
+          <AppIcon name={item.categoriaIcon} size={13} color={colors.primary} strokeWidth={2.2} />
           <Text style={s.categoryPillText}>{item.categoria}</Text>
         </View>
 
-        <View style={s.inlineRow}>
-          <AppIcon name="MapPin" size={13} color={colors.textMuted} strokeWidth={2.1} />
-          <Text style={s.metaText} numberOfLines={1}>{item.local}</Text>
+        <View style={s.metaStack}>
+          <View style={s.inlineRow}>
+            <AppIcon name="MapPin" size={15} color={colors.textMuted} strokeWidth={2.1} />
+            <Text style={s.metaText} numberOfLines={1}>{item.local}</Text>
+          </View>
+          <View style={s.inlineRow}>
+            <AppIcon name="Calendar" size={15} color={colors.textMuted} strokeWidth={2.1} />
+            <Text style={s.metaText} numberOfLines={1}>{dateLine}</Text>
+          </View>
+          <View style={s.inlineRow}>
+            <AppIcon name="Star" size={15} color={colors.warning} strokeWidth={2.2} />
+            <Text style={s.metaStrong}>{item.nota}</Text>
+            <Text style={s.metaMuted}>•</Text>
+            <Text style={s.metaText} numberOfLines={1}>{item.experiencia}</Text>
+          </View>
         </View>
 
-        <View style={s.inlineRow}>
-          <AppIcon name="Calendar" size={13} color={colors.textMuted} strokeWidth={2.1} />
-          <Text style={s.metaText} numberOfLines={1}>
-            {item.data} • {item.horario}
-          </Text>
-        </View>
+        <View style={s.divider} />
 
-        <View style={s.inlineRow}>
-          <AppIcon name="Star" size={13} color={colors.warning} strokeWidth={2.2} />
-          <Text style={s.metaStrong}>{item.nota}</Text>
-          <Text style={s.metaMuted}>•</Text>
-          <Text style={s.metaText}>{item.experiencia}</Text>
-        </View>
+        <Text style={s.observacao} numberOfLines={2}>
+          {item.observacao || item.idade}
+        </Text>
 
-        <Text style={s.value}>{item.valor}</Text>
+        <View style={s.divider} />
+
+        <View style={s.actionsRow}>
+          <View style={s.valueButton}>
+            <AppIcon name="CircleUserRound" size={15} color={colors.primary} strokeWidth={2.2} />
+            <Text style={s.valueButtonText}>{valorLabel}</Text>
+          </View>
+          <Pressable
+            onPress={onDetails ?? (() => Alert.alert("Agendamentos", "Detalhes do agendamento em breve."))}
+            style={({ pressed }) => [pressed && { opacity: 0.9 }]}
+          >
+            <LinearGradient colors={["#FFB347", "#FF9F1C"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.detailsButton}>
+              <Text style={s.detailsText}>Detalhes</Text>
+              <AppIcon name="ChevronRight" size={15} color={colors.white} strokeWidth={2.7} />
+            </LinearGradient>
+          </Pressable>
+        </View>
       </View>
 
-      <View style={s.rightCol}>
-        {status.actionGradient ? (
-          <LinearGradient colors={gradients.button} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.statusButton}>
-            <AppIcon name={status.actionIcon} size={15} color={colors.white} strokeWidth={2.5} />
-            <Text style={[s.statusButtonText, { color: colors.white }]}>{status.button}</Text>
-          </LinearGradient>
-        ) : (
-          <View style={[s.statusButton, { backgroundColor: status.actionBg }]}>
-            <AppIcon name={status.actionIcon} size={15} color={status.actionColor} strokeWidth={2.3} />
-            <Text style={[s.statusButtonText, { color: status.actionColor }]}>{status.button}</Text>
-          </View>
-        )}
-        <Pressable
-          onPress={() => Alert.alert("Agendamentos", "Detalhes do agendamento em breve.")}
-          style={({ pressed }) => [s.detailsButton, pressed && { opacity: 0.8 }]}
+      <View style={s.visualCol}>
+        <View style={s.avatarRing}>
+          <DAvatar size="xl" uri={item.avatarUrl} />
+        </View>
+        <View
+          style={[
+            s.statusPillCard,
+            { backgroundColor: item.status === "pendente" ? "#FFF1E2" : status.bg },
+          ]}
         >
-          <Text style={s.detailsText}>Ver detalhes</Text>
-        </Pressable>
+          <AppIcon
+            name={status.actionIcon}
+            size={14}
+            color={item.status === "pendente" ? "#E98A15" : status.actionColor}
+            strokeWidth={2.4}
+          />
+          <Text
+            style={[
+              s.statusPillText,
+              { color: item.status === "pendente" ? "#E98A15" : status.actionColor },
+            ]}
+          >
+            {status.label}
+          </Text>
+        </View>
       </View>
     </DCard>
   );
@@ -325,128 +350,162 @@ const s = StyleSheet.create({
     color: colors.primary,
   },
   card: {
-    borderRadius: radius.lg,
-    padding: 8,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 28,
+    borderWidth: 0,
+    paddingHorizontal: 22,
+    paddingVertical: 22,
     flexDirection: "row",
     alignItems: "flex-start",
-    gap: 8,
+    gap: 14,
+    ...shadows.card,
   },
-  leftCol: {
-    width: 60,
-    alignItems: "center",
-    gap: 6,
-    paddingTop: 2,
-  },
-  floatingBadge: {
-    borderRadius: 6,
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  floatingBadgeText: {
-    ...typography.caption,
-    fontWeight: "700",
-    letterSpacing: 0.2,
-  },
-  centerCol: {
+  contentCol: {
     flex: 1,
     minWidth: 0,
-    gap: 4,
+    gap: 10,
   },
   name: {
-    color: colors.textPrimary,
-    ...typography.bodySmMedium,
-    
-    fontWeight: "700",
-  },
-  age: {
-    color: colors.textMuted,
-    ...typography.caption,
-    fontWeight: "500",
-    
-    marginTop: -2,
+    color: "#1F1B2D",
+    ...typography.title,
+    fontWeight: "800",
+    letterSpacing: 0,
   },
   categoryPill: {
     alignSelf: "flex-start",
-    minHeight: 18,
+    minHeight: 26,
     borderRadius: radius.pill,
-    paddingHorizontal: 7,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
     flexDirection: "row",
     alignItems: "center",
-    gap: 5,
+    gap: 6,
     backgroundColor: colors.lavenderSoft,
   },
   categoryPillText: {
     color: colors.primary,
     ...typography.caption,
-    fontWeight: "700",
+    fontWeight: "800",
+  },
+  metaStack: {
+    gap: 7,
+    paddingTop: 1,
   },
   inlineRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 5,
+    gap: 7,
   },
   metaText: {
-    color: colors.textSecondary,
-    ...typography.caption,
-    
-    fontWeight: "500",
-  },
-  metaStrong: {
-    color: colors.textPrimary,
+    flexShrink: 1,
+    color: "#5F596B",
     ...typography.caption,
     fontWeight: "600",
+    letterSpacing: 0,
+  },
+  metaStrong: {
+    color: "#1F1B2D",
+    ...typography.caption,
+    fontWeight: "700",
+    letterSpacing: 0,
   },
   metaMuted: {
     color: colors.textMuted,
     ...typography.caption,
-    fontWeight: "600",
-  },
-  value: {
-    color: colors.primary,
-    ...typography.bodySmMedium,
     fontWeight: "700",
-    marginTop: 2,
+    letterSpacing: 0,
   },
-  rightCol: {
-    width: 84,
+  divider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: "rgba(31, 27, 45, 0.10)",
     alignSelf: "stretch",
-    alignItems: "flex-end",
-    justifyContent: "center",
-    gap: 7,
   },
-  statusButton: {
-    minHeight: 28,
-    borderRadius: radius.md,
+  observacao: {
+    color: "#5F596B",
+    ...typography.caption,
+    fontWeight: "600",
+    letterSpacing: 0,
+  },
+  actionsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  valueButton: {
+    flex: 1,
+    minWidth: 0,
+    minHeight: 36,
+    borderRadius: radius.pill,
+    borderWidth: 1.2,
+    borderColor: colors.primary,
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 9,
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 5,
-    alignSelf: "stretch",
-    flexDirection: "row",
-    gap: 4,
+    gap: 5,
   },
-  statusButtonText: {
+  valueButtonText: {
+    color: colors.primary,
     ...typography.caption,
-    fontWeight: "700",
-    textAlign: "center",
+    fontWeight: "800",
+    letterSpacing: 0,
+  },
+  visualCol: {
+    width: 106,
+    alignItems: "center",
+    gap: 10,
+    paddingTop: 1,
+  },
+  avatarRing: {
+    width: 108,
+    height: 108,
+    borderRadius: 54,
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#3B2A66",
+    shadowOpacity: 0.11,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 4,
   },
   detailsButton: {
-    minHeight: 28,
-    borderRadius: radius.md,
+    width: 84,
+    minHeight: 36,
+    borderRadius: radius.pill,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 5,
-    alignSelf: "stretch",
-    borderWidth: 1,
-    borderColor: colors.lavenderStrong,
-    backgroundColor: colors.surface,
+    paddingHorizontal: 10,
+    flexDirection: "row",
+    gap: 2,
+    shadowColor: "#FF9F1C",
+    shadowOpacity: 0.22,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 7 },
+    elevation: 4,
   },
   detailsText: {
-    color: colors.primary,
+    color: colors.white,
     ...typography.caption,
-    fontWeight: "700",
+    fontWeight: "800",
+    letterSpacing: 0,
     textAlign: "center",
+  },
+  statusPillCard: {
+    minHeight: 32,
+    borderRadius: radius.pill,
+    paddingHorizontal: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 5,
+    alignSelf: "stretch",
+  },
+  statusPillText: {
+    ...typography.caption,
+    fontWeight: "800",
+    letterSpacing: 0,
   },
   banner: {
     marginTop: 0,

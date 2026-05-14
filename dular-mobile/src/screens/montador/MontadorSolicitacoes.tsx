@@ -111,15 +111,16 @@ function SolicitacaoCard({
   const status = upperStatus(servico.status);
   const isNew = status === "SOLICITADO" || status === "PENDENTE";
   const photos = Array.isArray(servico.fotos) ? servico.fotos : [];
+  const empregadorNome = servico.empregador?.nome?.trim() || "Empregador não informado";
 
   return (
     <View style={styles.card}>
       <View style={styles.cardHeader}>
         <View style={[styles.iconBox, { backgroundColor: soft }]}>
-          <AppIcon name="BriefcaseBusiness" size={20} color={accent} />
+          <AppIcon name="UserRound" size={20} color={accent} />
         </View>
         <View style={styles.cardTitleWrap}>
-          <Text style={styles.cardTitle}>{labelServico(servico)}</Text>
+          <Text style={styles.cardTitle}>{empregadorNome}</Text>
           <Text style={styles.cardSub}>{labelSubcategoria(servico)}</Text>
         </View>
         <View style={[styles.statusPill, { backgroundColor: soft, borderColor: accent }]}>
@@ -132,8 +133,8 @@ function SolicitacaoCard({
         <Text style={styles.infoValue}>{formatDateTime(servico)}</Text>
         <Text style={styles.infoLabel}>Bairro</Text>
         <Text style={styles.infoValue}>{localResumo(servico)}</Text>
-        <Text style={styles.infoLabel}>Empregador</Text>
-        <Text style={styles.infoValue}>{servico.empregador?.nome ?? "Não informado"}</Text>
+        <Text style={styles.infoLabel}>Serviço</Text>
+        <Text style={styles.infoValue}>{labelServico(servico)}</Text>
         <Text style={styles.infoLabel}>Valor estimado</Text>
         <Text style={styles.infoValue}>{formatMoneyFromCents(servico.valorEstimado ?? servico.precoFinal)}</Text>
       </View>

@@ -233,11 +233,11 @@ export const flowStyles = StyleSheet.create({
     gap: spacing.md,
   },
   footer: {
-    paddingHorizontal: spacing.xl,
+    paddingHorizontal: spacing.lg,
     paddingTop: spacing.sm,
     paddingBottom: spacing.xl,
     gap: spacing.lg,
-    alignItems: "stretch",
+    alignItems: "center",
     backgroundColor: colors.background,
   },
 });
@@ -413,6 +413,9 @@ const s = StyleSheet.create({
     padding: spacing.md,
   },
   flowButtonShadow: {
+    width: "88%",
+    maxWidth: 336,
+    alignSelf: "center",
     borderRadius: radius.pill,
     ...shadows.primaryButton,
   },

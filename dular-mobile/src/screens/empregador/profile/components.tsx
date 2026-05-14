@@ -18,7 +18,7 @@ export function NotificationBell({ hasBadge, onPress }: NotificationBellProps) {
   const s = useMemo(() => makeStyles(colors), [colors]);
   return (
     <Pressable onPress={onPress} style={({ pressed }) => [s.notificationButton, pressed && { opacity: 0.78 }]}>
-      <AppIcon name="Bell" size={21} color={colors.primary} strokeWidth={2.2} />
+      <AppIcon name="Bell" size={21} color={colors.textSecondary} strokeWidth={2.2} />
       {hasBadge ? <View style={s.notificationDot} /> : null}
     </Pressable>
   );

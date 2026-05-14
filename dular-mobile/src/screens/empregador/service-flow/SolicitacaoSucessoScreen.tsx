@@ -109,6 +109,9 @@ const s = StyleSheet.create({
     fontWeight: "700",
   },
   secondaryButton: {
+    width: "88%",
+    maxWidth: 336,
+    alignSelf: "center",
     marginTop: 10,
   },
 });

@@ -31,7 +31,7 @@ type Item = {
 const EMPREGADOR_ITEMS: Item[] = [
   { id: "home",     label: "Início",    icon: "Home"          },
   { id: "search",   label: "Buscar",    icon: "Search"        },
-  { id: "new",      label: "Agenda",    icon: "Plus"          },
+  { id: "new",      label: "Solicitar", icon: "BriefcaseBusiness" },
   { id: "messages", label: "Mensagens", icon: "MessageCircle" },
   { id: "profile",  label: "Perfil",    icon: "User"          },
 ];
@@ -112,7 +112,9 @@ function TabItem({
       <Pressable onPress={onPress} onPressIn={onPressIn} onPressOut={onPressOut} style={s.centerWrap}>
         <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
           <LinearGradient colors={grad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.centerBtn}>
-            <AppIcon name={item.icon} size={25} color={colors.white} strokeWidth={2.6} />
+            <View style={s.centerIconSurface}>
+              <AppIcon name={item.icon} size={24} color={selectedColor} strokeWidth={2.4} />
+            </View>
             {badge && badge > 0 ? (
               <View style={s.centerBadge}>
                 <Text style={s.badgeText}>{badge > 9 ? "9+" : badge}</Text>
@@ -235,6 +237,14 @@ function makeStyles(colors: ThemeColors) {
       width: 48, height: 48, borderRadius: 24,
       alignItems: "center", justifyContent: "center",
       ...shadows.primaryButton,
+    },
+    centerIconSurface: {
+      width: 38,
+      height: 38,
+      borderRadius: 19,
+      backgroundColor: colors.white,
+      alignItems: "center",
+      justifyContent: "center",
     },
     centerLabel: {
       color: colors.primary, fontWeight: "600", fontSize: 10, lineHeight: 12,

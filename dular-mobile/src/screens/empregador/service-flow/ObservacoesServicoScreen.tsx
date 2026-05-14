@@ -1,44 +1,47 @@
-import React from "react";
+import React, { useState } from "react";
 import { SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { AppIcon } from "@/components/ui/AppIcon";
-import { DButton } from "@/components/ui/DButton";
 import { DCard } from "@/components/ui/DCard";
 import type { EmpregadorServiceFlowStackParamList } from "@/navigation/EmpregadorServiceFlowNavigator";
 import { colors, radius, spacing } from "@/theme";
 import { useServiceFlow } from "./ServiceFlowContext";
-import { flowStyles, StepHeader, UploadChip } from "./components";
+import { FlowPrimaryButton, flowStyles, StepHeader, UploadChip } from "./components";
+import { getServiceFlowTheme } from "@/theme/serviceFlowTheme";
 
 type Navigation = NativeStackNavigationProp<EmpregadorServiceFlowStackParamList, "ObservacoesServico">;
 
 const CHIPS_DIARISTA = ["Levar produtos", "Tom geral", "Falar ambiente", "Detalhes"];
-const CHIPS_MONTADOR = [
-  "Montagem de móveis",
-  "Pequenos reparos",
-  "Instalação elétrica",
-  "Instalação hidráulica",
-  "Pintura",
-];
 
 export function ObservacoesServicoScreen() {
   const navigation = useNavigation<Navigation>();
   const { draft, updateDraft } = useServiceFlow();
-  const isMontador = draft.tipoProfissional === "MONTADOR";
-  const chipsList = isMontador ? CHIPS_MONTADOR : CHIPS_DIARISTA;
-  const uploadTitle = isMontador ? "Tipo de trabalho" : "Fotos opcionais";
+  const [submitted, setSubmitted] = useState(false);
+  const isMontador = draft.tipo === "MONTADOR";
+  const flowTheme = getServiceFlowTheme(draft.tipo);
+  const chipsList = CHIPS_DIARISTA;
+  const uploadTitle = isMontador ? "Especialidade selecionada" : "Fotos opcionais";
   const uploadSubtitle = isMontador
-    ? "Selecione as categorias que se aplicam — ajuda o profissional a dar um orçamento mais preciso."
+    ? draft.especialidadeLabel ?? "Volte para escolher a especialidade do serviço."
     : "Inclua referências visuais depois, se precisar.";
   const observacoesPlaceholder = isMontador
-    ? "Descreva o serviço em detalhes (objeto, ambiente, urgência)…"
+    ? "Descreva o serviço em detalhes: o que precisa ser feito, medidas aproximadas, se tem peças/materiais disponíveis…"
     : "Descreva detalhes ou preferências para o(a) profissional…";
+  const descriptionLength = draft.observacoes.trim().length;
+  const descriptionInvalid = isMontador && submitted && descriptionLength < 20;
 
   const toggleChip = (label: string) => {
     const next = draft.chips.includes(label)
       ? draft.chips.filter((chip) => chip !== label)
       : [...draft.chips, label];
     updateDraft({ chips: next });
+  };
+
+  const continueFlow = () => {
+    setSubmitted(true);
+    if (isMontador && descriptionLength < 20) return;
+    navigation.navigate("ConfirmarSolicitacao");
   };
 
   return (
@@ -50,6 +53,7 @@ export function ObservacoesServicoScreen() {
           step={4}
           total={5}
           onBack={() => navigation.goBack()}
+          theme={flowTheme}
         />
 
         <DCard style={s.textareaCard}>
@@ -59,31 +63,48 @@ export function ObservacoesServicoScreen() {
             placeholder={observacoesPlaceholder}
             placeholderTextColor={colors.textDisabled}
             multiline
-            maxLength={300}
+            maxLength={1000}
             textAlignVertical="top"
-            style={s.textarea}
+            style={[s.textarea, descriptionInvalid && { borderColor: colors.danger }]}
           />
-          <Text style={s.counter}>{draft.observacoes.length}/300</Text>
+          <View style={s.counterRow}>
+            {descriptionInvalid ? (
+              <Text style={s.errorText}>Descreva o serviço com pelo menos 20 caracteres.</Text>
+            ) : <View />}
+            <Text style={s.counter}>{draft.observacoes.length}/1000</Text>
+          </View>
         </DCard>
 
         <DCard style={s.uploadCard}>
           <View style={s.uploadHeader}>
-            <AppIcon name={isMontador ? "Wrench" : "Camera"} size={21} color="purple" variant="soft" />
+            <View style={[s.uploadIcon, { backgroundColor: flowTheme.primarySoft }]}>
+              <AppIcon name={isMontador ? "Wrench" : "Camera"} size={19} color={flowTheme.primary} />
+            </View>
             <View style={s.uploadText}>
               <Text style={s.uploadTitle}>{uploadTitle}</Text>
               <Text style={s.uploadSubtitle}>{uploadSubtitle}</Text>
             </View>
           </View>
-          <View style={s.chips}>
-            {chipsList.map((chip) => (
-              <UploadChip key={chip} label={chip} selected={draft.chips.includes(chip)} onPress={() => toggleChip(chip)} />
-            ))}
-          </View>
+          {!isMontador ? (
+            <View style={s.chips}>
+              {chipsList.map((chip) => (
+                <UploadChip
+                  key={chip}
+                  label={chip}
+                  selected={draft.chips.includes(chip)}
+                  theme={flowTheme}
+                  onPress={() => toggleChip(chip)}
+                />
+              ))}
+            </View>
+          ) : null}
         </DCard>
 
         <DCard style={s.priorityCard}>
           <View style={s.priorityRow}>
-            <AppIcon name="Clock" size={21} color="purple" variant="soft" />
+            <View style={[s.uploadIcon, { backgroundColor: flowTheme.primarySoft }]}>
+              <AppIcon name="Clock" size={19} color={flowTheme.primary} />
+            </View>
             <View style={s.priorityText}>
               <Text style={s.priorityLabel}>Prioridade do agendamento</Text>
               <Text style={s.priorityValue}>{draft.prioridade}</Text>
@@ -95,7 +116,7 @@ export function ObservacoesServicoScreen() {
       </ScrollView>
 
       <SafeAreaView style={flowStyles.footer}>
-        <DButton label="Continuar" variant="primary" size="lg" onPress={() => navigation.navigate("ConfirmarSolicitacao")} />
+        <FlowPrimaryButton label="Continuar" theme={flowTheme} onPress={continueFlow} />
       </SafeAreaView>
     </SafeAreaView>
   );
@@ -113,6 +134,22 @@ const s = StyleSheet.create({
     fontSize: 15,
     lineHeight: 22,
     fontWeight: "600",
+    borderWidth: 1,
+    borderColor: "transparent",
+    borderRadius: radius.lg,
+  },
+  counterRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  errorText: {
+    flex: 1,
+    color: colors.danger,
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: "700",
   },
   counter: {
     alignSelf: "flex-end",
@@ -133,6 +170,13 @@ const s = StyleSheet.create({
   uploadText: {
     flex: 1,
     gap: 3,
+  },
+  uploadIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
   },
   uploadTitle: {
     color: colors.textPrimary,

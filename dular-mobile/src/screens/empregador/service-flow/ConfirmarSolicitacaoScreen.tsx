@@ -1,13 +1,14 @@
-import React, { useMemo } from "react";
-import { SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
+import React, { useMemo, useState } from "react";
+import { Alert, SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { DButton } from "@/components/ui/DButton";
 import { DCard } from "@/components/ui/DCard";
 import type { EmpregadorServiceFlowStackParamList } from "@/navigation/EmpregadorServiceFlowNavigator";
 import { colors, radius, spacing } from "@/theme";
+import { criarServico, prepararPayload } from "@/api/empregadorApi";
 import { SERVICE_LABELS, useServiceFlow } from "./ServiceFlowContext";
-import { flowStyles, StepHeader, SummaryCard } from "./components";
+import { FlowPrimaryButton, flowStyles, StepHeader, SummaryCard } from "./components";
+import { getServiceFlowTheme } from "@/theme/serviceFlowTheme";
 
 type Navigation = NativeStackNavigationProp<EmpregadorServiceFlowStackParamList, "ConfirmarSolicitacao">;
 
@@ -21,32 +22,26 @@ function formatDate(value: string) {
 export function ConfirmarSolicitacaoScreen() {
   const navigation = useNavigation<Navigation>();
   const { draft } = useServiceFlow();
+  const [submitting, setSubmitting] = useState(false);
+  const flowTheme = getServiceFlowTheme(draft.tipo);
+  const isMontador = draft.tipo === "MONTADOR";
 
-  const payloadPreview = useMemo(
-    () => ({
-      categoria: draft.categoria,
-      data: draft.dataISO,
-      horario: draft.horario,
-      endereco: {
-        rua: "Rua Oscar Freire, 245",
-        bairro: "Jardim América",
-        cidade: "São Paulo",
-        estado: "SP",
-        cep: "01426-001",
-        numero: draft.numero,
-        complemento: draft.complemento,
-        referencia: draft.referencia,
-      },
-      observacoes: draft.observacoes,
-      prioridade: draft.prioridade,
-      imagens: [],
-    }),
-    [draft],
-  );
+  const confirmRequest = async () => {
+    const prepared = prepararPayload(draft);
+    if (!prepared.ok) {
+      Alert.alert("Não foi possível confirmar", prepared.error);
+      return;
+    }
 
-  const confirmRequest = () => {
-    void payloadPreview;
-    navigation.navigate("SolicitacaoSucesso");
+    try {
+      setSubmitting(true);
+      const result = await criarServico(prepared.payload);
+      navigation.navigate("SolicitacaoSucesso", { servicoId: result.servicoId });
+    } catch {
+      Alert.alert("Falha ao enviar", "Não foi possível criar a solicitação agora.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const address = [
@@ -57,6 +52,24 @@ export function ConfirmarSolicitacaoScreen() {
   ]
     .filter(Boolean)
     .join("\n");
+  const rows = useMemo(() => {
+    if (isMontador) {
+      return [
+        { label: "Especialidade", value: draft.especialidadeLabel ?? "Especialidade não selecionada", icon: "Wrench" as const },
+        { label: "Descrição", value: draft.observacoes || "Descrição não informada.", icon: "FileText" as const },
+        { label: "Data e horário", value: `${formatDate(draft.dataISO)} às ${draft.horario || "--:--"}`, icon: "Calendar" as const },
+        { label: "Endereço", value: address, icon: "MapPin" as const },
+        { label: "Profissional", value: draft.profissionalNome ?? "Profissional selecionado", icon: "User" as const },
+      ];
+    }
+
+    return [
+      { label: "Serviço", value: SERVICE_LABELS[draft.categoria], icon: "BriefcaseBusiness" as const },
+      { label: "Data e horário", value: `${formatDate(draft.dataISO)} às ${draft.horario || "--:--"}`, icon: "Calendar" as const },
+      { label: "Endereço", value: address, icon: "MapPin" as const },
+      { label: "Observações", value: draft.observacoes || "Nenhuma observação adicionada.", icon: "FileText" as const },
+    ];
+  }, [address, draft, isMontador]);
 
   return (
     <SafeAreaView style={flowStyles.screen}>
@@ -67,34 +80,28 @@ export function ConfirmarSolicitacaoScreen() {
           step={5}
           total={5}
           onBack={() => navigation.goBack()}
+          theme={flowTheme}
         />
 
-        <SummaryCard
-          rows={[
-            { label: "Servico", value: SERVICE_LABELS[draft.categoria], icon: "BriefcaseBusiness" },
-            { label: "Data e horário", value: `${formatDate(draft.dataISO)} às ${draft.horario || "--:--"}`, icon: "Calendar" },
-            { label: "Endereço", value: address, icon: "MapPin" },
-            { label: "Observações", value: draft.observacoes || "Nenhuma observação adicionada.", icon: "FileText" },
-          ]}
-        />
+        <SummaryCard rows={rows} theme={flowTheme} />
 
-        <DCard style={s.priceCard}>
+        <DCard style={[s.priceCard, { backgroundColor: flowTheme.primarySoft }]}>
           <View>
             <Text style={s.priceLabel}>Valor estimado</Text>
-            <Text style={s.priceValue}>R$ 160,00</Text>
+            <Text style={[s.priceValue, { color: flowTheme.textAccent }]}>{isMontador ? "A orçar" : "R$ 160,00"}</Text>
           </View>
           <Text style={s.priceHint}>Pagamento após confirmação</Text>
         </DCard>
       </ScrollView>
 
       <SafeAreaView style={flowStyles.footer}>
-        <DButton label="Confirmar solicitação" variant="primary" size="lg" onPress={confirmRequest} />
-        <DButton
-          label="Editar informações"
-          variant="ghost"
-          onPress={() => navigation.navigate("EscolherServico")}
-          style={s.secondaryButton}
+        <FlowPrimaryButton
+          label="Confirmar solicitação"
+          theme={flowTheme}
+          loading={submitting}
+          onPress={confirmRequest}
         />
+        <Text style={s.editLink} onPress={() => navigation.navigate("EscolherServico")}>Editar informações</Text>
       </SafeAreaView>
     </SafeAreaView>
   );
@@ -108,7 +115,6 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     gap: spacing.md,
-    backgroundColor: colors.lavenderSoft,
   },
   priceLabel: {
     color: colors.textMuted,
@@ -118,7 +124,6 @@ const s = StyleSheet.create({
   },
   priceValue: {
     marginTop: 4,
-    color: colors.textPrimary,
     fontSize: 22,
     fontWeight: "700",
   },
@@ -130,7 +135,12 @@ const s = StyleSheet.create({
     fontWeight: "500",
     textAlign: "right",
   },
-  secondaryButton: {
+  editLink: {
     marginTop: 10,
+    color: colors.textSecondary,
+    fontSize: 14,
+    lineHeight: 18,
+    fontWeight: "700",
+    textAlign: "center",
   },
 });

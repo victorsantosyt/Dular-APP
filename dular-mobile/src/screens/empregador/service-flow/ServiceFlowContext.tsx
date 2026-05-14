@@ -1,4 +1,5 @@
 import React, { createContext, ReactNode, useContext, useMemo, useState } from "react";
+import type { ServiceFlowTipo } from "@/theme/serviceFlowTheme";
 
 export type ServiceCategory = "baba" | "cozinheira" | "diarista" | "montador";
 
@@ -11,14 +12,19 @@ export type ServiceCategory = "baba" | "cozinheira" | "diarista" | "montador";
  * bifurquem por tipo (chips, observações, copy do botão) sem precisar olhar
  * a categoria específica.
  */
-export type TipoProfissional = "DIARISTA" | "MONTADOR";
+export type TipoProfissional = ServiceFlowTipo;
 
 export type ServiceDraft = {
   categoria: ServiceCategory;
+  tipo: ServiceFlowTipo;
   tipoProfissional: TipoProfissional;
   /** Quando o flow inicia a partir do perfil público de um profissional,
    *  guardamos o id para envio na confirmação. Opcional. */
   profissionalId?: string;
+  profissionalNome?: string;
+  especialidadeId?: string;
+  especialidadeLabel?: string;
+  categoriaBackend?: string;
   dataISO: string;
   horario: string;
   numero: string;
@@ -43,6 +49,7 @@ export function tipoProfissionalFromCategoria(
 
 const INITIAL_DRAFT: ServiceDraft = {
   categoria: "diarista",
+  tipo: "DIARISTA",
   tipoProfissional: "DIARISTA",
   dataISO: "",
   horario: "",
@@ -68,22 +75,29 @@ type Props = {
   /** Pré-seleção opcional vinda da rota — usada quando o flow é aberto a
    *  partir de um card de categoria ou do perfil público de um profissional. */
   initialCategoria?: ServiceCategory;
+  initialTipo?: ServiceFlowTipo;
   initialProfissionalId?: string;
+  initialProfissionalNome?: string;
 };
 
 export function ServiceFlowProvider({
   children,
   initialCategoria,
+  initialTipo,
   initialProfissionalId,
+  initialProfissionalNome,
 }: Props) {
   const [draft, setDraft] = useState<ServiceDraft>(() => {
-    if (!initialCategoria && !initialProfissionalId) return INITIAL_DRAFT;
-    const categoria = initialCategoria ?? INITIAL_DRAFT.categoria;
+    if (!initialCategoria && !initialTipo && !initialProfissionalId) return INITIAL_DRAFT;
+    const categoria = initialCategoria ?? (initialTipo === "MONTADOR" ? "montador" : INITIAL_DRAFT.categoria);
+    const tipo = initialTipo ?? tipoProfissionalFromCategoria(categoria);
     return {
       ...INITIAL_DRAFT,
       categoria,
-      tipoProfissional: tipoProfissionalFromCategoria(categoria),
+      tipo,
+      tipoProfissional: tipo,
       ...(initialProfissionalId ? { profissionalId: initialProfissionalId } : {}),
+      ...(initialProfissionalNome ? { profissionalNome: initialProfissionalNome } : {}),
     };
   });
 
@@ -95,7 +109,23 @@ export function ServiceFlowProvider({
           const next = { ...current, ...patch };
           // Sincroniza tipoProfissional com a categoria automaticamente.
           if (patch.categoria && !patch.tipoProfissional) {
-            next.tipoProfissional = tipoProfissionalFromCategoria(patch.categoria);
+            const tipo = tipoProfissionalFromCategoria(patch.categoria);
+            next.tipo = tipo;
+            next.tipoProfissional = tipo;
+            if (tipo === "DIARISTA") {
+              next.especialidadeId = undefined;
+              next.especialidadeLabel = undefined;
+              next.categoriaBackend = undefined;
+            }
+          }
+          if (patch.tipo && !patch.tipoProfissional) {
+            next.tipoProfissional = patch.tipo;
+            if (patch.tipo === "MONTADOR" && !patch.categoria) {
+              next.categoria = "montador";
+            }
+          }
+          if (patch.tipoProfissional && !patch.tipo) {
+            next.tipo = patch.tipoProfissional;
           }
           return next;
         }),

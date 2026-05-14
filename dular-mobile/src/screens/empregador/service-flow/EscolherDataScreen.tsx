@@ -3,12 +3,12 @@ import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from "rea
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { AppIcon } from "@/components/ui/AppIcon";
-import { DButton } from "@/components/ui/DButton";
 import { DCard } from "@/components/ui/DCard";
 import type { EmpregadorServiceFlowStackParamList } from "@/navigation/EmpregadorServiceFlowNavigator";
 import { colors, radius, shadows, spacing } from "@/theme";
 import { useServiceFlow } from "./ServiceFlowContext";
-import { flowStyles, StepHeader, TimeSlotButton } from "./components";
+import { FlowPrimaryButton, flowStyles, StepHeader, TimeSlotButton } from "./components";
+import { getServiceFlowTheme } from "@/theme/serviceFlowTheme";
 
 type Navigation = NativeStackNavigationProp<EmpregadorServiceFlowStackParamList, "EscolherData">;
 
@@ -55,6 +55,7 @@ function getInitialDate(value: string) {
 export function EscolherDataScreen() {
   const navigation = useNavigation<Navigation>();
   const { draft, updateDraft } = useServiceFlow();
+  const flowTheme = getServiceFlowTheme(draft.tipo);
   const [selectedDate, setSelectedDate] = useState(() => getInitialDate(draft.dataISO));
   const [visibleMonth, setVisibleMonth] = useState(() => new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1));
   const [selectedTime, setSelectedTime] = useState(draft.horario || "10:00");
@@ -88,18 +89,19 @@ export function EscolherDataScreen() {
           step={2}
           total={5}
           onBack={() => navigation.goBack()}
+          theme={flowTheme}
         />
 
         <DCard style={s.calendarCard}>
           <View style={s.monthHeader}>
-            <Pressable onPress={() => changeMonth(-1)} style={s.monthButton} hitSlop={8}>
-              <AppIcon name="ArrowLeft" size={18} color={colors.primary} />
+            <Pressable onPress={() => changeMonth(-1)} style={[s.monthButton, { backgroundColor: flowTheme.primarySoft }]} hitSlop={8}>
+              <AppIcon name="ArrowLeft" size={18} color={flowTheme.primary} />
             </Pressable>
             <Text style={s.monthTitle}>
               {MONTHS[visibleMonth.getMonth()]} {visibleMonth.getFullYear()}
             </Text>
-            <Pressable onPress={() => changeMonth(1)} style={s.monthButton} hitSlop={8}>
-              <AppIcon name="ChevronRight" size={18} color={colors.primary} />
+            <Pressable onPress={() => changeMonth(1)} style={[s.monthButton, { backgroundColor: flowTheme.primarySoft }]} hitSlop={8}>
+              <AppIcon name="ChevronRight" size={18} color={flowTheme.primary} />
             </Pressable>
           </View>
 
@@ -119,7 +121,18 @@ export function EscolherDataScreen() {
                   key={day ? toISODate(day) : `blank-${index}`}
                   disabled={!day}
                   onPress={() => day && setSelectedDate(day)}
-                  style={[s.dayCell, selected && s.dayCellSelected]}
+                  style={[
+                    s.dayCell,
+                    selected && {
+                      backgroundColor: flowTheme.primary,
+                      borderRadius: 21,
+                      shadowColor: flowTheme.primary,
+                      shadowOpacity: 0.24,
+                      shadowRadius: 12,
+                      shadowOffset: { width: 0, height: 8 },
+                      elevation: 5,
+                    },
+                  ]}
                 >
                   <Text style={[s.dayText, selected && s.dayTextSelected]}>{day ? day.getDate() : ""}</Text>
                 </Pressable>
@@ -132,13 +145,15 @@ export function EscolherDataScreen() {
           <Text style={s.sectionTitle}>Horários disponíveis</Text>
           <View style={s.timeGrid}>
             {TIME_SLOTS.map((slot) => (
-              <TimeSlotButton key={slot} label={slot} selected={selectedTime === slot} onPress={() => setSelectedTime(slot)} />
+              <TimeSlotButton key={slot} label={slot} selected={selectedTime === slot} theme={flowTheme} onPress={() => setSelectedTime(slot)} />
             ))}
           </View>
         </View>
 
         <DCard style={s.durationCard} variant="soft">
-          <AppIcon name="Clock" size={22} color="purple" variant="soft" />
+          <View style={[s.durationIcon, { backgroundColor: flowTheme.primarySoft }]}>
+            <AppIcon name="Clock" size={20} color={flowTheme.primary} />
+          </View>
           <View style={s.durationText}>
             <Text style={s.durationTitle}>Duração estimada</Text>
             <Text style={s.durationSubtitle}>De 1h a 2h, 30 min (máx)</Text>
@@ -147,7 +162,7 @@ export function EscolherDataScreen() {
       </ScrollView>
 
       <SafeAreaView style={flowStyles.footer}>
-        <DButton label="Continuar" variant="primary" size="lg" onPress={continueFlow} />
+        <FlowPrimaryButton label="Continuar" theme={flowTheme} onPress={continueFlow} />
       </SafeAreaView>
     </SafeAreaView>
   );
@@ -200,15 +215,6 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  dayCellSelected: {
-    backgroundColor: colors.primary,
-    borderRadius: 21,
-    shadowColor: colors.primary,
-    shadowOpacity: 0.24,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 5,
-  },
   dayText: {
     color: colors.textPrimary,
     fontSize: 15,
@@ -242,6 +248,13 @@ const s = StyleSheet.create({
   durationText: {
     flex: 1,
     gap: 4,
+  },
+  durationIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
   },
   durationTitle: {
     color: colors.textPrimary,

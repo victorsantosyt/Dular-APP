@@ -1,9 +1,10 @@
 import React, { ReactNode } from "react";
 import { LinearGradient } from "expo-linear-gradient";
-import { Pressable, StyleSheet, Text, View, ViewStyle } from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, Text, View, ViewStyle } from "react-native";
 import { AppIcon, AppIconName } from "@/components/ui/AppIcon";
 import { DCard } from "@/components/ui/DCard";
 import { colors, radius, shadows, spacing, typography } from "@/theme";
+import { getServiceFlowTheme, type ServiceFlowTheme } from "@/theme/serviceFlowTheme";
 
 type StepHeaderProps = {
   title: string;
@@ -11,9 +12,11 @@ type StepHeaderProps = {
   step: number;
   total: number;
   onBack: () => void;
+  theme?: ServiceFlowTheme;
 };
 
-export function StepHeader({ title, subtitle, step, total, onBack }: StepHeaderProps) {
+export function StepHeader({ title, subtitle, step, total, onBack, theme }: StepHeaderProps) {
+  const flowTheme = theme ?? getServiceFlowTheme("DIARISTA");
   return (
     <View style={s.header}>
       <View style={s.headerTop}>
@@ -22,7 +25,16 @@ export function StepHeader({ title, subtitle, step, total, onBack }: StepHeaderP
         </Pressable>
         <View style={s.stepTrack}>
           {Array.from({ length: total }).map((_, index) => (
-            <View key={index} style={[s.stepDot, index + 1 <= step && s.stepDotActive]} />
+            <View
+              key={index}
+              style={[
+                s.stepDot,
+                index + 1 <= step && {
+                  width: 28,
+                  backgroundColor: flowTheme.primary,
+                },
+              ]}
+            />
           ))}
         </View>
         <View style={s.headerSpacer} />
@@ -39,19 +51,37 @@ type ServiceOptionCardProps = {
   icon: AppIconName;
   selected: boolean;
   onPress: () => void;
+  theme?: ServiceFlowTheme;
 };
 
-export function ServiceOptionCard({ title, subtitle, icon, selected, onPress }: ServiceOptionCardProps) {
+export function ServiceOptionCard({ title, subtitle, icon, selected, onPress, theme }: ServiceOptionCardProps) {
+  const flowTheme = theme ?? getServiceFlowTheme("DIARISTA");
+  const selectedStyle: ViewStyle = {
+    borderColor: flowTheme.primary,
+    borderWidth: 1.8,
+    backgroundColor: flowTheme.primarySoft,
+  };
   return (
-    <DCard onPress={onPress} style={selected ? [s.serviceCard, s.serviceCardSelected] : s.serviceCard}>
-      <View style={[s.serviceIcon, selected && s.serviceIconSelected]}>
-        <AppIcon name={icon} size={25} color={selected ? colors.primary : colors.textSecondary} />
+    <DCard
+      onPress={onPress}
+      style={selected ? [s.serviceCard, selectedStyle] : s.serviceCard}
+    >
+      <View style={[s.serviceIcon, { backgroundColor: selected ? colors.white : flowTheme.primarySoft }]}>
+        <AppIcon name={icon} size={25} color={selected ? flowTheme.primary : colors.textSecondary} />
       </View>
       <View style={s.serviceText}>
         <Text style={s.serviceTitle}>{title}</Text>
         <Text style={s.serviceSubtitle}>{subtitle}</Text>
       </View>
-      <View style={[s.selectMark, selected && s.selectMarkActive]}>
+      <View
+        style={[
+          s.selectMark,
+          selected && {
+            borderColor: flowTheme.primary,
+            backgroundColor: flowTheme.primary,
+          },
+        ]}
+      >
         {selected ? <AppIcon name="Check" size={15} color={colors.white} strokeWidth={3} /> : null}
       </View>
       <AppIcon name="ChevronRight" size={19} color={colors.textMuted} />
@@ -63,11 +93,28 @@ type TimeSlotButtonProps = {
   label: string;
   selected: boolean;
   onPress: () => void;
+  theme?: ServiceFlowTheme;
 };
 
-export function TimeSlotButton({ label, selected, onPress }: TimeSlotButtonProps) {
+export function TimeSlotButton({ label, selected, onPress, theme }: TimeSlotButtonProps) {
+  const flowTheme = theme ?? getServiceFlowTheme("DIARISTA");
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [s.timeSlot, selected && s.timeSlotSelected, pressed && { opacity: 0.88 }]}>
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        s.timeSlot,
+        selected && {
+          backgroundColor: flowTheme.primary,
+          borderColor: flowTheme.primary,
+          shadowColor: flowTheme.primary,
+          shadowOpacity: 0.18,
+          shadowRadius: 12,
+          shadowOffset: { width: 0, height: 8 },
+          elevation: 5,
+        },
+        pressed && { opacity: 0.88 },
+      ]}
+    >
       <Text style={[s.timeSlotText, selected && s.timeSlotTextSelected]}>{label}</Text>
     </Pressable>
   );
@@ -77,12 +124,23 @@ type UploadChipProps = {
   label: string;
   selected: boolean;
   onPress: () => void;
+  theme?: ServiceFlowTheme;
 };
 
-export function UploadChip({ label, selected, onPress }: UploadChipProps) {
+export function UploadChip({ label, selected, onPress, theme }: UploadChipProps) {
+  const flowTheme = theme ?? getServiceFlowTheme("DIARISTA");
   return (
-    <Pressable onPress={onPress} style={[s.chip, selected && s.chipSelected]}>
-      <Text style={[s.chipText, selected && s.chipTextSelected]}>{label}</Text>
+    <Pressable
+      onPress={onPress}
+      style={[
+        s.chip,
+        selected && {
+          borderColor: flowTheme.primary,
+          backgroundColor: flowTheme.primarySoft,
+        },
+      ]}
+    >
+      <Text style={[s.chipText, selected && { color: flowTheme.primary }]}>{label}</Text>
     </Pressable>
   );
 }
@@ -97,29 +155,64 @@ type SummaryCardProps = {
   rows: SummaryRow[];
   footer?: ReactNode;
   style?: ViewStyle;
+  theme?: ServiceFlowTheme;
 };
 
-export function SummaryCard({ rows, footer, style }: SummaryCardProps) {
+export function SummaryCard({ rows, footer, style, theme }: SummaryCardProps) {
+  const flowTheme = theme ?? getServiceFlowTheme("DIARISTA");
   return (
     <DCard style={style ? [s.summaryCard, style] : s.summaryCard}>
       {rows.map((row, index) => (
         <View key={row.label} style={[s.summaryRow, index > 0 && s.summaryDivider]}>
-          <AppIcon name={row.icon} size={20} color="purple" variant="soft" />
+          <View style={[s.summaryIcon, { backgroundColor: flowTheme.primarySoft }]}>
+            <AppIcon name={row.icon} size={18} color={flowTheme.primary} strokeWidth={2.2} />
+          </View>
           <View style={s.summaryText}>
             <Text style={s.summaryLabel}>{row.label}</Text>
             <Text style={s.summaryValue}>{row.value}</Text>
           </View>
         </View>
       ))}
-      {footer ? <View style={s.summaryFooter}>{footer}</View> : null}
+      {footer ? <View style={[s.summaryFooter, { backgroundColor: flowTheme.primarySoft }]}>{footer}</View> : null}
     </DCard>
   );
 }
 
-export function SuccessBadge() {
+export function FlowPrimaryButton({
+  label,
+  onPress,
+  theme,
+  disabled,
+  loading,
+  style,
+}: {
+  label: string;
+  onPress: () => void;
+  theme: ServiceFlowTheme;
+  disabled?: boolean;
+  loading?: boolean;
+  style?: ViewStyle;
+}) {
   return (
-    <View style={s.successGlow}>
-      <LinearGradient colors={[colors.success, colors.successDark]} style={s.successBadge}>
+    <View style={[s.flowButtonShadow, { shadowColor: theme.primary }, style, disabled && s.flowButtonDisabled]}>
+      <Pressable onPress={onPress} disabled={disabled || loading}>
+        <LinearGradient colors={theme.gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.flowButton}>
+          {loading ? (
+            <ActivityIndicator size="small" color={colors.white} />
+          ) : (
+            <Text style={s.flowButtonText}>{label}</Text>
+          )}
+        </LinearGradient>
+      </Pressable>
+    </View>
+  );
+}
+
+export function SuccessBadge({ theme }: { theme?: ServiceFlowTheme }) {
+  const flowTheme = theme ?? getServiceFlowTheme("DIARISTA");
+  return (
+    <View style={[s.successGlow, { backgroundColor: flowTheme.primarySoft, shadowColor: flowTheme.primary }]}>
+      <LinearGradient colors={flowTheme.gradient} style={s.successBadge}>
         <AppIcon name="Check" size={36} color={colors.white} strokeWidth={3} />
       </LinearGradient>
     </View>
@@ -188,10 +281,6 @@ const s = StyleSheet.create({
     borderRadius: 999,
     backgroundColor: colors.lavenderStrong,
   },
-  stepDotActive: {
-    width: 28,
-    backgroundColor: colors.primary,
-  },
   title: {
     marginTop: 12,
     color: colors.textPrimary,
@@ -215,11 +304,6 @@ const s = StyleSheet.create({
     alignItems: "center",
     gap: spacing.md,
   },
-  serviceCardSelected: {
-    borderColor: colors.primary,
-    borderWidth: 1.8,
-    backgroundColor: colors.lavenderSoft,
-  },
   serviceIcon: {
     width: 46,
     height: 46,
@@ -227,9 +311,6 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: colors.lavenderSoft,
-  },
-  serviceIconSelected: {
-    backgroundColor: colors.white,
   },
   serviceText: {
     flex: 1,
@@ -255,10 +336,6 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  selectMarkActive: {
-    borderColor: colors.primary,
-    backgroundColor: colors.primary,
-  },
   timeSlot: {
     width: "31%",
     minHeight: 38,
@@ -269,15 +346,6 @@ const s = StyleSheet.create({
     borderColor: colors.border,
     backgroundColor: colors.surface,
     ...shadows.soft,
-  },
-  timeSlotSelected: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-    shadowColor: colors.primary,
-    shadowOpacity: 0.18,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 5,
   },
   timeSlotText: {
     color: colors.textPrimary,
@@ -295,17 +363,10 @@ const s = StyleSheet.create({
     borderColor: colors.border,
     backgroundColor: colors.surface,
   },
-  chipSelected: {
-    borderColor: colors.primary,
-    backgroundColor: colors.lavenderSoft,
-  },
   chipText: {
     color: colors.textSecondary,
     ...typography.caption,
     fontWeight: "600",
-  },
-  chipTextSelected: {
-    color: colors.primary,
   },
   summaryCard: {
     gap: 0,
@@ -327,6 +388,13 @@ const s = StyleSheet.create({
     flex: 1,
     gap: 4,
   },
+  summaryIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   summaryLabel: {
     color: colors.textMuted,
     ...typography.caption,
@@ -343,7 +411,27 @@ const s = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.divider,
     padding: spacing.md,
-    backgroundColor: colors.lavenderSoft,
+  },
+  flowButtonShadow: {
+    borderRadius: radius.pill,
+    ...shadows.primaryButton,
+  },
+  flowButtonDisabled: {
+    opacity: 0.5,
+  },
+  flowButton: {
+    minHeight: 56,
+    paddingVertical: 16,
+    paddingHorizontal: 28,
+    borderRadius: radius.pill,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  flowButtonText: {
+    color: colors.white,
+    fontSize: 16,
+    lineHeight: 20,
+    fontWeight: "700",
   },
   successGlow: {
     width: 100,

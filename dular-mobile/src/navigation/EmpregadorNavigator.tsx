@@ -20,7 +20,7 @@ import ReportIncident from "@/screens/perfil/ReportIncident";
 import Termos from "@/screens/perfil/Termos";
 import VerificacaoDocs from "@/screens/perfil/VerificacaoDocs";
 import { useAuth } from "@/stores/authStore";
-import type { ServiceCategory } from "@/screens/empregador/service-flow/ServiceFlowContext";
+import type { ServiceCategory, TipoProfissional } from "@/screens/empregador/service-flow/ServiceFlowContext";
 
 export type EmpregadorTabParamList = {
   Home: undefined;
@@ -30,7 +30,7 @@ export type EmpregadorTabParamList = {
    *  abre o flow no estado inicial. */
   SolicitarServico:
     | undefined
-    | { categoriaInicial?: ServiceCategory; profissionalId?: string };
+    | { categoriaInicial?: ServiceCategory; tipoInicial?: TipoProfissional; profissionalId?: string; profissionalNome?: string };
   Mensagens: undefined;
   Notificacoes: undefined;
   ChatAberto: ChatAbertoParams;

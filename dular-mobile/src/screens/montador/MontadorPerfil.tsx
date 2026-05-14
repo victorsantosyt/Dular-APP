@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
   Modal,
   Pressable,
   ScrollView,
@@ -14,6 +15,8 @@ import {
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { AppIcon, DErrorState, DLoadingState, DScreen } from "@/components/ui";
+import { LocationPermissionCard } from "@/components/location/LocationPermissionCard";
+import { salvarLocalizacaoAtual } from "@/api/localizacaoApi";
 import {
   MONTADOR_ESPECIALIDADES,
   atualizarPerfilMontador,
@@ -23,10 +26,12 @@ import {
   type MontadorPerfilMe,
 } from "@/api/montadorApi";
 import { useMontadorServicos } from "@/hooks/useMontadorServicos";
+import { useCurrentRegion, type CurrentRegion } from "@/hooks/useCurrentRegion";
 import { useProfileTheme } from "@/hooks/useProfileTheme";
 import { useAuth } from "@/stores/authStore";
 import { colors, radius, shadows, spacing, typography } from "@/theme";
 import type { ProfileTheme } from "@/theme/profileTheme";
+import { platformSelect } from "@/utils/platform";
 import { firstName, formatMoneyFromCents, upperStatus } from "./montadorUtils";
 
 type ModalType = "dados" | "especialidades" | "area" | "precos" | "portfolio" | "documentos" | null;
@@ -44,6 +49,7 @@ type AreaForm = {
   bairros: string;
   raioAtendimentoKm: string;
   ativo: boolean;
+  atendeTodaCidade: boolean;
 };
 
 type PrecosForm = {
@@ -155,7 +161,11 @@ function FloatingCard({
 }) {
   return (
     <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
-      <View style={styles.modalOverlay}>
+      <KeyboardAvoidingView
+        style={styles.modalOverlay}
+        behavior={platformSelect({ ios: "padding", android: "height" })}
+        keyboardVerticalOffset={platformSelect({ ios: 16, android: 0 })}
+      >
         <View style={[styles.modalCard, { borderColor: theme.border }]}>
           <View style={styles.modalHeader}>
             <View style={styles.modalHeaderText}>
@@ -168,7 +178,7 @@ function FloatingCard({
           </View>
           {children}
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -233,6 +243,7 @@ export default function MontadorPerfil() {
   const setUser = useAuth((state) => state.setUser);
   const clearSession = useAuth((state) => state.clearSession);
   const { agenda } = useMontadorServicos();
+  const currentRegion = useCurrentRegion();
 
   const [profile, setProfile] = useState<MontadorPerfilMe | null>(null);
   const [loading, setLoading] = useState(true);
@@ -242,10 +253,11 @@ export default function MontadorPerfil() {
   const [formError, setFormError] = useState<string | null>(null);
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
   const [modal, setModal] = useState<ModalType>(null);
+  const [areaCoords, setAreaCoords] = useState<{ latitude: number; longitude: number } | null>(null);
 
   const [dadosForm, setDadosForm] = useState<DadosForm>({ nome: "", telefone: "", bio: "", anosExperiencia: "" });
   const [especialidadesForm, setEspecialidadesForm] = useState<MontadorEspecialidadeId[]>([]);
-  const [areaForm, setAreaForm] = useState<AreaForm>({ cidade: "", estado: "", bairros: "", raioAtendimentoKm: "", ativo: true });
+  const [areaForm, setAreaForm] = useState<AreaForm>({ cidade: "", estado: "", bairros: "", raioAtendimentoKm: "", ativo: true, atendeTodaCidade: false });
   const [precosForm, setPrecosForm] = useState<PrecosForm>({
     valorACombinar: true,
     precoBase: "",
@@ -290,7 +302,9 @@ export default function MontadorPerfil() {
       bairros: next.perfil.bairros?.join(", ") ?? "",
       raioAtendimentoKm: next.perfil.raioAtendimentoKm != null ? String(next.perfil.raioAtendimentoKm) : "",
       ativo: next.perfil.ativo,
+      atendeTodaCidade: next.perfil.atendeTodaCidade,
     });
+    setAreaCoords(null);
     setPrecosForm({
       valorACombinar: next.perfil.valorACombinar,
       precoBase: centsToInput(next.perfil.precoBase),
@@ -389,24 +403,99 @@ export default function MontadorPerfil() {
     void saveProfile({ especialidades: especialidadesForm }, "Especialidades salvas.");
   };
 
-  const saveArea = () => {
+  const saveArea = async () => {
     const bairros = splitBairros(areaForm.bairros);
     const raio = areaForm.raioAtendimentoKm.trim() ? Number(areaForm.raioAtendimentoKm) : null;
-    if (!areaForm.cidade.trim() || areaForm.estado.trim().length !== 2 || bairros.length === 0) {
-      setFormError("Informe cidade, UF e pelo menos um bairro.");
+    if (!areaForm.cidade.trim() || areaForm.estado.trim().length !== 2 || (!areaForm.atendeTodaCidade && bairros.length === 0)) {
+      setFormError("Informe cidade, UF e pelo menos um bairro ou marque atendimento em toda a cidade.");
       return;
     }
     if (raio != null && (!Number.isInteger(raio) || raio <= 0)) {
       setFormError("Informe um raio de atendimento válido.");
       return;
     }
-    void saveProfile({
-      cidade: areaForm.cidade,
-      estado: areaForm.estado,
-      bairros,
-      raioAtendimentoKm: raio,
-      ativo: areaForm.ativo,
-    }, "Área de atendimento salva.");
+    try {
+      setSaving(true);
+      setFormError(null);
+      if (areaCoords) {
+        await salvarLocalizacaoAtual({
+          latitude: areaCoords.latitude,
+          longitude: areaCoords.longitude,
+          cidade: areaForm.cidade,
+          estado: areaForm.estado,
+          bairro: bairros[0] ?? null,
+          localizacaoPermitida: true,
+        });
+      }
+      const next = await atualizarPerfilMontador({
+        cidade: areaForm.cidade,
+        estado: areaForm.estado,
+        bairros,
+        atendeTodaCidade: areaForm.atendeTodaCidade,
+        raioAtendimentoKm: raio,
+        ativo: areaForm.ativo,
+      });
+      applyProfile(next);
+      setModal(null);
+      setSavedMessage("Área de atendimento salva.");
+      setTimeout(() => setSavedMessage(null), 2600);
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : "Não foi possível salvar agora.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const areaRegion: CurrentRegion = {
+    latitude: areaCoords?.latitude,
+    longitude: areaCoords?.longitude,
+    cidade: areaForm.cidade,
+    uf: areaForm.estado,
+    bairro: splitBairros(areaForm.bairros)[0] ?? "",
+  };
+
+  const applyDetectedRegion = (detected: CurrentRegion, mode: "replace" | "add") => {
+    const currentBairros = splitBairros(areaForm.bairros);
+    const detectedBairro = detected.bairro.trim();
+    const bairros =
+      mode === "replace"
+        ? detectedBairro ? [detectedBairro] : []
+        : Array.from(new Set([...currentBairros, ...(detectedBairro ? [detectedBairro] : [])]));
+
+    setAreaForm((prev) => ({
+      ...prev,
+      cidade: detected.cidade,
+      estado: detected.uf,
+      bairros: bairros.join(", "),
+    }));
+    setAreaCoords(
+      detected.latitude != null && detected.longitude != null
+        ? { latitude: detected.latitude, longitude: detected.longitude }
+        : null,
+    );
+  };
+
+  const requestAreaLocation = async () => {
+    return currentRegion.requestRegion();
+  };
+
+  const handleAreaDetected = (detected: CurrentRegion) => {
+    const currentBairros = splitBairros(areaForm.bairros);
+
+    if (currentBairros.length > 0 && detected.bairro && !currentBairros.includes(detected.bairro)) {
+      Alert.alert(
+        "Usar localização",
+        `Deseja usar ${detected.cidade} - ${detected.uf}, bairro ${detected.bairro}, como área de atendimento?`,
+        [
+          { text: "Cancelar", style: "cancel" },
+          { text: "Substituir", style: "destructive", onPress: () => applyDetectedRegion(detected, "replace") },
+          { text: "Adicionar bairro", onPress: () => applyDetectedRegion(detected, "add") },
+        ],
+      );
+      return;
+    }
+
+    applyDetectedRegion(detected, "add");
   };
 
   const savePrecos = () => {
@@ -533,7 +622,13 @@ export default function MontadorPerfil() {
       </Section>
 
       <FloatingCard visible={modal === "dados"} title="Dados profissionais" subtitle="Essas informações aparecem no seu perfil público." theme={profileTheme} onClose={() => setModal(null)}>
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalScroll}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode={platformSelect({ ios: "interactive", android: "on-drag" })}
+          automaticallyAdjustKeyboardInsets
+          contentContainerStyle={[styles.modalScroll, styles.modalKeyboardScroll]}
+        >
           <Field label="Nome profissional" value={dadosForm.nome} onChangeText={(nomeValue) => setDadosForm((prev) => ({ ...prev, nome: nomeValue }))} />
           <Field label="Telefone" value={dadosForm.telefone} onChangeText={(telefone) => setDadosForm((prev) => ({ ...prev, telefone }))} keyboardType="phone-pad" />
           <Field label="Apresentação" value={dadosForm.bio} onChangeText={(bio) => setDadosForm((prev) => ({ ...prev, bio }))} multiline placeholder="Conte sua experiência, tipo de montagem que atende e diferenciais." />
@@ -570,11 +665,54 @@ export default function MontadorPerfil() {
       </FloatingCard>
 
       <FloatingCard visible={modal === "area"} title="Área de atendimento" subtitle="Use bairros separados por vírgula." theme={profileTheme} onClose={() => setModal(null)}>
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalScroll}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode={platformSelect({ ios: "interactive", android: "on-drag" })}
+          automaticallyAdjustKeyboardInsets
+          contentContainerStyle={[styles.modalScroll, styles.modalKeyboardScroll]}
+        >
+          <LocationPermissionCard
+            title="Localização e área de atendimento"
+            subtitle="Use sua localização como sugestão. Você pode confirmar, editar, substituir ou adicionar bairros."
+            region={areaRegion}
+            permissionStatus={currentRegion.permissionStatus}
+            loading={currentRegion.loading}
+            saving={saving}
+            error={currentRegion.error}
+            primaryColor={profileTheme.primary}
+            primarySoft={profileTheme.primarySoft}
+            confirmed={Boolean(areaForm.cidade && areaForm.estado)}
+            confirmLabel="Salvar área"
+            onRegionChange={(next) => {
+              setAreaForm((prev) => ({
+                ...prev,
+                cidade: next.cidade,
+                estado: next.uf,
+                bairros: next.bairro || prev.bairros,
+              }));
+              setAreaCoords(
+                next.latitude != null && next.longitude != null
+                  ? { latitude: next.latitude, longitude: next.longitude }
+                  : null,
+              );
+            }}
+            onRequestLocation={requestAreaLocation}
+            onDetected={handleAreaDetected}
+            onManual={() => setAreaCoords(null)}
+            onConfirm={() => { void saveArea(); }}
+          />
           <Field label="Cidade" value={areaForm.cidade} onChangeText={(cidade) => setAreaForm((prev) => ({ ...prev, cidade }))} />
           <Field label="UF" value={areaForm.estado} onChangeText={(estado) => setAreaForm((prev) => ({ ...prev, estado: estado.toUpperCase().slice(0, 2) }))} />
           <Field label="Bairros atendidos" value={areaForm.bairros} onChangeText={(bairros) => setAreaForm((prev) => ({ ...prev, bairros }))} multiline placeholder="Ex.: Jardim América, Centro, Moema" />
           <Field label="Raio de atendimento em km" value={areaForm.raioAtendimentoKm} onChangeText={(raioAtendimentoKm) => setAreaForm((prev) => ({ ...prev, raioAtendimentoKm }))} keyboardType="number-pad" />
+          <View style={styles.switchRow}>
+            <View style={styles.switchText}>
+              <Text style={styles.switchTitle}>Atender toda a cidade</Text>
+              <Text style={styles.switchSubtitle}>Permite aparecer em buscas da cidade mesmo sem bairro específico</Text>
+            </View>
+            <Switch value={areaForm.atendeTodaCidade} onValueChange={(atendeTodaCidade) => setAreaForm((prev) => ({ ...prev, atendeTodaCidade }))} trackColor={{ false: colors.border, true: profileTheme.primarySoft }} thumbColor={areaForm.atendeTodaCidade ? profileTheme.primary : colors.textMuted} />
+          </View>
           <View style={styles.switchRow}>
             <View style={styles.switchText}>
               <Text style={styles.switchTitle}>Perfil ativo</Text>
@@ -583,12 +721,18 @@ export default function MontadorPerfil() {
             <Switch value={areaForm.ativo} onValueChange={(ativoValue) => setAreaForm((prev) => ({ ...prev, ativo: ativoValue }))} trackColor={{ false: colors.border, true: profileTheme.primarySoft }} thumbColor={areaForm.ativo ? profileTheme.primary : colors.textMuted} />
           </View>
           {formError ? <Text style={styles.errorText}>{formError}</Text> : null}
-          <ModalActions saving={saving} theme={profileTheme} onCancel={() => setModal(null)} onSave={saveArea} />
+          <ModalActions saving={saving} theme={profileTheme} onCancel={() => setModal(null)} onSave={() => { void saveArea(); }} />
         </ScrollView>
       </FloatingCard>
 
       <FloatingCard visible={modal === "precos"} title="Preços" subtitle="Defina uma referência de valor ou deixe a combinar." theme={profileTheme} onClose={() => setModal(null)}>
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalScroll}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode={platformSelect({ ios: "interactive", android: "on-drag" })}
+          automaticallyAdjustKeyboardInsets
+          contentContainerStyle={[styles.modalScroll, styles.modalKeyboardScroll]}
+        >
           <View style={styles.switchRow}>
             <View style={styles.switchText}>
               <Text style={styles.switchTitle}>Valor a combinar</Text>
@@ -858,6 +1002,9 @@ const styles = StyleSheet.create({
   modalScroll: {
     gap: 14,
     paddingBottom: 2,
+  },
+  modalKeyboardScroll: {
+    paddingBottom: 32,
   },
   field: {
     gap: 6,

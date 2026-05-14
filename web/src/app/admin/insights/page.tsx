@@ -50,7 +50,9 @@ export default async function InsightsPage() {
       }),
     ]);
 
-  const diaristaIds = topDiaristasRaw.map((d) => d.diaristaId);
+  const diaristaIds = topDiaristasRaw
+    .map((d) => d.diaristaId)
+    .filter((id): id is string => !!id);
   const diaristas =
     diaristaIds.length > 0
       ? await prisma.user.findMany({
@@ -68,12 +70,14 @@ export default async function InsightsPage() {
     .sort((a, b) => b.total - a.total)
     .slice(0, 5);
 
-  const topDiaristas = topDiaristasRaw.map((d) => ({
-    diaristaId: d.diaristaId,
-    nome: diaristaById.get(d.diaristaId)?.nome ?? "Diarista",
-    nota: d._avg.notaGeral ?? 0,
-    total: d._count._all,
-  }));
+  const topDiaristas = topDiaristasRaw
+    .filter((d): d is typeof d & { diaristaId: string } => !!d.diaristaId)
+    .map((d) => ({
+      diaristaId: d.diaristaId,
+      nome: diaristaById.get(d.diaristaId)?.nome ?? "Diarista",
+      nota: d._avg.notaGeral ?? 0,
+      total: d._count._all,
+    }));
 
   const mediaNota = avaliacaoAgg._avg.notaGeral ?? 0;
   const totalAval = avaliacaoAgg._count.notaGeral ?? 0;

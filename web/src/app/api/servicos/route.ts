@@ -26,6 +26,7 @@ export async function POST(req: Request) {
       uf,
       bairro,
       diaristaUserId,
+      montadorUserId,
       enderecoCompleto,
       observacoes,
       temPet,
@@ -38,9 +39,89 @@ export async function POST(req: Request) {
       BABA: ["BABA_DIURNA", "BABA_NOTURNA", "BABA_INTEGRAL"],
       COZINHEIRA: ["COZINHEIRA_DIARIA", "COZINHEIRA_EVENTO"],
       PASSA_ROUPA: ["PASSA_ROUPA_BASICO", "PASSA_ROUPA_COMPLETO"],
+      MONTADOR: [
+        "MONTADOR_MONTAGEM",
+        "MONTADOR_REPAROS",
+        "MONTADOR_ELETRICA",
+        "MONTADOR_HIDRAULICA",
+        "MONTADOR_PINTURA",
+        "MONTADOR_CARPINTARIA",
+      ],
     };
     if (categoria && !CAT_BY_TIPO[tipo]?.includes(categoria)) {
       return NextResponse.json({ ok: false, error: "Categoria inválida para este tipo." }, { status: 400 });
+    }
+
+    const data = new Date(dataISO);
+    if (isNaN(data.getTime())) {
+      return NextResponse.json({ ok: false, error: "Data inválida." }, { status: 400 });
+    }
+
+    // ─── Branch MONTADOR ─────────────────────────────────────────────────────
+    if (tipo === "MONTADOR") {
+      const profissionalId = montadorUserId ?? diaristaUserId;
+      if (!profissionalId) {
+        return NextResponse.json(
+          { ok: false, error: "Informe montadorUserId." },
+          { status: 400 },
+        );
+      }
+
+      const userMontador = await prisma.user.findUnique({ where: { id: profissionalId } });
+      if (!userMontador || userMontador.role !== "MONTADOR" || userMontador.status !== "ATIVO") {
+        return NextResponse.json({ ok: false, error: "Montador inválido." }, { status: 400 });
+      }
+
+      const montadorPerfil = await prisma.montadorPerfil.findUnique({
+        where: { userId: profissionalId },
+      });
+      if (!montadorPerfil || !montadorPerfil.ativo) {
+        return NextResponse.json(
+          { ok: false, error: "Montador indisponível." },
+          { status: 400 },
+        );
+      }
+
+      // Montador não tem precificação pré-cadastrada: usa 0 como sentinela
+      // "a orçar". O preço final é fechado após aceite/orçamento (fora do
+      // escopo deste fluxo — ver GAP T-07: orçamento de Montador).
+      const servico = await prisma.servico.create({
+        data: {
+          status: "SOLICITADO",
+          tipo,
+          categoria: categoria ?? null,
+          data,
+          turno,
+          cidade,
+          uf,
+          bairro,
+          enderecoCompleto: enderecoCompleto ?? null,
+          observacoes: observacoes ?? null,
+          temPet: false,
+          quartos3Mais: false,
+          banheiros2Mais: false,
+          precoFinal: 0,
+          clientId: auth.userId,
+          montadorId: profissionalId,
+        },
+      });
+
+      await sendPushNotification(
+        profissionalId,
+        "Nova solicitação de serviço",
+        `Você recebeu um pedido de montagem em ${bairro}.`,
+        { servicoId: servico.id, tipo: "NOVA_SOLICITACAO" },
+      );
+
+      return NextResponse.json({ ok: true, servicoId: servico.id });
+    }
+
+    // ─── Branch DIARISTA (código original, não alterado) ─────────────────────
+    if (!diaristaUserId) {
+      return NextResponse.json(
+        { ok: false, error: "Informe diaristaUserId." },
+        { status: 400 },
+      );
     }
 
     const diarista = await prisma.user.findUnique({ where: { id: diaristaUserId } });
@@ -83,11 +164,6 @@ export async function POST(req: Request) {
     const precoFinal = isFaxina ? (isPesada ? prof.precoPesada : prof.precoLeve) : prof.precoLeve;
     if (!precoFinal || precoFinal <= 0) {
       return NextResponse.json({ ok: false, error: "Diarista sem preço configurado." }, { status: 400 });
-    }
-
-    const data = new Date(dataISO);
-    if (isNaN(data.getTime())) {
-      return NextResponse.json({ ok: false, error: "Data inválida." }, { status: 400 });
     }
 
     const servico = await prisma.servico.create({

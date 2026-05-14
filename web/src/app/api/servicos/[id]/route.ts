@@ -14,6 +14,7 @@ export async function GET(req: Request, { params }: Params) {
       include: {
         cliente: { select: { id: true, nome: true, telefone: true, avatarUrl: true } },
         diarista: { select: { id: true, nome: true, telefone: true, avatarUrl: true } },
+        montador: { select: { id: true, nome: true, telefone: true, avatarUrl: true } },
         avaliacao: true,
       },
     });
@@ -22,12 +23,15 @@ export async function GET(req: Request, { params }: Params) {
       return NextResponse.json({ ok: false, error: "Serviço não encontrado." }, { status: 404 });
     }
 
-    const isParticipant = servico.clientId === auth.userId || servico.diaristaId === auth.userId;
+    const profissionalUserId = servico.montadorId ?? servico.diaristaId;
+    const isParticipant =
+      servico.clientId === auth.userId || profissionalUserId === auth.userId;
     if (!isParticipant && auth.role !== "ADMIN") {
       return NextResponse.json({ ok: false, error: "Não autorizado." }, { status: 403 });
     }
 
-    const otherUserId = auth.userId === servico.clientId ? servico.diaristaId : servico.clientId;
+    const otherUserId =
+      auth.userId === servico.clientId ? profissionalUserId : servico.clientId;
 
     return NextResponse.json({
       ok: true,

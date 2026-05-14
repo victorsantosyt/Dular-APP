@@ -34,6 +34,7 @@ export async function GET(req: Request, { params }: Params) {
         status: true,
         clientId: true,
         diaristaId: true,
+        montadorId: true,
         tipo: true,
         data: true,
         turno: true,
@@ -48,7 +49,9 @@ export async function GET(req: Request, { params }: Params) {
     }
 
     const isParticipant =
-      servico.clientId === auth.userId || servico.diaristaId === auth.userId;
+      servico.clientId === auth.userId ||
+      servico.diaristaId === auth.userId ||
+      servico.montadorId === auth.userId;
 
     if (!isParticipant) {
       return NextResponse.json({ ok: false, error: "Acesso negado." }, { status: 403 });
@@ -73,13 +76,16 @@ export async function GET(req: Request, { params }: Params) {
       },
     });
 
+    const profissionalUserId = servico.montadorId ?? servico.diaristaId;
     const otherUserId =
-      auth.userId === servico.clientId ? servico.diaristaId : servico.clientId;
+      auth.userId === servico.clientId ? profissionalUserId : servico.clientId;
 
-    const otherUser = await prisma.user.findUnique({
-      where: { id: otherUserId },
-      select: { id: true, nome: true, avatarUrl: true, role: true },
-    });
+    const otherUser = otherUserId
+      ? await prisma.user.findUnique({
+          where: { id: otherUserId },
+          select: { id: true, nome: true, avatarUrl: true, role: true },
+        })
+      : null;
 
     const messages = await prisma.chatMessage.findMany({
       where: { roomId: room.id },
@@ -147,6 +153,7 @@ export async function POST(req: Request, { params }: Params) {
         status: true,
         clientId: true,
         diaristaId: true,
+        montadorId: true,
       },
     });
 
@@ -155,7 +162,9 @@ export async function POST(req: Request, { params }: Params) {
     }
 
     const isParticipant =
-      servico.clientId === auth.userId || servico.diaristaId === auth.userId;
+      servico.clientId === auth.userId ||
+      servico.diaristaId === auth.userId ||
+      servico.montadorId === auth.userId;
 
     if (!isParticipant) {
       return NextResponse.json({ ok: false, error: "Acesso negado." }, { status: 403 });

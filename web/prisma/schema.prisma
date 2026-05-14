@@ -106,6 +106,7 @@ enum ServicoTipo {
   BABA
   COZINHEIRA
   PASSA_ROUPA
+  MONTADOR
 }
 
 enum ServicoCategoria {
@@ -119,6 +120,12 @@ enum ServicoCategoria {
   COZINHEIRA_EVENTO
   PASSA_ROUPA_BASICO
   PASSA_ROUPA_COMPLETO
+  MONTADOR_MONTAGEM
+  MONTADOR_REPAROS
+  MONTADOR_ELETRICA
+  MONTADOR_HIDRAULICA
+  MONTADOR_PINTURA
+  MONTADOR_CARPINTARIA
 }
 
 enum ServicoStatus {
@@ -198,6 +205,7 @@ model User {
   restrictions          UserRestriction[]
   servicosComoCliente   Servico[]              @relation("ServicoCliente")
   servicosComoDiarista  Servico[]              @relation("ServicoDiarista")
+  servicosComoMontador  Servico[]              @relation("ServicoMontador")
   safetyEvents          SafetyEvent[]
   incidentsReported     IncidentReport[]       @relation("ReportedBy")
   incidentsReceived     IncidentReport[]       @relation("ReportedUser")
@@ -334,10 +342,17 @@ model Servico {
   precoFinal Int
 
   clientId   String
-  diaristaId String
+  // diaristaId é opcional: serviços do tipo MONTADOR não têm diarista.
+  // O campo permanece para preservar dados existentes (todos os serviços
+  // criados antes do T-06 têm diaristaId não-nulo).
+  diaristaId String?
+  // montadorId é setado apenas em serviços com tipo === MONTADOR.
+  // Aponta para User.id (mesmo padrão do diaristaId).
+  montadorId String?
 
-  cliente  User @relation("ServicoCliente", fields: [clientId], references: [id], onDelete: Restrict)
-  diarista User @relation("ServicoDiarista", fields: [diaristaId], references: [id], onDelete: Restrict)
+  cliente  User  @relation("ServicoCliente", fields: [clientId], references: [id], onDelete: Restrict)
+  diarista User? @relation("ServicoDiarista", fields: [diaristaId], references: [id], onDelete: Restrict)
+  montador User? @relation("ServicoMontador", fields: [montadorId], references: [id], onDelete: Restrict)
 
   avaliacao Avaliacao?
   eventos   ServicoEvento[]
@@ -350,6 +365,7 @@ model Servico {
   @@index([status])
   @@index([cidade, uf, bairro])
   @@index([diaristaId])
+  @@index([montadorId])
   @@index([clientId])
 }
 
@@ -387,7 +403,11 @@ model Avaliacao {
   servico   Servico @relation(fields: [servicoId], references: [id], onDelete: Cascade)
 
   clientId   String
-  diaristaId String
+  // Aponta para User.id do profissional avaliado. Para serviços de
+  // DIARISTA usa-se diaristaId; para MONTADOR usa-se montadorId.
+  // Mantemos diaristaId opcional para preservar dados existentes.
+  diaristaId String?
+  montadorId String?
 
   notaGeral    Int
   pontualidade Int
@@ -398,6 +418,7 @@ model Avaliacao {
   createdAt DateTime @default(now())
 
   @@index([diaristaId])
+  @@index([montadorId])
   @@index([clientId])
 }
 

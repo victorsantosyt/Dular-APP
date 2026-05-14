@@ -17,7 +17,9 @@ export async function POST(req: Request, { params }: Params) {
     const servico = await prisma.servico.findUnique({ where: { id } });
     if (!servico) return NextResponse.json({ ok: false, error: "Serviço não encontrado." }, { status: 404 });
 
-    if (servico.diaristaId !== auth.userId) {
+    const isDiarista = servico.diaristaId === auth.userId;
+    const isMontador = servico.montadorId === auth.userId;
+    if (!isDiarista && !isMontador) {
       return NextResponse.json({ ok: false, error: "Não autorizado." }, { status: 403 });
     }
 

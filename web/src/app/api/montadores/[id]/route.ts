@@ -29,6 +29,7 @@ export async function GET(_req: Request, { params }: Params) {
         cidade: true,
         estado: true,
         bairros: true,
+        atendeTodaCidade: true,
         raioAtendimentoKm: true,
         fotoPerfil: true,
         portfolioFotos: true,
@@ -68,6 +69,7 @@ export async function GET(_req: Request, { params }: Params) {
       cidade: montador.cidade,
       estado: montador.estado,
       bairros: montador.bairros,
+      atendeTodaCidade: montador.atendeTodaCidade,
       ativo: montador.ativo,
       userStatus: montador.user.status,
     });

@@ -5,14 +5,19 @@
 export type MontadorItem = {
   id: string;
   userId: string;
+  nome?: string;
   bio?: string | null;
+  apresentacao?: string | null;
   especialidades: string[];
   anosExperiencia?: number | null;
   cidade?: string | null;
   estado?: string | null;
+  uf?: string | null;
   bairros?: string[];
+  atendeTodaCidade?: boolean;
   raioAtendimentoKm?: number | null;
   fotoPerfil?: string | null;
+  avatarUrl?: string | null;
   portfolioFotos?: string[];
   precoBase?: number | null;
   taxaMinima?: number | null;
@@ -25,6 +30,7 @@ export type MontadorItem = {
   rating: number;
   totalServicos: number;
   profileCompleto?: boolean;
+  perfilCompleto?: boolean;
   profileProgresso?: number;
   safeScore?: {
     score?: number;

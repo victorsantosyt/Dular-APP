@@ -41,6 +41,7 @@ export function normalizeText(value: unknown) {
     .trim()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
     .toLowerCase();
 }
 
@@ -71,6 +72,7 @@ export function calcularCompletudeMontador(input: {
   cidade?: string | null;
   estado?: string | null;
   bairros?: string[] | null;
+  atendeTodaCidade?: boolean | null;
   ativo?: boolean | null;
   userStatus?: string | null;
 }) {
@@ -78,7 +80,7 @@ export function calcularCompletudeMontador(input: {
     nome: Boolean(input.nome?.trim()),
     apresentacao: Boolean(input.bio?.trim()),
     especialidades: (input.especialidades ?? []).length > 0,
-    areaAtendimento: Boolean(input.cidade?.trim() && input.estado?.trim() && (input.bairros ?? []).length > 0),
+    areaAtendimento: Boolean(input.cidade?.trim() && input.estado?.trim() && ((input.bairros ?? []).length > 0 || input.atendeTodaCidade === true)),
     ativo: input.ativo === true && input.userStatus !== "BLOQUEADO",
   };
 
@@ -91,3 +93,31 @@ export function calcularCompletudeMontador(input: {
   };
 }
 
+export function getMontadorProfileCompleteness(input: {
+  nome?: string | null;
+  bio?: string | null;
+  especialidades?: string[] | null;
+  cidade?: string | null;
+  estado?: string | null;
+  bairros?: string[] | null;
+  atendeTodaCidade?: boolean | null;
+  ativo?: boolean | null;
+  userStatus?: string | null;
+}) {
+  const result = calcularCompletudeMontador(input);
+  const motivos: string[] = [];
+
+  if (!input.nome?.trim()) motivos.push("sem nome");
+  if (!input.bio?.trim()) motivos.push("sem bio");
+  if ((input.especialidades ?? []).length === 0) motivos.push("sem especialidades");
+  if (!input.cidade?.trim()) motivos.push("sem cidade");
+  if (!input.estado?.trim()) motivos.push("sem estado");
+  if ((input.bairros ?? []).length === 0 && input.atendeTodaCidade !== true) motivos.push("sem bairros");
+  if (input.ativo !== true) motivos.push("inativo");
+  if (input.userStatus === "BLOQUEADO") motivos.push("usuário bloqueado");
+
+  return {
+    ...result,
+    motivos,
+  };
+}

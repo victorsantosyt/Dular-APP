@@ -84,6 +84,7 @@ export async function POST(req: Request) {
             cidade: montadorPerfil.cidade,
             estado: montadorPerfil.estado,
             bairros: montadorPerfil.bairros,
+            atendeTodaCidade: montadorPerfil.atendeTodaCidade,
             ativo: montadorPerfil.ativo,
             userStatus: userMontador.status,
           })

@@ -95,7 +95,9 @@ export default function MontadorPublicProfile() {
   const handleContratar = () => {
     navigation.navigate("SolicitarServico", {
       categoriaInicial: "montador",
+      tipoInicial: "MONTADOR",
       profissionalId: montadorId,
+      profissionalNome: nome,
     });
   };
 

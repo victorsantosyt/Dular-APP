@@ -9,13 +9,15 @@ import { DInput } from "@/components/ui/DInput";
 import type { EmpregadorServiceFlowStackParamList } from "@/navigation/EmpregadorServiceFlowNavigator";
 import { colors, radius, shadows, spacing } from "@/theme";
 import { useServiceFlow } from "./ServiceFlowContext";
-import { flowStyles, StepHeader } from "./components";
+import { FlowPrimaryButton, flowStyles, StepHeader } from "./components";
+import { getServiceFlowTheme } from "@/theme/serviceFlowTheme";
 
 type Navigation = NativeStackNavigationProp<EmpregadorServiceFlowStackParamList, "EnderecoServico">;
 
 export function EnderecoServicoScreen() {
   const navigation = useNavigation<Navigation>();
   const { draft, updateDraft } = useServiceFlow();
+  const flowTheme = getServiceFlowTheme(draft.tipo);
 
   return (
     <SafeAreaView style={flowStyles.screen}>
@@ -26,11 +28,14 @@ export function EnderecoServicoScreen() {
           step={3}
           total={5}
           onBack={() => navigation.goBack()}
+          theme={flowTheme}
         />
 
         <DCard style={s.addressCard}>
           <View style={s.addressHeader}>
-            <AppIcon name="MapPin" size={23} color="purple" variant="soft" />
+            <View style={[s.addressIcon, { backgroundColor: flowTheme.primarySoft }]}>
+              <AppIcon name="MapPin" size={20} color={flowTheme.primary} />
+            </View>
             <View style={s.addressText}>
               <Text style={s.addressTitle}>Rua Oscar Freire, 245</Text>
               <Text style={s.addressSubtitle}>Jardim América, São Paulo - SP</Text>
@@ -62,11 +67,11 @@ export function EnderecoServicoScreen() {
         </View>
 
         <DCard style={s.mapCard}>
-          <View style={s.mapGrid}>
+          <View style={[s.mapGrid, { backgroundColor: flowTheme.primarySoft }]}>
             <View style={s.mapLineA} />
             <View style={s.mapLineB} />
             <View style={s.mapLineC} />
-            <View style={s.mapPin}>
+            <View style={[s.mapPin, { backgroundColor: flowTheme.primary, shadowColor: flowTheme.primary }]}>
               <AppIcon name="MapPin" size={22} color={colors.white} />
             </View>
           </View>
@@ -84,7 +89,7 @@ export function EnderecoServicoScreen() {
       </ScrollView>
 
       <SafeAreaView style={flowStyles.footer}>
-        <DButton label="Continuar" variant="primary" size="lg" onPress={() => navigation.navigate("ObservacoesServico")} />
+        <FlowPrimaryButton label="Continuar" theme={flowTheme} onPress={() => navigation.navigate("ObservacoesServico")} />
       </SafeAreaView>
     </SafeAreaView>
   );
@@ -98,6 +103,13 @@ const s = StyleSheet.create({
     flexDirection: "row",
     gap: spacing.md,
     alignItems: "flex-start",
+  },
+  addressIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
   },
   addressText: {
     flex: 1,
@@ -130,7 +142,6 @@ const s = StyleSheet.create({
   },
   mapGrid: {
     height: 168,
-    backgroundColor: colors.lavenderSoft,
     overflow: "hidden",
   },
   mapLineA: {
@@ -171,7 +182,6 @@ const s = StyleSheet.create({
     borderRadius: 27,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.primary,
     ...shadows.primaryButton,
   },
   mapLegend: {

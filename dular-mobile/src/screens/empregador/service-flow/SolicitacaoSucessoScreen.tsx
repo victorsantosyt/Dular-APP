@@ -9,13 +9,15 @@ import type { EmpregadorTabParamList } from "@/navigation/EmpregadorNavigator";
 import type { EmpregadorServiceFlowStackParamList } from "@/navigation/EmpregadorServiceFlowNavigator";
 import { colors, radius, spacing } from "@/theme";
 import { useServiceFlow } from "./ServiceFlowContext";
-import { flowStyles, SuccessBadge } from "./components";
+import { FlowPrimaryButton, flowStyles, SuccessBadge } from "./components";
+import { getServiceFlowTheme } from "@/theme/serviceFlowTheme";
 
 type Navigation = NativeStackNavigationProp<EmpregadorServiceFlowStackParamList, "SolicitacaoSucesso">;
 
 export function SolicitacaoSucessoScreen() {
   const navigation = useNavigation<Navigation>();
-  const { resetDraft } = useServiceFlow();
+  const { draft, resetDraft } = useServiceFlow();
+  const flowTheme = getServiceFlowTheme(draft.tipo);
 
   const goHome = () => {
     resetDraft();
@@ -26,25 +28,25 @@ export function SolicitacaoSucessoScreen() {
   return (
     <SafeAreaView style={flowStyles.screen}>
       <View style={s.content}>
-        <SuccessBadge />
+        <SuccessBadge theme={flowTheme} />
         <View style={s.copy}>
           <Text style={s.title}>Solicitação enviada com sucesso</Text>
           <Text style={s.subtitle}>
-            Estamos buscando o(a) profissional perfeito para você e avisaremos assim que sua solicitação for aceita.
+            Avisaremos assim que o profissional responder sua solicitação.
           </Text>
         </View>
 
         <DCard style={s.protocolCard}>
           <Text style={s.protocolLabel}>Protocolo</Text>
           <Text style={s.protocolValue}>#SD250514-8K7D</Text>
-          <View style={s.statusPill}>
-            <Text style={s.statusText}>Enviado há 1 min</Text>
+          <View style={[s.statusPill, { backgroundColor: flowTheme.primarySoft }]}>
+            <Text style={[s.statusText, { color: flowTheme.primary }]}>Enviado há 1 min</Text>
           </View>
         </DCard>
       </View>
 
       <SafeAreaView style={flowStyles.footer}>
-        <DButton label="Acompanhar solicitação" variant="primary" size="lg" onPress={goHome} />
+        <FlowPrimaryButton label="Acompanhar solicitação" theme={flowTheme} onPress={goHome} />
         <DButton label="Voltar ao início" variant="ghost" onPress={goHome} style={s.secondaryButton} />
       </SafeAreaView>
     </SafeAreaView>
@@ -101,10 +103,8 @@ const s = StyleSheet.create({
     borderRadius: 999,
     paddingHorizontal: 12,
     paddingVertical: 7,
-    backgroundColor: colors.lavenderSoft,
   },
   statusText: {
-    color: colors.primary,
     fontSize: 11,
     fontWeight: "700",
   },

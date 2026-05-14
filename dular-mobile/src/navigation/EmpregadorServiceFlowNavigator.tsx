@@ -8,6 +8,7 @@ import { ObservacoesServicoScreen } from "@/screens/empregador/service-flow/Obse
 import {
   ServiceFlowProvider,
   type ServiceCategory,
+  type TipoProfissional,
 } from "@/screens/empregador/service-flow/ServiceFlowContext";
 import { SolicitacaoSucessoScreen } from "@/screens/empregador/service-flow/SolicitacaoSucessoScreen";
 import { SolicitarServicoScreen } from "@/screens/empregador/service-flow/SolicitarServicoScreen";
@@ -19,7 +20,7 @@ export type EmpregadorServiceFlowStackParamList = {
   EnderecoServico: undefined;
   ObservacoesServico: undefined;
   ConfirmarSolicitacao: undefined;
-  SolicitacaoSucesso: undefined;
+  SolicitacaoSucesso: { servicoId?: string } | undefined;
 };
 
 const Stack = createNativeStackNavigator<EmpregadorServiceFlowStackParamList>();
@@ -29,7 +30,9 @@ const Stack = createNativeStackNavigator<EmpregadorServiceFlowStackParamList>();
  *  na Home/Buscar e o perfil público abram o flow já pré-configurado. */
 type SolicitarServicoRouteParams = {
   categoriaInicial?: ServiceCategory;
+  tipoInicial?: TipoProfissional;
   profissionalId?: string;
+  profissionalNome?: string;
 };
 
 export function EmpregadorServiceFlowNavigator() {
@@ -42,7 +45,9 @@ export function EmpregadorServiceFlowNavigator() {
   return (
     <ServiceFlowProvider
       initialCategoria={params?.categoriaInicial}
+      initialTipo={params?.tipoInicial}
       initialProfissionalId={params?.profissionalId}
+      initialProfissionalNome={params?.profissionalNome}
     >
       <Stack.Navigator
         initialRouteName="EscolherServico"

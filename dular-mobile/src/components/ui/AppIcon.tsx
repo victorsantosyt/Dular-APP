@@ -44,7 +44,9 @@ import {
   MessageCircle,
   Mic,
   MoreHorizontal,
+  Package,
   Paperclip,
+  Paintbrush,
   Plus,
   Search,
   Send,
@@ -62,8 +64,11 @@ import {
   Wallet,
   WashingMachine,
   Wrench,
+  Zap,
   XCircle,
   ChefHat,
+  Droplets,
+  Hammer,
   Phone,
 } from "lucide-react-native";
 import { colors, gradients } from "@/theme";
@@ -111,7 +116,9 @@ const ICONS = {
   MessageCircle,
   Mic,
   MoreHorizontal,
+  Package,
   Paperclip,
+  Paintbrush,
   Phone,
   Plus,
   Search,
@@ -130,8 +137,11 @@ const ICONS = {
   Wallet,
   WashingMachine,
   Wrench,
+  Zap,
   XCircle,
   ChefHat,
+  Droplets,
+  Hammer,
 } as const;
 
 type IconTone =

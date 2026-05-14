@@ -107,6 +107,12 @@ export function ServiceFlowProvider({
       updateDraft: (patch) =>
         setDraft((current) => {
           const next = { ...current, ...patch };
+          if (patch.profissionalId === undefined && current.profissionalId) {
+            next.profissionalId = current.profissionalId;
+          }
+          if (patch.profissionalNome === undefined && current.profissionalNome) {
+            next.profissionalNome = current.profissionalNome;
+          }
           // Sincroniza tipoProfissional com a categoria automaticamente.
           if (patch.categoria && !patch.tipoProfissional) {
             const tipo = tipoProfissionalFromCategoria(patch.categoria);

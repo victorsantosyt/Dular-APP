@@ -10,7 +10,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import {
   AppIcon,
@@ -22,12 +22,14 @@ import {
 import { colors, radius, shadows, spacing, typography } from "@/theme";
 import type { EmpregadorTabParamList } from "@/navigation/EmpregadorNavigator";
 import { useBuscar, type ApiDiarista } from "@/hooks/useBuscar";
+import type { MontadorItem } from "@/types/montador";
 import { useGeoDefaults } from "@/hooks/useGeoDefaults";
 import { useMensagens } from "@/hooks/useMensagens";
 
 type Navigation = BottomTabNavigationProp<EmpregadorTabParamList>;
+type BuscarRoute = RouteProp<EmpregadorTabParamList, "Buscar">;
 
-type CategoriaKey = "baba" | "cozinheira" | "diarista";
+type CategoriaKey = "baba" | "cozinheira" | "diarista" | "montador";
 
 type CategoriaCardItem = {
   key: CategoriaKey;
@@ -54,6 +56,8 @@ type CategoriaPopularItem = {
 
 type Profissional = {
   id: string;
+  userId: string;
+  tipo: "DIARISTA" | "MONTADOR";
   nome: string;
   categoria: string;
   categoriaIcon: AppIconName;
@@ -65,6 +69,10 @@ type Profissional = {
   online: boolean;
   verificado: boolean;
   avatarUrl?: string | null;
+  especialidades?: string[];
+  cidade?: string | null;
+  estado?: string | null;
+  rating?: number;
 };
 
 const CATEGORIAS: CategoriaCardItem[] = [
@@ -98,6 +106,16 @@ const CATEGORIAS: CategoriaCardItem[] = [
     imageUrl: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=facearea&facepad=2.5&w=240&h=240&q=80",
     imageStyle: { width: 90, height: 90, right: 0, bottom: -3 },
   },
+  {
+    key: "montador",
+    icon: "Wrench",
+    title: "Montador",
+    subtitle: "Montagem e\nreparos",
+    bg: colors.tealSoft,
+    iconColor: colors.tealDark,
+    imageUrl: "https://images.unsplash.com/photo-1505798577917-a65157d3320a?auto=format&fit=facearea&facepad=2.5&w=240&h=240&q=80",
+    imageStyle: { width: 92, height: 92, right: -2, bottom: -3 },
+  },
 ];
 
 const CATEGORIAS_POPULARES: CategoriaPopularItem[] = [
@@ -111,6 +129,8 @@ const CATEGORIAS_POPULARES: CategoriaPopularItem[] = [
 const MOCK_PROFISSIONAIS: Profissional[] = [
   {
     id: "mock-1",
+    userId: "mock-1",
+    tipo: "DIARISTA",
     nome: "Luciana Silva",
     categoria: "Diarista",
     categoriaIcon: "BrushCleaning",
@@ -125,6 +145,8 @@ const MOCK_PROFISSIONAIS: Profissional[] = [
   },
   {
     id: "mock-2",
+    userId: "mock-2",
+    tipo: "DIARISTA",
     nome: "Juliana Castro",
     categoria: "Babá",
     categoriaIcon: "Baby",
@@ -139,6 +161,8 @@ const MOCK_PROFISSIONAIS: Profissional[] = [
   },
   {
     id: "mock-3",
+    userId: "mock-3",
+    tipo: "DIARISTA",
     nome: "Renata Lima",
     categoria: "Cozinheira",
     categoriaIcon: "ChefHat",
@@ -153,6 +177,8 @@ const MOCK_PROFISSIONAIS: Profissional[] = [
   },
   {
     id: "mock-4",
+    userId: "mock-4",
+    tipo: "DIARISTA",
     nome: "Carla Souza",
     categoria: "Diarista",
     categoriaIcon: "BrushCleaning",
@@ -167,6 +193,8 @@ const MOCK_PROFISSIONAIS: Profissional[] = [
   },
   {
     id: "mock-5",
+    userId: "mock-5",
+    tipo: "DIARISTA",
     nome: "Aline Ferreira",
     categoria: "Babá",
     categoriaIcon: "Baby",
@@ -184,6 +212,8 @@ const MOCK_PROFISSIONAIS: Profissional[] = [
 function mapApiToProf(d: ApiDiarista, bairro: string, cidade: string): Profissional {
   return {
     id: d.userId,
+    userId: d.userId,
+    tipo: "DIARISTA",
     nome: d.user?.nome ?? "Profissional",
     categoria: "Diarista",
     categoriaIcon: "BrushCleaning",
@@ -195,6 +225,31 @@ function mapApiToProf(d: ApiDiarista, bairro: string, cidade: string): Profissio
     online: false,
     verificado: d.verificacao === "VERIFICADO",
     avatarUrl: d.fotoUrl,
+  };
+}
+
+function mapMontadorToProf(m: MontadorItem): Profissional {
+  const cidadeEstado = [m.cidade, m.estado].filter(Boolean).join(", ");
+  const anos = m.anosExperiencia ? `${m.anosExperiencia} anos exp.` : "Montador verificado";
+  return {
+    id: m.id,
+    userId: m.userId ?? m.user.id,
+    tipo: "MONTADOR",
+    nome: m.user.nome ?? "Montador",
+    categoria: "Montador",
+    categoriaIcon: "Wrench",
+    categoriaKey: "montador",
+    localizacao: cidadeEstado || "Localização a confirmar",
+    nota: m.rating > 0 ? m.rating.toFixed(1).replace(".", ",") : "--",
+    experiencia: m.totalServicos > 0 ? `${m.totalServicos} serviços` : anos,
+    distancia: "",
+    online: false,
+    verificado: m.verificado,
+    avatarUrl: m.fotoPerfil ?? m.user.avatarUrl,
+    especialidades: m.especialidades,
+    cidade: m.cidade,
+    estado: m.estado,
+    rating: m.rating,
   };
 }
 
@@ -292,12 +347,25 @@ function ProfCard({ prof }: { prof: Profissional }) {
       <View style={s.profRight}>
         {prof.distancia ? <Text style={s.distText}>{prof.distancia}</Text> : null}
         <ProfileButton
-          onPress={() =>
+          onPress={() => {
+            if (prof.tipo === "MONTADOR") {
+              navigation.navigate("MontadorPublicProfile", {
+                montadorId: prof.id,
+                montadorUserId: prof.userId,
+                nome: prof.nome,
+                rating: prof.rating,
+                especialidades: prof.especialidades,
+                cidade: prof.cidade,
+                estado: prof.estado,
+                avatarUrl: prof.avatarUrl,
+              });
+              return;
+            }
             navigation.navigate("DiaristaProfile", {
-              diaristaId: prof.id,
+              diaristaId: prof.userId,
               nome: prof.nome,
-            })
-          }
+            });
+          }}
         />
       </View>
     </View>
@@ -306,9 +374,10 @@ function ProfCard({ prof }: { prof: Profissional }) {
 
 export function BuscarScreen() {
   const navigation = useNavigation<Navigation>();
+  const route = useRoute<BuscarRoute>();
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedCat, setSelectedCat] = useState<CategoriaKey | null>(null);
-  const { profissionais: apiProfs, loading, error, buscar } = useBuscar();
+  const [selectedCat, setSelectedCat] = useState<CategoriaKey | null>(route.params?.categoriaInicial ?? null);
+  const { profissionais: apiProfs, montadores: apiMontadores, loading, error, buscar } = useBuscar();
   const geo = useGeoDefaults();
   const { rooms } = useMensagens();
 
@@ -324,16 +393,25 @@ export function BuscarScreen() {
     }
   }, [geo.cidade, geo.uf, geo.bairro, buscar]);
 
+  useEffect(() => {
+    if (route.params?.categoriaInicial) {
+      setSelectedCat(route.params.categoriaInicial);
+    }
+  }, [route.params?.categoriaInicial]);
+
   const handleCatPress = useCallback((key: CategoriaKey) => {
     setSelectedCat((prev) => (prev === key ? null : key));
   }, []);
 
   const baseList: Profissional[] = useMemo(
     () =>
-      apiProfs.length > 0
-        ? apiProfs.map((d) => mapApiToProf(d, geo.bairro, geo.cidade))
+      apiProfs.length > 0 || apiMontadores.length > 0
+        ? [
+            ...apiProfs.map((d) => mapApiToProf(d, geo.bairro, geo.cidade)),
+            ...apiMontadores.map(mapMontadorToProf),
+          ]
         : MOCK_PROFISSIONAIS,
-    [apiProfs, geo.bairro, geo.cidade],
+    [apiMontadores, apiProfs, geo.bairro, geo.cidade],
   );
 
   const filteredList = useMemo(() => {

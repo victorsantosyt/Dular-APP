@@ -70,7 +70,9 @@ export function prepararPayload(draft: DraftSlice): PrepareResult {
   if (!draft.profissionalId) {
     return {
       ok: false,
-      error: "Selecione um profissional antes de confirmar a solicitação.",
+      error: isMontador
+        ? "Não foi possível identificar o montador selecionado. Volte e escolha um profissional novamente."
+        : "Selecione um profissional antes de confirmar a solicitação.",
     };
   }
 

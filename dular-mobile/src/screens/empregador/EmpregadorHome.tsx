@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  Image,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -30,10 +31,13 @@ import {
   DSkeletonCard,
   DErrorState,
 } from "@/components/ui";
-import { colors, gradients, radius, shadows, spacing, typography } from "@/theme";
+import { colors, radius, shadows, spacing, typography } from "@/theme";
+import { getProfileTheme } from "@/theme/profileTheme";
 import type { EmpregadorTabParamList } from "@/navigation/EmpregadorNavigator";
 
 type Navigation = BottomTabNavigationProp<EmpregadorTabParamList>;
+const EMPREGADOR_THEME = getProfileTheme({ role: "EMPREGADOR" });
+const HOME_EMPREGADOR_LOGO = require("../../../assets/images/home_empregador/home_empregador_logo_card.png");
 
 // ─── Mock professionals (fallback when API returns empty) ─────────────────────
 
@@ -95,7 +99,7 @@ function QuickActionCard({ icon, label, onPress }: QuickAction) {
       style={({ pressed }) => [s.qaCard, pressed && s.qaCardPressed]}
     >
       <View style={s.qaIconWrap}>
-        <AppIcon name={icon} size={24} color={colors.textPrimary} strokeWidth={1.8} />
+        <AppIcon name={icon} size={28} color={EMPREGADOR_THEME.textAccent} strokeWidth={2.2} />
       </View>
       <Text allowFontScaling={false} style={s.qaLabel}>{label}</Text>
     </Pressable>
@@ -392,12 +396,12 @@ export default function EmpregadorHome() {
 
           {/* ── Hero card ── */}
           <LinearGradient
-            colors={gradients.primary}
+            colors={EMPREGADOR_THEME.gradient}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={s.hero}
           >
-            {/* Text (left) + decorative illustration area (right) */}
+            {/* Text (left) */}
             <View style={s.heroBody}>
               <View style={s.heroLeft}>
                 <Text allowFontScaling={false} style={s.heroTitle}>
@@ -409,35 +413,14 @@ export default function EmpregadorHome() {
                   {"Profissionais de confiança\nperto de você. ❤️"}
                 </Text>
               </View>
-
-              {/* Illustration placeholder — replace with Image when asset is available */}
-              <View style={s.heroIllus} pointerEvents="none">
-                <View style={s.illusCircleLg} />
-                <View style={s.illusCircleSm} />
-                <View style={s.illusIconBox}>
-                  <AppIcon
-                    name="Sparkles"
-                    size={26}
-                    color="rgba(255,255,255,0.50)"
-                    strokeWidth={1.6}
-                  />
-                </View>
-              </View>
             </View>
 
-            {/* Search bar */}
-            <Pressable
-              style={s.heroSearch}
-              onPress={() => navigation.navigate("Buscar")}
-            >
-              <AppIcon name="Search" size={16} color={colors.textMuted} strokeWidth={2.1} />
-              <Text allowFontScaling={false} style={s.heroSearchPlaceholder}>
-                Buscar por bairro ou nome
-              </Text>
-              <View style={s.heroFilterBtn}>
-                <AppIcon name="SlidersHorizontal" size={14} color={colors.white} strokeWidth={2.2} />
+            <View style={s.heroIllus} pointerEvents="none">
+              <View style={s.heroHouseShadow}>
+                <AppIcon name="Home" size={136} color="rgba(255,255,255,0.16)" strokeWidth={1.1} />
               </View>
-            </Pressable>
+              <Image source={HOME_EMPREGADOR_LOGO} style={s.heroLogoImage} resizeMode="contain" />
+            </View>
           </LinearGradient>
 
           {/* ── Ações rápidas ── */}
@@ -466,9 +449,7 @@ export default function EmpregadorHome() {
               <CategoriaCard
                 icon="Wrench"
                 title="Montador"
-                onPress={() =>
-                  navigation.navigate("SolicitarServico", { categoriaInicial: "montador" })
-                }
+                onPress={() => navigation.navigate("Buscar", { categoriaInicial: "montador" })}
               />
               <CategoriaCard icon="Baby" title="Babá" disabled />
               <CategoriaCard icon="ChefHat" title="Cozinheira" disabled />
@@ -605,15 +586,14 @@ const s = StyleSheet.create({
     borderRadius: 18,
     padding: 16,
     overflow: "hidden",
-    gap: spacing.md,
+    minHeight: 126,
   },
   heroBody: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: spacing.sm,
+    minHeight: 94,
+    justifyContent: "center",
+    paddingRight: 112,
   },
   heroLeft: {
-    flex: 1,
     gap: spacing.xs,
   },
   heroTitle: {
@@ -632,59 +612,35 @@ const s = StyleSheet.create({
     
     marginTop: 4,
   },
-  // Illustration placeholder (right side of hero)
   heroIllus: {
-    width: 92,
-    height: 84,
-  },
-  illusCircleLg: {
     position: "absolute",
-    width: 76,
-    height: 76,
-    borderRadius: 38,
-    backgroundColor: "rgba(255,255,255,0.12)",
-    top: -10,
-    right: -8,
-  },
-  illusCircleSm: {
-    position: "absolute",
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: "rgba(255,107,138,0.22)",
+    top: 2,
+    right: 0,
     bottom: -4,
-    right: 14,
-  },
-  illusIconBox: {
-    position: "absolute",
-    top: 18,
-    right: 18,
-  },
-  // Search bar
-  heroSearch: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: colors.white,
-    borderRadius: radius.xl,
-    paddingHorizontal: spacing.md,
-    height: 46,
-    gap: spacing.sm,
-  },
-  heroSearchPlaceholder: {
-    flex: 1,
-    ...typography.bodySm,
-    color: colors.textMuted,
-    
-  },
-  heroFilterBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: colors.primary,
+    width: 150,
     alignItems: "center",
     justifyContent: "center",
   },
-
+  heroHouseShadow: {
+    position: "absolute",
+    right: -2,
+    bottom: -10,
+    width: 150,
+    height: 116,
+    alignItems: "center",
+    justifyContent: "flex-end",
+  },
+  heroLogoImage: {
+    position: "absolute",
+    right: 10,
+    bottom: 2,
+    width: 128,
+    height: 100,
+    shadowColor: "#1F1728",
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 8 },
+  },
   // ── Section wrapper
   section: {
     gap: 12,
@@ -709,13 +665,13 @@ const s = StyleSheet.create({
   },
   qaCardPressed: {
     opacity: 0.75,
-    backgroundColor: colors.lavender,
+    backgroundColor: EMPREGADOR_THEME.primarySoft,
   },
   qaIconWrap: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    backgroundColor: colors.lavender,
+    width: 54,
+    height: 50,
+    borderRadius: 17,
+    backgroundColor: EMPREGADOR_THEME.primarySoft,
     alignItems: "center",
     justifyContent: "center",
   },

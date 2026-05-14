@@ -1,5 +1,5 @@
 import React from "react";
-import { SafeAreaView, ScrollView, StyleSheet } from "react-native";
+import { SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -9,6 +9,7 @@ import { ServiceCategory, useServiceFlow } from "./ServiceFlowContext";
 import { FlowPrimaryButton, flowStyles, ServiceOptionCard, StepHeader } from "./components";
 import { MONTADOR_ESPECIALIDADES } from "./montadorEspecialidades";
 import { getServiceFlowTheme } from "@/theme/serviceFlowTheme";
+import { colors, radius, spacing, typography } from "@/theme";
 
 type Navigation = NativeStackNavigationProp<EmpregadorServiceFlowStackParamList, "EscolherServico">;
 
@@ -29,6 +30,7 @@ export function SolicitarServicoScreen() {
   const { draft, updateDraft } = useServiceFlow();
   const flowTheme = getServiceFlowTheme(draft.tipo);
   const isMontador = draft.tipo === "MONTADOR";
+  const missingMontador = isMontador && !draft.profissionalId;
   const canContinue = !isMontador || Boolean(draft.especialidadeId);
 
   const leaveFlow = () => {
@@ -39,6 +41,50 @@ export function SolicitarServicoScreen() {
     }
     if (navigation.canGoBack()) navigation.goBack();
   };
+
+  const goToMontadores = () => {
+    const parent = navigation.getParent<BottomTabNavigationProp<EmpregadorTabParamList>>();
+    if (parent) {
+      parent.navigate("Buscar", { categoriaInicial: "montador" });
+      return;
+    }
+    if (navigation.canGoBack()) navigation.goBack();
+  };
+
+  if (missingMontador) {
+    return (
+      <SafeAreaView style={flowStyles.screen}>
+        <ScrollView contentContainerStyle={flowStyles.scrollContent} showsVerticalScrollIndicator={false}>
+          <StepHeader
+            title="Escolha um montador"
+            subtitle="Selecione um profissional antes de solicitar o serviço."
+            step={1}
+            total={5}
+            onBack={leaveFlow}
+            theme={flowTheme}
+          />
+
+          <View style={[s.blockCard, { borderColor: flowTheme.border, backgroundColor: flowTheme.surface }]}>
+            <View style={[s.blockIcon, { backgroundColor: flowTheme.primarySoft }]}>
+              <Text style={[s.blockIconText, { color: flowTheme.textAccent }]}>!</Text>
+            </View>
+            <Text style={s.blockTitle}>Selecione um montador antes de solicitar o serviço.</Text>
+            <Text style={s.blockText}>
+              O fluxo de montagem precisa começar no perfil público do profissional para que a solicitação seja enviada ao montador correto.
+            </Text>
+          </View>
+        </ScrollView>
+
+        <SafeAreaView style={flowStyles.footer}>
+          <FlowPrimaryButton
+            label="Voltar para busca"
+            theme={flowTheme}
+            onPress={goToMontadores}
+          />
+        </SafeAreaView>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={flowStyles.screen}>
@@ -101,5 +147,33 @@ export function SolicitarServicoScreen() {
 const s = StyleSheet.create({
   list: {
     gap: 14,
+  },
+  blockCard: {
+    borderWidth: 1,
+    borderRadius: radius.xl,
+    padding: spacing.lg,
+    gap: 10,
+  },
+  blockIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  blockIconText: {
+    fontSize: 20,
+    lineHeight: 24,
+    fontWeight: "800",
+  },
+  blockTitle: {
+    color: colors.textPrimary,
+    ...typography.bodyMedium,
+    fontWeight: "700",
+  },
+  blockText: {
+    color: colors.textSecondary,
+    ...typography.bodySm,
+    fontWeight: "500",
   },
 });

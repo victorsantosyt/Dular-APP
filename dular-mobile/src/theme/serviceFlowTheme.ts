@@ -1,4 +1,5 @@
 import { colors } from "@/theme/colors";
+import { getProfileTheme } from "@/theme/profileTheme";
 
 export type ServiceFlowTipo = "DIARISTA" | "MONTADOR";
 
@@ -16,31 +17,21 @@ export type ServiceFlowTheme = {
 };
 
 export function getServiceFlowTheme(tipo?: ServiceFlowTipo | null): ServiceFlowTheme {
-  if (tipo === "MONTADOR") {
-    return {
-      primary: colors.tealDark,
-      primaryDark: colors.tealDark,
-      primarySoft: colors.tealSoft,
-      background: colors.background,
-      surface: colors.surface,
-      border: colors.tealSoft,
-      textAccent: colors.tealDark,
-      gradient: [colors.tealDark, colors.teal],
-      icon: colors.tealDark,
-      inactive: colors.textMuted,
-    };
-  }
+  const theme =
+    tipo === "MONTADOR"
+      ? getProfileTheme({ role: "MONTADOR", genero: null })
+      : getProfileTheme({ role: "EMPREGADOR" });
 
   return {
-    primary: colors.primary,
-    primaryDark: colors.primaryDark,
-    primarySoft: colors.lavenderSoft,
+    primary: theme.primary,
+    primaryDark: theme.primaryDark,
+    primarySoft: theme.primarySoft,
     background: colors.background,
     surface: colors.surface,
-    border: colors.border,
-    textAccent: colors.primary,
-    gradient: [colors.primary, colors.primaryDark],
-    icon: colors.primary,
+    border: theme.border,
+    textAccent: theme.textAccent,
+    gradient: theme.gradient,
+    icon: theme.icon,
     inactive: colors.textMuted,
   };
 }

@@ -24,7 +24,7 @@ import type { ServiceCategory, TipoProfissional } from "@/screens/empregador/ser
 
 export type EmpregadorTabParamList = {
   Home: undefined;
-  Buscar: undefined;
+  Buscar: undefined | { categoriaInicial?: "baba" | "cozinheira" | "diarista" | "montador" };
   Agendamentos: undefined;
   /** Pode receber pré-seleção da Home / Busca / perfil público. Sem params,
    *  abre o flow no estado inicial. */
@@ -37,7 +37,16 @@ export type EmpregadorTabParamList = {
   Perfil: undefined;
   ProfissionalPerfil: { id: string };
   DiaristaProfile: { diaristaId: string; nome: string };
-  MontadorPublicProfile: { montadorId: string; nome?: string };
+  MontadorPublicProfile: {
+    montadorId: string;
+    montadorUserId?: string;
+    nome?: string;
+    rating?: number;
+    especialidades?: string[];
+    cidade?: string | null;
+    estado?: string | null;
+    avatarUrl?: string | null;
+  };
   DetalheServico: { id: string };
   EmpregadorDetalhe: { servicoId: string };
   Paywall: { mensagem?: string };

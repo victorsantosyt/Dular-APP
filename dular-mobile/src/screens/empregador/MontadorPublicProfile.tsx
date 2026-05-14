@@ -28,12 +28,16 @@ import { useDularColors } from "@/hooks/useDularColors";
 import { getProfileTheme, type Genero } from "@/theme/profileTheme";
 import { radius, shadows, spacing, typography } from "@/theme";
 import type { EmpregadorTabParamList } from "@/navigation/EmpregadorNavigator";
-import type { MontadorItem } from "@/types/montador";
+import { MONTADOR_ESPECIALIDADES, type MontadorItem } from "@/types/montador";
 
 type Navigation = BottomTabNavigationProp<EmpregadorTabParamList>;
 type RouteProps = RouteProp<EmpregadorTabParamList, "MontadorPublicProfile">;
 
 type DetalheResponse = { ok?: boolean; montador?: MontadorItem };
+
+const MONTADOR_LABELS = Object.fromEntries(
+  MONTADOR_ESPECIALIDADES.map((item) => [item.id, item.label]),
+) as Record<string, string>;
 
 export default function MontadorPublicProfile() {
   const navigation = useNavigation<Navigation>();
@@ -97,6 +101,10 @@ export default function MontadorPublicProfile() {
   const verificado = montador?.verificado ?? false;
   const cidade = montador?.cidade ?? cidadeParam ?? "—";
   const estado = montador?.estado ?? estadoParam ?? "—";
+  const bairros = montador?.bairros ?? [];
+  const precoLabel = montador?.precoLabel ?? (montador?.valorACombinar ? "A combinar" : "A combinar");
+  const portfolioFotos = montador?.portfolioFotos ?? [];
+  const safeScore = montador?.safeScore;
 
   const styles = useMemo(
     () => makeStyles({ theme, surface: colors.surface, textPrimary: colors.textPrimary, textSecondary: colors.textSecondary, textMuted: colors.textMuted, border: colors.border, background: colors.background }),
@@ -104,6 +112,11 @@ export default function MontadorPublicProfile() {
   );
 
   const handleContratar = () => {
+    if (montador && montador.profileCompleto === false) {
+      Alert.alert("Montador indisponível", "Este perfil ainda não está completo para receber solicitações.");
+      return;
+    }
+
     if (!profissionalId) {
       Alert.alert(
         "Montador não identificado",
@@ -208,12 +221,53 @@ export default function MontadorPublicProfile() {
                   key={item}
                   style={[styles.chip, { backgroundColor: theme.primarySoft, borderColor: theme.border }]}
                 >
-                  <Text style={[styles.chipText, { color: theme.textAccent }]}>{item}</Text>
+                  <Text style={[styles.chipText, { color: theme.textAccent }]}>{MONTADOR_LABELS[item] ?? item}</Text>
                 </View>
               ))}
             </View>
           ) : (
             <Text style={styles.empty}>Especialidades não informadas.</Text>
+          )}
+        </View>
+
+        <View style={[styles.card, { borderColor: theme.border }]}>
+          <Text style={styles.cardLabel}>Área de atendimento</Text>
+          <Text style={styles.bio}>
+            {[cidade, estado].filter((item) => item && item !== "—").join(", ") || "Localização a confirmar"}
+          </Text>
+          {bairros.length > 0 ? (
+            <View style={styles.chips}>
+              {bairros.slice(0, 6).map((item) => (
+                <View key={item} style={[styles.chip, { backgroundColor: theme.primarySoft, borderColor: theme.border }]}>
+                  <Text style={[styles.chipText, { color: theme.textAccent }]}>{item}</Text>
+                </View>
+              ))}
+            </View>
+          ) : (
+            <Text style={styles.empty}>Bairros não informados.</Text>
+          )}
+        </View>
+
+        <View style={[styles.infoGrid, { borderColor: theme.border }]}>
+          <View style={styles.infoCell}>
+            <Text style={styles.cardLabel}>Preço</Text>
+            <Text style={[styles.infoValue, { color: theme.textAccent }]}>{precoLabel}</Text>
+            {montador?.observacaoPreco ? <Text style={styles.infoHint}>{montador.observacaoPreco}</Text> : null}
+          </View>
+          <View style={[styles.statDivider, { backgroundColor: theme.border }]} />
+          <View style={styles.infoCell}>
+            <Text style={styles.cardLabel}>SafeScore</Text>
+            <Text style={[styles.infoValue, { color: theme.textAccent }]}>{safeScore?.faixa ?? "Em análise"}</Text>
+            <Text style={styles.infoHint}>{verificado ? "Verificado" : "Verificação pendente"}</Text>
+          </View>
+        </View>
+
+        <View style={[styles.card, { borderColor: theme.border }]}>
+          <Text style={styles.cardLabel}>Portfólio</Text>
+          {portfolioFotos.length > 0 ? (
+            <Text style={styles.bio}>{portfolioFotos.length} foto(s) cadastrada(s).</Text>
+          ) : (
+            <Text style={styles.empty}>Portfólio ainda não informado.</Text>
           )}
         </View>
 
@@ -390,6 +444,28 @@ function makeStyles(p: {
       color: p.textSecondary,
       fontWeight: "500",
       fontStyle: "italic",
+    },
+    infoGrid: {
+      flexDirection: "row",
+      backgroundColor: p.surface,
+      borderRadius: radius.xl,
+      borderWidth: 1,
+      paddingVertical: 14,
+      ...shadows.soft,
+    },
+    infoCell: {
+      flex: 1,
+      gap: 6,
+      paddingHorizontal: 14,
+    },
+    infoValue: {
+      ...typography.bodySmMedium,
+      fontWeight: "900",
+    },
+    infoHint: {
+      ...typography.caption,
+      color: p.textSecondary,
+      fontWeight: "500",
     },
     statsRow: {
       flexDirection: "row",

@@ -127,7 +127,7 @@ const CATEGORIAS: CategoriaCardItem[] = [
     subtitle: "Montagem e\nreparos",
     bg: colors.tealSoft,
     iconColor: colors.tealDark,
-    imageSource: require("../../../assets/images/empregador_buscar/buscar_card_montdador_logo.png"),
+    imageSource: require("../../../assets/images/empregador_buscar/buscar_card_montador_logo.png"),
     imageStyle: { width: 105, height: 75, right: -20, bottom: -2 },
   },
 ];

@@ -15,3 +15,7 @@
 .claude/
 .claire/
 .clone/
+.vscode/
+.codex/
+**backup_pre_baseline.sql
+**claude.md

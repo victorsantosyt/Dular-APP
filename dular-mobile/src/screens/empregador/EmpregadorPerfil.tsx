@@ -30,7 +30,6 @@ import { useDularColors } from "@/hooks/useDularColors";
 import { useThemeStore } from "@/stores/useThemeStore";
 import { platformSelect } from "@/utils/platform";
 import {
-  NotificationBell,
   ProfileHeroCard,
   ProfileRow,
   ProfileSection,
@@ -77,7 +76,6 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
   const setUser = useAuth((state) => state.setUser);
   const user = useAuth((state) => state.user);
   const { perfil, loading, saving, error, atualizar, refetch } = usePerfil();
-  const { rooms } = useMensagens();
   const busyRef = useRef(false);
 
   const [geoEnabled, setGeoEnabled] = useState(true);
@@ -88,12 +86,6 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
   const [editBio, setEditBio] = useState("");
   const [avatarLocal, setAvatarLocal] = useState<string | null>(null);
   const [avatarUploading, setAvatarUploading] = useState(false);
-
-  const unreadMessages = useMemo(
-    () => rooms.reduce((total, room) => total + Math.max(0, Number(room.naoLidas) || 0), 0),
-    [rooms],
-  );
-  const messagesBadge = unreadMessages > 0 ? unreadMessages : undefined;
 
   useEffect(() => {
     AsyncStorage.getItem(GEO_KEY)
@@ -208,7 +200,7 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
   };
 
   const openWhatsApp = async () => {
-    const url = `https://wa.me/5565996203033?text=${encodeURIComponent("Olá! Preciso de suporte no app Dular.")}`;
+    const url = `https://wa.me/5565996293033?text=${encodeURIComponent("Olá! Preciso de suporte no app Dular.")}`;
     const canOpen = await Linking.canOpenURL(url);
     if (!canOpen) {
       Alert.alert("WhatsApp", "Não foi possível abrir o WhatsApp.");
@@ -250,12 +242,7 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
           <View style={s.header}>
             <View style={s.headerSide} />
             <Text style={s.title}>Perfil</Text>
-            <View style={s.headerSideRight}>
-              <NotificationBell
-                hasBadge={!!messagesBadge}
-                onPress={() => navigation.navigate("Notificacoes")}
-              />
-            </View>
+            <View style={s.headerSideRight} />
           </View>
 
           {loading ? (

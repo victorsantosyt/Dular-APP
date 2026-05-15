@@ -107,11 +107,6 @@ export function MensagensEmpregadorScreen() {
     () => (activeTab === "conversas" ? MOCK_CONVERSATIONS : []),
     [activeTab],
   );
-  const unreadMessages = useMemo(
-    () => rooms.reduce((total, room) => total + Math.max(0, Number(room.naoLidas) || 0), 0),
-    [rooms],
-  );
-  const messagesBadge = unreadMessages > 0 ? unreadMessages : undefined;
 
   const openChat = useCallback(
     (item: ConversationItem) => {
@@ -135,11 +130,6 @@ export function MensagensEmpregadorScreen() {
                 Converse com os profissionais que confirmaram suas solicitações.
               </Text>
             </View>
-
-            <Pressable onPress={() => navigation.navigate("Notificacoes")} style={({ pressed }) => [s.notificationButton, pressed && { opacity: 0.78 }]}>
-              <AppIcon name="Bell" size={21} color={colors.primary} strokeWidth={2.2} />
-              {messagesBadge ? <View style={s.notificationDot} /> : null}
-            </Pressable>
           </View>
 
           <MessagesTabs activeTab={activeTab} onChange={setActiveTab} />
@@ -212,28 +202,7 @@ const s = StyleSheet.create({
     
     fontWeight: "500",
   },
-  notificationButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    ...shadows.soft,
-  },
-  notificationDot: {
-    position: "absolute",
-    top: 11,
-    right: 12,
-    width: 9,
-    height: 9,
-    borderRadius: 5,
-    borderWidth: 2,
-    borderColor: colors.surface,
-    backgroundColor: colors.notification,
-  },
+
   infoCard: {
     borderRadius: radius.lg,
     paddingHorizontal: 12,

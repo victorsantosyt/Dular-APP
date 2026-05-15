@@ -194,10 +194,6 @@ export function AgendamentosEmpregadorScreen() {
               <Text style={s.title}>Solicitações</Text>
               <Text style={s.subtitle}>Acompanhe todas as suas solicitações</Text>
             </View>
-            <Pressable onPress={() => navigation.navigate("Notificacoes")} style={({ pressed }) => [s.bellButton, pressed && { opacity: 0.78 }]} hitSlop={10}>
-              <AppIcon name="Bell" size={21} color={colors.primary} strokeWidth={2.2} />
-              <View style={s.bellDot} />
-            </Pressable>
           </View>
 
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.horizontalChips}>
@@ -303,28 +299,7 @@ const s = StyleSheet.create({
     borderColor: colors.border,
     ...shadows.soft,
   },
-  bellButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    ...shadows.soft,
-  },
-  bellDot: {
-    position: "absolute",
-    top: 11,
-    right: 12,
-    width: 9,
-    height: 9,
-    borderRadius: 5,
-    borderWidth: 2,
-    borderColor: colors.surface,
-    backgroundColor: colors.notification,
-  },
+
   title: {
     color: colors.primaryDark,
     ...typography.h1,

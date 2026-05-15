@@ -259,6 +259,8 @@ model DiaristaProfile {
   notaMedia     Float @default(0)
   totalServicos Int   @default(0)
 
+  servicosOferecidos String[] @default([])
+
   bairros DiaristaBairro[]
   agenda  Disponibilidade[]
 

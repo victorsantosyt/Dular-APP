@@ -20,9 +20,11 @@ export async function getAuthHeaders(): Promise<Record<string, string>> {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
+const REQUEST_TIMEOUT_MS = 20000;
+
 export const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 20000,
+  timeout: REQUEST_TIMEOUT_MS,
 });
 
 export async function setAuthToken(token: string | null) {
@@ -33,17 +35,42 @@ export async function setAuthToken(token: string | null) {
   }
 }
 
-// Interceptor async para inserir Authorization
+const IS_DEV = typeof __DEV__ !== "undefined" ? __DEV__ : false;
+
+// Interceptor async para inserir Authorization + timing DEV
 api.interceptors.request.use(async (config) => {
   const auth = await getAuthHeaders();
   config.headers = { ...(config.headers || {}), ...auth } as any;
+  if (IS_DEV) {
+    (config as any).metadata = { startedAt: Date.now() };
+  }
   return config;
 });
 
-// Interceptor de resposta: limpa sessão em 401 ou "jwt expired"
+// Interceptor de resposta: timing DEV + limpa sessão em 401/"jwt expired"
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    if (IS_DEV) {
+      const started = (response.config as any)?.metadata?.startedAt as number | undefined;
+      const elapsed = started ? Date.now() - started : 0;
+      const method = (response.config.method ?? "GET").toUpperCase();
+      const url = response.config.url ?? "";
+      console.log(`[api] ${method} ${url} ${response.status} ${elapsed}ms`);
+    }
+    return response;
+  },
   async (error) => {
+    if (IS_DEV) {
+      const started = (error?.config as any)?.metadata?.startedAt as number | undefined;
+      const elapsed = started ? Date.now() - started : 0;
+      const method = ((error?.config?.method as string) ?? "GET").toUpperCase();
+      const url = (error?.config?.url as string) ?? "";
+      const status = error?.response?.status ?? "ERR";
+      const isTimeout = error?.code === "ECONNABORTED" || /timeout/i.test(String(error?.message ?? ""));
+      const tag = isTimeout ? `TIMEOUT ${REQUEST_TIMEOUT_MS}ms` : `${status} ${elapsed}ms`;
+      console.log(`[api] ${method} ${url} ${tag}${error?.message ? ` — ${error.message}` : ""}`);
+    }
+
     const status = error?.response?.status;
     const message: string = error?.response?.data?.message ?? error?.message ?? "";
     const isExpired =

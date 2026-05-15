@@ -21,22 +21,56 @@ export async function GET(req: Request) {
       return NextResponse.json({ ok: false, error: "Perfil sem serviços neste fluxo." }, { status: 403 });
     }
 
+    // Substituído `include` implícito (que traz TODAS colunas do Servico) por
+    // `select` explícito + relacionamentos limitados. Diminui o payload
+    // serializado e o trabalho de hidratação do Prisma.
     const servicos = await prisma.servico.findMany({
       where,
       orderBy: { createdAt: "desc" },
-      include: {
+      take: 50,
+      select: {
+        id: true,
+        status: true,
+        tipo: true,
+        categoria: true,
+        data: true,
+        turno: true,
+        cidade: true,
+        uf: true,
+        bairro: true,
+        enderecoCompleto: true,
+        observacoes: true,
+        temPet: true,
+        quartos3Mais: true,
+        banheiros2Mais: true,
+        precoFinal: true,
+        clientId: true,
+        diaristaId: true,
+        montadorId: true,
+        createdAt: true,
+        updatedAt: true,
         cliente: { select: { id: true, nome: true, telefone: true, avatarUrl: true } },
         diarista: { select: { id: true, nome: true, telefone: true, avatarUrl: true } },
         montador: { select: { id: true, nome: true, telefone: true, avatarUrl: true } },
-        avaliacao: true,
+        avaliacao: {
+          select: {
+            id: true,
+            notaGeral: true,
+            pontualidade: true,
+            qualidade: true,
+            comunicacao: true,
+            comentario: true,
+            createdAt: true,
+          },
+        },
       },
-      take: 50,
     });
 
     const safe = servicos.map((s) => {
       const canSeeAddress =
         s.status === "ACEITO" ||
         s.status === "EM_ANDAMENTO" ||
+        s.status === "AGUARDANDO_FINALIZACAO" ||
         s.status === "CONCLUIDO" ||
         s.status === "CONFIRMADO" ||
         s.status === "FINALIZADO" ||

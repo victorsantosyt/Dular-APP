@@ -1,6 +1,14 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
+const SERVICOS_OFERECIDOS = ["DIARISTA", "BABA", "COZINHEIRA"] as const;
+type ServicoOferecido = (typeof SERVICOS_OFERECIDOS)[number];
+
+function parseServico(value: string | null): ServicoOferecido | null {
+  if (value === "DIARISTA" || value === "BABA" || value === "COZINHEIRA") return value;
+  return null;
+}
+
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
@@ -9,6 +17,8 @@ export async function GET(req: Request) {
     const bairro = searchParams.get("bairro");
     const tipo = searchParams.get("tipo") || undefined;
     const categoria = searchParams.get("categoria") || undefined;
+    const servicoParam = searchParams.get("servico");
+    const servico = parseServico(servicoParam);
 
     if (!cidade || !uf || !bairro) {
       return NextResponse.json(
@@ -16,7 +26,10 @@ export async function GET(req: Request) {
         { status: 400 }
       );
     }
-    if (categoria && !tipo) {
+    if (servicoParam && !servico) {
+      return NextResponse.json({ error: "Serviço inválido." }, { status: 400 });
+    }
+    if (categoria && !tipo && !servico) {
       return NextResponse.json({ error: "Informe tipo ao usar categoria." }, { status: 400 });
     }
 
@@ -31,6 +44,7 @@ export async function GET(req: Request) {
     const diaristas = await prisma.diaristaProfile.findMany({
       where: {
         verificacao: "VERIFICADO",
+        ...(servico ? { servicosOferecidos: { has: servico } } : {}),
         bairros: { some: { bairroId: bairroDb.id } },
         user: {
           is: {

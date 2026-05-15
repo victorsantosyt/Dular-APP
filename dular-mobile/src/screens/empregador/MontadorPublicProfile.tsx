@@ -34,6 +34,12 @@ type Navigation = BottomTabNavigationProp<EmpregadorTabParamList>;
 type RouteProps = RouteProp<EmpregadorTabParamList, "MontadorPublicProfile">;
 
 type DetalheResponse = { ok?: boolean; montador?: MontadorItem };
+type ServicoAtivoResponse = {
+  ok?: boolean;
+  hasActiveService?: boolean;
+  servico?: { id?: string; status?: string | null } | null;
+  activeService?: { id?: string; status?: string | null } | null;
+};
 
 const MONTADOR_LABELS = Object.fromEntries(
   MONTADOR_ESPECIALIDADES.map((item) => [item.id, item.label]),
@@ -58,6 +64,11 @@ export default function MontadorPublicProfile() {
   const [montador, setMontador] = useState<MontadorItem | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [activeService, setActiveService] = useState<{
+    hasActiveService: boolean;
+    id?: string;
+    status?: string | null;
+  } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -106,6 +117,38 @@ export default function MontadorPublicProfile() {
   const portfolioFotos = montador?.portfolioFotos ?? [];
   const safeScore = montador?.safeScore;
 
+  useEffect(() => {
+    let cancelled = false;
+    if (!profissionalId) {
+      setActiveService(null);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    (async () => {
+      try {
+        setActiveService(null);
+        const res = await api.get<ServicoAtivoResponse>(
+          `/api/montadores/${profissionalId}/servico-ativo`,
+        );
+        if (cancelled) return;
+        const servico = res.data?.servico ?? res.data?.activeService ?? null;
+        setActiveService({
+          hasActiveService: Boolean(res.data?.hasActiveService ?? servico),
+          id: servico?.id,
+          status: servico?.status,
+        });
+      } catch {
+        if (!cancelled) setActiveService({ hasActiveService: false });
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [profissionalId]);
+
   const styles = useMemo(
     () => makeStyles({ theme, surface: colors.surface, textPrimary: colors.textPrimary, textSecondary: colors.textSecondary, textMuted: colors.textMuted, border: colors.border, background: colors.background }),
     [theme, colors],
@@ -131,6 +174,14 @@ export default function MontadorPublicProfile() {
       profissionalId,
       profissionalNome: nome,
     });
+  };
+
+  const handleAcompanharServico = () => {
+    if (activeService?.id) {
+      navigation.navigate("EmpregadorDetalhe", { servicoId: activeService.id });
+      return;
+    }
+    navigation.navigate("Agendamentos");
   };
 
   if (loading) {
@@ -285,18 +336,53 @@ export default function MontadorPublicProfile() {
             <Text style={styles.statLabel}>Anos de experiência</Text>
           </View>
         </View>
+
+        {activeService?.hasActiveService ? (
+          <View style={[styles.activeServiceCard, { borderColor: theme.border }]}>
+            <View style={[styles.activeServiceIcon, { backgroundColor: theme.primarySoft }]}>
+              <AppIcon name="Clock" size={20} color={theme.primary} strokeWidth={2.4} />
+            </View>
+            <View style={styles.activeServiceText}>
+              <Text style={styles.activeServiceTitle}>Você já tem uma solicitação com este montador.</Text>
+              <Text style={styles.activeServiceSubtitle}>
+                Status: {statusLabel(activeService.status)}
+              </Text>
+            </View>
+            <DButton
+              label="Acompanhar"
+              variant="secondary"
+              size="sm"
+              onPress={handleAcompanharServico}
+            />
+          </View>
+        ) : null}
       </ScrollView>
 
-      <View style={[styles.footer, { borderTopColor: theme.border }]}>
-        <DButton
-          label="Contratar"
-          variant="primary"
-          size="lg"
-          onPress={handleContratar}
-        />
-      </View>
+      {activeService?.hasActiveService === false ? (
+        <View style={[styles.footer, { borderTopColor: theme.border }]}>
+          <DButton
+            label="Contratar"
+            variant="primary"
+            size="lg"
+            onPress={handleContratar}
+          />
+        </View>
+      ) : null}
     </SafeAreaView>
   );
+}
+
+function statusLabel(status?: string | null) {
+  const value = String(status ?? "").toUpperCase();
+  if (value === "PENDENTE" || value === "SOLICITADO") return "Aguardando aceite";
+  if (value === "ACEITO") return "Aceito";
+  if (value === "INICIADO" || value === "EM_ANDAMENTO") return "Em andamento";
+  if (value === "CONCLUIDO" || value === "CONCLUÍDO") return "Concluído";
+  if (value === "CONFIRMADO") return "Confirmado";
+  if (value === "FINALIZADO") return "Finalizado";
+  if (value === "CANCELADO") return "Cancelado";
+  if (value === "RECUSADO") return "Recusado";
+  return "Em acompanhamento";
 }
 
 function makeStyles(p: {
@@ -473,6 +559,37 @@ function makeStyles(p: {
       borderRadius: radius.xl,
       borderWidth: 1,
       paddingVertical: 14,
+    },
+    activeServiceCard: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: p.surface,
+      borderRadius: radius.xl,
+      borderWidth: 1,
+      padding: 14,
+      gap: 12,
+      ...shadows.soft,
+    },
+    activeServiceIcon: {
+      width: 42,
+      height: 42,
+      borderRadius: 16,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    activeServiceText: {
+      flex: 1,
+      gap: 4,
+    },
+    activeServiceTitle: {
+      ...typography.bodySmMedium,
+      color: p.textPrimary,
+      fontWeight: "800",
+    },
+    activeServiceSubtitle: {
+      ...typography.caption,
+      color: p.textSecondary,
+      fontWeight: "600",
     },
     statCell: {
       flex: 1,

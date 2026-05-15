@@ -1,3 +1,5 @@
+export type ServicoOferecido = "DIARISTA" | "BABA" | "COZINHEIRA";
+
 export type DiaristaItem = {
   id: string; // diaristaProfile.id
   verificacao: "PENDENTE" | "VERIFICADO" | "REPROVADO";
@@ -6,6 +8,7 @@ export type DiaristaItem = {
   notaMedia: number;
   totalServicos: number;
   bio?: string | null;
+  servicosOferecidos?: ServicoOferecido[];
   user: { id: string; nome: string; telefone: string };
 };
 

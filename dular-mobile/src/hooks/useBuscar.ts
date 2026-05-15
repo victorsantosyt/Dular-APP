@@ -2,6 +2,7 @@ import { useState, useCallback } from "react";
 import { apiService, type ApiResponse } from "@/services/api";
 import { useAuth } from "@/stores/authStore";
 import type { BuscarMontadoresResponse, MontadorItem } from "@/types/montador";
+import type { ServicoOferecido } from "@/types/diarista";
 
 export interface ApiDiarista {
   id: string;
@@ -62,15 +63,22 @@ export function useBuscar() {
         });
         if (params.bairro?.trim()) query.set("bairro", params.bairro.trim());
         if (params.tipo) query.set("tipo", params.tipo);
-        if (params.categoria) query.set("categoria", params.categoria);
+        const servico = serviceFromCategoria(params.categoria);
+        if (servico) query.set("servico", servico);
 
-        const diaristasRequest = params.bairro?.trim()
+        const shouldSearchMontadores = !params.categoria || params.categoria === "montador";
+        const shouldSearchDiaristas = !params.categoria || params.categoria !== "montador";
+
+        const diaristasRequest = shouldSearchDiaristas && params.bairro?.trim()
           ? apiService.get<BuscarResponse>(`/api/diaristas/buscar?${query.toString()}`, token)
           : Promise.resolve<ApiResponse<BuscarResponse>>({ data: { ok: true, diaristas: [] } });
+        const montadoresRequest = shouldSearchMontadores
+          ? apiService.get<BuscarMontadoresResponse>(`/api/montadores/buscar?${query.toString()}`, token)
+          : Promise.resolve<ApiResponse<BuscarMontadoresResponse>>({ data: { ok: true, montadores: [] } });
 
         const [diaristasResult, montadoresResult] = await Promise.allSettled([
           diaristasRequest,
-          apiService.get<BuscarMontadoresResponse>(`/api/montadores/buscar?${query.toString()}`, token),
+          montadoresRequest,
         ]);
 
         if (diaristasResult.status === "fulfilled") {
@@ -105,4 +113,11 @@ export function useBuscar() {
   );
 
   return { profissionais, montadores, loading, error, diaristasError, montadoresError, buscar };
+}
+
+function serviceFromCategoria(categoria?: string): ServicoOferecido | null {
+  if (categoria === "diarista") return "DIARISTA";
+  if (categoria === "baba") return "BABA";
+  if (categoria === "cozinheira") return "COZINHEIRA";
+  return null;
 }

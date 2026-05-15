@@ -31,6 +31,7 @@ import { requestLocationWithAddress } from "@/lib/location";
 import {
   getMe,
   getDiaristaMe,
+  patchDiaristaMe,
   updateDiaristaPrecos,
   uploadAvatarDataUrl,
   type Me,
@@ -53,11 +54,22 @@ import {
   ProfileSection,
   ProfileSwitchRow,
 } from "../empregador/profile/components";
+import type { ServicoOferecido } from "@/types/diarista";
 
 type Props = { onLogout: () => void };
 type Navigation = BottomTabNavigationProp<DiaristaTabParamList>;
 
 const GEO_KEY = "@dular:diarista_geo_enabled";
+const SERVICOS_OPTIONS: Array<{
+  id: ServicoOferecido;
+  title: string;
+  subtitle: string;
+  icon: React.ComponentProps<typeof AppIcon>["name"];
+}> = [
+  { id: "DIARISTA", title: "Diarista", subtitle: "Limpeza e organização", icon: "BrushCleaning" },
+  { id: "BABA", title: "Babá", subtitle: "Cuidados com crianças", icon: "Baby" },
+  { id: "COZINHEIRA", title: "Cozinheira", subtitle: "Preparo de refeições", icon: "ChefHat" },
+];
 
 function firstName(value?: string | null) {
   return (value || "").trim().split(/\s+/)[0] || "Diarista";
@@ -85,6 +97,7 @@ export default function DiaristaPerfil({ onLogout }: Props) {
   const s = useMemo(() => makeStyles(colors), [colors]);
   const setUser = useAuth((state) => state.setUser);
   const user = useAuth((state) => state.user);
+  const setServicosOferecidosStore = useAuth((state) => state.setServicosOferecidos);
   const busyRef = useRef(false);
 
   // ── State (preservado da versão anterior) ────────────────────────────────
@@ -103,6 +116,11 @@ export default function DiaristaPerfil({ onLogout }: Props) {
   const [catalogo, setCatalogo] = useState<CatalogoTipo[]>([]);
   const [habilidades, setHabilidades] = useState<HabilidadePayload[]>([]);
   const [savingHabs, setSavingHabs] = useState(false);
+  const [servicosOferecidos, setServicosOferecidosState] = useState<ServicoOferecido[]>([]);
+  const [servicosDraft, setServicosDraft] = useState<ServicoOferecido[]>([]);
+  const [savingServicos, setSavingServicos] = useState(false);
+  const [servicosModalVisible, setServicosModalVisible] = useState(false);
+  const [servicosError, setServicosError] = useState<string | null>(null);
 
   // ── Geo + modal de edição ────────────────────────────────────────────────
   const [geoEnabled, setGeoEnabled] = useState(true);
@@ -162,6 +180,14 @@ export default function DiaristaPerfil({ onLogout }: Props) {
       if (profile?.precoLeve != null) setPrecoLeve(profile.precoLeve);
       if (profile?.precoPesada != null) setPrecoPesada(profile.precoPesada);
       if (profile?.bio != null) setBio(profile.bio);
+      if (Array.isArray(profile?.servicosOferecidos)) {
+        setServicosOferecidosState(profile.servicosOferecidos);
+        await setServicosOferecidosStore(profile.servicosOferecidos);
+      } else if (user?.servicosOferecidos?.length) {
+        setServicosOferecidosState(user.servicosOferecidos);
+      } else {
+        setServicosOferecidosState(["DIARISTA"]);
+      }
       const foto = profile?.fotoUrl || profile?.avatarUrl;
       if (foto) setAvatarRemote(foto);
       if (profile?.verificacao) {
@@ -175,7 +201,7 @@ export default function DiaristaPerfil({ onLogout }: Props) {
     } finally {
       setLoading(false);
     }
-  }, [applyMe]);
+  }, [applyMe, setServicosOferecidosStore, user?.servicosOferecidos]);
 
   useFocusEffect(useCallback(() => { loadMe(); }, [loadMe]));
 
@@ -244,6 +270,52 @@ export default function DiaristaPerfil({ onLogout }: Props) {
       setToast(apiMsg(e, "Falha ao salvar habilidades."));
     } finally {
       setSavingHabs(false);
+    }
+  };
+
+  const openServicosModal = () => {
+    setServicosDraft(servicosOferecidos);
+    setServicosError(null);
+    setServicosModalVisible(true);
+  };
+
+  const closeServicosModal = () => {
+    if (savingServicos) return;
+    setServicosModalVisible(false);
+    setServicosError(null);
+  };
+
+  const toggleServicoDraft = (servico: ServicoOferecido) => {
+    setServicosDraft((current) =>
+      current.includes(servico)
+        ? current.filter((item) => item !== servico)
+        : [...current, servico],
+    );
+  };
+
+  const salvarServicosOferecidos = async () => {
+    if (savingServicos) return;
+    if (servicosDraft.length === 0) {
+      setServicosError("Selecione ao menos um serviço.");
+      return;
+    }
+    try {
+      setSavingServicos(true);
+      setServicosError(null);
+      const updated = await patchDiaristaMe({ servicosOferecidos: servicosDraft });
+      const next = Array.isArray(updated?.servicosOferecidos)
+        ? updated.servicosOferecidos
+        : servicosDraft;
+      setServicosOferecidosState(next);
+      setServicosDraft(next);
+      await setServicosOferecidosStore(next);
+      setUser((current) => current ? { ...current, servicosOferecidos: next } : current);
+      setServicosModalVisible(false);
+      setToast("Serviços oferecidos salvos.");
+    } catch (e: any) {
+      setServicosError(apiMsg(e, "Falha ao salvar serviços. Tente novamente."));
+    } finally {
+      setSavingServicos(false);
     }
   };
 
@@ -429,6 +501,18 @@ export default function DiaristaPerfil({ onLogout }: Props) {
 
               {/* ── Profissional (diarista-específico) ── */}
               <ProfileSection title="Profissional">
+                <ProfileRow
+                  icon="Sparkles"
+                  title="Serviços oferecidos"
+                  subtitle={
+                    servicosOferecidos.length > 0
+                      ? servicosOferecidos
+                          .map((id) => SERVICOS_OPTIONS.find((item) => item.id === id)?.title ?? id)
+                          .join(", ")
+                      : "Escolha o que aparece no seu perfil"
+                  }
+                  onPress={openServicosModal}
+                />
                 <ProfileRow
                   icon="MapPin"
                   title="Editar bairros"
@@ -676,6 +760,82 @@ export default function DiaristaPerfil({ onLogout }: Props) {
           </View>
         </View>
       </Modal>
+
+      {/* ── Modal flutuante de serviços oferecidos ── */}
+      <Modal
+        visible={servicosModalVisible}
+        animationType="fade"
+        transparent
+        onRequestClose={closeServicosModal}
+      >
+        <View style={s.habsOverlay}>
+          <View style={s.servicosModalCard}>
+            <View style={s.modalHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={s.modalTitle}>Serviços oferecidos</Text>
+                <Text style={s.servicosModalSubtitle}>
+                  Escolha os serviços que devem aparecer no seu perfil.
+                </Text>
+              </View>
+              <Pressable onPress={closeServicosModal} hitSlop={12}>
+                <AppIcon name="XCircle" size={23} color={colors.textSecondary} />
+              </Pressable>
+            </View>
+
+            <View style={s.servicosGrid}>
+              {SERVICOS_OPTIONS.map((item) => {
+                const active = servicosDraft.includes(item.id);
+                return (
+                  <Pressable
+                    key={item.id}
+                    onPress={() => toggleServicoDraft(item.id)}
+                    disabled={savingServicos}
+                    style={({ pressed }) => [
+                      s.servicoCard,
+                      active && s.servicoCardActive,
+                      pressed && { opacity: 0.78 },
+                    ]}
+                  >
+                    <View style={[s.servicoIcon, active && s.servicoIconActive]}>
+                      <AppIcon
+                        name={item.icon}
+                        size={18}
+                        color={active ? colors.white : colors.primary}
+                        strokeWidth={2.3}
+                      />
+                    </View>
+                    <View style={s.servicoTextWrap}>
+                      <Text style={s.servicoTitle}>{item.title}</Text>
+                      <Text style={s.servicoSubtitle}>{item.subtitle}</Text>
+                    </View>
+                    <View style={[s.servicoCheck, active && s.servicoCheckActive]}>
+                      {active ? <AppIcon name="Check" size={13} color={colors.white} strokeWidth={3} /> : null}
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            {servicosError ? <Text style={s.servicosError}>{servicosError}</Text> : null}
+
+            <View style={s.servicosActions}>
+              <DButton
+                label="Cancelar"
+                onPress={closeServicosModal}
+                variant="secondary"
+                disabled={savingServicos}
+                style={s.servicosActionButton}
+              />
+              <DButton
+                label={savingServicos ? "Salvando..." : "Salvar"}
+                onPress={salvarServicosOferecidos}
+                loading={savingServicos}
+                style={s.servicosActionButton}
+              />
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -805,6 +965,86 @@ function makeStyles(colors: ThemeColors) {
   },
   chipTextOn: {
     color: colors.white,
+  },
+
+  // Serviços oferecidos
+  servicosBox: {
+    padding: 14,
+    gap: 12,
+  },
+  servicosHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  servicosTitle: {
+    color: colors.textPrimary,
+    ...typography.bodySm,
+    fontWeight: "800",
+  },
+  servicosSubtitle: {
+    color: colors.textSecondary,
+    ...typography.caption,
+    fontWeight: "500",
+    marginTop: 3,
+  },
+  servicosGrid: {
+    gap: 9,
+  },
+  servicoCard: {
+    minHeight: 68,
+    borderRadius: radius.md,
+    borderWidth: 1.4,
+    borderColor: colors.border,
+    backgroundColor: colors.background,
+    padding: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  servicoCardActive: {
+    borderColor: colors.primary,
+    backgroundColor: colors.lavenderSoft,
+  },
+  servicoIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.lavender,
+  },
+  servicoIconActive: {
+    backgroundColor: colors.primary,
+  },
+  servicoTextWrap: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
+  },
+  servicoTitle: {
+    color: colors.textPrimary,
+    ...typography.bodySm,
+    fontWeight: "800",
+  },
+  servicoSubtitle: {
+    color: colors.textSecondary,
+    ...typography.caption,
+    fontWeight: "500",
+  },
+  servicoCheck: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 1.4,
+    borderColor: colors.border,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.surface,
+  },
+  servicoCheckActive: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primary,
   },
 
   // Logout
@@ -957,6 +1197,35 @@ function makeStyles(colors: ThemeColors) {
     backgroundColor: colors.surface,
     gap: spacing.sm,
     ...shadows.floating,
+  },
+  servicosModalCard: {
+    width: "100%",
+    borderRadius: radius.xl,
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.md,
+    backgroundColor: colors.surface,
+    gap: spacing.md,
+    ...shadows.floating,
+  },
+  servicosModalSubtitle: {
+    color: colors.textSecondary,
+    ...typography.bodySm,
+    lineHeight: 20,
+    fontWeight: "500",
+    marginTop: 4,
+  },
+  servicosError: {
+    color: colors.danger,
+    ...typography.caption,
+    fontWeight: "700",
+  },
+  servicosActions: {
+    flexDirection: "row",
+    gap: spacing.sm,
+  },
+  servicosActionButton: {
+    flex: 1,
   },
   habsScroll: {
     paddingVertical: spacing.sm,

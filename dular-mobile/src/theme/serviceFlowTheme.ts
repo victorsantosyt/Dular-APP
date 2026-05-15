@@ -17,10 +17,7 @@ export type ServiceFlowTheme = {
 };
 
 export function getServiceFlowTheme(tipo?: ServiceFlowTipo | null): ServiceFlowTheme {
-  const theme =
-    tipo === "MONTADOR"
-      ? getProfileTheme({ role: "MONTADOR", genero: null })
-      : getProfileTheme({ role: "EMPREGADOR" });
+  const theme = getProfileTheme({ role: "EMPREGADOR" });
 
   return {
     primary: theme.primary,

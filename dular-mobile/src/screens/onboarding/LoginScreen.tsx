@@ -9,7 +9,7 @@ import { AppIcon, DCard } from "@/components/ui";
 import { DularLogo } from "@/assets/brand";
 import { PageDots } from "@/components/onboarding/PageDots";
 import { colors, radius, shadows, spacing, typography } from "@/theme";
-import { API_BASE_URL } from "@/lib/api";
+import { api, API_BASE_URL } from "@/lib/api";
 import { markOnboardingSeen } from "@/lib/onboarding";
 import { useAuthStore } from "@/stores/authStore";
 import type { OnboardingStackParamList } from "@/navigation/OnboardingNavigator";
@@ -119,6 +119,7 @@ export function LoginScreen() {
   const navigation = useNavigation<Navigation>();
   const preLoginRole = useAuthStore((state) => state.selectedRole);
   const preLoginGenero = useAuthStore((state) => state.selectedGenero);
+  const servicosOferecidos = useAuthStore((state) => state.servicosOferecidos);
   const setSession = useAuthStore((state) => state.setSession);
   const [loadingProvider, setLoadingProvider] = useState<Provider | null>(null);
 
@@ -206,6 +207,15 @@ export function LoginScreen() {
 
       await markOnboardingSeen();
       await setSession({ token, role: returnedRole });
+      if (returnedRole === "DIARISTA") {
+        try {
+          await api.patch("/api/diarista/me", {
+            servicosOferecidos: servicosOferecidos.length > 0 ? servicosOferecidos : ["DIARISTA"],
+          });
+        } catch {
+          // O login não deve falhar se a sincronização dos serviços não completar.
+        }
+      }
     } catch {
       Alert.alert("Erro", "Não foi possível concluir o login. Tente novamente.");
     } finally {

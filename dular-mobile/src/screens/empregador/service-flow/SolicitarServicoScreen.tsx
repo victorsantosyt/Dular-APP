@@ -31,7 +31,8 @@ export function SolicitarServicoScreen() {
   const flowTheme = getServiceFlowTheme(draft.tipo);
   const isMontador = draft.tipo === "MONTADOR";
   const missingMontador = isMontador && !draft.profissionalId;
-  const canContinue = !isMontador || Boolean(draft.especialidadeId);
+  const canContinue = isMontador ? Boolean(draft.especialidadeId) : Boolean(draft.profissionalId);
+  const hasSelectedProfessional = Boolean(draft.profissionalId);
 
   const leaveFlow = () => {
     const parent = navigation.getParent<BottomTabNavigationProp<EmpregadorTabParamList>>();
@@ -52,9 +53,24 @@ export function SolicitarServicoScreen() {
     if (navigation.canGoBack()) navigation.goBack();
   };
 
+  const goToBuscarCategoria = (categoria: ServiceCategory) => {
+    resetDraft();
+    const parent = navigation.getParent<BottomTabNavigationProp<EmpregadorTabParamList>>();
+    if (parent) {
+      parent.navigate("Buscar", { categoriaInicial: categoria });
+      return;
+    }
+    if (navigation.canGoBack()) navigation.goBack();
+  };
+
   const selectGeneralService = (service: ServiceCategory) => {
     if (service === "montador") {
       goToMontadores();
+      return;
+    }
+
+    if (!draft.profissionalId) {
+      goToBuscarCategoria(service);
       return;
     }
 
@@ -144,7 +160,7 @@ export function SolicitarServicoScreen() {
                   title={service.title}
                   subtitle={service.subtitle}
                   icon={service.icon}
-                  selected={draft.categoria === service.id}
+                  selected={hasSelectedProfessional && draft.categoria === service.id}
                   theme={flowTheme}
                   onPress={() => selectGeneralService(service.id)}
                 />

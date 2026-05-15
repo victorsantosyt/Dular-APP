@@ -1,6 +1,7 @@
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
+import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 
 import { useDiaristaPublico } from "@/hooks/useDiaristaPublico";
 import { SafeScoreBadge } from "@/components/SafeScoreBadge";
@@ -12,6 +13,7 @@ import { shadow } from "@/utils/platform";
 import type { EmpregadorTabParamList } from "@/navigation/EmpregadorNavigator";
 
 type RouteProps = RouteProp<EmpregadorTabParamList, "DiaristaProfile">;
+type Navigation = BottomTabNavigationProp<EmpregadorTabParamList>;
 
 function tempoLabel(meses: number): string {
   if (meses < 12) return `${meses} ${meses === 1 ? "mês" : "meses"}`;
@@ -20,9 +22,9 @@ function tempoLabel(meses: number): string {
 }
 
 export function DiaristaProfileScreen() {
-  const navigation = useNavigation();
+  const navigation = useNavigation<Navigation>();
   const route = useRoute<RouteProps>();
-  const { diaristaId, nome: nomeParam } = route.params;
+  const { diaristaId, nome: nomeParam, categoriaInicial = "diarista" } = route.params;
   const insets = useSafeAreaInsets();
 
   const { diarista, loading, error } = useDiaristaPublico(diaristaId);
@@ -31,7 +33,16 @@ export function DiaristaProfileScreen() {
   const hasAvatar = Boolean(diarista?.avatarUrl);
 
   const handleContratar = () => {
-    Alert.alert("Em breve", "Fluxo de contratação em breve!");
+    if (!diaristaId) {
+      Alert.alert("Perfil inválido", "Não foi possível identificar a profissional.");
+      return;
+    }
+    navigation.navigate("SolicitarServico", {
+      categoriaInicial,
+      tipoInicial: "DIARISTA",
+      profissionalId: diaristaId,
+      profissionalNome: nome,
+    });
   };
 
   // ── Loading ────────────────────────────────────────────────────────────────

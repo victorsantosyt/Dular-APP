@@ -1,4 +1,5 @@
 import { api } from "@/lib/api";
+import type { ServicoOferecido } from "@/types/diarista";
 
 export type VerificacaoStatus = "NAO_ENVIADO" | "PENDENTE" | "APROVADO" | "REPROVADO";
 
@@ -25,6 +26,7 @@ export type Me = {
   precoPesada?: number | null;
   precoPesado?: number | null;
   verificado?: boolean;
+  servicosOferecidos?: ServicoOferecido[];
   docEnviado?: boolean;
   verificacao?: VerificacaoInfo;
 };
@@ -56,6 +58,11 @@ export async function changePassword(payload: { senhaAtual: string; novaSenha: s
 
 export async function getDiaristaMe() {
   const res = await api.get("/api/diarista/me");
+  return res.data?.profile ?? res.data;
+}
+
+export async function patchDiaristaMe(payload: { servicosOferecidos?: ServicoOferecido[] }) {
+  const res = await api.patch("/api/diarista/me", payload);
   return res.data?.profile ?? res.data;
 }
 

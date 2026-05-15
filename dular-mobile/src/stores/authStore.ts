@@ -3,6 +3,7 @@ import { create } from "zustand";
 import { api, setAuthToken, registerClearSession } from "@/lib/api";
 import { SecureStorage } from "@/services/secureStorage";
 import { useThemeStore } from "@/stores/useThemeStore";
+import type { ServicoOferecido } from "@/types/diarista";
 
 function isJwtExpired(token: string): boolean {
   try {
@@ -35,6 +36,7 @@ type User = {
   bairroAtual?: string | null;
   localizacaoPermitida?: boolean;
   localizacaoAtualizadaEm?: string | null;
+  servicosOferecidos?: ServicoOferecido[];
   verificado?: boolean;
   docEnviado?: boolean;
   verificacao?: {
@@ -50,10 +52,12 @@ type AuthState = {
   role: Role | null;
   selectedRole: Role | null;
   selectedGenero: Genero | null;
+  servicosOferecidos: ServicoOferecido[];
   hydrated: boolean;
   isAuthenticated: boolean;
   setSelectedRole: (role: Role) => void;
   setSelectedGenero: (genero: Genero) => void;
+  setServicosOferecidos: (servicos: ServicoOferecido[]) => Promise<void>;
   setSession: (data: { token: string; role: Role; user?: User | null }) => Promise<void>;
   clearSession: () => Promise<void>;
   hydrate: () => Promise<void>;
@@ -61,7 +65,7 @@ type AuthState = {
 };
 
 // Non-sensitive keys that stay in AsyncStorage
-const ASYNC_KEYS = ["role", "dular_role", "userName", "userId", "genero"] as const;
+const ASYNC_KEYS = ["role", "dular_role", "userName", "userId", "genero", "servicosOferecidos"] as const;
 
 function normalizeRole(value: string | null | undefined): Role | null {
   if (value === "EMPREGADOR" || value === "DIARISTA" || value === "MONTADOR" || value === "ADMIN") {
@@ -73,6 +77,19 @@ function normalizeRole(value: string | null | undefined): Role | null {
 function normalizeGenero(value: string | null | undefined): Genero | null {
   if (value === "MASCULINO" || value === "FEMININO") return value;
   return null;
+}
+
+function normalizeServicosOferecidos(value: unknown): ServicoOferecido[] {
+  const raw = Array.isArray(value)
+    ? value
+    : typeof value === "string"
+      ? value.split(",")
+      : [];
+  const normalized = raw.filter(
+    (item): item is ServicoOferecido =>
+      item === "DIARISTA" || item === "BABA" || item === "COZINHEIRA",
+  );
+  return Array.from(new Set(normalized));
 }
 
 async function fetchSessionUser(): Promise<User | null> {
@@ -91,10 +108,19 @@ export const useAuth = create<AuthState>((set, get) => ({
   role: null,
   selectedRole: null,
   selectedGenero: null,
+  servicosOferecidos: [],
   hydrated: false,
   isAuthenticated: false,
   setSelectedRole: (role) => set({ selectedRole: role }),
   setSelectedGenero: (genero) => set({ selectedGenero: genero }),
+  setServicosOferecidos: async (servicos) => {
+    const normalized = normalizeServicosOferecidos(servicos);
+    await AsyncStorage.setItem("servicosOferecidos", normalized.join(","));
+    const currentUser = get().user;
+    const nextUser = currentUser ? { ...currentUser, servicosOferecidos: normalized } : currentUser;
+    if (nextUser) await SecureStorage.saveUser(nextUser);
+    set({ servicosOferecidos: normalized, user: nextUser });
+  },
 
   async setSession(data) {
     const { token, role, user } = data;
@@ -102,12 +128,22 @@ export const useAuth = create<AuthState>((set, get) => ({
     await SecureStorage.saveToken(token);
 
     const selectedGenero = get().selectedGenero;
+    const selectedServicos = get().servicosOferecidos;
     const apiUser = await fetchSessionUser();
+    const apiServicos = normalizeServicosOferecidos(apiUser?.servicosOferecidos);
+    const userServicos = normalizeServicosOferecidos(user?.servicosOferecidos);
+    const reconciledServicos =
+      selectedServicos.length > 0
+        ? selectedServicos
+        : apiServicos.length > 0
+          ? apiServicos
+          : userServicos;
     const reconciledUser: User = {
       ...(user ?? apiUser ?? { id: "", nome: "", role }),
       ...(apiUser ?? {}),
       role: (apiUser?.role ?? user?.role ?? role) as Role,
       genero: apiUser?.genero ?? user?.genero ?? selectedGenero ?? null,
+      servicosOferecidos: reconciledServicos,
     };
 
     await SecureStorage.saveUser(reconciledUser);
@@ -117,6 +153,7 @@ export const useAuth = create<AuthState>((set, get) => ({
     if (reconciledUser.nome) entries.push(["userName", reconciledUser.nome]);
     if (reconciledUser.id) entries.push(["userId", reconciledUser.id]);
     if (reconciledUser.genero) entries.push(["genero", reconciledUser.genero]);
+    if (reconciledUser.servicosOferecidos?.length) entries.push(["servicosOferecidos", reconciledUser.servicosOferecidos.join(",")]);
     await AsyncStorage.multiSet(entries);
 
     set({
@@ -124,6 +161,7 @@ export const useAuth = create<AuthState>((set, get) => ({
       role: reconciledUser.role ?? role,
       user: reconciledUser,
       selectedGenero: reconciledUser.genero ?? selectedGenero,
+      servicosOferecidos: reconciledUser.servicosOferecidos ?? selectedServicos,
       isAuthenticated: true,
     });
   },
@@ -136,7 +174,7 @@ export const useAuth = create<AuthState>((set, get) => ({
     // próximo usuário (também garantido pelo ThemeScope forceLight, mas
     // limpar o store evita que o próximo login herde o dark mode anterior).
     useThemeStore.getState().setTheme("light");
-    set({ token: null, role: null, user: null, isAuthenticated: false, selectedRole: null, selectedGenero: null });
+    set({ token: null, role: null, user: null, isAuthenticated: false, selectedRole: null, selectedGenero: null, servicosOferecidos: [] });
   },
 
   async hydrate() {
@@ -149,6 +187,7 @@ export const useAuth = create<AuthState>((set, get) => ({
     const map = Object.fromEntries(pairs);
     const role = normalizeRole(map["role"] || map["dular_role"]);
     const genero = normalizeGenero(map["genero"]);
+    const servicosOferecidos = normalizeServicosOferecidos(map["servicosOferecidos"]);
     const userName = map["userName"];
     const userId = map["userId"];
 
@@ -157,22 +196,29 @@ export const useAuth = create<AuthState>((set, get) => ({
         await setAuthToken(null);
         await SecureStorage.clearAll();
         await AsyncStorage.multiRemove(ASYNC_KEYS as unknown as string[]);
-        set({ token: null, role: null, user: null, hydrated: true, isAuthenticated: false });
+        set({ token: null, role: null, user: null, servicosOferecidos: [], hydrated: true, isAuthenticated: false });
         return;
       }
 
       let userObj: User | null = userFromSecure
-        ? { ...userFromSecure, role, genero: userFromSecure.genero ?? genero }
+        ? {
+            ...userFromSecure,
+            role,
+            genero: userFromSecure.genero ?? genero,
+            servicosOferecidos: servicosOferecidos.length > 0
+              ? servicosOferecidos
+              : normalizeServicosOferecidos(userFromSecure.servicosOferecidos),
+          }
         : null;
       if (!userObj && (userName || userId)) {
-        userObj = { id: userId || "", nome: userName || "", role, genero };
+        userObj = { id: userId || "", nome: userName || "", role, genero, servicosOferecidos };
       }
 
       await setAuthToken(token);
-      set({ token, role, user: userObj, selectedGenero: userObj?.genero ?? genero, hydrated: true, isAuthenticated: true });
+      set({ token, role, user: userObj, selectedGenero: userObj?.genero ?? genero, servicosOferecidos: userObj?.servicosOferecidos ?? servicosOferecidos, hydrated: true, isAuthenticated: true });
       return;
     }
-    set({ hydrated: true, isAuthenticated: false });
+    set({ hydrated: true, isAuthenticated: false, servicosOferecidos });
   },
 
   setUser(next) {

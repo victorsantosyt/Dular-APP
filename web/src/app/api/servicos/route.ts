@@ -1,9 +1,35 @@
 import { NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/requireAuth";
 import { criarServicoSchema } from "@/lib/schemas/servicos";
 import { sendPushNotification } from "@/lib/notifications";
 import { calcularCompletudeMontador } from "@/lib/montadorProfile";
+
+const ACTIVE_MONTADOR_SERVICE_STATUSES = [
+  "PENDENTE",
+  "SOLICITADO",
+  "ACEITO",
+  "CONFIRMADO",
+  "EM_ANDAMENTO",
+  "AGUARDANDO_FINALIZACAO",
+  "CONCLUIDO",
+] as const;
+
+async function findActiveMontadorService(montadorUserId: string) {
+  const rows = await prisma.$queryRaw<
+    Array<{ id: string; status: string; createdAt: Date; updatedAt: Date }>
+  >(Prisma.sql`
+    SELECT "id", "status"::text AS "status", "createdAt", "updatedAt"
+    FROM "Servico"
+    WHERE "montadorId" = ${montadorUserId}
+      AND "status"::text IN (${Prisma.join(ACTIVE_MONTADOR_SERVICE_STATUSES)})
+    ORDER BY "createdAt" DESC
+    LIMIT 1
+  `);
+
+  return rows[0] ?? null;
+}
 
 export async function POST(req: Request) {
   try {
@@ -93,6 +119,19 @@ export async function POST(req: Request) {
         return NextResponse.json(
           { ok: false, error: "Montador indisponível." },
           { status: 400 },
+        );
+      }
+
+      const activeService = await findActiveMontadorService(profissionalId);
+      if (activeService) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error: "Montador já possui serviço ativo.",
+            servicoId: activeService.id,
+            status: activeService.status,
+          },
+          { status: 409 },
         );
       }
 

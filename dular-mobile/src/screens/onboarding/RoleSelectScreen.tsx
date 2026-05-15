@@ -24,7 +24,7 @@ type Role = "EMPREGADOR" | "DIARISTA" | "MONTADOR";
 const { width } = Dimensions.get("window");
 
 type Navigation = NativeStackNavigationProp<OnboardingStackParamList>;
-type ChosenRole = "empregador" | "diarista" | "montador";
+type ChosenRole = "empregador" | "profissional_casa" | "montador";
 type IoniconsName = ComponentProps<typeof Ionicons>["name"];
 
 const empregadorImg = require("../../../assets/images/roles/role_cliente_card.png");
@@ -183,8 +183,16 @@ export function RoleSelectScreen() {
   const navigation = useNavigation<Navigation>();
 
   const chooseRole = (role: ChosenRole) => {
-    const mapped: Role = role === "empregador" ? "EMPREGADOR" : role === "diarista" ? "DIARISTA" : "MONTADOR";
-    useAuthStore.getState().setSelectedRole(mapped);
+    const mapped: Role = role === "empregador" ? "EMPREGADOR" : role === "profissional_casa" ? "DIARISTA" : "MONTADOR";
+    const auth = useAuthStore.getState();
+    auth.setSelectedRole(mapped);
+    if (role === "profissional_casa") {
+      if (auth.servicosOferecidos.length === 0) {
+        void auth.setServicosOferecidos(["DIARISTA"]);
+      }
+      navigation.navigate("NichosSelect");
+      return;
+    }
     navigation.navigate("GeneroSelect");
   };
 
@@ -233,12 +241,12 @@ export function RoleSelectScreen() {
           bgTop="#FFE0EC"
           bgCard="#FFF0F5"
           borderHex={PINK + "4D"}
-          title="Diarista"
+          title="Casa"
           description={"Conquiste mais\noportunidades e\naumente sua renda."}
           badgeIcon="briefcase-outline"
           features={diaristaFeatures}
-          buttonLabel="Sou Diarista"
-          onPress={() => chooseRole("diarista")}
+          buttonLabel="Sou profissional de casa"
+          onPress={() => chooseRole("profissional_casa")}
         />
 
         <RoleCard

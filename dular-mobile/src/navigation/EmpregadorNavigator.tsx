@@ -36,7 +36,7 @@ export type EmpregadorTabParamList = {
   ChatAberto: ChatAbertoParams;
   Perfil: undefined;
   ProfissionalPerfil: { id: string };
-  DiaristaProfile: { diaristaId: string; nome: string };
+  DiaristaProfile: { diaristaId: string; nome: string; categoriaInicial?: ServiceCategory };
   MontadorPublicProfile: {
     montadorId: string;
     montadorUserId?: string;

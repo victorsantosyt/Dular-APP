@@ -89,7 +89,12 @@ export function ServiceFlowProvider({
 }: Props) {
   const [draft, setDraft] = useState<ServiceDraft>(() => {
     if (!initialCategoria && !initialTipo && !initialProfissionalId) return INITIAL_DRAFT;
-    const categoria = initialCategoria ?? (initialTipo === "MONTADOR" ? "montador" : INITIAL_DRAFT.categoria);
+    const categoria =
+      initialProfissionalId && initialCategoria
+        ? initialCategoria
+        : initialTipo === "MONTADOR"
+          ? "montador"
+          : INITIAL_DRAFT.categoria;
     const tipo = initialTipo ?? tipoProfissionalFromCategoria(categoria);
     return {
       ...INITIAL_DRAFT,

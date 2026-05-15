@@ -83,6 +83,12 @@ const MONTADOR_LABELS = Object.fromEntries(
   MONTADOR_ESPECIALIDADES_PUBLICAS.map((item) => [item.id, item.label]),
 ) as Record<string, string>;
 
+const DIARISTA_CATEGORY_META: Record<Exclude<CategoriaKey, "montador">, { label: string; icon: AppIconName }> = {
+  diarista: { label: "Diarista", icon: "BrushCleaning" },
+  baba: { label: "Babá", icon: "Baby" },
+  cozinheira: { label: "Cozinheira", icon: "ChefHat" },
+};
+
 const CATEGORIAS: CategoriaCardItem[] = [
   {
     key: "baba",
@@ -217,15 +223,16 @@ const MOCK_PROFISSIONAIS: Profissional[] = [
   },
 ];
 
-function mapApiToProf(d: ApiDiarista, bairro: string, cidade: string): Profissional {
+function mapApiToProf(d: ApiDiarista, bairro: string, cidade: string, categoria: Exclude<CategoriaKey, "montador"> = "diarista"): Profissional {
+  const meta = DIARISTA_CATEGORY_META[categoria];
   return {
     id: d.userId,
     userId: d.userId,
     tipo: "DIARISTA",
     nome: d.user?.nome ?? "Profissional",
-    categoria: "Diarista",
-    categoriaIcon: "BrushCleaning",
-    categoriaKey: "diarista",
+    categoria: meta.label,
+    categoriaIcon: meta.icon,
+    categoriaKey: categoria,
     localizacao: bairro && cidade ? `${bairro}, ${cidade}` : cidade || "--",
     nota: d.notaMedia > 0 ? d.notaMedia.toFixed(1).replace(".", ",") : "--",
     experiencia: d.totalServicos > 0 ? `${d.totalServicos} serviços` : "Novo",
@@ -376,6 +383,7 @@ function ProfCard({ prof }: { prof: Profissional }) {
             navigation.navigate("DiaristaProfile", {
               diaristaId: prof.userId,
               nome: prof.nome,
+              categoriaInicial: prof.categoriaKey === "montador" ? "diarista" : prof.categoriaKey,
             });
           }}
         />
@@ -425,9 +433,9 @@ export function BuscarScreen() {
 
   useEffect(() => {
     if (regionConfirmed && region.cidade && region.uf) {
-      buscar({ cidade: region.cidade, uf: region.uf, bairro: region.bairro });
+      buscar({ cidade: region.cidade, uf: region.uf, bairro: region.bairro, categoria: selectedCat ?? undefined });
     }
-  }, [buscar, region.bairro, region.cidade, region.uf, regionConfirmed]);
+  }, [buscar, region.bairro, region.cidade, region.uf, regionConfirmed, selectedCat]);
 
   useEffect(() => {
     if (route.params?.categoriaInicial) {
@@ -487,11 +495,16 @@ export function BuscarScreen() {
     () =>
       regionConfirmed && (apiProfs.length > 0 || apiMontadores.length > 0)
         ? [
-            ...apiProfs.map((d) => mapApiToProf(d, region.bairro, region.cidade)),
+            ...apiProfs.map((d) => mapApiToProf(
+              d,
+              region.bairro,
+              region.cidade,
+              selectedCat && selectedCat !== "montador" ? selectedCat : "diarista",
+            )),
             ...apiMontadores.map(mapMontadorToProf),
           ]
         : [],
-    [apiMontadores, apiProfs, region.bairro, region.cidade, regionConfirmed],
+    [apiMontadores, apiProfs, region.bairro, region.cidade, regionConfirmed, selectedCat],
   );
 
   const filteredList = useMemo(() => {
@@ -622,7 +635,7 @@ export function BuscarScreen() {
                   label="Tentar novamente"
                   onPress={() => {
                     if (region.cidade && region.uf) {
-                      buscar({ cidade: region.cidade, uf: region.uf, bairro: region.bairro });
+                      buscar({ cidade: region.cidade, uf: region.uf, bairro: region.bairro, categoria: selectedCat ?? undefined });
                     }
                   }}
                 />

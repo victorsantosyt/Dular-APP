@@ -2,43 +2,77 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/requireAuth";
 
-const SERVICOS_OFERECIDOS = ["DIARISTA", "BABA", "COZINHEIRA"] as const;
-type ServicoOferecido = (typeof SERVICOS_OFERECIDOS)[number];
+export const dynamic = "force-dynamic";
 
-function normalizeServicosOferecidos(value: unknown): ServicoOferecido[] | null {
-  if (!Array.isArray(value)) return null;
-  const normalized = value.filter(
-    (item): item is ServicoOferecido =>
-      item === "DIARISTA" || item === "BABA" || item === "COZINHEIRA",
-  );
-  if (normalized.length !== value.length || normalized.length === 0) return null;
-  return Array.from(new Set(normalized));
-}
+const SERVICOS_PERMITIDOS = ["DIARISTA", "BABA", "COZINHEIRA"];
 
 export async function GET(req: Request) {
+  const t0 = Date.now();
+  const isDev = process.env.NODE_ENV === "development";
   try {
+    const tAuth = Date.now();
     const auth = requireAuth(req);
+    if (isDev) console.log(`[diarista/me GET] auth: ${Date.now() - tAuth}ms`);
     if (auth.role !== "DIARISTA") {
       return NextResponse.json({ ok: false, error: "Apenas diarista." }, { status: 403 });
     }
 
+    // Antes: include pesado com nested include em bairros -> N+1.
+    // Agora: select específico das colunas necessárias e os relacionamentos
+    // achatados (sem nested include). Reduz fortemente o payload e o tempo.
+    const tQuery = Date.now();
     const profile = await prisma.diaristaProfile.findUnique({
       where: { userId: auth.userId },
-      include: {
+      select: {
+        id: true,
+        userId: true,
+        verificacao: true,
+        ativo: true,
+        fotoUrl: true,
+        docUrl: true,
+        bio: true,
+        precoLeve: true,
+        precoMedio: true,
+        precoPesada: true,
+        notaMedia: true,
+        totalServicos: true,
+        servicosOferecidos: true,
+        createdAt: true,
+        updatedAt: true,
         user: { select: { id: true, nome: true, telefone: true, status: true } },
-        agenda: true,
+        agenda: {
+          select: {
+            id: true,
+            diaSemana: true,
+            turno: true,
+            ativo: true,
+          },
+        },
         bairros: {
-          include: { bairro: true },
+          select: {
+            id: true,
+            bairroId: true,
+            bairro: {
+              select: { id: true, nome: true, cidade: true, uf: true },
+            },
+          },
         },
       },
     });
+
+    if (isDev) console.log(`[diarista/me GET] profile query: ${Date.now() - tQuery}ms`);
 
     if (!profile) {
       return NextResponse.json({ ok: false, error: "Perfil não encontrado." }, { status: 404 });
     }
 
+    if (isDev) console.log(`[diarista/me GET] TOTAL: ${Date.now() - t0}ms`);
     return NextResponse.json({ ok: true, profile });
   } catch (error: unknown) {
+    if (isDev) {
+      const msg = error instanceof Error ? error.message : "unknown";
+      console.log(`[diarista/me GET] ERROR after ${Date.now() - t0}ms: ${msg}`);
+    }
     if (error instanceof Error && error.message === "Unauthorized") {
       return NextResponse.json({ ok: false, error: "Não autorizado" }, { status: 401 });
     }
@@ -55,21 +89,28 @@ export async function PATCH(req: Request) {
     }
 
     const body = await req.json();
-    const servicosOferecidos = normalizeServicosOferecidos(body?.servicosOferecidos);
-    if (!servicosOferecidos) {
-      return NextResponse.json({ ok: false, error: "Serviços oferecidos inválidos." }, { status: 400 });
+    const data: Record<string, unknown> = {};
+
+    if (Array.isArray(body.servicosOferecidos)) {
+      const invalid = body.servicosOferecidos.filter(
+        (v: unknown) => typeof v !== "string" || !SERVICOS_PERMITIDOS.includes(v),
+      );
+      if (invalid.length > 0) {
+        return NextResponse.json(
+          { ok: false, error: `Valores inválidos: ${invalid.join(", ")}` },
+          { status: 400 },
+        );
+      }
+      data.servicosOferecidos = body.servicosOferecidos;
+    }
+
+    if (Object.keys(data).length === 0) {
+      return NextResponse.json({ ok: false, error: "Nenhum campo para atualizar." }, { status: 400 });
     }
 
     const profile = await prisma.diaristaProfile.update({
       where: { userId: auth.userId },
-      data: { servicosOferecidos },
-      include: {
-        user: { select: { id: true, nome: true, telefone: true, status: true } },
-        agenda: true,
-        bairros: {
-          include: { bairro: true },
-        },
-      },
+      data,
     });
 
     return NextResponse.json({ ok: true, profile });

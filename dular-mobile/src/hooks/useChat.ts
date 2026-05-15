@@ -26,12 +26,21 @@ export function useChat(roomId: string): UseChatReturn {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const isFirstFetch = useRef(true);
+  const inFlight = useRef(false);
 
   const fetchMensagens = useCallback(async () => {
+    if (!roomId) {
+      // Sem sala válida: nada a buscar. Evita 404 em loop.
+      setLoading(false);
+      return;
+    }
+    if (inFlight.current) return; // evita reentrância em polling lento
+    inFlight.current = true;
     const isInitial = isFirstFetch.current;
     try {
       const res = await api.get<Mensagem[]>(`/api/chat/${roomId}`);
-      const sorted = [...res.data].sort(
+      const data = Array.isArray(res.data) ? res.data : [];
+      const sorted = [...data].sort(
         (a, b) => new Date(a.criadaEm).getTime() - new Date(b.criadaEm).getTime()
       );
       setMensagens(sorted);
@@ -42,6 +51,7 @@ export function useChat(roomId: string): UseChatReturn {
         setError(err instanceof Error ? err.message : "Erro ao carregar mensagens");
       }
     } finally {
+      inFlight.current = false;
       if (isInitial) {
         isFirstFetch.current = false;
         setLoading(false);
@@ -54,13 +64,18 @@ export function useChat(roomId: string): UseChatReturn {
   }, [fetchMensagens]);
 
   useEffect(() => {
+    if (!roomId) {
+      setLoading(false);
+      return;
+    }
     void fetchMensagens();
     const interval = setInterval(() => void fetchMensagens(), POLL_INTERVAL);
     return () => clearInterval(interval);
-  }, [fetchMensagens]);
+  }, [fetchMensagens, roomId]);
 
   const enviar = useCallback(
     async (texto: string) => {
+      if (!roomId) return;
       const tempId = `temp-${Date.now()}`;
       const tempMsg: Mensagem = {
         id: tempId,

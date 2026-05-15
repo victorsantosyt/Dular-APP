@@ -20,10 +20,15 @@ function parsePositiveCents(value: unknown) {
 }
 
 export async function GET(req: Request) {
+  const t0 = Date.now();
+  const isDev = process.env.NODE_ENV === "development";
   try {
+    const tAuth = Date.now();
     const auth = requireAuth(req);
+    if (isDev) console.log(`[me GET] auth: ${Date.now() - tAuth}ms`);
 
-    const user = await prisma.user.findUnique({
+    // Roda user + perfil em paralelo (eram 2 awaits sequenciais; agora 1 round-trip).
+    const userP = prisma.user.findUnique({
       where: { id: auth.userId },
       select: {
         id: true,
@@ -37,25 +42,30 @@ export async function GET(req: Request) {
       },
     });
 
-    if (!user) {
-      return NextResponse.json({ ok: false, error: "Usuário não encontrado." }, { status: 404 });
-    }
-
-    // Para diarista, traz perfil e verificação
     if (auth.role === "DIARISTA") {
-      const profile = await prisma.diaristaProfile.findUnique({
-        where: { userId: auth.userId },
-        select: {
-          bio: true,
-          fotoUrl: true,
-          verificacao: true,
-          docUrl: true,
-          precoLeve: true,
-          precoMedio: true,
-          precoPesada: true,
-        },
-      });
+      const tQuery = Date.now();
+      const [user, profile] = await Promise.all([
+        userP,
+        prisma.diaristaProfile.findUnique({
+          where: { userId: auth.userId },
+          select: {
+            bio: true,
+            fotoUrl: true,
+            verificacao: true,
+            docUrl: true,
+            precoLeve: true,
+            precoMedio: true,
+            precoPesada: true,
+          },
+        }),
+      ]);
+      if (isDev) console.log(`[me GET DIARISTA] queries: ${Date.now() - tQuery}ms`);
 
+      if (!user) {
+        return NextResponse.json({ ok: false, error: "Usuário não encontrado." }, { status: 404 });
+      }
+
+      if (isDev) console.log(`[me GET DIARISTA] TOTAL: ${Date.now() - t0}ms`);
       return NextResponse.json({
         ok: true,
         user: {
@@ -73,30 +83,40 @@ export async function GET(req: Request) {
     }
 
     if (auth.role === "MONTADOR") {
-      const profile = await prisma.montadorPerfil.findUnique({
-        where: { userId: auth.userId },
-        select: {
-          bio: true,
-          fotoPerfil: true,
-          documentoFrente: true,
-          documentoVerso: true,
-          selfieDoc: true,
-          verificado: true,
-          rating: true,
-          totalServicos: true,
-          especialidades: true,
-          cidade: true,
-          estado: true,
-          cidadeAtual: true,
-          estadoAtual: true,
-          bairroAtual: true,
-          localizacaoPermitida: true,
-          localizacaoAtualizadaEm: true,
-        },
-      });
+      const tQuery = Date.now();
+      const [user, profile] = await Promise.all([
+        userP,
+        prisma.montadorPerfil.findUnique({
+          where: { userId: auth.userId },
+          select: {
+            bio: true,
+            fotoPerfil: true,
+            documentoFrente: true,
+            documentoVerso: true,
+            selfieDoc: true,
+            verificado: true,
+            rating: true,
+            totalServicos: true,
+            especialidades: true,
+            cidade: true,
+            estado: true,
+            cidadeAtual: true,
+            estadoAtual: true,
+            bairroAtual: true,
+            localizacaoPermitida: true,
+            localizacaoAtualizadaEm: true,
+          },
+        }),
+      ]);
+      if (isDev) console.log(`[me GET MONTADOR] queries: ${Date.now() - tQuery}ms`);
+
+      if (!user) {
+        return NextResponse.json({ ok: false, error: "Usuário não encontrado." }, { status: 404 });
+      }
 
       const hasDocs = Boolean(profile?.documentoFrente || profile?.documentoVerso || profile?.selfieDoc);
 
+      if (isDev) console.log(`[me GET MONTADOR] TOTAL: ${Date.now() - t0}ms`);
       return NextResponse.json({
         ok: true,
         user: {
@@ -121,19 +141,29 @@ export async function GET(req: Request) {
     }
 
     if (auth.role === "EMPREGADOR") {
-      const profile = await prisma.empregadorPerfil.findUnique({
-        where: { userId: auth.userId },
-        select: {
-          cidade: true,
-          estado: true,
-          cidadeAtual: true,
-          estadoAtual: true,
-          bairroAtual: true,
-          localizacaoPermitida: true,
-          localizacaoAtualizadaEm: true,
-        },
-      });
+      const tQuery = Date.now();
+      const [user, profile] = await Promise.all([
+        userP,
+        prisma.empregadorPerfil.findUnique({
+          where: { userId: auth.userId },
+          select: {
+            cidade: true,
+            estado: true,
+            cidadeAtual: true,
+            estadoAtual: true,
+            bairroAtual: true,
+            localizacaoPermitida: true,
+            localizacaoAtualizadaEm: true,
+          },
+        }),
+      ]);
+      if (isDev) console.log(`[me GET EMPREGADOR] queries: ${Date.now() - tQuery}ms`);
 
+      if (!user) {
+        return NextResponse.json({ ok: false, error: "Usuário não encontrado." }, { status: 404 });
+      }
+
+      if (isDev) console.log(`[me GET EMPREGADOR] TOTAL: ${Date.now() - t0}ms`);
       return NextResponse.json({
         ok: true,
         user: {
@@ -152,7 +182,15 @@ export async function GET(req: Request) {
       });
     }
 
-    // Cliente: devolve dados básicos; verificação opcional
+    // Cliente sem role específica
+    const tQueryDefault = Date.now();
+    const user = await userP;
+    if (isDev) console.log(`[me GET DEFAULT] user query: ${Date.now() - tQueryDefault}ms`);
+    if (!user) {
+      return NextResponse.json({ ok: false, error: "Usuário não encontrado." }, { status: 404 });
+    }
+
+    if (isDev) console.log(`[me GET DEFAULT] TOTAL: ${Date.now() - t0}ms`);
     return NextResponse.json({
       ok: true,
       user: {
@@ -163,6 +201,7 @@ export async function GET(req: Request) {
       },
     });
   } catch (e: any) {
+    if (isDev) console.log(`[me GET] ERROR after ${Date.now() - t0}ms: ${e?.message}`);
     if (e?.message === "Unauthorized") {
       return NextResponse.json({ ok: false, error: "Não autorizado" }, { status: 401 });
     }

@@ -44,12 +44,16 @@ export default function ChatScreen({ route, navigation }: any) {
     setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 80);
   }, []);
 
+  const loadInFlight = useRef(false);
+
   const load = useCallback(async (silent = false) => {
     if (!servicoId) {
       setError("Serviço não informado.");
       setLoading(false);
       return;
     }
+    if (loadInFlight.current) return; // evita reentrância caso a API esteja lenta
+    loadInFlight.current = true;
     try {
       if (!silent) setLoading(true);
       const res = await api.get(`/api/chat/${servicoId}`);
@@ -60,16 +64,18 @@ export default function ChatScreen({ route, navigation }: any) {
     } catch (e: any) {
       setError(apiMsg(e, "Falha ao carregar chat."));
     } finally {
+      loadInFlight.current = false;
       if (!silent) setLoading(false);
     }
   }, [scrollToBottom, servicoId]);
 
   useFocusEffect(
     useCallback(() => {
+      if (!servicoId) return; // sem guard a tela ficaria pollando 404 a cada 5s
       load();
       const timer = setInterval(() => load(true), POLL_MS);
       return () => clearInterval(timer);
-    }, [load])
+    }, [load, servicoId])
   );
 
   useEffect(() => {

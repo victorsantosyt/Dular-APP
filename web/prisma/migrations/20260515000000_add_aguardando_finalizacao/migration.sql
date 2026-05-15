@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "ServicoStatus" ADD VALUE 'AGUARDANDO_FINALIZACAO';

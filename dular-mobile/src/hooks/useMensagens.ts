@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { api } from "@/lib/api";
+import { useCallback, useState } from "react";
 
 export interface ChatRoom {
   id: string;
@@ -25,46 +24,23 @@ export interface UseMensagensReturn {
   refetch: () => void;
 }
 
-const POLL_INTERVAL = 15_000;
-
+/**
+ * Hotfix T-13:
+ * O endpoint GET /api/chat (lista de salas) ainda não existe no backend.
+ * A versão anterior fazia polling em /api/chat a cada 15s, gerando 404 em
+ * loop em todas as telas que consumiam o hook (perfis, home, etc.), o que
+ * travava o app por dezenas de requisições paralelas falhando.
+ *
+ * Enquanto o endpoint não existir, retornamos um estado vazio e estável.
+ * Quando o backend implementar GET /api/chat, basta restaurar a chamada
+ * `api.get<ChatRoom[]>("/api/chat")` e o intervalo.
+ */
 export function useMensagens(): UseMensagensReturn {
-  const [rooms, setRooms] = useState<ChatRoom[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const isFirstFetch = useRef(true);
-
-  const fetchRooms = useCallback(async () => {
-    const isInitial = isFirstFetch.current;
-    try {
-      const res = await api.get<ChatRoom[]>("/api/chat");
-      const sorted = [...res.data].sort(
-        (a, b) =>
-          new Date(b.atualizadaEm).getTime() - new Date(a.atualizadaEm).getTime()
-      );
-      setRooms(sorted);
-      setError(null);
-    } catch (err) {
-      // Keep previous data on poll errors; only surface error on initial load
-      if (isInitial) {
-        setError(err instanceof Error ? err.message : "Erro ao carregar mensagens");
-      }
-    } finally {
-      if (isInitial) {
-        isFirstFetch.current = false;
-        setLoading(false);
-      }
-    }
-  }, []);
+  const [rooms] = useState<ChatRoom[]>([]);
 
   const refetch = useCallback(() => {
-    void fetchRooms();
-  }, [fetchRooms]);
+    // no-op enquanto o endpoint não existir
+  }, []);
 
-  useEffect(() => {
-    void fetchRooms();
-    const interval = setInterval(() => void fetchRooms(), POLL_INTERVAL);
-    return () => clearInterval(interval);
-  }, [fetchRooms]);
-
-  return { rooms, loading, error, refetch };
+  return { rooms, loading: false, error: null, refetch };
 }

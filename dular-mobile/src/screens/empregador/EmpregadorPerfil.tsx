@@ -30,6 +30,7 @@ import { useDularColors } from "@/hooks/useDularColors";
 import { useThemeStore } from "@/stores/useThemeStore";
 import { platformSelect } from "@/utils/platform";
 import {
+  NotificationBell,
   ProfileHeroCard,
   ProfileRow,
   ProfileSection,
@@ -76,6 +77,7 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
   const setUser = useAuth((state) => state.setUser);
   const user = useAuth((state) => state.user);
   const { perfil, loading, saving, error, atualizar, refetch } = usePerfil();
+  const { rooms } = useMensagens();
   const busyRef = useRef(false);
 
   const [geoEnabled, setGeoEnabled] = useState(true);
@@ -86,6 +88,12 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
   const [editBio, setEditBio] = useState("");
   const [avatarLocal, setAvatarLocal] = useState<string | null>(null);
   const [avatarUploading, setAvatarUploading] = useState(false);
+
+  const unreadMessages = useMemo(
+    () => rooms.reduce((total, room) => total + Math.max(0, Number(room.naoLidas) || 0), 0),
+    [rooms],
+  );
+  const messagesBadge = unreadMessages > 0 ? unreadMessages : undefined;
 
   useEffect(() => {
     AsyncStorage.getItem(GEO_KEY)
@@ -102,12 +110,16 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
     return () => clearTimeout(timer);
   }, [toast]);
 
+  // Hotfix T-13 (2): só semeia os campos do modal quando NÃO está aberto.
+  // Caso contrário, um refetch em background sobrescreve o que o usuário
+  // está digitando.
   useEffect(() => {
+    if (modalVisible) return;
     const nome = perfil?.nome ?? user?.nome ?? "";
     setEditNome(nome);
     setEditTelefone(perfil?.telefone ?? user?.telefone ?? "");
     setEditBio(perfil?.bio ?? user?.bio ?? "");
-  }, [perfil, user]);
+  }, [perfil, user, modalVisible]);
 
   useFocusEffect(
     useCallback(() => {
@@ -200,7 +212,7 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
   };
 
   const openWhatsApp = async () => {
-    const url = `https://wa.me/5565996293033?text=${encodeURIComponent("Olá! Preciso de suporte no app Dular.")}`;
+    const url = `https://wa.me/5565996203033?text=${encodeURIComponent("Olá! Preciso de suporte no app Dular.")}`;
     const canOpen = await Linking.canOpenURL(url);
     if (!canOpen) {
       Alert.alert("WhatsApp", "Não foi possível abrir o WhatsApp.");
@@ -228,6 +240,12 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
   const displayName = firstName(perfil?.nome ?? user?.nome);
   const avatarUri = avatarLocal ?? perfil?.avatarUrl ?? user?.avatarUrl ?? null;
   const avatarFallback: ImageSourcePropType | null = null;
+  // Hotfix T-13 (2): tela NUNCA pode ficar bloqueada por loading. Sempre
+  // renderiza o conteúdo usando dados do authStore enquanto a API responde.
+  // O spinner aparece apenas como decoração no topo (não-bloqueante) e o
+  // banner de erro vira algo "inline" com retry, sem esconder o resto.
+  const showInitialSpinner = loading && !perfil;
+  const showErrorBanner = !loading && !!error && !perfil;
 
   return (
     <SafeAreaView style={s.safe} edges={["top", "left", "right"]}>
@@ -242,21 +260,28 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
           <View style={s.header}>
             <View style={s.headerSide} />
             <Text style={s.title}>Perfil</Text>
-            <View style={s.headerSideRight} />
+            <View style={s.headerSideRight}>
+              <NotificationBell
+                hasBadge={!!messagesBadge}
+                onPress={() => navigation.navigate("Notificacoes")}
+              />
+            </View>
           </View>
 
-          {loading ? (
-            <View style={s.centerCard}>
-              <ActivityIndicator color={colors.primary} size="large" />
+          {showInitialSpinner ? (
+            <View style={s.inlineLoader}>
+              <ActivityIndicator color={colors.primary} size="small" />
             </View>
-          ) : error ? (
+          ) : null}
+
+          {showErrorBanner ? (
             <DCard style={s.errorCard}>
               <Text style={s.errorTitle}>Não foi possível carregar.</Text>
               <Text style={s.errorText}>{error}</Text>
               <DButton label="Tentar novamente" variant="secondary" onPress={refetch} />
             </DCard>
-          ) : (
-            <>
+          ) : null}
+
               <ProfileHeroCard
                 nome={displayName}
                 subtitle={profileAge(perfil)}
@@ -359,8 +384,6 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
                 </View>
                 <AppIcon name="ChevronRight" size={18} color={colors.danger} strokeWidth={2.2} />
               </DCard>
-            </>
-          )}
         </ScrollView>
       </View>
 
@@ -465,6 +488,11 @@ function makeStyles(colors: ThemeColors) {
     minHeight: 420,
     alignItems: "center",
     justifyContent: "center",
+  },
+  inlineLoader: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: spacing.sm,
   },
   toast: {
     position: "absolute",

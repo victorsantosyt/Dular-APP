@@ -8,6 +8,7 @@ import {
   Text,
   TextInput,
   View,
+  type ImageSourcePropType,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
@@ -27,7 +28,6 @@ import { salvarLocalizacaoAtual } from "@/api/localizacaoApi";
 import { useAuth } from "@/stores/authStore";
 import { useCurrentRegion, type CurrentRegion } from "@/hooks/useCurrentRegion";
 import { MONTADOR_ESPECIALIDADES as MONTADOR_ESPECIALIDADES_PUBLICAS, type MontadorItem } from "@/types/montador";
-import { useMensagens } from "@/hooks/useMensagens";
 
 type Navigation = BottomTabNavigationProp<EmpregadorTabParamList>;
 type BuscarRoute = RouteProp<EmpregadorTabParamList, "Buscar">;
@@ -41,7 +41,7 @@ type CategoriaCardItem = {
   subtitle: string;
   bg: string;
   iconColor: string;
-  imageUrl: string;
+  imageSource: ImageSourcePropType;
   imageStyle?: {
     width: number;
     height: number;
@@ -97,8 +97,8 @@ const CATEGORIAS: CategoriaCardItem[] = [
     subtitle: "Cuidados com\ncrianças",
     bg: "#F2ECFF",
     iconColor: colors.primary,
-    imageUrl: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=facearea&facepad=3&w=240&h=240&q=80",
-    imageStyle: { width: 90, height: 90, left: -2, bottom: -3 },
+    imageSource: require("../../../assets/images/empregador_buscar/buscar_card_baba_logo.png"),
+    imageStyle: { width: 115, height: 78, right: -25, bottom: -2 },
   },
   {
     key: "cozinheira",
@@ -107,8 +107,8 @@ const CATEGORIAS: CategoriaCardItem[] = [
     subtitle: "Preparo de\nrefeições",
     bg: "#FFF0E2",
     iconColor: "#F47A1F",
-    imageUrl: "https://images.unsplash.com/photo-1551836022-d5d88e9218df?auto=format&fit=facearea&facepad=2.5&w=240&h=240&q=80",
-    imageStyle: { width: 90, height: 90, right: 2, bottom: -3 },
+    imageSource: require("../../../assets/images/empregador_buscar/buscar_card_cozinheira_logo.png"),
+    imageStyle: { width: 78, height: 78, right: -5, bottom: -2 },
   },
   {
     key: "diarista",
@@ -117,8 +117,8 @@ const CATEGORIAS: CategoriaCardItem[] = [
     subtitle: "Limpeza e\norganização",
     bg: "#E7F7EF",
     iconColor: "#19A86A",
-    imageUrl: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=facearea&facepad=2.5&w=240&h=240&q=80",
-    imageStyle: { width: 90, height: 90, right: 0, bottom: -3 },
+    imageSource: require("../../../assets/images/empregador_buscar/buscar_card_diarista_logo.png"),
+    imageStyle: { width: 110, height: 90, right: -25, bottom: -8 },
   },
   {
     key: "montador",
@@ -127,8 +127,8 @@ const CATEGORIAS: CategoriaCardItem[] = [
     subtitle: "Montagem e\nreparos",
     bg: colors.tealSoft,
     iconColor: colors.tealDark,
-    imageUrl: "https://images.unsplash.com/photo-1505798577917-a65157d3320a?auto=format&fit=facearea&facepad=2.5&w=240&h=240&q=80",
-    imageStyle: { width: 92, height: 92, right: -2, bottom: -3 },
+    imageSource: require("../../../assets/images/empregador_buscar/buscar_card_montdador_logo.png"),
+    imageStyle: { width: 105, height: 75, right: -20, bottom: -2 },
   },
 ];
 
@@ -272,19 +272,6 @@ function mapMontadorToProf(m: MontadorItem): Profissional {
   };
 }
 
-function NotifButton({ count, onPress }: { count: number; onPress: () => void }) {
-  return (
-    <Pressable
-      hitSlop={spacing.sm}
-      onPress={onPress}
-      style={({ pressed }) => [s.notifBtn, pressed && { opacity: 0.75 }]}
-    >
-      <AppIcon name="Bell" size={19} color={colors.primary} strokeWidth={2} />
-      {count > 0 ? <View style={s.notifDot} /> : null}
-    </Pressable>
-  );
-}
-
 function CategoryCard({
   item,
   selected,
@@ -307,7 +294,7 @@ function CategoryCard({
       <AppIcon name={item.icon} size={20} color={item.iconColor} strokeWidth={2} />
       <Text style={s.catTitle}>{item.title}</Text>
       <Text style={s.catSubtitle}>{item.subtitle}</Text>
-      <Image source={{ uri: item.imageUrl }} resizeMode="cover" style={[s.catImage, item.imageStyle]} />
+      <Image source={item.imageSource} resizeMode="contain" style={[s.catImage, item.imageStyle]} />
     </Pressable>
   );
 }
@@ -413,13 +400,6 @@ export function BuscarScreen() {
     montadoresError,
     buscar,
   } = useBuscar();
-  const { rooms } = useMensagens();
-
-  const unreadMessages = useMemo(
-    () => rooms.reduce((total, room) => total + Math.max(0, Number(room.naoLidas) || 0), 0),
-    [rooms],
-  );
-  const messagesBadge = unreadMessages > 0 ? unreadMessages : undefined;
 
   useEffect(() => {
     const savedCidade = authUser?.cidadeAtual ?? authUser?.cidade ?? "";
@@ -523,11 +503,13 @@ export function BuscarScreen() {
     }
     return list;
   }, [baseList, selectedCat, searchQuery]);
+
   const categoryError = selectedCat === "montador"
     ? montadoresError
     : selectedCat
       ? diaristasError
       : error;
+
   const emptyText = selectedCat === "montador"
     ? "Nenhum montador disponível nesta região ainda."
     : !regionConfirmed
@@ -535,6 +517,7 @@ export function BuscarScreen() {
       : searchQuery || selectedCat
       ? "Nenhum resultado encontrado"
       : "Nenhum profissional disponível";
+
   const regionText = region.bairro
     ? `${region.bairro}, ${region.cidade} - ${region.uf}`
     : [region.cidade, region.uf].filter(Boolean).join(" - ");
@@ -552,7 +535,6 @@ export function BuscarScreen() {
               <Text style={s.title}>Buscar</Text>
               <Text style={s.subtitle}>Encontre o profissional ideal{"\n"}para o que você precisa.</Text>
             </View>
-            <NotifButton count={unreadMessages} onPress={() => navigation.navigate("Notificacoes")} />
           </View>
 
           <View style={s.searchRow}>
@@ -691,40 +673,17 @@ const s = StyleSheet.create({
   },
   title: {
     ...typography.h1,
-    
     fontWeight: "700",
     color: colors.primaryDark,
     letterSpacing: 0,
   },
   subtitle: {
     ...typography.bodySm,
-    
     color: colors.textSecondary,
     fontWeight: "500",
     marginTop: 6,
   },
-  notifBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    backgroundColor: colors.surface,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: colors.border,
-    ...shadows.soft,
-  },
-  notifDot: {
-    position: "absolute",
-    top: 10,
-    right: 10,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: colors.notification,
-    borderWidth: 1.5,
-    borderColor: colors.surface,
-  },
+
   searchRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -748,7 +707,6 @@ const s = StyleSheet.create({
     flex: 1,
     color: colors.textPrimary,
     ...typography.bodySmMedium,
-    
     fontWeight: "500",
     paddingVertical: 8,
   },
@@ -769,7 +727,6 @@ const s = StyleSheet.create({
   },
   sectionTitle: {
     ...typography.bodyMedium,
-    
     fontWeight: "700",
     color: colors.textPrimary,
     letterSpacing: 0,
@@ -786,7 +743,6 @@ const s = StyleSheet.create({
   },
   verTodasText: {
     ...typography.bodySm,
-    
     fontWeight: "600",
     color: colors.primary,
   },
@@ -795,11 +751,11 @@ const s = StyleSheet.create({
     paddingRight: spacing.screenPadding,
   },
   catCard: {
-    width: 104,
-    height: 138,
-    borderRadius: 16,
+    width: 126,
+    height: 154,
+    borderRadius: 18,
     paddingTop: 14,
-    paddingHorizontal: 13,
+    paddingHorizontal: 14,
     overflow: "hidden",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.72)",
@@ -811,20 +767,22 @@ const s = StyleSheet.create({
   catTitle: {
     color: colors.textPrimary,
     ...typography.bodySm,
-    
     fontWeight: "700",
     marginTop: 8,
+    zIndex: 2,
   },
   catSubtitle: {
     color: colors.textSecondary,
     ...typography.caption,
-    
     fontWeight: "500",
     marginTop: 4,
+    zIndex: 2,
+    maxWidth: 76,
   },
   catImage: {
     position: "absolute",
-    borderRadius: 54,
+    borderRadius: 0,
+    zIndex: 1,
   },
   popRow: {
     flexDirection: "row",
@@ -847,7 +805,6 @@ const s = StyleSheet.create({
   popLabel: {
     color: colors.textSecondary,
     ...typography.caption,
-    
     fontWeight: "500",
     textAlign: "center",
   },
@@ -893,7 +850,6 @@ const s = StyleSheet.create({
     flexShrink: 1,
     color: colors.textPrimary,
     ...typography.bodySmMedium,
-    
     fontWeight: "700",
   },
   catBadge: {
@@ -914,7 +870,6 @@ const s = StyleSheet.create({
   locationText: {
     color: colors.textSecondary,
     ...typography.caption,
-    
     fontWeight: "500",
   },
   ratingRow: {
@@ -948,7 +903,6 @@ const s = StyleSheet.create({
   distText: {
     color: colors.textSecondary,
     ...typography.caption,
-    
     fontWeight: "500",
   },
   profileButton: {
@@ -964,7 +918,6 @@ const s = StyleSheet.create({
   profileButtonText: {
     color: colors.primary,
     ...typography.caption,
-    
     fontWeight: "700",
   },
   feedbackWrap: {

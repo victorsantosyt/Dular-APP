@@ -99,6 +99,14 @@ export default function DiaristaPerfil({ onLogout }: Props) {
   const user = useAuth((state) => state.user);
   const setServicosOferecidosStore = useAuth((state) => state.setServicosOferecidos);
   const busyRef = useRef(false);
+  // Hotfix: evita rajadas de GET quando /api/me ou /api/diarista/me estão lentos
+  // e também previne loop infinito caso o efeito seja re-disparado.
+  const loadingRef = useRef(false);
+  // Hotfix: snapshot do fallback de servicosOferecidos para não inflar deps do loadMe
+  const userServicosFallbackRef = useRef<ServicoOferecido[] | undefined>(user?.servicosOferecidos);
+  useEffect(() => {
+    userServicosFallbackRef.current = user?.servicosOferecidos;
+  }, [user?.servicosOferecidos]);
 
   // ── State (preservado da versão anterior) ────────────────────────────────
   const [me, setMe] = useState<Me | null>(null);
@@ -167,6 +175,12 @@ export default function DiaristaPerfil({ onLogout }: Props) {
   );
 
   const loadMe = useCallback(async () => {
+    // Hotfix: guarda contra disparos concorrentes (useFocusEffect pode reentrar
+    // se algum setState dentro do efeito mudar referências). Sem isto vimos
+    // rajadas de GETs (/api/me, /api/diarista/me, /api/catalogo/servicos,
+    // /api/diarista/habilidades) no Metro.
+    if (loadingRef.current) return;
+    loadingRef.current = true;
     try {
       setError(null);
       setLoading(true);
@@ -183,8 +197,8 @@ export default function DiaristaPerfil({ onLogout }: Props) {
       if (Array.isArray(profile?.servicosOferecidos)) {
         setServicosOferecidosState(profile.servicosOferecidos);
         await setServicosOferecidosStore(profile.servicosOferecidos);
-      } else if (user?.servicosOferecidos?.length) {
-        setServicosOferecidosState(user.servicosOferecidos);
+      } else if (userServicosFallbackRef.current?.length) {
+        setServicosOferecidosState(userServicosFallbackRef.current);
       } else {
         setServicosOferecidosState(["DIARISTA"]);
       }
@@ -199,9 +213,14 @@ export default function DiaristaPerfil({ onLogout }: Props) {
     } catch (e: any) {
       setError(apiMsg(e, "Falha ao carregar perfil."));
     } finally {
+      // CRÍTICO: sempre reseta o flag, mesmo em throw inesperado.
+      loadingRef.current = false;
       setLoading(false);
     }
-  }, [applyMe, setServicosOferecidosStore, user?.servicosOferecidos]);
+    // Hotfix: deps reduzidas a callbacks estáveis. applyMe e
+    // setServicosOferecidosStore vêm do zustand/useCallback estável; o
+    // fallback de servicosOferecidos é lido via ref para não inflar deps.
+  }, [applyMe, setServicosOferecidosStore]);
 
   useFocusEffect(useCallback(() => { loadMe(); }, [loadMe]));
 

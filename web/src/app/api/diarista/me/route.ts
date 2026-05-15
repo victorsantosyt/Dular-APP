@@ -82,13 +82,21 @@ export async function GET(req: Request) {
 }
 
 export async function PATCH(req: Request) {
+  const t0 = Date.now();
+  const isDev = process.env.NODE_ENV === "development";
   try {
+    const tAuth = Date.now();
     const auth = requireAuth(req);
+    if (isDev) console.log(`[diarista/me PATCH] auth: ${Date.now() - tAuth}ms`);
     if (auth.role !== "DIARISTA") {
       return NextResponse.json({ ok: false, error: "Apenas diarista." }, { status: 403 });
     }
 
+    const tBody = Date.now();
     const body = await req.json();
+    if (isDev) console.log(`[diarista/me PATCH] body parse: ${Date.now() - tBody}ms`);
+
+    const tValidate = Date.now();
     const data: Record<string, unknown> = {};
 
     if (Array.isArray(body.servicosOferecidos)) {
@@ -96,6 +104,7 @@ export async function PATCH(req: Request) {
         (v: unknown) => typeof v !== "string" || !SERVICOS_PERMITIDOS.includes(v),
       );
       if (invalid.length > 0) {
+        if (isDev) console.log(`[diarista/me PATCH] validate: ${Date.now() - tValidate}ms (invalid)`);
         return NextResponse.json(
           { ok: false, error: `Valores inválidos: ${invalid.join(", ")}` },
           { status: 400 },
@@ -105,16 +114,41 @@ export async function PATCH(req: Request) {
     }
 
     if (Object.keys(data).length === 0) {
+      if (isDev) console.log(`[diarista/me PATCH] validate: ${Date.now() - tValidate}ms (empty)`);
       return NextResponse.json({ ok: false, error: "Nenhum campo para atualizar." }, { status: 400 });
     }
+    if (isDev) console.log(`[diarista/me PATCH] validate: ${Date.now() - tValidate}ms`);
 
+    // Branch RÁPIDO: se o body contém APENAS servicosOferecidos, faz update
+    // mínimo e retorna apenas o campo atualizado (sem carregar o perfil inteiro).
+    const onlyServicos =
+      Object.keys(body).length === 1 && Array.isArray(body.servicosOferecidos);
+    if (onlyServicos) {
+      const tUpdate = Date.now();
+      const updated = await prisma.diaristaProfile.update({
+        where: { userId: auth.userId },
+        data: { servicosOferecidos: body.servicosOferecidos },
+        select: { servicosOferecidos: true },
+      });
+      if (isDev) console.log(`[diarista/me PATCH] update (fast): ${Date.now() - tUpdate}ms`);
+      if (isDev) console.log(`[diarista/me PATCH] TOTAL: ${Date.now() - t0}ms`);
+      return NextResponse.json({ ok: true, servicosOferecidos: updated.servicosOferecidos });
+    }
+
+    const tUpdate = Date.now();
     const profile = await prisma.diaristaProfile.update({
       where: { userId: auth.userId },
       data,
     });
+    if (isDev) console.log(`[diarista/me PATCH] update: ${Date.now() - tUpdate}ms`);
 
+    if (isDev) console.log(`[diarista/me PATCH] TOTAL: ${Date.now() - t0}ms`);
     return NextResponse.json({ ok: true, profile });
   } catch (error: unknown) {
+    if (isDev) {
+      const msg = error instanceof Error ? error.message : "unknown";
+      console.log(`[diarista/me PATCH] ERROR after ${Date.now() - t0}ms: ${msg}`);
+    }
     if (error instanceof Error && error.message === "Unauthorized") {
       return NextResponse.json({ ok: false, error: "Não autorizado" }, { status: 401 });
     }

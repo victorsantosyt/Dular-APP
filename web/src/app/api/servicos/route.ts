@@ -5,16 +5,26 @@ import { requireAuth } from "@/lib/requireAuth";
 import { criarServicoSchema } from "@/lib/schemas/servicos";
 import { sendPushNotification } from "@/lib/notifications";
 import { calcularCompletudeMontador } from "@/lib/montadorProfile";
+import {
+  isDiaristaProfileCompleteForServico,
+  nichoFromTipo,
+  nichoFromCategoria,
+} from "@/lib/diaristaProfile";
 
-const ACTIVE_MONTADOR_SERVICE_STATUSES = [
-  "PENDENTE",
+// Status considerados "ativos" para fins de bloqueio de duplicidade.
+// Status encerrados (NÃO bloqueiam nova contratação):
+//   CONCLUIDO, CONFIRMADO, FINALIZADO, CANCELADO, RECUSADO, RASCUNHO.
+// Observação: `PENDENTE` foi removido — nunca foi valor formal do enum
+// `ServicoStatus` (T-14 Hotfix).
+const ACTIVE_SERVICE_STATUSES = [
   "SOLICITADO",
   "ACEITO",
-  "CONFIRMADO",
   "EM_ANDAMENTO",
   "AGUARDANDO_FINALIZACAO",
-  "CONCLUIDO",
 ] as const;
+
+// Mantido como alias para legibilidade nos callers existentes.
+const ACTIVE_MONTADOR_SERVICE_STATUSES = ACTIVE_SERVICE_STATUSES;
 
 async function findActiveMontadorService(montadorUserId: string) {
   const rows = await prisma.$queryRaw<
@@ -28,6 +38,37 @@ async function findActiveMontadorService(montadorUserId: string) {
     LIMIT 1
   `);
 
+  return rows[0] ?? null;
+}
+
+async function findActiveServiceBetween(
+  clientId: string,
+  profissionalId: string,
+  profissionalKind: "diarista" | "montador",
+) {
+  const rows = profissionalKind === "diarista"
+    ? await prisma.$queryRaw<
+        Array<{ id: string; status: string; createdAt: Date; updatedAt: Date }>
+      >(Prisma.sql`
+        SELECT "id", "status"::text AS "status", "createdAt", "updatedAt"
+        FROM "Servico"
+        WHERE "clientId" = ${clientId}
+          AND "diaristaId" = ${profissionalId}
+          AND "status"::text IN (${Prisma.join(ACTIVE_SERVICE_STATUSES)})
+        ORDER BY "createdAt" DESC
+        LIMIT 1
+      `)
+    : await prisma.$queryRaw<
+        Array<{ id: string; status: string; createdAt: Date; updatedAt: Date }>
+      >(Prisma.sql`
+        SELECT "id", "status"::text AS "status", "createdAt", "updatedAt"
+        FROM "Servico"
+        WHERE "clientId" = ${clientId}
+          AND "montadorId" = ${profissionalId}
+          AND "status"::text IN (${Prisma.join(ACTIVE_SERVICE_STATUSES)})
+        ORDER BY "createdAt" DESC
+        LIMIT 1
+      `);
   return rows[0] ?? null;
 }
 
@@ -135,6 +176,23 @@ export async function POST(req: Request) {
         );
       }
 
+      const activeBetween = await findActiveServiceBetween(
+        auth.userId,
+        profissionalId,
+        "montador",
+      );
+      if (activeBetween) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error: "Já existe um serviço ativo com este profissional.",
+            servicoId: activeBetween.id,
+            status: activeBetween.status,
+          },
+          { status: 409 },
+        );
+      }
+
       // Montador não tem precificação pré-cadastrada: usa 0 como sentinela
       // "a orçar". O preço final é fechado após aceite/orçamento (fora do
       // escopo deste fluxo — ver GAP T-07: orçamento de Montador).
@@ -182,9 +240,55 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: "Diarista inválido." }, { status: 400 });
     }
 
-    const prof = await prisma.diaristaProfile.findUnique({ where: { userId: diaristaUserId } });
+    const prof = await prisma.diaristaProfile.findUnique({
+      where: { userId: diaristaUserId },
+      include: {
+        bairros: {
+          select: {
+            bairro: { select: { nome: true, cidade: true, uf: true } },
+          },
+        },
+      },
+    });
     if (!prof || prof.verificacao !== "VERIFICADO") {
       return NextResponse.json({ ok: false, error: "Diarista não verificado." }, { status: 400 });
+    }
+
+    // T-15: bloqueia contratação de profissional incompleta ou que não
+    // oferece o serviço (nicho) requisitado. Mapeia tipo/categoria → nicho.
+    const nicho = nichoFromTipo(tipo) ?? nichoFromCategoria(categoria ?? null);
+    if (nicho) {
+      const completudeDiarista = isDiaristaProfileCompleteForServico(
+        {
+          ativo: prof.ativo,
+          bio: prof.bio,
+          servicosOferecidos: prof.servicosOferecidos,
+          cidade: prof.cidade,
+          estado: prof.estado,
+          atendeTodaCidade: prof.atendeTodaCidade,
+          raioAtendimentoKm: prof.raioAtendimentoKm,
+          precoLeve: prof.precoLeve,
+          precoMedio: prof.precoMedio,
+          precoPesada: prof.precoPesada,
+          precoBabaHora: prof.precoBabaHora,
+          precoCozinheiraBase: prof.precoCozinheiraBase,
+          taxaMinima: prof.taxaMinima,
+          valorACombinar: prof.valorACombinar,
+          bairros: prof.bairros,
+          user: { nome: diarista.nome, status: diarista.status },
+        },
+        nicho,
+      );
+      if (!completudeDiarista.completo) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error: "Profissional não disponível para este serviço.",
+            motivos: completudeDiarista.motivos,
+          },
+          { status: 400 },
+        );
+      }
     }
 
     const bairroDb = await prisma.bairro.findUnique({
@@ -210,6 +314,23 @@ export async function POST(req: Request) {
     });
     if (!habilidade) {
       return NextResponse.json({ ok: false, error: "Diarista não atende esse serviço." }, { status: 400 });
+    }
+
+    const activeBetweenDiarista = await findActiveServiceBetween(
+      auth.userId,
+      diaristaUserId,
+      "diarista",
+    );
+    if (activeBetweenDiarista) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "Já existe um serviço ativo com este profissional.",
+          servicoId: activeBetweenDiarista.id,
+          status: activeBetweenDiarista.status,
+        },
+        { status: 409 },
+      );
     }
 
     const isFaxina = tipo === "FAXINA";

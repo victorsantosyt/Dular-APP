@@ -12,10 +12,17 @@ import { Ionicons } from "@expo/vector-icons";
 
 import { api } from "@/lib/api";
 import type { ServicoListItem as Servico } from "../../../../shared/types/servico";
+import {
+  cancelarServicoDiarista,
+  confirmarFinalizacaoDiarista,
+  recusarServicoDiarista,
+} from "@/api/diaristaApi";
 import { DButton } from "@/components/DButton";
 import { DularBadge } from "@/components/DularBadge";
+import { MotivoModal } from "@/components/MotivoModal";
 import { SafeScoreBadge } from "@/components/SafeScoreBadge";
 import { formatPrice } from "@/utils/formatPrice";
+import { isStatusEncerrado } from "@/utils/servicoStatus";
 import { DIARISTA_STACK_ROUTES } from "@/navigation/routes";
 
 // ── Tokens ──────────────────────────────────────────────────────────────────
@@ -36,9 +43,12 @@ function statusLabel(st: string) {
   if (s === "SOLICITADO")   return "Aguardando aceite";
   if (s === "ACEITO")       return "Aceito";
   if (s === "EM_ANDAMENTO") return "Em andamento";
+  if (s === "AGUARDANDO_FINALIZACAO") return "Aguardando confirmação";
   if (s === "CONCLUIDO" || s === "CONCLUÍDO") return "Concluído";
   if (s === "CONFIRMADO")   return "Confirmado";
   if (s === "FINALIZADO")   return "Finalizado";
+  if (s === "CANCELADO")    return "Cancelado";
+  if (s === "RECUSADO")     return "Recusado";
   return st || "Status";
 }
 
@@ -55,6 +65,8 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
   const [loadingInit, setLoadingInit] = useState(!params.servico);
   const servicoId: string = params.servicoId ?? params.servico?.id ?? "";
   const [loading, setLoading] = useState(false);
+  const [recusarOpen, setRecusarOpen] = useState(false);
+  const [cancelOpen, setCancelOpen] = useState(false);
   const [clienteScore, setClienteScore] = useState<{
     faixa: string;
     cor: string;
@@ -98,14 +110,58 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
 
   function recusarServico() {
     if (!svc) return;
-    Alert.alert(
-      "Recusar serviço?",
-      "Tem certeza que deseja recusar esta solicitação?",
-      [
-        { text: "Cancelar", style: "cancel" },
-        { text: "Recusar", style: "destructive", onPress: () => { void action("recusar"); } },
-      ]
-    );
+    setRecusarOpen(true);
+  }
+
+  async function confirmarRecusa(motivo: string, observacao: string) {
+    if (!svc) return;
+    try {
+      setLoading(true);
+      await recusarServicoDiarista(svc.id, motivo, observacao || undefined);
+      setRecusarOpen(false);
+      await reloadFromList();
+      Alert.alert("Sucesso", "Serviço recusado.");
+      navigation.goBack();
+    } catch (e: any) {
+      Alert.alert("Erro", e?.response?.data?.error ?? e?.message ?? "Falha ao recusar.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function confirmarCancelamento(motivo: string, observacao: string) {
+    if (!svc) return;
+    try {
+      setLoading(true);
+      await cancelarServicoDiarista(svc.id, motivo, observacao || undefined);
+      setCancelOpen(false);
+      await reloadFromList();
+      Alert.alert("Sucesso", "Serviço cancelado.");
+      navigation.goBack();
+    } catch (e: any) {
+      Alert.alert("Erro", e?.response?.data?.error ?? e?.message ?? "Falha ao cancelar.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function confirmarFinalizacao() {
+    if (!svc) return;
+    try {
+      setLoading(true);
+      await confirmarFinalizacaoDiarista(svc.id);
+      await reloadFromList();
+      Alert.alert("Sucesso", "Finalização confirmada.");
+    } catch (e: any) {
+      // Fallback: backend pode aceitar apenas "concluir"
+      try {
+        await action("concluir");
+      } catch {
+        Alert.alert("Erro", e?.response?.data?.error ?? e?.message ?? "Falha ao confirmar.");
+      }
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => {
@@ -256,19 +312,34 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
               onPress={() => navigation.navigate(DIARISTA_STACK_ROUTES.CHAT, { servicoId: svc.id })}
             />
           )}
-          {svc.status === "ACEITO" && (
+          {svc.status === "ACEITO" && !isStatusEncerrado(svc.status) && (
+            <>
+              <DButton
+                title="Iniciar serviço"
+                loading={loading}
+                onPress={() => { void action("iniciar"); }}
+              />
+              <DButton
+                title="Cancelar serviço"
+                variant="outline"
+                onPress={() => setCancelOpen(true)}
+              />
+            </>
+          )}
+          {["INICIADO", "EM_ANDAMENTO"].includes(svc.status.toUpperCase()) && !isStatusEncerrado(svc.status) && (
             <DButton
-              title="Iniciar serviço"
+              title="Confirmar finalização"
               loading={loading}
-              onPress={() => { void action("iniciar"); }}
+              onPress={() => { void confirmarFinalizacao(); }}
             />
           )}
-          {["INICIADO", "EM_ANDAMENTO"].includes(svc.status.toUpperCase()) && (
-            <DButton
-              title="Concluir serviço"
-              loading={loading}
-              onPress={() => { void action("concluir"); }}
-            />
+          {svc.status.toUpperCase() === "AGUARDANDO_FINALIZACAO" && (
+            <View style={s.waitingCard}>
+              <Ionicons name="hourglass-outline" size={20} color={colors.warning} />
+              <Text style={s.waitingText}>
+                Aguardando confirmação da outra parte.
+              </Text>
+            </View>
           )}
           {svc.status.toUpperCase() === "CONFIRMADO" && (
             <View style={s.paidCard}>
@@ -282,9 +353,33 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
               <Text style={s.doneText}>Serviço finalizado. Obrigada!</Text>
             </View>
           )}
+          {["CANCELADO", "RECUSADO"].includes(svc.status.toUpperCase()) && (
+            <View style={s.cancelledCard}>
+              <Ionicons name="close-circle" size={20} color={colors.danger} />
+              <Text style={s.cancelledText}>
+                {svc.status.toUpperCase() === "CANCELADO" ? "Serviço cancelado." : "Serviço recusado."}
+              </Text>
+            </View>
+          )}
         </View>
 
       </ScrollView>
+
+      <MotivoModal
+        visible={recusarOpen}
+        title="Recusar serviço"
+        confirmLabel="Recusar"
+        onClose={() => setRecusarOpen(false)}
+        onConfirm={confirmarRecusa}
+      />
+
+      <MotivoModal
+        visible={cancelOpen}
+        title="Cancelar serviço"
+        confirmLabel="Cancelar serviço"
+        onClose={() => setCancelOpen(false)}
+        onConfirm={confirmarCancelamento}
+      />
     </SafeAreaView>
   );
 }
@@ -406,4 +501,26 @@ const s = StyleSheet.create({
     borderColor: colors.green,
   },
   doneText: { fontSize: 12, fontWeight: "700", color: colors.greenDark },
+  waitingCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    padding: 12,
+    borderRadius: radius.lg,
+    backgroundColor: colors.warningSoft,
+    borderWidth: 1,
+    borderColor: colors.warning,
+  },
+  waitingText: { fontSize: 12, fontWeight: "700", color: colors.warning, flex: 1 },
+  cancelledCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    padding: 12,
+    borderRadius: radius.lg,
+    backgroundColor: colors.dangerSoft,
+    borderWidth: 1,
+    borderColor: colors.danger,
+  },
+  cancelledText: { fontSize: 12, fontWeight: "700", color: colors.danger, flex: 1 },
 });

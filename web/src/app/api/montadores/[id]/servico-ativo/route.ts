@@ -2,13 +2,13 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/requireAuth";
 
+// Alinhado com `ACTIVE_SERVICE_STATUSES` de /api/servicos (T-14 Hotfix):
+// CONCLUIDO/CONFIRMADO/FINALIZADO não bloqueiam nova contratação.
 const ACTIVE_STATUSES = [
   "SOLICITADO",
   "ACEITO",
   "EM_ANDAMENTO",
   "AGUARDANDO_FINALIZACAO",
-  "CONCLUIDO",
-  "CONFIRMADO",
 ] as const;
 
 type Params = { params: Promise<{ id: string }> };

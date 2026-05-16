@@ -30,6 +30,7 @@ import {
   DSectionHeader,
   DSkeletonCard,
   DErrorState,
+  DEmptyState,
 } from "@/components/ui";
 import { colors, radius, shadows, spacing, typography } from "@/theme";
 import { getProfileTheme } from "@/theme/profileTheme";
@@ -39,7 +40,7 @@ type Navigation = BottomTabNavigationProp<EmpregadorTabParamList>;
 const EMPREGADOR_THEME = getProfileTheme({ role: "EMPREGADOR" });
 const HOME_EMPREGADOR_LOGO = require("../../../assets/images/home_empregador/home_empregador_logo_card.png");
 
-// ─── Mock professionals (fallback when API returns empty) ─────────────────────
+// ─── Suggested professionals ──────────────────────────────────────────────────
 
 type ProfData = {
   id: string;
@@ -51,29 +52,6 @@ type ProfData = {
   preco: number;
   online: boolean;
 };
-
-const MOCK_PROFESSIONALS: ProfData[] = [
-  {
-    id: "mock-1",
-    nome: "Luciana Silva",
-    anos: 5,
-    bairro: "Jardim América, SP",
-    disponibilidade: "Disponível hoje",
-    nota: 4.9,
-    preco: 150,
-    online: true,
-  },
-  {
-    id: "mock-2",
-    nome: "Marina Santos",
-    anos: 3,
-    bairro: "Vila Mariana, SP",
-    disponibilidade: "Disponível amanhã",
-    nota: 4.8,
-    preco: 140,
-    online: true,
-  },
-];
 
 function diaristaToProf(item: DiaristaItem): ProfData {
   return {
@@ -343,7 +321,7 @@ export default function EmpregadorHome() {
 
   const profissionals: ProfData[] = useMemo(() => {
     if (diaristas.length > 0) return diaristas.slice(0, 5).map(diaristaToProf);
-    return MOCK_PROFESSIONALS;
+    return [];
   }, [diaristas]);
 
   const quickActions: QuickAction[] = [
@@ -444,15 +422,23 @@ export default function EmpregadorHome() {
               <CategoriaCard
                 icon="WashingMachine"
                 title="Diarista"
-                onPress={() => navigation.navigate("Buscar")}
+                onPress={() => navigation.navigate("Buscar", { categoriaInicial: "diarista" })}
               />
               <CategoriaCard
                 icon="Wrench"
                 title="Montador"
                 onPress={() => navigation.navigate("Buscar", { categoriaInicial: "montador" })}
               />
-              <CategoriaCard icon="Baby" title="Babá" disabled />
-              <CategoriaCard icon="ChefHat" title="Cozinheira" disabled />
+              <CategoriaCard
+                icon="Baby"
+                title="Babá"
+                onPress={() => navigation.navigate("Buscar", { categoriaInicial: "baba" })}
+              />
+              <CategoriaCard
+                icon="ChefHat"
+                title="Cozinheira"
+                onPress={() => navigation.navigate("Buscar", { categoriaInicial: "cozinheira" })}
+              />
             </View>
           </View>
 
@@ -468,6 +454,12 @@ export default function EmpregadorHome() {
               <DSkeletonCard count={2} height={120} />
             ) : error ? (
               <DErrorState message={error} onRetry={() => handleBuscar()} />
+            ) : profissionals.length === 0 ? (
+              <DEmptyState
+                icon="Search"
+                title="Nenhum profissional sugerido ainda."
+                subtitle="Toque em uma categoria acima para começar."
+              />
             ) : (
               profissionals.map((prof) => (
                 <SuggestedProfCard

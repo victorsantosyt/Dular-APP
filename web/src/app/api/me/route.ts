@@ -39,6 +39,7 @@ export async function GET(req: Request) {
         role: true,
         status: true,
         avatarUrl: true,
+        createdAt: true,
       },
     });
 

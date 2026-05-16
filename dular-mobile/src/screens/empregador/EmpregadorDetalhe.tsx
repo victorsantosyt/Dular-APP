@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Alert,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -14,10 +13,16 @@ import { Ionicons } from "@expo/vector-icons";
 
 import { api } from "@/lib/api";
 import type { ServicoListItem as Servico } from "../../../../shared/types/servico";
+import {
+  cancelarServicoEmpregador,
+  confirmarFinalizacaoEmpregador,
+} from "@/api/empregadorApi";
 import { DButton } from "@/components/DButton";
 import { DularBadge } from "@/components/DularBadge";
+import { MotivoModal } from "@/components/MotivoModal";
 import { AvaliacaoModal } from "@/components/ui";
 import { formatPrice } from "@/utils/formatPrice";
+import { isStatusEncerrado } from "@/utils/servicoStatus";
 import { EMPREGADOR_STACK_ROUTES } from "@/navigation/routes";
 import { colors, radius, shadow, spacing, typography } from "@/theme/tokens";
 
@@ -31,9 +36,12 @@ function statusLabel(st: string) {
   if (s === "PENDENTE" || s === "SOLICITADO") return "Aguardando aceite";
   if (s === "ACEITO")       return "Aceito";
   if (s === "INICIADO" || s === "EM_ANDAMENTO") return "Em andamento";
+  if (s === "AGUARDANDO_FINALIZACAO") return "Aguardando confirmação";
   if (["CONCLUIDO", "CONCLUÍDO"].includes(s)) return "Concluído";
   if (s === "CONFIRMADO")   return "Confirmado";
   if (s === "FINALIZADO")   return "Finalizado";
+  if (s === "CANCELADO")    return "Cancelado";
+  if (s === "RECUSADO")     return "Recusado";
   return st || "Status";
 }
 
@@ -56,6 +64,7 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
   const [cancelling, setCancelling] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [avaliacaoVisible, setAvaliacaoVisible] = useState(false);
+  const [motivoVisible, setMotivoVisible] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const busyRef = useRef(false);
 
@@ -107,15 +116,27 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
     [svc, statusRaw]
   );
   const podeConfirmar = useMemo(
-    () => !alreadyConfirmed && ["CONCLUIDO", "CONCLUÍDO"].includes(statusRaw),
+    () => !alreadyConfirmed && ["CONCLUIDO", "CONCLUÍDO", "AGUARDANDO_FINALIZACAO"].includes(statusRaw),
     [alreadyConfirmed, statusRaw]
   );
+  const aguardandoOutraParte = useMemo(
+    () => statusRaw === "AGUARDANDO_FINALIZACAO",
+    [statusRaw]
+  );
+  const finalizarPeloEmpregador = useMemo(
+    () => statusRaw === "EM_ANDAMENTO",
+    [statusRaw]
+  );
   const podeCancelar = useMemo(
-    () => ["PENDENTE", "SOLICITADO", "ACEITO"].includes(statusRaw),
+    () =>
+      !isStatusEncerrado(statusRaw) &&
+      ["PENDENTE", "SOLICITADO", "ACEITO"].includes(statusRaw),
     [statusRaw]
   );
   const podeAvaliar = useMemo(
-    () => !alreadyRated && statusRaw === "CONFIRMADO",
+    () =>
+      !alreadyRated &&
+      ["CONFIRMADO", "FINALIZADO"].includes(statusRaw),
     [alreadyRated, statusRaw]
   );
   const chatLiberado = useMemo(
@@ -128,7 +149,7 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
     busyRef.current = true;
     setConfirming(true);
     try {
-      await api.post(`/api/servicos/${svc.id}/confirmar`);
+      await confirmarFinalizacaoEmpregador(svc.id);
       setSvc((cur) => cur ? { ...cur, status: "CONFIRMADO" as any, __confirmedByClient: true } : cur);
       setToast("Serviço confirmado com sucesso.");
     } catch (e: any) {
@@ -139,35 +160,25 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
     }
   }, [confirming, svc]);
 
-  const onCancelar = useCallback(() => {
-    if (!svc) return;
-    Alert.alert(
-      "Cancelar serviço?",
-      "Tem certeza que deseja cancelar este serviço?",
-      [
-        { text: "Não", style: "cancel" },
-        {
-          text: "Cancelar serviço",
-          style: "destructive",
-          onPress: async () => {
-            if (busyRef.current) return;
-            busyRef.current = true;
-            setCancelling(true);
-            try {
-              await api.post(`/api/servicos/${svc.id}/cancelar`);
-              setSvc((cur) => cur ? { ...cur, status: "CANCELADO" as any } : cur);
-              setToast("Serviço cancelado.");
-            } catch (e: any) {
-              setToast(e?.response?.data?.error ?? "Falha ao cancelar.");
-            } finally {
-              setCancelling(false);
-              busyRef.current = false;
-            }
-          },
-        },
-      ]
-    );
-  }, [svc]);
+  const onCancelarComMotivo = useCallback(
+    async (motivo: string, observacao: string) => {
+      if (!svc || busyRef.current) return;
+      busyRef.current = true;
+      setCancelling(true);
+      try {
+        await cancelarServicoEmpregador(svc.id, motivo, observacao || undefined);
+        setSvc((cur) => (cur ? { ...cur, status: "CANCELADO" as any } : cur));
+        setMotivoVisible(false);
+        setToast("Serviço cancelado.");
+      } catch (e: any) {
+        setToast(e?.response?.data?.error ?? "Falha ao cancelar.");
+      } finally {
+        setCancelling(false);
+        busyRef.current = false;
+      }
+    },
+    [svc]
+  );
 
   if (loadingInit || !svc) {
     return (
@@ -244,10 +255,28 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
           </View>
         ) : null}
 
+        {aguardandoOutraParte ? (
+          <View style={[s.infoBar, { backgroundColor: colors.warningSoft }]}>
+            <Ionicons name="hourglass-outline" size={16} color={colors.warning} />
+            <Text style={[s.infoBarText, { color: colors.ink }]}>
+              Aguardando confirmação da outra parte.
+            </Text>
+          </View>
+        ) : null}
+
         {statusRaw === "CONFIRMADO" ? (
           <View style={s.successBar}>
             <Ionicons name="checkmark-circle" size={18} color={colors.success} />
             <Text style={s.successBarText}>Pagamento liberado ✓</Text>
+          </View>
+        ) : null}
+
+        {["CANCELADO", "RECUSADO"].includes(statusRaw) ? (
+          <View style={[s.infoBar, { backgroundColor: colors.dangerSoft }]}>
+            <Ionicons name="close-circle-outline" size={16} color={colors.danger} />
+            <Text style={[s.infoBarText, { color: colors.danger }]}>
+              {statusRaw === "CANCELADO" ? "Serviço cancelado." : "Serviço recusado."}
+            </Text>
           </View>
         ) : null}
 
@@ -260,10 +289,10 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
           />
         ) : null}
 
-        {/* Confirmar serviço */}
-        {podeConfirmar ? (
+        {/* Confirmar finalização */}
+        {podeConfirmar || finalizarPeloEmpregador ? (
           <DButton
-            title={confirming ? "Confirmando..." : "Confirmar serviço"}
+            title={confirming ? "Confirmando..." : "Confirmar finalização"}
             onPress={onConfirmar}
             loading={confirming}
             disabled={confirming}
@@ -289,7 +318,7 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
         {/* Cancelar */}
         {podeCancelar ? (
           <Pressable
-            onPress={onCancelar}
+            onPress={() => setMotivoVisible(true)}
             disabled={cancelling}
             style={({ pressed }) => [s.cancelBtn, pressed && { opacity: 0.75 }]}
           >
@@ -297,6 +326,14 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
           </Pressable>
         ) : null}
       </ScrollView>
+
+      <MotivoModal
+        visible={motivoVisible}
+        title="Cancelar serviço"
+        confirmLabel="Cancelar serviço"
+        onClose={() => setMotivoVisible(false)}
+        onConfirm={onCancelarComMotivo}
+      />
 
       <AvaliacaoModal
         visible={avaliacaoVisible}

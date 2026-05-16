@@ -192,8 +192,15 @@ export async function aceitarSolicitacaoMontador(servicoId: string) {
   return res.data;
 }
 
-export async function recusarSolicitacaoMontador(servicoId: string) {
-  const res = await api.post(`/api/servicos/${servicoId}/recusar`);
+export async function recusarSolicitacaoMontador(
+  servicoId: string,
+  motivo?: string,
+  observacao?: string,
+) {
+  const body: Record<string, unknown> = {};
+  if (motivo) body.motivo = motivo;
+  if (observacao) body.observacao = observacao;
+  const res = await api.post(`/api/servicos/${servicoId}/recusar`, body);
   return res.data;
 }
 
@@ -207,10 +214,21 @@ export async function finalizarServicoMontador(servicoId: string) {
   return res.data;
 }
 
-export async function cancelarServicoMontador(servicoId: string) {
-  const res = await api.post(`/api/servicos/${servicoId}/cancelar`, {
-    motivo: "Cancelado pelo montador no aplicativo.",
-  });
+export async function confirmarFinalizacaoMontador(servicoId: string) {
+  const res = await api.post(`/api/servicos/${servicoId}/confirmar`);
+  return res.data;
+}
+
+export async function cancelarServicoMontador(
+  servicoId: string,
+  motivo?: string,
+  observacao?: string,
+) {
+  const body: Record<string, unknown> = {
+    motivo: motivo ?? "Cancelado pelo montador no aplicativo.",
+  };
+  if (observacao) body.observacao = observacao;
+  const res = await api.post(`/api/servicos/${servicoId}/cancelar`, body);
   return res.data;
 }
 

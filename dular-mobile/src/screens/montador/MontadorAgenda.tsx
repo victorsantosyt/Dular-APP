@@ -5,13 +5,16 @@ import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import { AppIcon, DEmptyState, DErrorState, DLoadingState, DScreen } from "@/components/ui";
 import {
   cancelarServicoMontador,
+  confirmarFinalizacaoMontador,
   finalizarServicoMontador,
   iniciarServicoMontador,
   type MontadorServico,
 } from "@/api/montadorApi";
+import { MotivoModal } from "@/components/MotivoModal";
 import { useMontadorServicos } from "@/hooks/useMontadorServicos";
 import { useProfileTheme } from "@/hooks/useProfileTheme";
 import type { MontadorTabParamList } from "@/navigation/MontadorNavigator";
+import { isStatusEncerrado } from "@/utils/servicoStatus";
 import { colors, radius, shadows, spacing, typography } from "@/theme";
 import {
   formatDateTime,
@@ -85,6 +88,7 @@ function AgendaCard({
   onDetalhe,
   onIniciar,
   onFinalizar,
+  onConfirmarFinalizacao,
   onCancelar,
   onReagendar,
 }: {
@@ -95,12 +99,16 @@ function AgendaCard({
   onDetalhe: () => void;
   onIniciar: () => void;
   onFinalizar: () => void;
+  onConfirmarFinalizacao: () => void;
   onCancelar: () => void;
   onReagendar: () => void;
 }) {
   const status = upperStatus(servico.status);
-  const canStart = status === "ACEITO" || status === "CONFIRMADO";
-  const canFinish = status === "EM_ANDAMENTO";
+  const encerrado = isStatusEncerrado(status);
+  const canStart = !encerrado && status === "ACEITO";
+  const canFinish = !encerrado && status === "EM_ANDAMENTO";
+  const aguardandoOutra = status === "AGUARDANDO_FINALIZACAO";
+  const isCanceladoOuRecusado = status === "CANCELADO" || status === "RECUSADO";
 
   return (
     <View style={styles.card}>
@@ -126,21 +134,50 @@ function AgendaCard({
         <Text style={styles.infoText}>{servico.empregador?.nome ?? "Empregador não informado"}</Text>
       </View>
 
+      {aguardandoOutra ? (
+        <View style={styles.infoRow}>
+          <AppIcon name="Hourglass" size={15} color={colors.warning} />
+          <Text style={[styles.infoText, { color: colors.warning }]}>
+            Aguardando confirmação da outra parte.
+          </Text>
+        </View>
+      ) : null}
+
+      {isCanceladoOuRecusado ? (
+        <View style={styles.infoRow}>
+          <AppIcon name="XCircle" size={15} color={colors.danger} />
+          <Text style={[styles.infoText, { color: colors.danger }]}>
+            {status === "CANCELADO" ? "Serviço cancelado." : "Serviço recusado."}
+          </Text>
+        </View>
+      ) : null}
+
+      {encerrado && !isCanceladoOuRecusado ? (
+        <View style={styles.infoRow}>
+          <AppIcon name="CheckCircle" size={15} color={colors.success} />
+          <Text style={[styles.infoText, { color: colors.success }]}>
+            Serviço finalizado.
+          </Text>
+        </View>
+      ) : null}
+
       <View style={styles.actions}>
         <Pressable onPress={onDetalhe} style={[styles.actionButton, { backgroundColor: soft }]}>
           <Text style={[styles.actionText, { color: accent }]}>Ver detalhes</Text>
         </Pressable>
         {canStart ? (
           <Pressable onPress={onIniciar} disabled={actionLoading === servico.id} style={[styles.actionButton, { backgroundColor: accent }]}>
-            <Text style={[styles.actionText, { color: colors.white }]}>{actionLoading === servico.id ? "Iniciando" : "Iniciar"}</Text>
+            <Text style={[styles.actionText, { color: colors.white }]}>{actionLoading === servico.id ? "Iniciando" : "Iniciar serviço"}</Text>
           </Pressable>
         ) : null}
         {canFinish ? (
-          <Pressable onPress={onFinalizar} disabled={actionLoading === servico.id} style={[styles.actionButton, { backgroundColor: accent }]}>
-            <Text style={[styles.actionText, { color: colors.white }]}>{actionLoading === servico.id ? "Finalizando" : "Finalizar"}</Text>
+          <Pressable onPress={onConfirmarFinalizacao} disabled={actionLoading === servico.id} style={[styles.actionButton, { backgroundColor: accent }]}>
+            <Text style={[styles.actionText, { color: colors.white }]}>
+              {actionLoading === servico.id ? "Finalizando" : "Confirmar finalização"}
+            </Text>
           </Pressable>
         ) : null}
-        {!isDone(servico) ? (
+        {!encerrado && !aguardandoOutra ? (
           <>
             <Pressable onPress={onReagendar} style={styles.ghostButton}>
               <Text style={styles.ghostText}>Reagendar</Text>
@@ -161,6 +198,7 @@ export default function MontadorAgenda() {
   const { agenda, loading, refreshing, error, refetch, reload } = useMontadorServicos();
   const [filtro, setFiltro] = useState<Filtro>("hoje");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [cancelTargetId, setCancelTargetId] = useState<string | null>(null);
 
   const filtrados = useMemo(() => {
     if (filtro === "concluidos") return agenda.filter(isDone);
@@ -197,25 +235,38 @@ export default function MontadorAgenda() {
       setActionLoading(null);
     }
   };
+  const confirmarFinalizacao = async (servicoId: string) => {
+    try {
+      setActionLoading(servicoId);
+      await confirmarFinalizacaoMontador(servicoId);
+      reload();
+    } catch {
+      // Fallback: backend pode ainda usar /concluir
+      try {
+        await finalizarServicoMontador(servicoId);
+        reload();
+      } catch {
+        Alert.alert("Erro", "Não foi possível confirmar a finalização.");
+      }
+    } finally {
+      setActionLoading(null);
+    }
+  };
   const cancelarServico = (servicoId: string) => {
-    Alert.alert("Cancelar serviço", "Confirma o cancelamento deste serviço?", [
-      { text: "Voltar", style: "cancel" },
-      {
-        text: "Cancelar serviço",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            setActionLoading(servicoId);
-            await cancelarServicoMontador(servicoId);
-            reload();
-          } catch {
-            Alert.alert("Erro", "Não foi possível cancelar o serviço.");
-          } finally {
-            setActionLoading(null);
-          }
-        },
-      },
-    ]);
+    setCancelTargetId(servicoId);
+  };
+  const confirmarCancelamento = async (motivo: string, observacao: string) => {
+    if (!cancelTargetId) return;
+    try {
+      setActionLoading(cancelTargetId);
+      await cancelarServicoMontador(cancelTargetId, motivo, observacao || undefined);
+      setCancelTargetId(null);
+      reload();
+    } catch {
+      Alert.alert("Erro", "Não foi possível cancelar o serviço.");
+    } finally {
+      setActionLoading(null);
+    }
   };
   const reagendarServico = () => {
     Alert.alert("Reagendamento", "Reagendamento será conectado quando o endpoint estiver disponível.");
@@ -273,12 +324,20 @@ export default function MontadorAgenda() {
               onDetalhe={() => abrirDetalheAgendamento(item.id)}
               onIniciar={() => iniciarServico(item.id)}
               onFinalizar={() => finalizarServico(item.id)}
+              onConfirmarFinalizacao={() => confirmarFinalizacao(item.id)}
               onCancelar={() => cancelarServico(item.id)}
               onReagendar={reagendarServico}
             />
           ))}
         </View>
       )}
+      <MotivoModal
+        visible={!!cancelTargetId}
+        title="Cancelar serviço"
+        confirmLabel="Cancelar serviço"
+        onClose={() => setCancelTargetId(null)}
+        onConfirm={confirmarCancelamento}
+      />
     </DScreen>
   );
 }

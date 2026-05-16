@@ -29,6 +29,7 @@ export type Me = {
   servicosOferecidos?: ServicoOferecido[];
   docEnviado?: boolean;
   verificacao?: VerificacaoInfo;
+  createdAt?: string | null;
 };
 
 export async function getMe(): Promise<Me> {

@@ -4,12 +4,16 @@ import type { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
 import { AppIcon, DEmptyState, DErrorState, DLoadingState, DScreen } from "@/components/ui";
 import {
   acionarSosMontador,
+  cancelarServicoMontador,
+  confirmarFinalizacaoMontador,
   finalizarServicoMontador,
   iniciarServicoMontador,
 } from "@/api/montadorApi";
+import { MotivoModal } from "@/components/MotivoModal";
 import { useMontadorServicos } from "@/hooks/useMontadorServicos";
 import { useProfileTheme } from "@/hooks/useProfileTheme";
 import type { MontadorTabParamList } from "@/navigation/MontadorNavigator";
+import { isStatusEncerrado } from "@/utils/servicoStatus";
 import { colors, radius, shadows, spacing, typography } from "@/theme";
 import {
   canOpenChat,
@@ -27,8 +31,11 @@ export default function MontadorDetalheServico({ route, navigation }: Props) {
   const profileTheme = useProfileTheme("MONTADOR");
   const { servicos, loading, error, reload } = useMontadorServicos();
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [cancelOpen, setCancelOpen] = useState(false);
   const servico = servicos.find((item) => item.id === route.params.servicoId);
   const status = upperStatus(servico?.status);
+  const encerrado = isStatusEncerrado(status);
+  const isCanceladoOuRecusado = status === "CANCELADO" || status === "RECUSADO";
 
   const fazerCheckIn = () => {
     Alert.alert("Check-in", "Check-in será conectado ao endpoint de segurança do serviço.");
@@ -49,10 +56,27 @@ export default function MontadorDetalheServico({ route, navigation }: Props) {
     if (!servico) return;
     try {
       setActionLoading("finalizar");
-      await finalizarServicoMontador(servico.id);
+      try {
+        await confirmarFinalizacaoMontador(servico.id);
+      } catch {
+        await finalizarServicoMontador(servico.id);
+      }
       reload();
     } catch {
       Alert.alert("Erro", "Não foi possível finalizar o serviço.");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+  const confirmarCancelamento = async (motivo: string, observacao: string) => {
+    if (!servico) return;
+    try {
+      setActionLoading("cancelar");
+      await cancelarServicoMontador(servico.id, motivo, observacao || undefined);
+      setCancelOpen(false);
+      reload();
+    } catch {
+      Alert.alert("Erro", "Não foi possível cancelar o serviço.");
     } finally {
       setActionLoading(null);
     }
@@ -130,7 +154,7 @@ export default function MontadorDetalheServico({ route, navigation }: Props) {
               soft={profileTheme.primarySoft}
               onPress={fazerCheckIn}
             />
-            {status === "ACEITO" || status === "CONFIRMADO" ? (
+            {!encerrado && status === "ACEITO" ? (
               <ActionButton
                 label={actionLoading === "iniciar" ? "Iniciando" : "Iniciar serviço"}
                 icon="Clock"
@@ -139,13 +163,46 @@ export default function MontadorDetalheServico({ route, navigation }: Props) {
                 onPress={iniciarServico}
               />
             ) : null}
-            {status === "EM_ANDAMENTO" ? (
+            {!encerrado && status === "EM_ANDAMENTO" ? (
               <ActionButton
-                label={actionLoading === "finalizar" ? "Finalizando" : "Finalizar serviço"}
+                label={actionLoading === "finalizar" ? "Finalizando" : "Confirmar finalização"}
                 icon="CheckCircle"
                 accent={profileTheme.primary}
                 soft={profileTheme.primarySoft}
                 onPress={finalizarServico}
+              />
+            ) : null}
+            {status === "AGUARDANDO_FINALIZACAO" ? (
+              <View style={[styles.statusInfo, { backgroundColor: colors.warningSoft }]}>
+                <AppIcon name="Hourglass" size={16} color={colors.warning} />
+                <Text style={[styles.statusInfoText, { color: colors.warning }]}>
+                  Aguardando confirmação da outra parte.
+                </Text>
+              </View>
+            ) : null}
+            {isCanceladoOuRecusado ? (
+              <View style={[styles.statusInfo, { backgroundColor: colors.dangerSoft }]}>
+                <AppIcon name="XCircle" size={16} color={colors.danger} />
+                <Text style={[styles.statusInfoText, { color: colors.danger }]}>
+                  {status === "CANCELADO" ? "Serviço cancelado." : "Serviço recusado."}
+                </Text>
+              </View>
+            ) : null}
+            {encerrado && !isCanceladoOuRecusado ? (
+              <View style={[styles.statusInfo, { backgroundColor: colors.successSoft }]}>
+                <AppIcon name="CheckCircle" size={16} color={colors.success} />
+                <Text style={[styles.statusInfoText, { color: colors.success }]}>
+                  Serviço finalizado.
+                </Text>
+              </View>
+            ) : null}
+            {!encerrado && ["ACEITO", "EM_ANDAMENTO"].includes(status) ? (
+              <ActionButton
+                label={actionLoading === "cancelar" ? "Cancelando" : "Cancelar serviço"}
+                icon="XCircle"
+                accent={colors.danger}
+                soft={colors.dangerSoft}
+                onPress={() => setCancelOpen(true)}
               />
             ) : null}
             <ActionButton
@@ -161,6 +218,14 @@ export default function MontadorDetalheServico({ route, navigation }: Props) {
           </View>
         </>
       )}
+
+      <MotivoModal
+        visible={cancelOpen}
+        title="Cancelar serviço"
+        confirmLabel="Cancelar serviço"
+        onClose={() => setCancelOpen(false)}
+        onConfirm={confirmarCancelamento}
+      />
     </DScreen>
   );
 }
@@ -297,6 +362,19 @@ const styles = StyleSheet.create({
   sosText: {
     color: colors.white,
     fontWeight: "700",
+  },
+  statusInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    minHeight: 48,
+    borderRadius: radius.lg,
+    paddingHorizontal: 12,
+  },
+  statusInfoText: {
+    ...typography.bodySm,
+    fontWeight: "700",
+    flex: 1,
   },
   pressed: {
     opacity: 0.72,

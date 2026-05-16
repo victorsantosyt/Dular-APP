@@ -41,7 +41,32 @@ type ProfileHeroCardProps = {
   /** Texto do prefixo da data — algumas identidades preferem "Usuário desde"
    *  no masculino. Default: "Usuária desde". */
   memberSincePrefix?: string;
+  /** Status real de verificação. Quando informado, a pílula muda dinamicamente
+   *  (Verificado / Pendente / Reprovado / Não verificado) em vez de mostrar
+   *  "Verificado" hardcoded. Default: pílula "Verificado" (legado). */
+  verificacaoStatus?: "APROVADO" | "VERIFICADO" | "PENDENTE" | "REPROVADO" | "NAO_ENVIADO" | null;
+  /** Se true, mostra apenas a data ("Usuária desde DD/MM/AAAA") quando a data
+   *  é válida. Se a data não for válida, oculta a linha em vez de mostrar "—". */
+  hideMemberSinceIfEmpty?: boolean;
 };
+
+function verificacaoPill(status: ProfileHeroCardProps["verificacaoStatus"], colors: ThemeColors, accent: string) {
+  // Quando não passa o status, mantém comportamento legado (sempre "Verificado")
+  if (status === undefined) {
+    return { label: "Verificado", color: accent, icon: "Check" as AppIconName, bg: undefined as string | undefined };
+  }
+  if (status === "APROVADO" || status === "VERIFICADO") {
+    return { label: "Verificado", color: colors.success, icon: "Check" as AppIconName, bg: undefined };
+  }
+  if (status === "PENDENTE") {
+    return { label: "Verificação pendente", color: colors.warning, icon: "Clock" as AppIconName, bg: undefined };
+  }
+  if (status === "REPROVADO") {
+    return { label: "Verificação reprovada", color: colors.danger, icon: "XCircle" as AppIconName, bg: undefined };
+  }
+  // NAO_ENVIADO ou null
+  return { label: "Não verificado", color: colors.textMuted, icon: "AlertCircle" as AppIconName, bg: undefined };
+}
 
 export function ProfileHeroCard({
   nome,
@@ -55,11 +80,23 @@ export function ProfileHeroCard({
   gradient,
   accentColor,
   memberSincePrefix = "Usuária desde",
+  verificacaoStatus,
+  hideMemberSinceIfEmpty,
 }: ProfileHeroCardProps) {
   const colors = useDularColors();
   const s = useMemo(() => makeStyles(colors), [colors]);
   const heroGradient = gradient ?? [colors.primary, colors.primaryLight];
   const accent = accentColor ?? colors.primary;
+  const pill = verificacaoPill(verificacaoStatus, colors, accent);
+  // Quando o status é passado, o badge já comunica o estado da verificação,
+  // então o subtitle vira informativo (ou pode ser omitido pelo chamador).
+  // Quando o status NÃO é passado (uso legado pelo EmpregadorPerfil), o
+  // subtitle continua a ser exibido como antes.
+  const showSubtitle = subtitle && (verificacaoStatus === undefined || subtitle.trim() !== "");
+  const memberSinceText = memberSince && memberSince.trim() !== "" && memberSince !== "—"
+    ? `${memberSincePrefix} ${memberSince}`
+    : null;
+  const shouldShowMemberSince = memberSinceText !== null || !hideMemberSinceIfEmpty;
   return (
     <LinearGradient colors={heroGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.hero}>
       <View style={s.heroGhost}>
@@ -92,20 +129,24 @@ export function ProfileHeroCard({
             {nome}
           </Text>
           <View style={s.verifiedPill}>
-            <AppIcon name="Check" size={12} color={accent} strokeWidth={3} />
-            <Text style={[s.verifiedText, { color: accent }]}>Verificado</Text>
+            <AppIcon name={pill.icon} size={12} color={pill.color} strokeWidth={3} />
+            <Text style={[s.verifiedText, { color: pill.color }]}>{pill.label}</Text>
           </View>
         </View>
-        <Text style={s.heroSubtitle}>{subtitle}</Text>
+        {showSubtitle ? <Text style={s.heroSubtitle}>{subtitle}</Text> : null}
         <View style={s.heroDivider} />
         <View style={s.infoLine}>
           <AppIcon name="MapPin" size={15} color={colors.whiteAlpha90} strokeWidth={2.2} />
           <Text style={s.infoLineText}>{location}</Text>
         </View>
-        <View style={s.infoLine}>
-          <AppIcon name="Calendar" size={15} color={colors.whiteAlpha90} strokeWidth={2.2} />
-          <Text style={s.infoLineText}>{memberSincePrefix} {memberSince}</Text>
-        </View>
+        {shouldShowMemberSince ? (
+          <View style={s.infoLine}>
+            <AppIcon name="Calendar" size={15} color={colors.whiteAlpha90} strokeWidth={2.2} />
+            <Text style={s.infoLineText}>
+              {memberSinceText ?? "Data não disponível"}
+            </Text>
+          </View>
+        ) : null}
       </View>
     </LinearGradient>
   );

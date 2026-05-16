@@ -56,7 +56,7 @@ function normalizeStatus(status?: string | null): AgendamentoItem["status"] {
   const value = String(status ?? "").toUpperCase();
   if (value === "SOLICITADO" || value === "PENDENTE" || value === "RASCUNHO") return "pendente";
   if (value === "ACEITO" || value === "CONFIRMADO") return "aceita";
-  if (value === "EM_ANDAMENTO") return "andamento";
+  if (value === "EM_ANDAMENTO" || value === "AGUARDANDO_FINALIZACAO") return "andamento";
   if (value === "CONCLUIDO" || value === "CONCLUÍDO" || value === "FINALIZADO") return "concluida";
   if (value === "CANCELADO" || value === "RECUSADO") return "cancelada";
   return "pendente";

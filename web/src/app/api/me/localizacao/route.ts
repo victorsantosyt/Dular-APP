@@ -15,9 +15,16 @@ const locationSchema = z.object({
 });
 
 export async function PATCH(req: Request) {
+  const t0 = Date.now();
+  const isDev = process.env.NODE_ENV === "development";
   try {
+    const tAuth = Date.now();
     const auth = requireAuth(req);
+    if (isDev) console.log(`[me/localizacao PATCH] auth: ${Date.now() - tAuth}ms role=${auth.role}`);
+
+    const tParse = Date.now();
     const parsed = locationSchema.safeParse(await req.json());
+    if (isDev) console.log(`[me/localizacao PATCH] parse+validate: ${Date.now() - tParse}ms`);
 
     if (!parsed.success) {
       return NextResponse.json(
@@ -37,6 +44,7 @@ export async function PATCH(req: Request) {
       localizacaoAtualizadaEm: new Date(),
     };
 
+    const tUpsert = Date.now();
     if (auth.role === "EMPREGADOR") {
       const perfil = await prisma.empregadorPerfil.upsert({
         where: { userId: auth.userId },
@@ -56,6 +64,7 @@ export async function PATCH(req: Request) {
         },
       });
 
+      if (isDev) console.log(`[me/localizacao PATCH] upsert: ${Date.now() - tUpsert}ms TOTAL: ${Date.now() - t0}ms`);
       return NextResponse.json({ ok: true, role: auth.role, localizacao: perfil });
     }
 
@@ -81,6 +90,32 @@ export async function PATCH(req: Request) {
         },
       });
 
+      if (isDev) console.log(`[me/localizacao PATCH] upsert: ${Date.now() - tUpsert}ms TOTAL: ${Date.now() - t0}ms`);
+      return NextResponse.json({ ok: true, role: auth.role, localizacao: perfil });
+    }
+
+    if (auth.role === "DIARISTA") {
+      const perfil = await prisma.diaristaProfile.upsert({
+        where: { userId: auth.userId },
+        update: localizacao,
+        create: {
+          userId: auth.userId,
+          precoLeve: 0,
+          precoPesada: 0,
+          ...localizacao,
+        },
+        select: {
+          cidadeAtual: true,
+          estadoAtual: true,
+          bairroAtual: true,
+          latitude: true,
+          longitude: true,
+          localizacaoPermitida: true,
+          localizacaoAtualizadaEm: true,
+        },
+      });
+
+      if (isDev) console.log(`[me/localizacao PATCH] upsert: ${Date.now() - tUpsert}ms TOTAL: ${Date.now() - t0}ms`);
       return NextResponse.json({ ok: true, role: auth.role, localizacao: perfil });
     }
 
@@ -89,6 +124,7 @@ export async function PATCH(req: Request) {
       { status: 400 },
     );
   } catch (e: unknown) {
+    if (isDev) console.log(`[me/localizacao PATCH] ERROR after ${Date.now() - t0}ms: ${e instanceof Error ? e.message : "unknown"}`);
     if (e instanceof Error && e.message === "Unauthorized") {
       return NextResponse.json({ ok: false, error: "Não autorizado" }, { status: 401 });
     }

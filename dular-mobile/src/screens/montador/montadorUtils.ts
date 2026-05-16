@@ -78,6 +78,7 @@ export function statusLabel(statusValue: unknown) {
   if (status === "ACEITO") return "Aceito";
   if (status === "CONFIRMADO") return "Confirmado";
   if (status === "EM_ANDAMENTO") return "Em andamento";
+  if (status === "AGUARDANDO_FINALIZACAO") return "Aguardando finalização";
   if (status === "FINALIZADO" || status === "CONCLUIDO") return "Finalizado";
   if (status === "CANCELADO") return "Cancelado";
   if (status === "RECUSADO") return "Recusado";

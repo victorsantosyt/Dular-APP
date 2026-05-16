@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/requireAuth";
+import { getDiaristaProfileCompleteness } from "@/lib/diaristaProfile";
 
 export const dynamic = "force-dynamic";
 
@@ -25,14 +26,27 @@ export async function GET(_req: Request, { params }: Params) {
         bio: true,
         fotoUrl: true,
         verificacao: true,
+        ativo: true,
         precoLeve: true,
         precoMedio: true,
         precoPesada: true,
         notaMedia: true,
         totalServicos: true,
         servicosOferecidos: true,
+        cidade: true,
+        estado: true,
+        atendeTodaCidade: true,
+        raioAtendimentoKm: true,
+        anosExperiencia: true,
+        precoBabaHora: true,
+        precoCozinheiraBase: true,
+        taxaMinima: true,
+        cobraDeslocamento: true,
+        valorACombinar: true,
+        observacaoPreco: true,
+        portfolioFotos: true,
         bairros: {
-          include: {
+          select: {
             bairro: {
               select: {
                 nome: true,
@@ -42,6 +56,15 @@ export async function GET(_req: Request, { params }: Params) {
             },
           },
         },
+        agenda: {
+          select: {
+            id: true,
+            diaSemana: true,
+            turno: true,
+            ativo: true,
+          },
+          orderBy: [{ diaSemana: "asc" }, { turno: "asc" }],
+        },
         user: {
           select: {
             id: true,
@@ -49,6 +72,14 @@ export async function GET(_req: Request, { params }: Params) {
             telefone: true,
             status: true,
             avatarUrl: true,
+            habilidades: {
+              select: {
+                id: true,
+                tipo: true,
+                categoria: true,
+              },
+              orderBy: [{ tipo: "asc" }, { categoria: "asc" }],
+            },
             safeScoreProfile: {
               select: {
                 currentScore: true,
@@ -67,12 +98,31 @@ export async function GET(_req: Request, { params }: Params) {
       );
     }
 
-    const avatarUrl = diarista.fotoUrl ?? diarista.user.avatarUrl;
+    const avatarUrl = diarista.fotoUrl ?? diarista.user.avatarUrl ?? null;
     const bairros = diarista.bairros.map((db) => ({
       nome: db.bairro.nome,
       cidade: db.bairro.cidade,
       uf: db.bairro.uf,
     }));
+
+    const completude = getDiaristaProfileCompleteness({
+      ativo: diarista.ativo,
+      bio: diarista.bio,
+      servicosOferecidos: diarista.servicosOferecidos,
+      cidade: diarista.cidade,
+      estado: diarista.estado,
+      atendeTodaCidade: diarista.atendeTodaCidade,
+      raioAtendimentoKm: diarista.raioAtendimentoKm,
+      precoLeve: diarista.precoLeve,
+      precoMedio: diarista.precoMedio,
+      precoPesada: diarista.precoPesada,
+      precoBabaHora: diarista.precoBabaHora,
+      precoCozinheiraBase: diarista.precoCozinheiraBase,
+      taxaMinima: diarista.taxaMinima,
+      valorACombinar: diarista.valorACombinar,
+      bairros: diarista.bairros,
+      user: { nome: diarista.user.nome, status: diarista.user.status },
+    });
 
     return NextResponse.json({
       ok: true,
@@ -83,13 +133,29 @@ export async function GET(_req: Request, { params }: Params) {
         avatarUrl,
         bio: diarista.bio,
         verificacao: diarista.verificacao,
+        verificado: diarista.verificacao === "VERIFICADO",
+        ativo: diarista.ativo,
         servicosOferecidos: diarista.servicosOferecidos,
+        cidade: diarista.cidade,
+        estado: diarista.estado,
+        atendeTodaCidade: diarista.atendeTodaCidade,
+        raioAtendimentoKm: diarista.raioAtendimentoKm,
+        anosExperiencia: diarista.anosExperiencia,
         bairros,
         precos: {
           leve: diarista.precoLeve,
           medio: diarista.precoMedio,
           pesada: diarista.precoPesada,
+          babaHora: diarista.precoBabaHora,
+          cozinheiraBase: diarista.precoCozinheiraBase,
+          taxaMinima: diarista.taxaMinima,
         },
+        cobraDeslocamento: diarista.cobraDeslocamento,
+        valorACombinar: diarista.valorACombinar,
+        observacaoPreco: diarista.observacaoPreco,
+        portfolioFotos: diarista.portfolioFotos,
+        habilidades: diarista.user.habilidades,
+        agenda: diarista.agenda,
         notaMedia: diarista.notaMedia,
         totalServicos: diarista.totalServicos,
         safeScore: diarista.user.safeScoreProfile
@@ -98,6 +164,8 @@ export async function GET(_req: Request, { params }: Params) {
               tier: diarista.user.safeScoreProfile.tier,
             }
           : null,
+        perfilCompleto: completude.completo,
+        motivosIncompleto: completude.motivos,
       },
     });
   } catch (err: unknown) {

@@ -4,6 +4,7 @@ import {
   ActivityIndicator,
   Alert,
   ImageSourcePropType,
+  Keyboard,
   KeyboardAvoidingView,
   Linking,
   Modal,
@@ -12,9 +13,10 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  TouchableWithoutFeedback,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import * as ImagePicker from "expo-image-picker";
@@ -71,6 +73,7 @@ function profileAge(perfil: unknown) {
 export default function EmpregadorPerfil({ onLogout }: Props) {
   const navigation = useNavigation<Navigation>();
   const colors = useDularColors();
+  const insets = useSafeAreaInsets();
   const themeMode = useThemeStore((state) => state.mode);
   const toggleTheme = useThemeStore((state) => state.toggleTheme);
   const s = useMemo(() => makeStyles(colors), [colors]);
@@ -390,55 +393,66 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
       <Modal visible={modalVisible} animationType="slide" transparent onRequestClose={() => setModalVisible(false)}>
         <KeyboardAvoidingView
           style={s.modalOverlay}
-          behavior={platformSelect({ ios: "padding", android: "height" })}
+          behavior={platformSelect({ ios: "padding", android: undefined })}
         >
-          <View style={s.modalSheet}>
-            <View style={s.modalHeader}>
-              <Text style={s.modalTitle}>Editar perfil</Text>
-              <Pressable onPress={() => setModalVisible(false)} hitSlop={12}>
-                <AppIcon name="XCircle" size={23} color={colors.textSecondary} />
-              </Pressable>
-            </View>
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+            <View style={s.modalBackdrop} />
+          </TouchableWithoutFeedback>
+          <View style={[s.modalSheet, { maxHeight: "85%", paddingBottom: Math.max(insets.bottom, spacing.xl) }]}>
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{ paddingBottom: spacing.md }}
+            >
+              <View style={s.modalHeader}>
+                <Text style={s.modalTitle}>Editar perfil</Text>
+                <Pressable onPress={() => setModalVisible(false)} hitSlop={16} style={s.modalClose}>
+                  <AppIcon name="XCircle" size={23} color={colors.textSecondary} />
+                </Pressable>
+              </View>
 
-            <Text style={s.modalLabel}>Nome</Text>
-            <TextInput
-              value={editNome}
-              onChangeText={setEditNome}
-              placeholder="Seu nome"
-              placeholderTextColor={colors.textMuted}
-              style={s.modalInput}
-              autoCapitalize="words"
-            />
+              <Text style={s.modalLabel}>Nome</Text>
+              <TextInput
+                value={editNome}
+                onChangeText={setEditNome}
+                placeholder="Seu nome"
+                placeholderTextColor={colors.textMuted}
+                style={s.modalInput}
+                autoCapitalize="words"
+                returnKeyType="next"
+              />
 
-            <Text style={s.modalLabel}>Telefone</Text>
-            <TextInput
-              value={editTelefone}
-              onChangeText={setEditTelefone}
-              placeholder="Telefone"
-              placeholderTextColor={colors.textMuted}
-              style={s.modalInput}
-              keyboardType="phone-pad"
-            />
+              <Text style={s.modalLabel}>Telefone</Text>
+              <TextInput
+                value={editTelefone}
+                onChangeText={setEditTelefone}
+                placeholder="Telefone"
+                placeholderTextColor={colors.textMuted}
+                style={s.modalInput}
+                keyboardType="phone-pad"
+                returnKeyType="next"
+              />
 
-            <Text style={s.modalLabel}>Bio</Text>
-            <TextInput
-              value={editBio}
-              onChangeText={(value) => setEditBio(value.slice(0, 300))}
-              placeholder="Conte um pouco sobre você"
-              placeholderTextColor={colors.textMuted}
-              style={[s.modalInput, s.modalInputMulti]}
-              multiline
-              maxLength={300}
-              textAlignVertical="top"
-            />
-            <Text style={s.charCount}>{editBio.length}/300</Text>
+              <Text style={s.modalLabel}>Bio</Text>
+              <TextInput
+                value={editBio}
+                onChangeText={(value) => setEditBio(value.slice(0, 300))}
+                placeholder="Conte um pouco sobre você"
+                placeholderTextColor={colors.textMuted}
+                style={[s.modalInput, s.modalInputMulti]}
+                multiline
+                maxLength={300}
+                textAlignVertical="top"
+              />
+              <Text style={s.charCount}>{editBio.length}/300</Text>
 
-            <DButton
-              label={saving ? "Salvando..." : "Salvar alterações"}
-              onPress={saveEdits}
-              loading={saving}
-              style={s.saveButton}
-            />
+              <DButton
+                label={saving ? "Salvando..." : "Salvar alterações"}
+                onPress={saveEdits}
+                loading={saving}
+                style={s.saveButton}
+              />
+            </ScrollView>
           </View>
         </KeyboardAvoidingView>
       </Modal>
@@ -563,12 +577,14 @@ function makeStyles(colors: ThemeColors) {
     justifyContent: "flex-end",
     backgroundColor: colors.overlay,
   },
+  modalBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+  },
   modalSheet: {
     borderTopLeftRadius: radius.xl,
     borderTopRightRadius: radius.xl,
     paddingHorizontal: spacing.md,
     paddingTop: spacing.md,
-    paddingBottom: spacing.xl,
     backgroundColor: colors.surface,
     gap: spacing.xs,
   },
@@ -577,6 +593,9 @@ function makeStyles(colors: ThemeColors) {
     alignItems: "center",
     justifyContent: "space-between",
     marginBottom: spacing.sm,
+  },
+  modalClose: {
+    padding: 6,
   },
   modalTitle: {
     color: colors.textPrimary,

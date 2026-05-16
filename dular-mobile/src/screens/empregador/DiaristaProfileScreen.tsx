@@ -10,15 +10,53 @@ import { AppIcon } from "@/components/ui";
 import { DButton } from "@/components/DButton";
 import { colors, radius, spacing, typography } from "@/theme/tokens";
 import { shadow } from "@/utils/platform";
+import { formatCurrencyBRL, formatDecimalBRL } from "@/api/diaristaApi";
 import type { EmpregadorTabParamList } from "@/navigation/EmpregadorNavigator";
+import type { ServicoOferecido } from "@/types/diarista";
 
 type RouteProps = RouteProp<EmpregadorTabParamList, "DiaristaProfile">;
 type Navigation = BottomTabNavigationProp<EmpregadorTabParamList>;
+
+const SERVICO_LABELS: Record<ServicoOferecido, string> = {
+  DIARISTA: "Diarista",
+  BABA: "Babá",
+  COZINHEIRA: "Cozinheira",
+};
 
 function tempoLabel(meses: number): string {
   if (meses < 12) return `${meses} ${meses === 1 ? "mês" : "meses"}`;
   const anos = Math.round(meses / 12);
   return `${anos} ${anos === 1 ? "ano" : "anos"}`;
+}
+
+function precoLinhaLabel(
+  tipo: ServicoOferecido,
+  precos: { leve: number | null; medio: number | null; pesada: number | null },
+  extras: {
+    precoBabaHora?: string | number | null;
+    precoCozinheiraBase?: string | number | null;
+  },
+) {
+  // Diarista — três intensidades agregadas como "A partir de R$X (leve), R$Y (pesada)"
+  if (tipo === "DIARISTA") {
+    const leveFmt = formatCurrencyBRL(precos.leve);
+    const pesadaFmt = formatCurrencyBRL(precos.pesada);
+    if (leveFmt && pesadaFmt) {
+      return `A partir de ${leveFmt} (leve), ${pesadaFmt} (pesada)`;
+    }
+    if (leveFmt) return `A partir de ${leveFmt} (leve)`;
+    if (pesadaFmt) return `A partir de ${pesadaFmt} (pesada)`;
+    return "Sob consulta";
+  }
+  if (tipo === "BABA") {
+    const fmt = formatDecimalBRL(extras.precoBabaHora ?? null);
+    return fmt ? `${fmt}/hora` : "A combinar";
+  }
+  if (tipo === "COZINHEIRA") {
+    const fmt = formatDecimalBRL(extras.precoCozinheiraBase ?? null);
+    return fmt ? `A partir de ${fmt}` : "A combinar";
+  }
+  return "A combinar";
 }
 
 export function DiaristaProfileScreen() {
@@ -35,6 +73,13 @@ export function DiaristaProfileScreen() {
   const handleContratar = () => {
     if (!diaristaId) {
       Alert.alert("Perfil inválido", "Não foi possível identificar a profissional.");
+      return;
+    }
+    if (diarista && !diarista.perfilCompleto) {
+      Alert.alert(
+        "Perfil incompleto",
+        "Esta profissional ainda não completou o perfil e não está disponível para contratação.",
+      );
       return;
     }
     navigation.navigate("SolicitarServico", {
@@ -97,12 +142,37 @@ export function DiaristaProfileScreen() {
     );
   }
 
-  const { safeScore, totalServicos, tempoPlataforma, verificado, mediaAvaliacao, totalAvaliacoes, bio } = diarista;
+  const {
+    safeScore,
+    totalServicos,
+    tempoPlataforma,
+    verificado,
+    mediaAvaliacao,
+    totalAvaliacoes,
+    bio,
+    servicosOferecidos,
+    bairros,
+    cidade,
+    uf,
+    precos,
+    atendeTodaCidade,
+    precoBabaHora,
+    precoCozinheiraBase,
+    taxaMinima,
+    cobraDeslocamento,
+    valorACombinar,
+    observacaoPreco,
+    perfilCompleto,
+  } = diarista;
+
+  const cidadeUfText = cidade && uf ? `${cidade} • ${uf}` : null;
+  const bairrosText = bairros?.length ? bairros.map((b) => b.nome).join(", ") : null;
+  const servicosList = servicosOferecidos?.length ? servicosOferecidos : [];
+  const taxaMinimaFmt = formatDecimalBRL(taxaMinima);
 
   // ── Main ───────────────────────────────────────────────────────────────────
   return (
     <View style={s.root}>
-      {/* Scrollable content */}
       <ScrollView
         style={s.scroll}
         contentContainerStyle={[s.scrollContent, { paddingTop: insets.top + 56 }]}
@@ -110,40 +180,101 @@ export function DiaristaProfileScreen() {
       >
         {/* Identification block */}
         <View style={s.identSection}>
-          <DAvatar
-            size="xl"
-            uri={diarista.avatarUrl}
-            initials={nome.slice(0, 2)}
-          />
-          <Text style={s.nome}>{nome}</Text>
+          <DAvatar size="xl" uri={diarista.avatarUrl} initials={nome.slice(0, 2)} />
+          <View style={s.identNameRow}>
+            <Text style={s.nome}>{nome}</Text>
+            {verificado ? (
+              <View style={s.verifiedPill}>
+                <AppIcon name="Check" size={12} color={colors.primary} strokeWidth={3} />
+                <Text style={s.verifiedPillText}>Verificada</Text>
+              </View>
+            ) : null}
+          </View>
           <SafeScoreBadge faixa={safeScore.faixa} />
           <View style={s.ratingRow}>
             <AppIcon name="Star" size={16} color={colors.warning} strokeWidth={2.5} />
             <Text style={s.ratingText}>
               {totalAvaliacoes > 0
-                ? `${mediaAvaliacao.toFixed(1)} (${totalAvaliacoes} avaliações)`
+                ? `${mediaAvaliacao.toFixed(1)} (${totalAvaliacoes} ${totalAvaliacoes === 1 ? "avaliação" : "avaliações"})`
                 : "Sem avaliações ainda"}
             </Text>
           </View>
         </View>
 
-        {/* Sobre */}
+        {/* Bio */}
         <View style={s.card}>
           <Text style={s.sectionTitle}>Sobre</Text>
-          <Text style={s.bioText}>
-            {bio || "Nenhuma bio cadastrada."}
-          </Text>
+          <Text style={s.bioText}>{bio || "Nenhuma bio cadastrada."}</Text>
         </View>
+
+        {/* Serviços oferecidos */}
+        {servicosList.length > 0 ? (
+          <View style={s.card}>
+            <Text style={s.sectionTitle}>Serviços oferecidos</Text>
+            <View style={s.badgesRow}>
+              {servicosList.map((sv) => (
+                <View key={sv} style={s.servicoBadge}>
+                  <Text style={s.servicoBadgeText}>{SERVICO_LABELS[sv] ?? sv}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        ) : null}
+
+        {/* Área de atendimento */}
+        {(cidadeUfText || bairrosText) ? (
+          <View style={s.card}>
+            <Text style={s.sectionTitle}>Área de atendimento</Text>
+            {cidadeUfText ? (
+              <View style={s.credRow}>
+                <AppIcon name="MapPin" size={16} color={colors.textSecondary} strokeWidth={2.2} />
+                <Text style={s.credText}>{cidadeUfText}</Text>
+              </View>
+            ) : null}
+            {atendeTodaCidade ? (
+              <Text style={s.bairrosText}>Atende toda a cidade</Text>
+            ) : bairrosText ? (
+              <Text style={s.bairrosText}>{bairrosText}</Text>
+            ) : null}
+          </View>
+        ) : null}
+
+        {/* Preços (apenas para serviços que se aplicam) */}
+        {servicosList.length > 0 ? (
+          <View style={s.card}>
+            <Text style={s.sectionTitle}>Preços</Text>
+            {valorACombinar ? (
+              <Text style={s.bairrosText}>Valor a combinar</Text>
+            ) : (
+              <>
+                {servicosList.map((tipo) => (
+                  <View key={tipo} style={s.precoRow}>
+                    <Text style={s.precoLabel}>{SERVICO_LABELS[tipo] ?? tipo}</Text>
+                    <Text style={s.precoValue}>
+                      {precoLinhaLabel(tipo, precos, { precoBabaHora, precoCozinheiraBase })}
+                    </Text>
+                  </View>
+                ))}
+                {taxaMinimaFmt ? (
+                  <View style={s.precoRow}>
+                    <Text style={s.precoLabel}>Taxa mínima</Text>
+                    <Text style={s.precoValue}>{taxaMinimaFmt}</Text>
+                  </View>
+                ) : null}
+                {cobraDeslocamento ? (
+                  <Text style={s.bairrosText}>Cobra deslocamento</Text>
+                ) : null}
+              </>
+            )}
+            {observacaoPreco ? (
+              <Text style={s.bairrosText}>{observacaoPreco}</Text>
+            ) : null}
+          </View>
+        ) : null}
 
         {/* Credenciais */}
         <View style={s.card}>
           <Text style={s.sectionTitle}>Credenciais</Text>
-          {verificado ? (
-            <View style={s.credRow}>
-              <AppIcon name="Check" size={16} color={colors.success} strokeWidth={2.5} />
-              <Text style={[s.credText, { color: colors.success }]}>Verificada</Text>
-            </View>
-          ) : null}
           <View style={s.credRow}>
             <AppIcon name="Award" size={16} color={colors.textSecondary} strokeWidth={2.2} />
             <Text style={s.credText}>
@@ -164,7 +295,7 @@ export function DiaristaProfileScreen() {
             O SafeScore indica o histórico de comportamento desta profissional na plataforma.
           </Text>
           {safeScore.totalIncidentes === 0 ? (
-            <Text style={s.noIncidents}>Nenhum incidente registrado ✓</Text>
+            <Text style={s.noIncidents}>Nenhum incidente registrado</Text>
           ) : (
             <Text style={s.hasIncidents}>
               {safeScore.totalIncidentes}{" "}
@@ -173,16 +304,38 @@ export function DiaristaProfileScreen() {
           )}
         </View>
 
-        {/* Bottom spacing for footer */}
+        {/* Aviso de perfil incompleto */}
+        {!perfilCompleto ? (
+          <View style={[s.card, s.warnCard]}>
+            <View style={s.warnHeader}>
+              <AppIcon name="AlertTriangle" size={16} color={colors.warning} strokeWidth={2.3} />
+              <Text style={s.warnTitle}>Perfil incompleto</Text>
+            </View>
+            <Text style={s.warnText}>
+              Esta profissional ainda está completando os dados do perfil e não está disponível
+              para contratação.
+            </Text>
+          </View>
+        ) : null}
+
         <View style={{ height: spacing.xl }} />
       </ScrollView>
 
       {/* Fixed footer */}
       <SafeAreaView edges={["bottom"]} style={[s.footer, shadow(4)]}>
-        <DButton title="Contratar" onPress={handleContratar} />
+        {perfilCompleto ? (
+          <DButton title="Contratar" onPress={handleContratar} />
+        ) : (
+          <View style={s.unavailableBox}>
+            <AppIcon name="AlertTriangle" size={16} color={colors.warning} strokeWidth={2.3} />
+            <Text style={s.unavailableText}>
+              Perfil incompleto — não disponível para contratação
+            </Text>
+          </View>
+        )}
       </SafeAreaView>
 
-      {/* Absolute transparent header */}
+      {/* Header overlay */}
       <View style={[s.headerOverlay, { paddingTop: insets.top }]} pointerEvents="box-none">
         <View style={s.headerContent} pointerEvents="box-none">
           <Pressable
@@ -256,12 +409,34 @@ const s = StyleSheet.create({
     paddingTop: spacing.sm,
     paddingBottom: spacing.md,
   },
+  identNameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flexWrap: "wrap",
+    justifyContent: "center",
+  },
   nome: {
     color: colors.textPrimary,
     ...typography.h3,
-    
     fontWeight: "700",
     textAlign: "center",
+  },
+  verifiedPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    borderRadius: radius.pill,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    backgroundColor: colors.successSoft,
+    borderWidth: 1,
+    borderColor: colors.success,
+  },
+  verifiedPillText: {
+    color: colors.primary,
+    ...typography.caption,
+    fontWeight: "700",
   },
   ratingRow: {
     flexDirection: "row",
@@ -271,7 +446,6 @@ const s = StyleSheet.create({
   ratingText: {
     color: colors.textSecondary,
     ...typography.caption,
-    
     fontWeight: "500",
   },
 
@@ -287,14 +461,60 @@ const s = StyleSheet.create({
   sectionTitle: {
     color: colors.textPrimary,
     ...typography.bodyMedium,
-    
     fontWeight: "700",
   },
   bioText: {
     color: colors.textSecondary,
     ...typography.caption,
-    
     fontWeight: "500",
+  },
+
+  // Badges row (serviços oferecidos)
+  badgesRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  servicoBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: radius.pill,
+    backgroundColor: colors.lavenderSoft,
+    borderWidth: 1,
+    borderColor: colors.lavenderStrong,
+  },
+  servicoBadgeText: {
+    color: colors.textPrimary,
+    ...typography.caption,
+    fontWeight: "700",
+  },
+
+  // Área
+  bairrosText: {
+    color: colors.textSecondary,
+    ...typography.caption,
+    fontWeight: "500",
+  },
+
+  // Preços
+  precoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 4,
+  },
+  precoLabel: {
+    color: colors.textPrimary,
+    ...typography.bodySm,
+    fontWeight: "700",
+  },
+  precoValue: {
+    color: colors.textSecondary,
+    ...typography.caption,
+    fontWeight: "600",
+    flexShrink: 1,
+    textAlign: "right",
+    marginLeft: 8,
   },
 
   // Credenciais
@@ -306,7 +526,6 @@ const s = StyleSheet.create({
   credText: {
     color: colors.textSecondary,
     ...typography.caption,
-    
     fontWeight: "500",
   },
 
@@ -317,7 +536,6 @@ const s = StyleSheet.create({
   safeExplain: {
     ...typography.caption,
     color: colors.textMuted,
-    
   },
   noIncidents: {
     ...typography.caption,
@@ -330,10 +548,49 @@ const s = StyleSheet.create({
     fontWeight: "700",
   },
 
+  // Aviso perfil incompleto
+  warnCard: {
+    borderColor: colors.warning,
+    backgroundColor: colors.warningSoft,
+  },
+  warnHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  warnTitle: {
+    color: colors.warning,
+    ...typography.bodyMedium,
+    fontWeight: "800",
+  },
+  warnText: {
+    color: colors.textSecondary,
+    ...typography.caption,
+    fontWeight: "500",
+  },
+
   // Footer
   footer: {
     backgroundColor: colors.surface,
     padding: spacing.md,
+  },
+  unavailableBox: {
+    minHeight: 48,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.md,
+    backgroundColor: colors.warningSoft,
+    borderWidth: 1,
+    borderColor: colors.warning,
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 8,
+    justifyContent: "center",
+  },
+  unavailableText: {
+    color: colors.warning,
+    ...typography.caption,
+    fontWeight: "800",
+    flexShrink: 1,
   },
 
   // Error

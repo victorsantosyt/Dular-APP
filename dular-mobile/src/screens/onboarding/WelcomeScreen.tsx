@@ -3,7 +3,7 @@ import { Image, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { AppIcon, AppIconName, DButton } from "@/components/ui";
+import { AppIcon, type AppIconName, DButton } from "@/components/ui";
 import { onboardingAssets } from "@/assets/onboardingAssets";
 import { colors, radius, spacing, typography } from "@/theme";
 import { PageDots } from "@/components/onboarding/PageDots";

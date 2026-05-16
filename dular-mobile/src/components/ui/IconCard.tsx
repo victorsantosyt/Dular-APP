@@ -1,6 +1,6 @@
 import React, { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View, ViewStyle } from "react-native";
-import { AppIcon, AppIconName } from "@/components/ui/AppIcon";
+import { AppIcon, type AppIconName } from "@/components/ui/AppIcon";
 import { colors, radius, shadows, spacing, typography } from "@/theme";
 
 type Tone = "purple" | "pink" | "green" | "red" | "yellow" | "blue";

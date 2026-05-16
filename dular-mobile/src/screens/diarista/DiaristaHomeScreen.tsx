@@ -3,7 +3,7 @@ import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View
 import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
-import { AppIcon, AppIconName, DAvatar, DBadge, DCard, DScreen, DSectionHeader } from "@/components/ui";
+import { AppIcon, type AppIconName, DAvatar, DBadge, DCard, DScreen, DSectionHeader } from "@/components/ui";
 import { DularLogo } from "@/assets/brand";
 import { Wallet3DIcon } from "@/assets/icons";
 import { colors, radius, shadows, spacing, typography } from "@/theme";

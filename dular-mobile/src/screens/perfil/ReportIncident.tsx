@@ -16,7 +16,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { api } from "@/lib/api";
 import { apiMsg } from "@/utils/apiMsg";
 import { useAuth } from "@/stores/authStore";
-import { AppIcon, AppIconName } from "@/components/ui";
+import { AppIcon, type AppIconName } from "@/components/ui";
 import { PaperPlane3DIcon, SOSIcon } from "@/assets/icons";
 import { colors, radius, shadow, spacing, typography } from "@/theme/tokens";
 

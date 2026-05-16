@@ -1,7 +1,7 @@
 import React, { ReactNode, useMemo } from "react";
 import { Image, ImageSourcePropType, Pressable, StyleSheet, Switch, Text, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { AppIcon, AppIconName } from "@/components/ui/AppIcon";
+import { AppIcon, type AppIconName } from "@/components/ui/AppIcon";
 import { DCard } from "@/components/ui/DCard";
 import { useDularColors } from "@/hooks/useDularColors";
 import { radius, shadows, spacing, typography } from "@/theme";

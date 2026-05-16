@@ -1,7 +1,7 @@
 import React from "react";
 import { StyleSheet, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { AppIcon, AppIconName, DAvatar } from "@/components/ui";
+import { AppIcon, type AppIconName, DAvatar } from "@/components/ui";
 import { colors, radius, shadows } from "@/theme";
 
 export function ClientePhoneImage() {

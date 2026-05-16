@@ -1,7 +1,7 @@
 import React from "react";
 import { StyleSheet, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { AppIcon, AppIconName } from "@/components/ui/AppIcon";
+import { AppIcon, type AppIconName } from "@/components/ui/AppIcon";
 import { colors, gradients, radius } from "@/theme";
 
 type Props = {

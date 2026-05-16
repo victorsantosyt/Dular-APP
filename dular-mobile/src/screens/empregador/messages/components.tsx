@@ -1,6 +1,6 @@
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { AppIcon, AppIconName } from "@/components/ui/AppIcon";
+import { AppIcon, type AppIconName } from "@/components/ui/AppIcon";
 import { DAvatar } from "@/components/ui/DAvatar";
 import { DCard } from "@/components/ui/DCard";
 import { colors, radius, shadows, spacing, typography } from "@/theme";

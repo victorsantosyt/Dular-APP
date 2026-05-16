@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { gradients, radius, shadows, spacing } from "@/theme";
 import { useDularColors } from "@/hooks/useDularColors";
 import { useThemeStore } from "@/stores/useThemeStore";
-import { AppIcon, AppIconName } from "./AppIcon";
+import { AppIcon, type AppIconName } from "./AppIcon";
 import type { ProfileTheme } from "@/theme/profileTheme";
 
 export type NavTab = "home" | "search" | "new" | "messages" | "profile";

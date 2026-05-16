@@ -1,7 +1,7 @@
 import React from "react";
 import { LinearGradient } from "expo-linear-gradient";
 import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
-import { AppIcon, AppIconName, DAvatar } from "@/components/ui";
+import { AppIcon, type AppIconName, DAvatar } from "@/components/ui";
 import { DCard } from "@/components/ui/DCard";
 import { colors, gradients, radius, shadows, spacing, typography } from "@/theme";
 

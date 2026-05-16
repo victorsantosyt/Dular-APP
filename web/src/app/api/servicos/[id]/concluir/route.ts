@@ -3,10 +3,28 @@ import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/requireAuth";
 import { assertRole, assertStatus } from "@/lib/regrasServico";
 import { ServicoStatus, UserRole } from "@prisma/client";
-import { registrarEvento } from "@/lib/servicoEvento";
+import { jaConfirmouFinalizacao, registrarEvento } from "@/lib/servicoEvento";
 import { sendPushNotification } from "@/lib/notifications";
 
 type Params = { params: Promise<{ id: string }> };
+
+/**
+ * Profissional sinaliza que finalizou o serviço.
+ *
+ * **Importante (T-14 Hotfix):** este endpoint NÃO faz mais a transição
+ * direta `EM_ANDAMENTO → CONCLUIDO`. Para preservar a regra de dupla
+ * confirmação e ao mesmo tempo manter compat com mobile legado, agora ele
+ * **delega para a mesma lógica de `confirmar-finalizacao`**:
+ *
+ *  - `EM_ANDAMENTO`  → marca a confirmação do profissional → `AGUARDANDO_FINALIZACAO`
+ *  - `AGUARDANDO_FINALIZACAO` → se o empregador já confirmou, vai para
+ *    `CONCLUIDO`; caso contrário permanece em `AGUARDANDO_FINALIZACAO`
+ *  - Mesma parte chamando duas vezes: idempotente (200 sem efeito).
+ *
+ * Isso evita que um profissional pule a confirmação do empregador chamando
+ * `/concluir` direto.
+ */
+const STATUS_CONCLUIVEIS: ServicoStatus[] = ["EM_ANDAMENTO", "AGUARDANDO_FINALIZACAO"];
 
 export async function POST(req: Request, { params }: Params) {
   try {
@@ -23,23 +41,54 @@ export async function POST(req: Request, { params }: Params) {
       return NextResponse.json({ ok: false, error: "Não autorizado." }, { status: 403 });
     }
 
-    assertStatus(servico.status as ServicoStatus, ["EM_ANDAMENTO"]);
+    assertStatus(servico.status as ServicoStatus, STATUS_CONCLUIVEIS);
+
+    const papel = auth.role as UserRole;
+
+    // Idempotência: se o profissional já confirmou, devolve o estado atual.
+    const minhaConfirmacao = await jaConfirmouFinalizacao(servico.id, papel);
+    if (minhaConfirmacao) {
+      return NextResponse.json({
+        ok: true,
+        idempotent: true,
+        servico,
+      });
+    }
+
+    // Verifica se o EMPREGADOR já confirmou (dupla confirmação).
+    const empregadorJaConfirmou = await jaConfirmouFinalizacao(servico.id, "EMPREGADOR");
+    const novoStatus: ServicoStatus = empregadorJaConfirmou ? "CONCLUIDO" : "AGUARDANDO_FINALIZACAO";
 
     const updated = await prisma.servico.update({
       where: { id },
-      data: { status: "CONCLUIDO" },
+      data: { status: novoStatus },
     });
 
-    await registrarEvento(servico.id, servico.status as ServicoStatus, "CONCLUIDO", auth.role as UserRole, auth.userId);
-
-    await sendPushNotification(
-      servico.clientId,
-      "Serviço concluído",
-      "O profissional finalizou o serviço. Avalie o atendimento!",
-      { servicoId: servico.id, tipo: "SERVICO_CONCLUIDO" }
+    await registrarEvento(
+      servico.id,
+      servico.status as ServicoStatus,
+      novoStatus,
+      papel,
+      auth.userId,
     );
 
-    return NextResponse.json({ ok: true, servico: updated });
+    if (novoStatus === "CONCLUIDO") {
+      await sendPushNotification(
+        servico.clientId,
+        "Serviço finalizado",
+        "Ambas as partes confirmaram a finalização do serviço.",
+        { servicoId: servico.id, tipo: "SERVICO_FINALIZACAO_DUPLA" },
+      );
+    } else {
+      await sendPushNotification(
+        servico.clientId,
+        "Confirme a finalização",
+        "O profissional marcou o serviço como finalizado. Confirme do seu lado.",
+        { servicoId: servico.id, tipo: "SERVICO_AGUARDANDO_FINALIZACAO" },
+      );
+    }
+
+    return NextResponse.json({ ok: true, idempotent: false, servico: updated });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "Erro";
     const code = msg === "FORBIDDEN" ? 403 : msg === "INVALID_STATUS" ? 409 : 500;

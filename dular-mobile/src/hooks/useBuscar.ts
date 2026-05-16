@@ -69,7 +69,7 @@ export function useBuscar() {
         const shouldSearchMontadores = !params.categoria || params.categoria === "montador";
         const shouldSearchDiaristas = !params.categoria || params.categoria !== "montador";
 
-        const diaristasRequest = shouldSearchDiaristas && params.bairro?.trim()
+        const diaristasRequest = shouldSearchDiaristas
           ? apiService.get<BuscarResponse>(`/api/diaristas/buscar?${query.toString()}`, token)
           : Promise.resolve<ApiResponse<BuscarResponse>>({ data: { ok: true, diaristas: [] } });
         const montadoresRequest = shouldSearchMontadores

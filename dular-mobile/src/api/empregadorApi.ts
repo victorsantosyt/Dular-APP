@@ -39,6 +39,23 @@ export async function criarServico(
   return res.data;
 }
 
+export async function cancelarServicoEmpregador(
+  servicoId: string,
+  motivo: string,
+  observacao?: string,
+) {
+  const res = await api.post(`/api/servicos/${servicoId}/cancelar`, {
+    motivo,
+    ...(observacao ? { observacao } : {}),
+  });
+  return res.data;
+}
+
+export async function confirmarFinalizacaoEmpregador(servicoId: string) {
+  const res = await api.post(`/api/servicos/${servicoId}/confirmar`);
+  return res.data;
+}
+
 type DraftSlice = {
   categoria: ServiceCategory;
   tipo?: "DIARISTA" | "MONTADOR";

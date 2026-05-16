@@ -9,6 +9,7 @@ import {
   type MontadorSafeScore,
   type MontadorServico,
 } from "@/api/montadorApi";
+import { MotivoModal } from "@/components/MotivoModal";
 import { useMontadorServicos } from "@/hooks/useMontadorServicos";
 import { useProfileTheme } from "@/hooks/useProfileTheme";
 import type { MontadorTabParamList } from "@/navigation/MontadorNavigator";
@@ -188,6 +189,7 @@ export default function MontadorSolicitacoes() {
   const { servicos, scoreByUser, loading, refreshing, error, refetch, reload } = useMontadorServicos();
   const [tab, setTab] = useState<Tab>("novas");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [recusarTargetId, setRecusarTargetId] = useState<string | null>(null);
 
   const data = useMemo(() => servicos.filter((item) => inTab(item, tab)), [servicos, tab]);
 
@@ -205,25 +207,21 @@ export default function MontadorSolicitacoes() {
     }
   };
   const recusarSolicitacao = (servicoId: string) => {
-    Alert.alert("Recusar solicitação", "Confirma que deseja recusar esta solicitação?", [
-      { text: "Voltar", style: "cancel" },
-      {
-        text: "Recusar",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            setActionLoading(servicoId);
-            await recusarSolicitacaoMontador(servicoId);
-            setTab("recusadas");
-            reload();
-          } catch {
-            Alert.alert("Erro", "Não foi possível recusar a solicitação.");
-          } finally {
-            setActionLoading(null);
-          }
-        },
-      },
-    ]);
+    setRecusarTargetId(servicoId);
+  };
+  const confirmarRecusa = async (motivo: string, observacao: string) => {
+    if (!recusarTargetId) return;
+    try {
+      setActionLoading(recusarTargetId);
+      await recusarSolicitacaoMontador(recusarTargetId, motivo, observacao || undefined);
+      setRecusarTargetId(null);
+      setTab("recusadas");
+      reload();
+    } catch {
+      Alert.alert("Erro", "Não foi possível recusar a solicitação.");
+    } finally {
+      setActionLoading(null);
+    }
   };
   const verEmpregador = (servicoId: string) => {
     const servico = servicos.find((item) => item.id === servicoId);
@@ -305,6 +303,13 @@ export default function MontadorSolicitacoes() {
           ))}
         </View>
       )}
+      <MotivoModal
+        visible={!!recusarTargetId}
+        title="Recusar serviço"
+        confirmLabel="Recusar"
+        onClose={() => setRecusarTargetId(null)}
+        onConfirm={confirmarRecusa}
+      />
     </DScreen>
   );
 }

@@ -40,8 +40,35 @@ export const criarServicoSchema = z.object({
   banheiros2Mais: z.boolean().optional(),
 });
 
+/**
+ * Motivos canônicos para cancelar/recusar. Mantemos como string + lista
+ * suggesta para não forçar migração (e permitir compat com mobile antigo
+ * que envia frase livre). O orquestrador depende dessas tags para emitir
+ * SafetyEvent / SafeScoreEvent quando o motivo é grave.
+ */
+export const MOTIVOS_CANCELAMENTO = [
+  "indisponibilidade",
+  "endereco_incompativel",
+  "comportamento_inadequado",
+  "problema_seguranca",
+  "outro",
+] as const;
+
+export type MotivoCancelamento = (typeof MOTIVOS_CANCELAMENTO)[number];
+
+export const MOTIVOS_GRAVES: ReadonlyArray<MotivoCancelamento> = [
+  "comportamento_inadequado",
+  "problema_seguranca",
+];
+
 export const cancelarServicoSchema = z.object({
-  motivo: z.string().min(3).max(300).optional(),
+  motivo: z.string().trim().min(3).max(300),
+  observacao: z.string().trim().max(500).optional(),
+});
+
+export const recusarServicoSchema = z.object({
+  motivo: z.string().trim().min(3).max(300),
+  observacao: z.string().trim().max(500).optional(),
 });
 
 export const avaliarServicoSchema = z.object({

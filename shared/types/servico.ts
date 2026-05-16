@@ -95,3 +95,13 @@ export type CriarServicoPayload = {
 };
 
 export type CriarServicoResponse = { ok: boolean; servicoId: string };
+
+export const MOTIVOS_CANCELAMENTO = [
+  { value: "indisponibilidade", label: "Indisponibilidade" },
+  { value: "endereco_incompativel", label: "Endereço/área incompatível" },
+  { value: "comportamento_inadequado", label: "Comportamento inadequado" },
+  { value: "problema_seguranca", label: "Problema de segurança" },
+  { value: "outro", label: "Outro" },
+] as const;
+
+export type MotivoCancelamento = typeof MOTIVOS_CANCELAMENTO[number]["value"];

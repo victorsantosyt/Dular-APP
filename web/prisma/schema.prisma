@@ -262,11 +262,44 @@ model DiaristaProfile {
 
   servicosOferecidos String[] @default([])
 
+  // Localização base
+  cidade    String?
+  estado    String?
+  latitude  Float?
+  longitude Float?
+
+  // Geolocalização atual
+  cidadeAtual             String?
+  estadoAtual             String?
+  bairroAtual             String?
+  localizacaoPermitida    Boolean   @default(false)
+  localizacaoAtualizadaEm DateTime?
+
+  // Cobertura
+  atendeTodaCidade  Boolean @default(false)
+  raioAtendimentoKm Int?
+
+  // Experiência
+  anosExperiencia Int?
+
+  // Preços multi-nicho (Decimal para alinhar com MontadorPerfil)
+  precoBabaHora       Decimal? @db.Decimal(10, 2)
+  precoCozinheiraBase Decimal? @db.Decimal(10, 2)
+  taxaMinima          Decimal? @db.Decimal(10, 2)
+  cobraDeslocamento   Boolean  @default(false)
+  valorACombinar      Boolean  @default(false)
+  observacaoPreco     String?
+
+  // Portfolio
+  portfolioFotos String[] @default([])
+
   bairros DiaristaBairro[]
   agenda  Disponibilidade[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([cidade, estado])
 }
 
 model MontadorPerfil {
@@ -416,14 +449,17 @@ model DiaristaHabilidade {
 }
 
 model ServicoEvento {
-  id         String        @id @default(cuid())
-  servicoId  String
-  servico    Servico       @relation(fields: [servicoId], references: [id], onDelete: Cascade)
-  fromStatus ServicoStatus
-  toStatus   ServicoStatus
-  actorRole  UserRole
-  actorId    String
-  createdAt  DateTime      @default(now())
+  id          String        @id @default(cuid())
+  servicoId   String
+  servico     Servico       @relation(fields: [servicoId], references: [id], onDelete: Cascade)
+  fromStatus  ServicoStatus
+  toStatus    ServicoStatus
+  actorRole   UserRole
+  actorId     String
+  motivo      String?
+  observacao  String?
+  motivoGrave Boolean       @default(false)
+  createdAt   DateTime      @default(now())
 
   @@index([servicoId])
   @@index([actorId])

@@ -18,15 +18,21 @@ import { LinearGradient } from "expo-linear-gradient";
 
 import { api } from "@/lib/api";
 import type { MinhasResponse, ServicoListItem as Servico } from "../../../../shared/types/servico";
+import {
+  confirmarFinalizacaoDiarista,
+  recusarServicoDiarista,
+} from "@/api/diaristaApi";
 import { startLocationWatcher, type LocationUpdate } from "@/lib/location";
 import { logoSource } from "@/lib/logoSource";
 import { DularBadge } from "@/components/DularBadge";
+import { MotivoModal } from "@/components/MotivoModal";
 import { SafeScoreBadge } from "@/components/SafeScoreBadge";
 import { AppIcon } from "@/components/ui";
 import { SOSIcon } from "@/assets/icons";
 import { CenterWrap } from "@/ui/Layout";
 import { DIARISTA_STACK_ROUTES } from "@/navigation/routes";
 import { usePaywallGuard } from "@/hooks/usePaywallGuard";
+import { isStatusEncerrado } from "@/utils/servicoStatus";
 import { colors, radius, shadow, spacing, typography } from "@/theme/tokens";
 
 const FINISHED_STATUS = new Set([
@@ -80,6 +86,7 @@ export default function DiaristaSolicitacoes({ navigation }: any) {
   const [pendenteOpen, setPendenteOpen] = useState(true);
   const [agendaOpen, setAgendaOpen] = useState(true);
   const [aceitando, setAceitando] = useState(false);
+  const [recusarOpen, setRecusarOpen] = useState(false);
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [scoreByUser, setScoreByUser] = useState<Record<string, SafeScoreSummary>>({});
 
@@ -180,7 +187,15 @@ export default function DiaristaSolicitacoes({ navigation }: any) {
   const handleServicoAction = useCallback(async (servicoId: string, action: string) => {
     try {
       setActionLoading(`${servicoId}-${action}`);
-      await api.post(`/api/servicos/${servicoId}/${action}`);
+      if (action === "confirmar") {
+        try {
+          await confirmarFinalizacaoDiarista(servicoId);
+        } catch {
+          await api.post(`/api/servicos/${servicoId}/concluir`);
+        }
+      } else {
+        await api.post(`/api/servicos/${servicoId}/${action}`);
+      }
       await load();
     } catch (e: any) {
       Alert.alert("Erro", e?.response?.data?.error ?? e?.message ?? "Falha");
@@ -210,26 +225,22 @@ export default function DiaristaSolicitacoes({ navigation }: any) {
 
   const onRecusar = useCallback(() => {
     if (!pending?.id) return;
-    Alert.alert(
-      "Recusar serviço?",
-      "Tem certeza que deseja recusar esta solicitação?",
-      [
-        { text: "Cancelar", style: "cancel" },
-        {
-          text: "Recusar",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await api.post(`/api/servicos/${pending.id}/recusar`);
-              await load();
-            } catch (e: any) {
-              Alert.alert("Erro", e?.response?.data?.error ?? e?.message ?? "Falha ao recusar");
-            }
-          },
-        },
-      ]
-    );
-  }, [pending?.id, load]);
+    setRecusarOpen(true);
+  }, [pending?.id]);
+
+  const confirmarRecusa = useCallback(
+    async (motivo: string, observacao: string) => {
+      if (!pending?.id) return;
+      try {
+        await recusarServicoDiarista(pending.id, motivo, observacao || undefined);
+        setRecusarOpen(false);
+        await load();
+      } catch (e: any) {
+        Alert.alert("Erro", e?.response?.data?.error ?? e?.message ?? "Falha ao recusar");
+      }
+    },
+    [pending?.id, load]
+  );
 
   const navigateToSeguranca = useCallback(() => {
     if (!pending?.id) return;
@@ -442,9 +453,9 @@ export default function DiaristaSolicitacoes({ navigation }: any) {
                         </View>
                       </Pressable>
 
-                      {["ACEITO", "INICIADO", "EM_ANDAMENTO", "CONFIRMADO"].includes(upper(item.status)) ? (
+                      {["ACEITO", "INICIADO", "EM_ANDAMENTO", "AGUARDANDO_FINALIZACAO", "CONFIRMADO"].includes(upper(item.status)) ? (
                         <View style={s.agendaActions}>
-                          {upper(item.status) === "ACEITO" ? (
+                          {upper(item.status) === "ACEITO" && !isStatusEncerrado(item.status) ? (
                             <Pressable
                               onPress={() => { void handleServicoAction(item.id, "iniciar"); }}
                               disabled={actionLoading === `${item.id}-iniciar`}
@@ -455,7 +466,7 @@ export default function DiaristaSolicitacoes({ navigation }: any) {
                               </Text>
                             </Pressable>
                           ) : null}
-                          {["INICIADO", "EM_ANDAMENTO"].includes(upper(item.status)) ? (
+                          {["INICIADO", "EM_ANDAMENTO"].includes(upper(item.status)) && !isStatusEncerrado(item.status) ? (
                             <>
                               <Pressable
                                 onPress={() => navigation.navigate("Seguranca", {
@@ -467,15 +478,23 @@ export default function DiaristaSolicitacoes({ navigation }: any) {
                                 <Text style={[s.agendaActionText, { color: colors.greenDark }]}>Segurança</Text>
                               </Pressable>
                               <Pressable
-                                onPress={() => { void handleServicoAction(item.id, "concluir"); }}
-                                disabled={actionLoading === `${item.id}-concluir`}
+                                onPress={() => { void handleServicoAction(item.id, "confirmar"); }}
+                                disabled={actionLoading === `${item.id}-confirmar`}
                                 style={({ pressed }) => [s.agendaActionBtn, pressed && s.pressed]}
                               >
                                 <Text style={s.agendaActionText}>
-                                  {actionLoading === `${item.id}-concluir` ? "..." : "Concluir"}
+                                  {actionLoading === `${item.id}-confirmar` ? "..." : "Confirmar finalização"}
                                 </Text>
                               </Pressable>
                             </>
+                          ) : null}
+                          {upper(item.status) === "AGUARDANDO_FINALIZACAO" ? (
+                            <View style={s.agendaPaidBadge}>
+                              <Ionicons name="hourglass-outline" size={13} color={colors.warning} />
+                              <Text style={[s.agendaPaidText, { color: colors.warning }]}>
+                                Aguardando confirmação da outra parte
+                              </Text>
+                            </View>
                           ) : null}
                           {upper(item.status) === "CONFIRMADO" ? (
                             <View style={s.agendaPaidBadge}>
@@ -498,6 +517,14 @@ export default function DiaristaSolicitacoes({ navigation }: any) {
           </View>
         </CenterWrap>
       </ScrollView>
+
+      <MotivoModal
+        visible={recusarOpen}
+        title="Recusar serviço"
+        confirmLabel="Recusar"
+        onClose={() => setRecusarOpen(false)}
+        onConfirm={confirmarRecusa}
+      />
     </SafeAreaView>
   );
 }

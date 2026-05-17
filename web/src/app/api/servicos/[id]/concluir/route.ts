@@ -4,7 +4,7 @@ import { requireAuth } from "@/lib/requireAuth";
 import { assertRole, assertStatus } from "@/lib/regrasServico";
 import { ServicoStatus, UserRole } from "@prisma/client";
 import { jaConfirmouFinalizacao, registrarEvento } from "@/lib/servicoEvento";
-import { sendPushNotification } from "@/lib/notifications";
+import { criarNotificacao } from "@/lib/notifications";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -73,19 +73,31 @@ export async function POST(req: Request, { params }: Params) {
     );
 
     if (novoStatus === "CONCLUIDO") {
-      await sendPushNotification(
-        servico.clientId,
-        "Serviço finalizado",
-        "Ambas as partes confirmaram a finalização do serviço.",
-        { servicoId: servico.id, tipo: "SERVICO_FINALIZACAO_DUPLA" },
-      );
+      // Notifica ambas as partes — empregador (destino habitual) e o próprio
+      // profissional que disparou esta ação. Push para si mesmo cai no
+      // aparelho via Expo Push API (best-effort).
+      await criarNotificacao({
+        userId: servico.clientId,
+        type: "SERVICO_FINALIZADO",
+        title: "Serviço finalizado",
+        body: "Ambas as partes confirmaram a finalização do serviço.",
+        servicoId: servico.id,
+      });
+      await criarNotificacao({
+        userId: auth.userId,
+        type: "SERVICO_FINALIZADO",
+        title: "Serviço finalizado",
+        body: "Confirmação dupla recebida. O serviço foi finalizado.",
+        servicoId: servico.id,
+      });
     } else {
-      await sendPushNotification(
-        servico.clientId,
-        "Confirme a finalização",
-        "O profissional marcou o serviço como finalizado. Confirme do seu lado.",
-        { servicoId: servico.id, tipo: "SERVICO_AGUARDANDO_FINALIZACAO" },
-      );
+      await criarNotificacao({
+        userId: servico.clientId,
+        type: "SERVICO_AGUARDANDO_FINALIZACAO",
+        title: "Confirme a finalização",
+        body: "O profissional marcou o serviço como finalizado. Confirme do seu lado.",
+        servicoId: servico.id,
+      });
     }
 
     return NextResponse.json({ ok: true, idempotent: false, servico: updated });

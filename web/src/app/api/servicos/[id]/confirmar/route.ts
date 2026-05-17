@@ -5,6 +5,7 @@ import { assertStatus } from "@/lib/regrasServico";
 import { ServicoStatus } from "@prisma/client";
 import { registrarEvento } from "@/lib/servicoEvento";
 import { aplicarEvento } from "@/lib/safeScore";
+import { criarNotificacao } from "@/lib/notifications";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -38,6 +39,16 @@ export async function POST(req: Request, { params }: Params) {
         ? aplicarEvento(profissionalId, "SERVICO_CONCLUIDO", servico.id, "Serviço confirmado pelo empregador.")
         : Promise.resolve(),
     ]);
+
+    if (profissionalId) {
+      await criarNotificacao({
+        userId: profissionalId,
+        type: "SERVICO_CONFIRMADO",
+        title: "Serviço confirmado",
+        body: "O empregador confirmou a conclusão do serviço.",
+        servicoId: servico.id,
+      });
+    }
 
     return NextResponse.json({ ok: true, servico: updated });
   } catch (error: unknown) {

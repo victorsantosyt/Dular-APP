@@ -23,7 +23,7 @@ import * as ImagePicker from "expo-image-picker";
 import { api } from "@/lib/api";
 import { uploadAvatarDataUrl } from "@/api/perfilApi";
 import { AppIcon, DButton, DCard } from "@/components/ui";
-import { useMensagens } from "@/hooks/useMensagens";
+import { useNotificacoes } from "@/hooks/useNotificacoes";
 import { usePerfil } from "@/hooks/usePerfil";
 import type { EmpregadorTabParamList } from "@/navigation/EmpregadorNavigator";
 import { useAuth } from "@/stores/authStore";
@@ -80,7 +80,7 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
   const setUser = useAuth((state) => state.setUser);
   const user = useAuth((state) => state.user);
   const { perfil, loading, saving, error, atualizar, refetch } = usePerfil();
-  const { rooms } = useMensagens();
+  const { unreadCount: unreadNotifications } = useNotificacoes();
   const busyRef = useRef(false);
 
   const [geoEnabled, setGeoEnabled] = useState(true);
@@ -92,11 +92,7 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
   const [avatarLocal, setAvatarLocal] = useState<string | null>(null);
   const [avatarUploading, setAvatarUploading] = useState(false);
 
-  const unreadMessages = useMemo(
-    () => rooms.reduce((total, room) => total + Math.max(0, Number(room.naoLidas) || 0), 0),
-    [rooms],
-  );
-  const messagesBadge = unreadMessages > 0 ? unreadMessages : undefined;
+  const hasNotificationBadge = unreadNotifications > 0;
 
   useEffect(() => {
     AsyncStorage.getItem(GEO_KEY)
@@ -265,7 +261,7 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
             <Text style={s.title}>Perfil</Text>
             <View style={s.headerSideRight}>
               <NotificationBell
-                hasBadge={!!messagesBadge}
+                hasBadge={hasNotificationBadge}
                 onPress={() => navigation.navigate("Notificacoes")}
               />
             </View>

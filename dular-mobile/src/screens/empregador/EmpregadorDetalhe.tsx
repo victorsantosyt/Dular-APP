@@ -23,7 +23,6 @@ import { MotivoModal } from "@/components/MotivoModal";
 import { AvaliacaoModal } from "@/components/ui";
 import { formatPrice } from "@/utils/formatPrice";
 import { isStatusEncerrado } from "@/utils/servicoStatus";
-import { EMPREGADOR_STACK_ROUTES } from "@/navigation/routes";
 import { colors, radius, shadow, spacing, typography } from "@/theme/tokens";
 
 const formatDate = (v: string | number | Date) => new Date(v).toLocaleDateString("pt-BR");
@@ -285,7 +284,13 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
           <DButton
             title="Abrir chat"
             variant="outline"
-            onPress={() => navigation.navigate(EMPREGADOR_STACK_ROUTES.CHAT, { servicoId: svc.id })}
+            onPress={() =>
+              navigation.navigate("ChatAberto", {
+                roomId: svc.id,
+                servicoId: svc.id,
+                nomeUsuario: svc.diarista?.nome ?? svc.montador?.nome ?? "Conversa",
+              })
+            }
           />
         ) : null}
 

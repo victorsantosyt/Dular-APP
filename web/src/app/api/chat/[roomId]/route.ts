@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/requireAuth";
+import { criarNotificacao } from "@/lib/notifications";
 import type { UserRole } from "@prisma/client";
 import { z } from "zod";
 
@@ -208,6 +209,29 @@ export async function POST(req: Request, { params }: Params) {
         sender: { select: { id: true, nome: true, avatarUrl: true } },
       },
     });
+
+    // Notifica a outra parte sobre a nova mensagem (best-effort).
+    // O `outroUsuarioId` é o oposto do sender no serviço.
+    try {
+      const profissionalUserId = servico.montadorId ?? servico.diaristaId;
+      const outroUsuarioId =
+        auth.userId === servico.clientId ? profissionalUserId : servico.clientId;
+      if (outroUsuarioId) {
+        const preview = parsed.data.content.length > 80
+          ? `${parsed.data.content.slice(0, 77)}...`
+          : parsed.data.content;
+        await criarNotificacao({
+          userId: outroUsuarioId,
+          type: "CHAT_NOVA_MENSAGEM",
+          title: message.sender.nome || "Nova mensagem",
+          body: preview,
+          servicoId,
+          chatRoomId: room.id,
+        });
+      }
+    } catch (e) {
+      console.error("[chat] erro criando notificação de mensagem:", e);
+    }
 
     return NextResponse.json({ ok: true, message }, { status: 201 });
   } catch (error: unknown) {

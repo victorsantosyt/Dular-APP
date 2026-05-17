@@ -4,7 +4,7 @@ import { requireAuth } from "@/lib/requireAuth";
 import { assertRole, assertStatus } from "@/lib/regrasServico";
 import { ServicoStatus, UserRole } from "@prisma/client";
 import { registrarEvento } from "@/lib/servicoEvento";
-import { sendPushNotification } from "@/lib/notifications";
+import { criarNotificacao } from "@/lib/notifications";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -43,12 +43,13 @@ export async function POST(req: Request, { params }: Params) {
 
     await registrarEvento(servico.id, servico.status as ServicoStatus, "ACEITO", auth.role as UserRole, auth.userId);
 
-    await sendPushNotification(
-      servico.clientId,
-      "Serviço aceito",
-      "O profissional aceitou sua solicitação. Confira os detalhes.",
-      { servicoId: servico.id, tipo: "SERVICO_ACEITO" }
-    );
+    await criarNotificacao({
+      userId: servico.clientId,
+      type: "SERVICO_ACEITO",
+      title: "Sua solicitação foi aceita",
+      body: "O profissional aceitou sua solicitação. Confira os detalhes.",
+      servicoId: servico.id,
+    });
 
     return NextResponse.json({ ok: true, servico: updated });
   } catch (error: unknown) {

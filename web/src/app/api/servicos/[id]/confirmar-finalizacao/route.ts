@@ -4,7 +4,7 @@ import { requireAuth } from "@/lib/requireAuth";
 import { assertStatus } from "@/lib/regrasServico";
 import { ServicoStatus, UserRole } from "@prisma/client";
 import { jaConfirmouFinalizacao, registrarEvento } from "@/lib/servicoEvento";
-import { sendPushNotification } from "@/lib/notifications";
+import { criarNotificacao } from "@/lib/notifications";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -79,21 +79,35 @@ export async function POST(req: Request, { params }: Params) {
     const destinoId = isCliente ? servico.montadorId ?? servico.diaristaId : servico.clientId;
     if (destinoId) {
       if (novoStatus === "CONCLUIDO") {
-        await sendPushNotification(
-          destinoId,
-          "Serviço finalizado",
-          "Ambas as partes confirmaram a finalização do serviço.",
-          { servicoId: servico.id, tipo: "SERVICO_FINALIZACAO_DUPLA" },
-        );
+        // Quando ambas as partes confirmaram, notifica os dois lados.
+        // Quem está executando este endpoint (auth.userId) também recebe
+        // a notificação in-app — fica explícito no histórico que o serviço
+        // foi finalizado. Push remoto para si mesmo é redundante, mas o
+        // helper trata isso (token único, mensagem chega no aparelho).
+        await criarNotificacao({
+          userId: destinoId,
+          type: "SERVICO_FINALIZADO",
+          title: "Serviço finalizado",
+          body: "Ambas as partes confirmaram a finalização do serviço.",
+          servicoId: servico.id,
+        });
+        await criarNotificacao({
+          userId: auth.userId,
+          type: "SERVICO_FINALIZADO",
+          title: "Serviço finalizado",
+          body: "Confirmação dupla recebida. O serviço foi finalizado.",
+          servicoId: servico.id,
+        });
       } else {
-        await sendPushNotification(
-          destinoId,
-          "Confirme a finalização",
-          isCliente
+        await criarNotificacao({
+          userId: destinoId,
+          type: "SERVICO_AGUARDANDO_FINALIZACAO",
+          title: "Confirme a finalização",
+          body: isCliente
             ? "O empregador marcou o serviço como finalizado. Confirme do seu lado."
             : "O profissional marcou o serviço como finalizado. Confirme do seu lado.",
-          { servicoId: servico.id, tipo: "SERVICO_AGUARDANDO_FINALIZACAO" },
-        );
+          servicoId: servico.id,
+        });
       }
     }
 

@@ -5,7 +5,7 @@ import { cancelarServicoSchema } from "@/lib/schemas/servicos";
 import { assertStatus, isCancelamentoTardio } from "@/lib/regrasServico";
 import { ServicoStatus } from "@prisma/client";
 import { registrarEvento } from "@/lib/servicoEvento";
-import { sendPushNotification } from "@/lib/notifications";
+import { criarNotificacao } from "@/lib/notifications";
 import { aplicarEvento } from "@/lib/safeScore";
 import { isMotivoGrave, normalizarMotivo, registrarMotivoGrave } from "@/lib/safetyMotivo";
 
@@ -95,19 +95,26 @@ export async function POST(req: Request, { params }: Params) {
       });
     }
 
-    const profissionalId = servico.montadorId ?? servico.diaristaId;
-    const destinoId = isCliente ? profissionalId : servico.clientId;
+    const profissionalIdFinal = servico.montadorId ?? servico.diaristaId;
+    const destinoId = isCliente ? profissionalIdFinal : servico.clientId;
     if (destinoId) {
-      await sendPushNotification(
-        destinoId,
-        "Serviço cancelado",
-        isCliente
+      await criarNotificacao({
+        userId: destinoId,
+        type: "SERVICO_CANCELADO",
+        title: "Serviço cancelado",
+        body: isCliente
           ? "O empregador cancelou a solicitação."
           : isMontador
             ? "O montador cancelou o serviço."
             : "A diarista cancelou o serviço.",
-        { servicoId: servico.id, tipo: "SERVICO_CANCELADO", tardio, motivo: motivoTag ?? "outro" },
-      );
+        servicoId: servico.id,
+        pushData: {
+          type: "SERVICO_CANCELADO",
+          servicoId: servico.id,
+          tardio,
+          motivo: motivoTag ?? "outro",
+        },
+      });
     }
 
     return NextResponse.json({ ok: true, tardio, motivo: motivoTag ?? "outro", servico: updated });

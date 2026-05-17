@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
@@ -11,8 +12,10 @@ import { DButton } from "@/components/DButton";
 import { colors, radius, spacing, typography } from "@/theme/tokens";
 import { shadow } from "@/utils/platform";
 import { formatCurrencyBRL, formatDecimalBRL } from "@/api/diaristaApi";
+import { api } from "@/lib/api";
 import type { EmpregadorTabParamList } from "@/navigation/EmpregadorNavigator";
 import type { ServicoOferecido } from "@/types/diarista";
+import { isStatusEncerrado } from "@/utils/servicoStatus";
 
 type RouteProps = RouteProp<EmpregadorTabParamList, "DiaristaProfile">;
 type Navigation = BottomTabNavigationProp<EmpregadorTabParamList>;
@@ -21,6 +24,16 @@ const SERVICO_LABELS: Record<ServicoOferecido, string> = {
   DIARISTA: "Diarista",
   BABA: "Babá",
   COZINHEIRA: "Cozinheira",
+};
+
+type ServicoAtivoDiarista = {
+  id: string;
+  status?: string | null;
+  diarista?: { id?: string | null } | null;
+};
+
+type MinhasServicosResponse = {
+  servicos?: ServicoAtivoDiarista[];
 };
 
 function tempoLabel(meses: number): string {
@@ -66,9 +79,46 @@ export function DiaristaProfileScreen() {
   const insets = useSafeAreaInsets();
 
   const { diarista, loading, error } = useDiaristaPublico(diaristaId);
+  const [activeService, setActiveService] = useState<ServicoAtivoDiarista | null>(null);
 
   const nome = diarista?.nome || nomeParam;
   const hasAvatar = Boolean(diarista?.avatarUrl);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadActiveService() {
+      if (!diaristaId) {
+        setActiveService(null);
+        return;
+      }
+      try {
+        const res = await api.get<MinhasServicosResponse>("/api/servicos/minhas");
+        if (cancelled) return;
+        const servicos = Array.isArray(res.data?.servicos) ? res.data.servicos : [];
+        const active = servicos.find(
+          (servico) =>
+            servico.diarista?.id === diaristaId &&
+            !isStatusEncerrado(servico.status),
+        );
+        setActiveService(active ?? null);
+      } catch {
+        if (!cancelled) setActiveService(null);
+      }
+    }
+
+    void loadActiveService();
+    return () => {
+      cancelled = true;
+    };
+  }, [diaristaId]);
+
+  const handleAcompanharServico = () => {
+    if (activeService?.id) {
+      navigation.navigate("EmpregadorDetalhe", { servicoId: activeService.id });
+      return;
+    }
+    navigation.navigate("Agendamentos");
+  };
 
   const handleContratar = () => {
     if (!diaristaId) {
@@ -323,7 +373,9 @@ export function DiaristaProfileScreen() {
 
       {/* Fixed footer */}
       <SafeAreaView edges={["bottom"]} style={[s.footer, shadow(4)]}>
-        {perfilCompleto ? (
+        {activeService ? (
+          <DButton title="Acompanhar" onPress={handleAcompanharServico} />
+        ) : perfilCompleto ? (
           <DButton title="Contratar" onPress={handleContratar} />
         ) : (
           <View style={s.unavailableBox}>

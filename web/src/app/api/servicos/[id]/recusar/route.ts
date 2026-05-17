@@ -10,6 +10,8 @@ import { isMotivoGrave, normalizarMotivo, registrarMotivoGrave } from "@/lib/saf
 
 type Params = { params: Promise<{ id: string }> };
 
+export const dynamic = "force-dynamic";
+
 export async function POST(req: Request, { params }: Params) {
   try {
     const auth = requireAuth(req);

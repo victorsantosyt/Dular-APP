@@ -3,8 +3,8 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
-import { AppIcon, DCard } from "@/components/ui";
-import { useMensagens } from "@/hooks/useMensagens";
+import { AppIcon, DCard, DEmptyState, DErrorState, DLoadingState } from "@/components/ui";
+import { useMensagens, type ChatRoom } from "@/hooks/useMensagens";
 import type { EmpregadorTabParamList } from "@/navigation/EmpregadorNavigator";
 import { colors, radius, shadows, spacing, typography } from "@/theme";
 import {
@@ -17,101 +17,61 @@ import {
 
 type Navigation = BottomTabNavigationProp<EmpregadorTabParamList>;
 
-const MOCK_CONVERSATIONS: ConversationItem[] = [
-  {
-    id: "room-luciana-silva",
-    servicoId: "servico-mock-luciana",
-    nome: "Luciana Silva",
-    categoria: "Diarista",
-    categoriaIcon: "BrushCleaning",
-    localizacao: "Jardim América, SP",
-    rating: "4.9",
-    experiencia: "5 anos",
-    horario: "14:32",
-    initials: "LS",
-    avatarUrl: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=facearea&facepad=2&w=180&h=180&q=80",
-  },
-  {
-    id: "room-juliana-castro",
-    servicoId: "servico-mock-juliana",
-    nome: "Juliana Castro",
-    categoria: "Babá",
-    categoriaIcon: "Baby",
-    localizacao: "Vila Mariana, SP",
-    rating: "4.8",
-    experiencia: "3 anos",
-    horario: "13:15",
-    initials: "JC",
-    avatarUrl: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=facearea&facepad=2&w=180&h=180&q=80",
-  },
-  {
-    id: "room-renata-lima",
-    servicoId: "servico-mock-renata",
-    nome: "Renata Lima",
-    categoria: "Cozinheira",
-    categoriaIcon: "ChefHat",
-    localizacao: "Moema, SP",
-    rating: "4.9",
-    experiencia: "7 anos",
-    horario: "11:07",
-    initials: "RL",
-    avatarUrl: "https://images.unsplash.com/photo-1551836022-d5d88e9218df?auto=format&fit=facearea&facepad=2&w=180&h=180&q=80",
-  },
-  {
-    id: "room-carla-souza",
-    servicoId: "servico-mock-carla",
-    nome: "Carla Souza",
-    categoria: "Exp",
-    categoriaIcon: "UserRound",
-    localizacao: "Perdizes, SP",
-    rating: "4.7",
-    experiencia: "4 anos",
-    horario: "Hoje",
-    initials: "CS",
-    avatarUrl: "https://images.unsplash.com/photo-1531123897727-8f129e1688ce?auto=format&fit=facearea&facepad=2&w=180&h=180&q=80",
-  },
-  {
-    id: "room-marina-santos",
-    servicoId: "servico-mock-marina",
-    nome: "Marina Santos",
-    categoria: "Diarista",
-    categoriaIcon: "BrushCleaning",
-    localizacao: "Pinheiros, SP",
-    rating: "4.8",
-    experiencia: "6 anos",
-    horario: "Ontem",
-    initials: "MS",
-    avatarUrl: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=facearea&facepad=2&w=180&h=180&q=80",
-  },
-  {
-    id: "room-aline-ferreira",
-    servicoId: "servico-mock-aline",
-    nome: "Aline Ferreira",
-    categoria: "Babá",
-    categoriaIcon: "Baby",
-    localizacao: "Itaim Bibi, SP",
-    rating: "4.9",
-    experiencia: "2 anos",
-    horario: "Ontem",
-    initials: "AF",
-    avatarUrl: "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=facearea&facepad=2&w=180&h=180&q=80",
-  },
-];
+function categoriaFromTipo(tipo?: string | null): Pick<ConversationItem, "categoria" | "categoriaIcon"> {
+  const value = String(tipo ?? "").toUpperCase();
+  if (value === "BABA") return { categoria: "Babá", categoriaIcon: "Baby" };
+  if (value === "COZINHEIRA") return { categoria: "Cozinheira", categoriaIcon: "ChefHat" };
+  if (value === "MONTADOR") return { categoria: "Montador", categoriaIcon: "Wrench" };
+  return { categoria: "Diarista", categoriaIcon: "BrushCleaning" };
+}
+
+function initialsFromName(nome: string) {
+  return nome
+    .split(/\s+/)
+    .map((word) => word[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+}
+
+function timeLabel(room: ChatRoom) {
+  const value = room.ultimaMensagem?.criadaEm ?? room.atualizadaEm;
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return "";
+  return date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+}
+
+function roomToConversation(room: ChatRoom): ConversationItem {
+  const nome = room.outroUsuario.nome || "Contato";
+  const category = categoriaFromTipo(room.servico?.tipo);
+  return {
+    id: room.id,
+    servicoId: room.servicoId,
+    nome,
+    ...category,
+    localizacao: room.servico?.local ?? "Local do serviço",
+    rating: "--",
+    experiencia: room.servico?.status ? String(room.servico.status).replace(/_/g, " ") : "Serviço confirmado",
+    horario: timeLabel(room),
+    initials: initialsFromName(nome),
+    avatarUrl: room.outroUsuario.avatarUrl ?? undefined,
+  };
+}
 
 export function MensagensEmpregadorScreen() {
   const navigation = useNavigation<Navigation>();
   const [activeTab, setActiveTab] = useState<MessagesTab>("conversas");
-  const { rooms } = useMensagens();
+  const { rooms, loading, error, refetch } = useMensagens();
 
   const visibleConversations = useMemo(
-    () => (activeTab === "conversas" ? MOCK_CONVERSATIONS : []),
-    [activeTab],
+    () => (activeTab === "conversas" ? rooms.map(roomToConversation) : []),
+    [activeTab, rooms],
   );
 
   const openChat = useCallback(
     (item: ConversationItem) => {
       navigation.navigate("ChatAberto", {
-        roomId: item.id,
+        roomId: item.servicoId,
         servicoId: item.servicoId,
         nomeUsuario: item.nome,
       });
@@ -149,6 +109,18 @@ export function MensagensEmpregadorScreen() {
 
           {activeTab === "arquivadas" ? (
             <EmptyArchiveState />
+          ) : loading ? (
+            <DLoadingState text="Carregando conversas" color={colors.primary} />
+          ) : error ? (
+            <DErrorState message={error} onRetry={refetch} />
+          ) : visibleConversations.length === 0 ? (
+            <DEmptyState
+              icon="MessageCircle"
+              title="Nenhuma conversa ainda"
+              subtitle="As conversas dos seus serviços confirmados aparecerão aqui."
+              accentColor={colors.primary}
+              softBg={colors.lavenderSoft}
+            />
           ) : (
             <View style={s.list}>
               {visibleConversations.map((item) => (

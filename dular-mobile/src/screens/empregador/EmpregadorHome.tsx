@@ -219,9 +219,15 @@ export default function EmpregadorHome() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [cidade, setCidade] = useState(PILOT_MODE ? PILOT.cidade : "Cuiaba");
-  const [uf, setUf] = useState(PILOT_MODE ? PILOT.uf : "MT");
-  const [bairro, setBairro] = useState(PILOT_MODE ? PILOT.bairros[0] : "Centro");
+  const [cidade, setCidade] = useState(
+    PILOT_MODE ? PILOT.cidade : (user?.cidadeAtual || user?.cidade || ""),
+  );
+  const [uf, setUf] = useState(
+    PILOT_MODE ? PILOT.uf : (user?.estadoAtual || user?.estado || ""),
+  );
+  const [bairro, setBairro] = useState(
+    PILOT_MODE ? PILOT.bairros[0] : (user?.bairroAtual || ""),
+  );
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
 
   const unreadMessages = useMemo(
@@ -303,15 +309,25 @@ export default function EmpregadorHome() {
   }, [handleBuscar]);
 
   useEffect(() => {
+    if (PILOT_MODE) return;
+    const profileCidade = user?.cidadeAtual || user?.cidade || "";
+    const profileUf = user?.estadoAtual || user?.estado || "";
+    const profileBairro = user?.bairroAtual || "";
+    if (profileCidade && !cidade) setCidade(profileCidade);
+    if (profileUf && !uf) setUf(profileUf);
+    if (profileBairro && !bairro) setBairro(profileBairro);
+  }, [bairro, cidade, uf, user?.bairroAtual, user?.cidade, user?.cidadeAtual, user?.estado, user?.estadoAtual]);
+
+  useEffect(() => {
     if (geo.loading || !geo.coords || appliedGeoRef.current) return;
     appliedGeoRef.current = true;
     const c = { lat: geo.coords.latitude, lng: geo.coords.longitude };
     coordsRef.current = c;
     setCoords(c);
-    if (geo.cidade) setCidade(geo.cidade);
-    if (geo.uf) setUf(geo.uf);
-    if (geo.bairro) setBairro(geo.bairro);
-  }, [geo.bairro, geo.cidade, geo.coords, geo.loading, geo.uf]);
+    if (geo.cidade && !cidade) setCidade(geo.cidade);
+    if (geo.uf && !uf) setUf(geo.uf);
+    if (geo.bairro && !bairro) setBairro(geo.bairro);
+  }, [bairro, cidade, geo.bairro, geo.cidade, geo.coords, geo.loading, geo.uf, uf]);
 
   useEffect(() => {
     if (geo.loading || initialFetchRef.current) return;

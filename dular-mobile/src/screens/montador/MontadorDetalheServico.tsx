@@ -147,13 +147,15 @@ export default function MontadorDetalheServico({ route, navigation }: Props) {
                 onPress={() => navigation.navigate("MontadorChat", { servicoId: servico.id })}
               />
             ) : null}
-            <ActionButton
-              label="Fazer check-in"
-              icon="MapPin"
-              accent={profileTheme.primary}
-              soft={profileTheme.primarySoft}
-              onPress={fazerCheckIn}
-            />
+            {!encerrado ? (
+              <ActionButton
+                label="Fazer check-in"
+                icon="MapPin"
+                accent={profileTheme.primary}
+                soft={profileTheme.primarySoft}
+                onPress={fazerCheckIn}
+              />
+            ) : null}
             {!encerrado && status === "ACEITO" ? (
               <ActionButton
                 label={actionLoading === "iniciar" ? "Iniciando" : "Iniciar serviço"}
@@ -212,9 +214,11 @@ export default function MontadorDetalheServico({ route, navigation }: Props) {
               soft={colors.dangerSoft}
               onPress={reportarProblema}
             />
-            <Pressable onPress={acionarSOS} disabled={actionLoading === "sos"} style={styles.sosButton}>
-              <Text style={styles.sosText}>{actionLoading === "sos" ? "Enviando SOS" : "Acionar SOS"}</Text>
-            </Pressable>
+            {!encerrado ? (
+              <Pressable onPress={acionarSOS} disabled={actionLoading === "sos"} style={styles.sosButton}>
+                <Text style={styles.sosText}>{actionLoading === "sos" ? "Enviando SOS" : "Acionar SOS"}</Text>
+              </Pressable>
+            ) : null}
           </View>
         </>
       )}

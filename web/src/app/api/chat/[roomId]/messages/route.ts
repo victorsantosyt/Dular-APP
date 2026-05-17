@@ -4,6 +4,8 @@ import { requireAuth } from "@/lib/requireAuth";
 import { criarNotificacao } from "@/lib/notifications";
 import { z } from "zod";
 
+export const dynamic = "force-dynamic";
+
 const ALLOWED_STATUSES = new Set([
   "ACEITO",
   "EM_ANDAMENTO",

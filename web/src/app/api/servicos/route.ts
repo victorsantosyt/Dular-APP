@@ -11,6 +11,8 @@ import {
   nichoFromCategoria,
 } from "@/lib/diaristaProfile";
 
+export const dynamic = "force-dynamic";
+
 // Status considerados "ativos" para fins de bloqueio de duplicidade.
 // Status encerrados (NÃO bloqueiam nova contratação):
 //   CONCLUIDO, CONFIRMADO, FINALIZADO, CANCELADO, RECUSADO, RASCUNHO.
@@ -312,22 +314,29 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: "Bairro não cadastrado." }, { status: 400 });
     }
 
-    const atende = await prisma.diaristaBairro.findFirst({
-      where: { diaristaId: prof.id, bairroId: bairroDb.id },
-    });
-    if (!atende) {
-      return NextResponse.json({ ok: false, error: "Diarista não atende esse bairro." }, { status: 400 });
+    // GAP-D1: Respeitar atendeTodaCidade=true. Perfis que atendem toda a
+    // cidade não precisam de vínculo explícito ao bairro — espelha a lógica
+    // de /api/diaristas/buscar (route.ts:158).
+    if (!prof.atendeTodaCidade) {
+      const atende = await prisma.diaristaBairro.findFirst({
+        where: { diaristaId: prof.id, bairroId: bairroDb.id },
+      });
+      if (!atende) {
+        return NextResponse.json({ ok: false, error: "Diarista não atende esse bairro." }, { status: 400 });
+      }
     }
 
-    const habilidade = await prisma.diaristaHabilidade.findFirst({
-      where: {
-        diaristaId: diaristaUserId,
-        tipo,
-        ...(categoria ? { categoria } : {}),
-      },
-    });
-    if (!habilidade) {
-      return NextResponse.json({ ok: false, error: "Diarista não atende esse serviço." }, { status: 400 });
+    // GAP-D2: `servicosOferecidos` é a fonte da verdade desde T-12+.
+    // `DiaristaHabilidade` é legado e não é mais usada nem pelo helper de
+    // completude (`isDiaristaProfileCompleteForServico`) nem pela busca.
+    // Usamos `nichoFromTipo` (mesma função usada acima) para mapear
+    // tipo→nicho. PASSA_ROUPA não tem nicho dedicado e cai no else, mantendo
+    // o comportamento permissivo (sem bloqueio adicional aqui).
+    if (nicho && !prof.servicosOferecidos.includes(nicho)) {
+      return NextResponse.json(
+        { ok: false, error: `Esta profissional não oferece ${nicho.toLowerCase()}.` },
+        { status: 400 },
+      );
     }
 
     const activeBetweenDiarista = await findActiveServiceBetween(
@@ -347,11 +356,42 @@ export async function POST(req: Request) {
       );
     }
 
-    const isFaxina = tipo === "FAXINA";
-    const isPesada = categoria === "FAXINA_PESADA" || categoria === "FAXINA_COMPLETA";
-    const precoFinal = isFaxina ? (isPesada ? prof.precoPesada : prof.precoLeve) : prof.precoLeve;
-    if (!precoFinal || precoFinal <= 0) {
-      return NextResponse.json({ ok: false, error: "Diarista sem preço configurado." }, { status: 400 });
+    // GAP-D3: `precoFinal` precisa refletir o nicho real do serviço.
+    // Antes, sempre usava `precoLeve`, o que quebrava BABA e COZINHEIRA.
+    //
+    // Convenção de unidades: TODOS os campos de preço estão em centavos.
+    // - precoLeve/Medio/Pesada são Int (centavos) por definição do schema.
+    // - precoBabaHora/precoCozinheiraBase são Decimal(10,2) mas o seed E2E
+    //   e o restante do app já gravam valores em centavos (ex.: 5000 = R$ 50,00).
+    //   Por segurança aplicamos Math.round(Number(...)) para coagir Decimal→Int.
+    //
+    // Quando `valorACombinar=true`, registramos 0 como sentinela "a combinar"
+    // (preço negociado externamente — mesma convenção usada para Montador).
+    let precoFinal = 0;
+    if (prof.valorACombinar) {
+      precoFinal = 0;
+    } else if (tipo === "FAXINA") {
+      if (categoria === "FAXINA_PESADA") {
+        precoFinal = prof.precoPesada || prof.precoLeve;
+      } else if (categoria === "FAXINA_COMPLETA") {
+        precoFinal = prof.precoMedio || prof.precoPesada || prof.precoLeve;
+      } else {
+        precoFinal = prof.precoLeve;
+      }
+    } else if (tipo === "BABA") {
+      precoFinal = Math.round(Number(prof.precoBabaHora ?? 0));
+    } else if (tipo === "COZINHEIRA") {
+      precoFinal = Math.round(Number(prof.precoCozinheiraBase ?? 0));
+    } else {
+      // PASSA_ROUPA e outros: fallback ao precoLeve (comportamento legado).
+      precoFinal = prof.precoLeve;
+    }
+
+    if (!prof.valorACombinar && (!precoFinal || precoFinal <= 0)) {
+      return NextResponse.json(
+        { ok: false, error: "Profissional sem preço configurado para este serviço." },
+        { status: 400 },
+      );
     }
 
     const servico = await prisma.servico.create({

@@ -55,7 +55,7 @@ export function MensagensDiaristaScreen() {
         room={item}
         onPress={() =>
           navigation.navigate("ChatAberto", {
-            roomId: item.id,
+            roomId: item.servicoId,
             servicoId: item.servicoId,
             nomeUsuario: item.outroUsuario.nome,
           })

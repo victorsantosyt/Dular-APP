@@ -20,10 +20,11 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import * as ImagePicker from "expo-image-picker";
+import { salvarLocalizacaoAtual } from "@/api/localizacaoApi";
 import { api } from "@/lib/api";
 import { uploadAvatarDataUrl } from "@/api/perfilApi";
 import { AppIcon, DButton, DCard, type AppIconName } from "@/components/ui";
-import { useNotificacoes } from "@/hooks/useNotificacoes";
+import { useCurrentRegion } from "@/hooks/useCurrentRegion";
 import { usePerfil } from "@/hooks/usePerfil";
 import type { PerfilUsuario } from "@/hooks/usePerfil";
 import type { EmpregadorTabParamList } from "@/navigation/EmpregadorNavigator";
@@ -33,7 +34,6 @@ import { useDularColors } from "@/hooks/useDularColors";
 import { useThemeStore } from "@/stores/useThemeStore";
 import { platformSelect } from "@/utils/platform";
 import {
-  NotificationBell,
   ProfileHeroCard,
   ProfileRow,
   ProfileSection,
@@ -157,10 +157,11 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
   const setUser = useAuth((state) => state.setUser);
   const user = useAuth((state) => state.user);
   const { perfil, loading, saving, error, atualizar, refetch } = usePerfil();
-  const { unreadCount: unreadNotifications } = useNotificacoes();
+  const { requestRegion } = useCurrentRegion();
   const busyRef = useRef(false);
 
-  const [geoEnabled, setGeoEnabled] = useState(true);
+  const [geoEnabled, setGeoEnabled] = useState(false);
+  const [geoSaving, setGeoSaving] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [editNome, setEditNome] = useState("");
@@ -169,16 +170,23 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
   const [avatarLocal, setAvatarLocal] = useState<string | null>(null);
   const [avatarUploading, setAvatarUploading] = useState(false);
 
-  const hasNotificationBadge = unreadNotifications > 0;
-
   useEffect(() => {
+    const backendEnabled = Boolean((perfil ?? user)?.localizacaoPermitida);
+    let active = true;
     AsyncStorage.getItem(GEO_KEY)
       .then((value) => {
+        if (!active) return;
         if (value === "0") setGeoEnabled(false);
-        if (value === "1") setGeoEnabled(true);
+        else if (value === "1") setGeoEnabled(true);
+        else setGeoEnabled(backendEnabled);
       })
-      .catch(() => undefined);
-  }, []);
+      .catch(() => {
+        if (active) setGeoEnabled(backendEnabled);
+      });
+    return () => {
+      active = false;
+    };
+  }, [perfil, user]);
 
   useEffect(() => {
     if (!toast) return;
@@ -282,9 +290,73 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
     }
   };
 
-  const handleGeoToggle = (value: boolean) => {
-    setGeoEnabled(value);
-    AsyncStorage.setItem(GEO_KEY, value ? "1" : "0").catch(() => undefined);
+  const saveCurrentLocation = useCallback(async () => {
+    if (geoSaving) return false;
+
+    setGeoSaving(true);
+    showToast("Atualizando localização...");
+    try {
+      const detected = await requestRegion();
+      const cidade = detected?.cidade?.trim() ?? "";
+      const uf = detected?.uf?.trim().toUpperCase() ?? "";
+      const bairro = detected?.bairro?.trim() || null;
+
+      if (!detected || !cidade || uf.length !== 2) {
+        throw new Error("Não foi possível identificar cidade e UF.");
+      }
+
+      await salvarLocalizacaoAtual({
+        latitude: detected.latitude ?? null,
+        longitude: detected.longitude ?? null,
+        cidade,
+        estado: uf,
+        bairro,
+        localizacaoPermitida: true,
+      });
+
+      await AsyncStorage.setItem(GEO_KEY, "1");
+      setGeoEnabled(true);
+      setUser((current) =>
+        current
+          ? {
+              ...current,
+              cidade,
+              estado: uf,
+              uf,
+              bairro,
+              cidadeAtual: cidade,
+              estadoAtual: uf,
+              bairroAtual: bairro,
+              localizacaoPermitida: true,
+              localizacaoAtualizadaEm: new Date().toISOString(),
+            }
+          : current,
+      );
+      refetch();
+      showToast("Localização atualizada.");
+      return true;
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Não foi possível atualizar a localização.");
+      return false;
+    } finally {
+      setGeoSaving(false);
+    }
+  }, [geoSaving, refetch, requestRegion, setUser]);
+
+  const handleGeoToggle = async (value: boolean) => {
+    if (!value) {
+      setGeoEnabled(false);
+      AsyncStorage.setItem(GEO_KEY, "0").catch(() => undefined);
+      return;
+    }
+
+    setGeoEnabled(true);
+    AsyncStorage.setItem(GEO_KEY, "1").catch(() => undefined);
+    const ok = await saveCurrentLocation();
+    if (!ok) {
+      setGeoEnabled(false);
+      AsyncStorage.setItem(GEO_KEY, "0").catch(() => undefined);
+    }
   };
 
   const openWhatsApp = async () => {
@@ -316,6 +388,7 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
   const profileData = (perfil ?? user ?? null) as ProfileData | null;
   const heroLocation = profileLocation(profileData);
   const hasLocation = Boolean(heroLocation);
+  const locationIsEnabled = geoEnabled || profileData?.localizacaoPermitida === true;
   const verificationStatus = normalizeVerification(profileData);
   const completion = calculateProfileProgress(profileData, heroLocation);
   const displayName = firstName(profileData?.nome);
@@ -326,7 +399,7 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
   const emailText = textValue(profileData?.email) ?? "Não informado";
   const roleText = roleLabel(profileData?.role);
   const createdAtText = memberSince || "Não informado";
-  const locationText = heroLocation || "Localização não informada";
+  const locationText = heroLocation || (locationIsEnabled ? "Localização ativada" : "Localização não informada");
   const progressLabel = completion.completo ? "Perfil completo" : "Perfil incompleto";
   const progressTone = completion.completo ? colors.success : colors.warning;
   const progressSoft = completion.completo ? colors.successSoft : colors.warningSoft;
@@ -341,7 +414,7 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
   const showErrorBanner = !loading && !!error && !perfil;
 
   const openLocationCta = () => {
-    navigation.navigate("Buscar");
+    void saveCurrentLocation();
   };
 
   return (
@@ -357,12 +430,7 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
           <View style={s.header}>
             <View style={s.headerSide} />
             <Text style={s.title}>Perfil</Text>
-            <View style={s.headerSideRight}>
-              <NotificationBell
-                hasBadge={hasNotificationBadge}
-                onPress={() => navigation.navigate("Notificacoes")}
-              />
-            </View>
+            <View style={s.headerSide} />
           </View>
 
           {showInitialSpinner ? (
@@ -451,8 +519,16 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
                 />
                 <ProfileRow
                   icon="MapPin"
-                  title={hasLocation ? "Endereço" : "Adicionar localização"}
-                  subtitle={hasLocation ? locationText : "Informe sua localização para melhorar buscas"}
+                  title={hasLocation ? "Endereço" : locationIsEnabled ? "Atualizar localização" : "Adicionar localização"}
+                  subtitle={
+                    hasLocation
+                      ? locationText
+                      : geoSaving
+                        ? "Buscando sua localização atual"
+                        : locationIsEnabled
+                          ? "Toque para buscar cidade e bairro atuais"
+                          : "Informe sua localização para melhorar buscas"
+                  }
                   onPress={hasLocation ? () => Alert.alert("Endereço", locationText) : openLocationCta}
                   isLast
                 />
@@ -497,7 +573,7 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
                 <ProfileSwitchRow
                   icon="MapPin"
                   title="Ativar geolocalização"
-                  subtitle="Melhorar sugestões perto de você"
+                  subtitle={geoSaving ? "Atualizando localização..." : "Melhorar sugestões perto de você"}
                   value={geoEnabled}
                   onValueChange={handleGeoToggle}
                 />
@@ -619,10 +695,6 @@ function makeStyles(colors: ThemeColors) {
   },
   headerSide: {
     width: 48,
-  },
-  headerSideRight: {
-    width: 48,
-    alignItems: "flex-end",
   },
   title: {
     color: colors.textPrimary,

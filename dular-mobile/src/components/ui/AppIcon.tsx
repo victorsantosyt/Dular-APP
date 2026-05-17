@@ -2,6 +2,7 @@ import React from "react";
 import { StyleSheet, View, ViewStyle } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import {
+  AlertCircle,
   AlertTriangle,
   Archive,
   ArrowLeft,
@@ -74,6 +75,7 @@ import {
 import { colors, gradients } from "@/theme";
 
 const ICONS = {
+  AlertCircle,
   AlertTriangle,
   Archive,
   ArrowLeft,

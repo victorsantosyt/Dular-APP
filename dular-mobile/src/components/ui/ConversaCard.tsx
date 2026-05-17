@@ -46,7 +46,7 @@ export function ConversaCard({ room, onPress }: ConversaCardProps) {
       <View style={styles.row}>
         <DAvatar
           size="md"
-          uri={room.outroUsuario.avatarUrl}
+          uri={room.outroUsuario.avatarUrl ?? undefined}
           initials={initials}
         />
 

@@ -1,17 +1,20 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
+import { getMe, type Me } from "@/api/perfilApi";
+import { useAuth } from "@/stores/authStore";
 
-export interface PerfilUsuario {
+export interface PerfilUsuario extends Me {
   id: string;
-  nome: string;
-  email: string;
-  telefone?: string;
-  bio?: string;
-  avatarUrl?: string;
+  nome?: string | null;
+  email?: string | null;
+  telefone?: string | null;
+  bio?: string | null;
+  avatarUrl?: string | null;
   role: "EMPREGADOR" | "DIARISTA" | "MONTADOR" | "ADMIN";
-  verificado: boolean;
+  verificado?: boolean;
   safeScore?: number;
-  criadoEm: string;
+  createdAt?: string | null;
+  criadoEm?: string | null;
 }
 
 export interface UsePerfilReturn {
@@ -26,6 +29,7 @@ export interface UsePerfilReturn {
 }
 
 export function usePerfil(): UsePerfilReturn {
+  const setUser = useAuth((state) => state.setUser);
   const [perfil, setPerfil] = useState<PerfilUsuario | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -50,10 +54,10 @@ export function usePerfil(): UsePerfilReturn {
     inFlight.current = true;
     if (isInitial && mountedRef.current) setLoading(true);
     try {
-      const res = await api.get<{ user?: PerfilUsuario } | PerfilUsuario>("/api/me");
+      const data = await getMe();
       if (!mountedRef.current) return;
-      const data = (res.data as any).user ?? res.data;
       setPerfil(data as PerfilUsuario);
+      setUser((current) => (current ? { ...current, ...(data as Partial<typeof current>) } : (data as any)));
       setError(null);
     } catch (err) {
       if (!mountedRef.current) return;
@@ -64,7 +68,7 @@ export function usePerfil(): UsePerfilReturn {
       inFlight.current = false;
       if (mountedRef.current && isInitial) setLoading(false);
     }
-  }, []);
+  }, [setUser]);
 
   const refetch = useCallback(() => {
     void fetch(false);
@@ -87,6 +91,7 @@ export function usePerfil(): UsePerfilReturn {
         setPerfil((prev) =>
           prev ? { ...prev, ...(updated as Partial<PerfilUsuario>) } : updated
         );
+        setUser((current) => (current ? { ...current, ...(updated as Partial<typeof current>) } : (updated as any)));
         return true;
       } catch {
         return false;
@@ -94,7 +99,7 @@ export function usePerfil(): UsePerfilReturn {
         if (mountedRef.current) setSaving(false);
       }
     },
-    []
+    [setUser]
   );
 
   return { perfil, loading, saving, error, atualizar, refetch };

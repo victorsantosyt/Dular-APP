@@ -13,6 +13,15 @@ const mapVerificacao = (status?: string | null) => {
   return "PENDENTE";
 };
 
+const mapDocumentVerification = (status?: string | null) => {
+  if (!status) return null;
+  const s = status.toUpperCase();
+  if (s === "APPROVED") return "APROVADO";
+  if (s === "REJECTED") return "REPROVADO";
+  if (s === "PENDING") return "PENDENTE";
+  return null;
+};
+
 function parsePositiveCents(value: unknown) {
   if (value == null) return undefined;
   const n = Number(value);
@@ -38,6 +47,8 @@ export async function GET(req: Request) {
         id: true,
         nome: true,
         telefone: true,
+        cpf: true,
+        dataNascimento: true,
         email: true,
         genero: true,
         role: true,
@@ -147,18 +158,29 @@ export async function GET(req: Request) {
 
     if (auth.role === "EMPREGADOR") {
       const tQuery = Date.now();
-      const [user, profile] = await Promise.all([
+      const [user, profile, documentVerification] = await Promise.all([
         userP,
         prisma.empregadorPerfil.findUnique({
           where: { userId: auth.userId },
           select: {
             cidade: true,
             estado: true,
+            fotoPerfil: true,
             cidadeAtual: true,
             estadoAtual: true,
             bairroAtual: true,
             localizacaoPermitida: true,
             localizacaoAtualizadaEm: true,
+          },
+        }),
+        prisma.documentVerification.findFirst({
+          where: { userId: auth.userId },
+          orderBy: { updatedAt: "desc" },
+          select: {
+            docType: true,
+            docUrl: true,
+            status: true,
+            updatedAt: true,
           },
         }),
       ]);
@@ -168,21 +190,42 @@ export async function GET(req: Request) {
         return staleSessionResponse();
       }
 
+      const verificacaoStatus = mapDocumentVerification(documentVerification?.status);
+      const estado = profile?.estado ?? profile?.estadoAtual ?? null;
+
       if (isDev) console.log(`[me GET EMPREGADOR] TOTAL: ${Date.now() - t0}ms`);
       return NextResponse.json({
         ok: true,
         user: {
           ...user,
-          cidade: profile?.cidade ?? null,
-          estado: profile?.estado ?? null,
+          cidade: profile?.cidade ?? profile?.cidadeAtual ?? null,
+          estado,
+          uf: estado,
+          bairro: profile?.bairroAtual ?? null,
           cidadeAtual: profile?.cidadeAtual ?? null,
           estadoAtual: profile?.estadoAtual ?? null,
           bairroAtual: profile?.bairroAtual ?? null,
           localizacaoPermitida: profile?.localizacaoPermitida ?? false,
           localizacaoAtualizadaEm: profile?.localizacaoAtualizadaEm ?? null,
           bio: null,
-          avatarUrl: user.avatarUrl ?? null,
-          verificacao: { status: "PENDENTE" },
+          avatarUrl: profile?.fotoPerfil ?? user.avatarUrl ?? null,
+          verificado: verificacaoStatus === "APROVADO",
+          docEnviado: Boolean(documentVerification?.docUrl),
+          verificacao: verificacaoStatus
+            ? {
+                status: verificacaoStatus,
+                docType: documentVerification?.docType ?? null,
+                updatedAt: documentVerification?.updatedAt ?? null,
+              }
+            : null,
+          documentos: verificacaoStatus
+            ? {
+                status: verificacaoStatus,
+                docType: documentVerification?.docType ?? null,
+                enviado: Boolean(documentVerification?.docUrl),
+                updatedAt: documentVerification?.updatedAt ?? null,
+              }
+            : null,
         },
       });
     }

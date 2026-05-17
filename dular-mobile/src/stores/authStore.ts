@@ -24,13 +24,20 @@ export type Genero = "MASCULINO" | "FEMININO";
 type User = {
   id: string;
   nome: string;
+  email?: string | null;
   telefone?: string;
+  cpf?: string | null;
+  dataNascimento?: string | null;
   role: Role;
   genero?: "MASCULINO" | "FEMININO" | null;
+  status?: string | null;
   avatarUrl?: string | null;
   bio?: string | null;
+  createdAt?: string | null;
   cidade?: string | null;
   estado?: string | null;
+  uf?: string | null;
+  bairro?: string | null;
   cidadeAtual?: string | null;
   estadoAtual?: string | null;
   bairroAtual?: string | null;
@@ -216,6 +223,27 @@ export const useAuth = create<AuthState>((set, get) => ({
 
       await setAuthToken(token);
       set({ token, role, user: userObj, selectedGenero: userObj?.genero ?? genero, servicosOferecidos: userObj?.servicosOferecidos ?? servicosOferecidos, hydrated: true, isAuthenticated: true });
+
+      void fetchSessionUser().then(async (apiUser) => {
+        if (!apiUser) return;
+        const apiServicos = normalizeServicosOferecidos(apiUser.servicosOferecidos);
+        const cachedServicos = normalizeServicosOferecidos(userObj?.servicosOferecidos);
+        const nextServicos = apiServicos.length > 0 ? apiServicos : cachedServicos;
+        const nextUser: User = {
+          ...(userObj ?? apiUser),
+          ...apiUser,
+          role: (apiUser.role ?? role) as Role,
+          genero: apiUser.genero ?? userObj?.genero ?? genero,
+          servicosOferecidos: nextServicos,
+        };
+        await SecureStorage.saveUser(nextUser);
+        set({
+          role: nextUser.role,
+          user: nextUser,
+          selectedGenero: nextUser.genero ?? genero,
+          servicosOferecidos: nextServicos,
+        });
+      });
       return;
     }
     set({ hydrated: true, isAuthenticated: false, servicosOferecidos });
@@ -224,6 +252,7 @@ export const useAuth = create<AuthState>((set, get) => ({
   setUser(next) {
     set((state) => {
       const resolved = typeof next === "function" ? (next as any)(state.user) : next;
+      if (resolved) void SecureStorage.saveUser(resolved);
       return { ...state, user: resolved ?? null };
     });
   },

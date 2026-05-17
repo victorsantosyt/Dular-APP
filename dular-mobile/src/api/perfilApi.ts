@@ -11,13 +11,25 @@ export type VerificacaoInfo = {
 
 export type Me = {
   id: string;
-  nome?: string;
-  telefone?: string;
+  nome?: string | null;
+  telefone?: string | null;
+  cpf?: string | null;
+  dataNascimento?: string | null;
   email?: string | null;
   genero?: "MASCULINO" | "FEMININO" | null;
   role?: "EMPREGADOR" | "DIARISTA" | "MONTADOR" | "ADMIN";
   bio?: string | null;
   avatarUrl?: string | null;
+  status?: string | null;
+  cidade?: string | null;
+  estado?: string | null;
+  uf?: string | null;
+  bairro?: string | null;
+  cidadeAtual?: string | null;
+  estadoAtual?: string | null;
+  bairroAtual?: string | null;
+  localizacaoPermitida?: boolean;
+  localizacaoAtualizadaEm?: string | null;
   bairros?: string[];
   disponibilidade?: any;
   precos?: any;

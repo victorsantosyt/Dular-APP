@@ -22,9 +22,10 @@ import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import * as ImagePicker from "expo-image-picker";
 import { api } from "@/lib/api";
 import { uploadAvatarDataUrl } from "@/api/perfilApi";
-import { AppIcon, DButton, DCard } from "@/components/ui";
+import { AppIcon, DButton, DCard, type AppIconName } from "@/components/ui";
 import { useNotificacoes } from "@/hooks/useNotificacoes";
 import { usePerfil } from "@/hooks/usePerfil";
+import type { PerfilUsuario } from "@/hooks/usePerfil";
 import type { EmpregadorTabParamList } from "@/navigation/EmpregadorNavigator";
 import { useAuth } from "@/stores/authStore";
 import { radius, shadows, spacing } from "@/theme";
@@ -41,33 +42,109 @@ import {
 
 type Props = { onLogout: () => void };
 type Navigation = BottomTabNavigationProp<EmpregadorTabParamList>;
+type VerificationStatus = NonNullable<PerfilUsuario["verificacao"]>["status"] | "VERIFICADO";
+type ProfileData = Partial<PerfilUsuario>;
 
 const GEO_KEY = "@dular:empregador_geo_enabled";
 
+function textValue(value?: string | null) {
+  const clean = value?.trim();
+  return clean ? clean : null;
+}
+
 function firstName(value?: string | null) {
-  return (value || "").trim().split(/\s+/)[0] || "Carolina";
+  return textValue(value)?.split(/\s+/)[0] ?? "Sem nome";
 }
 
 function formatMemberSince(value?: string | null) {
-  if (!value) return "15/04/2023";
+  if (!value) return "";
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "15/04/2023";
+  if (Number.isNaN(date.getTime())) return "";
   return date.toLocaleDateString("pt-BR");
 }
 
-function profileLocation(perfil: unknown) {
-  const data = perfil as { cidade?: string | null; estado?: string | null; uf?: string | null };
-  const cidade = data?.cidade?.trim();
-  const estado = data?.estado?.trim() || data?.uf?.trim();
+function profileLocation(perfil: ProfileData | null) {
+  const bairro = textValue(perfil?.bairroAtual);
+  const cidade = textValue(perfil?.cidadeAtual) ?? textValue(perfil?.cidade);
+  const estado = textValue(perfil?.estadoAtual) ?? textValue(perfil?.estado) ?? textValue(perfil?.uf);
+
+  if (bairro && cidade && estado) return `${bairro}, ${cidade} - ${estado}`;
   if (cidade && estado) return `${cidade}, ${estado}`;
   if (cidade) return cidade;
-  return "Campinas, SP";
+  return "";
 }
 
-function profileAge(perfil: unknown) {
-  const data = perfil as { idade?: number | string | null };
-  if (data?.idade) return `${data.idade} anos!`;
-  return "23 anos!";
+function normalizeVerification(perfil: ProfileData | null): VerificationStatus | null {
+  const status = perfil?.verificacao?.status;
+  if (status === "APROVADO" || status === "PENDENTE" || status === "REPROVADO" || status === "NAO_ENVIADO") {
+    return status;
+  }
+  if (perfil?.verificado === true) return "APROVADO";
+  return null;
+}
+
+function verificationText(status: VerificationStatus | null) {
+  if (status === "APROVADO" || status === "VERIFICADO") return "Verificação aprovada";
+  if (status === "PENDENTE") return "Verificação pendente";
+  if (status === "REPROVADO") return "Verificação reprovada";
+  return "Não verificado";
+}
+
+function roleLabel(role?: ProfileData["role"] | null) {
+  if (role === "EMPREGADOR") return "Empregador";
+  if (role === "DIARISTA") return "Diarista";
+  if (role === "MONTADOR") return "Montador";
+  if (role === "ADMIN") return "Administrador";
+  return "Não informado";
+}
+
+function calculateProfileProgress(perfil: ProfileData | null, location: string) {
+  const checks = [
+    { label: "nome", ok: Boolean(textValue(perfil?.nome)) },
+    { label: "telefone", ok: Boolean(textValue(perfil?.telefone)) },
+    { label: "email", ok: Boolean(textValue(perfil?.email)) },
+    { label: "CPF", ok: Boolean(textValue(perfil?.cpf)) },
+    { label: "data de nascimento", ok: Boolean(textValue(perfil?.dataNascimento)) },
+    { label: "localização", ok: Boolean(location) },
+  ];
+  const done = checks.filter((item) => item.ok).length;
+  return {
+    progresso: Math.round((done / checks.length) * 100),
+    completo: done === checks.length,
+    faltantes: checks.filter((item) => !item.ok).map((item) => item.label),
+  };
+}
+
+type ProfileStyles = ReturnType<typeof makeStyles>;
+
+function InfoLine({
+  icon,
+  label,
+  value,
+  styles,
+  colors,
+  isLast,
+}: {
+  icon: AppIconName;
+  label: string;
+  value: string;
+  styles: ProfileStyles;
+  colors: ThemeColors;
+  isLast?: boolean;
+}) {
+  return (
+    <View style={[styles.infoRow, !isLast && styles.infoDivider]}>
+      <View style={styles.infoIcon}>
+        <AppIcon name={icon} size={18} color={colors.primary} strokeWidth={2.2} />
+      </View>
+      <View style={styles.infoTextWrap}>
+        <Text style={styles.infoLabel}>{label}</Text>
+        <Text style={styles.infoValue} numberOfLines={1}>
+          {value}
+        </Text>
+      </View>
+    </View>
+  );
 }
 
 export default function EmpregadorPerfil({ onLogout }: Props) {
@@ -236,15 +313,36 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
     ]);
   };
 
-  const displayName = firstName(perfil?.nome ?? user?.nome);
-  const avatarUri = avatarLocal ?? perfil?.avatarUrl ?? user?.avatarUrl ?? null;
+  const profileData = (perfil ?? user ?? null) as ProfileData | null;
+  const heroLocation = profileLocation(profileData);
+  const hasLocation = Boolean(heroLocation);
+  const verificationStatus = normalizeVerification(profileData);
+  const completion = calculateProfileProgress(profileData, heroLocation);
+  const displayName = firstName(profileData?.nome);
+  const avatarUri = avatarLocal ?? profileData?.avatarUrl ?? null;
   const avatarFallback: ImageSourcePropType | null = null;
+  const memberSince = formatMemberSince(profileData?.createdAt ?? profileData?.criadoEm);
+  const telefoneText = textValue(profileData?.telefone) ?? "Não informado";
+  const emailText = textValue(profileData?.email) ?? "Não informado";
+  const roleText = roleLabel(profileData?.role);
+  const createdAtText = memberSince || "Não informado";
+  const locationText = heroLocation || "Localização não informada";
+  const progressLabel = completion.completo ? "Perfil completo" : "Perfil incompleto";
+  const progressTone = completion.completo ? colors.success : colors.warning;
+  const progressSoft = completion.completo ? colors.successSoft : colors.warningSoft;
+  const missingText = completion.faltantes.length
+    ? `Pendente: ${completion.faltantes.join(", ")}`
+    : "Dados principais preenchidos.";
   // Hotfix T-13 (2): tela NUNCA pode ficar bloqueada por loading. Sempre
   // renderiza o conteúdo usando dados do authStore enquanto a API responde.
   // O spinner aparece apenas como decoração no topo (não-bloqueante) e o
   // banner de erro vira algo "inline" com retry, sem esconder o resto.
   const showInitialSpinner = loading && !perfil;
   const showErrorBanner = !loading && !!error && !perfil;
+
+  const openLocationCta = () => {
+    navigation.navigate("Buscar");
+  };
 
   return (
     <SafeAreaView style={s.safe} edges={["top", "left", "right"]}>
@@ -283,14 +381,54 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
 
               <ProfileHeroCard
                 nome={displayName}
-                subtitle={profileAge(perfil)}
-                location={profileLocation(perfil)}
-                memberSince={formatMemberSince(perfil?.criadoEm)}
+                subtitle={roleText}
+                location={locationText}
+                memberSince={memberSince}
                 avatarUri={avatarUri}
                 avatarFallback={avatarFallback}
                 uploading={avatarUploading}
                 onAvatarPress={pickAvatar}
+                verificacaoStatus={verificationStatus}
+                hideMemberSinceIfEmpty
               />
+
+              <ProfileSection title="Status do perfil">
+                <DCard style={s.statusCard}>
+                  <View style={s.statusHeader}>
+                    <View style={[s.statusBadge, { backgroundColor: progressSoft }]}>
+                      <AppIcon
+                        name={completion.completo ? "CheckCircle" : "AlertTriangle"}
+                        size={14}
+                        color={progressTone}
+                        strokeWidth={2.4}
+                      />
+                      <Text style={[s.statusBadgeText, { color: progressTone }]}>{progressLabel}</Text>
+                    </View>
+                    <Text style={s.statusProgress}>{completion.progresso}%</Text>
+                  </View>
+                  <View style={s.progressTrack}>
+                    <View
+                      style={[
+                        s.progressFill,
+                        {
+                          width: `${completion.progresso}%`,
+                          backgroundColor: progressTone,
+                        },
+                      ]}
+                    />
+                  </View>
+                  <Text style={s.statusHint}>{missingText}</Text>
+                </DCard>
+              </ProfileSection>
+
+              <ProfileSection title="Dados da conta">
+                <DCard style={s.infoCard}>
+                  <InfoLine icon="Phone" label="Telefone" value={telefoneText} styles={s} colors={colors} />
+                  <InfoLine icon="FileText" label="Email" value={emailText} styles={s} colors={colors} />
+                  <InfoLine icon="User" label="Perfil" value={roleText} styles={s} colors={colors} />
+                  <InfoLine icon="Calendar" label="Criado em" value={createdAtText} styles={s} colors={colors} isLast />
+                </DCard>
+              </ProfileSection>
 
               <ProfileSection title="Conta">
                 <ProfileRow
@@ -302,7 +440,7 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
                 <ProfileRow
                   icon="ShieldCheck"
                   title="Verificação de perfil"
-                  subtitle="Acompanhe sua verificação"
+                  subtitle={verificationText(verificationStatus)}
                   onPress={() => Alert.alert("Verificação", "Status disponível na tela de documentos.")}
                 />
                 <ProfileRow
@@ -313,9 +451,9 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
                 />
                 <ProfileRow
                   icon="MapPin"
-                  title="Endereço"
-                  subtitle="Onde você mora"
-                  onPress={() => Alert.alert("Endereço", "Gerenciamento de endereço será conectado em breve.")}
+                  title={hasLocation ? "Endereço" : "Adicionar localização"}
+                  subtitle={hasLocation ? locationText : "Informe sua localização para melhorar buscas"}
+                  onPress={hasLocation ? () => Alert.alert("Endereço", locationText) : openLocationCta}
                   isLast
                 />
               </ProfileSection>
@@ -536,6 +674,91 @@ function makeStyles(colors: ThemeColors) {
     fontSize: 12,
     lineHeight: 17,
     fontWeight: "500",
+  },
+  statusCard: {
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    gap: spacing.sm,
+  },
+  statusHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.sm,
+  },
+  statusBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    borderRadius: radius.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  statusBadgeText: {
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  statusProgress: {
+    color: colors.textPrimary,
+    fontSize: 15,
+    fontWeight: "800",
+  },
+  progressTrack: {
+    height: 7,
+    borderRadius: 999,
+    overflow: "hidden",
+    backgroundColor: colors.lavenderStrong,
+  },
+  progressFill: {
+    height: "100%",
+    borderRadius: 999,
+  },
+  statusHint: {
+    color: colors.textSecondary,
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: "600",
+  },
+  infoCard: {
+    padding: 0,
+    borderRadius: radius.lg,
+    overflow: "hidden",
+  },
+  infoRow: {
+    minHeight: 58,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: colors.surface,
+  },
+  infoDivider: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.divider,
+  },
+  infoIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 13,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.lavenderSoft,
+  },
+  infoTextWrap: {
+    flex: 1,
+    minWidth: 0,
+    gap: 3,
+  },
+  infoLabel: {
+    color: colors.textSecondary,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  infoValue: {
+    color: colors.textPrimary,
+    fontSize: 14,
+    fontWeight: "700",
   },
   logoutCard: {
     borderRadius: radius.lg,

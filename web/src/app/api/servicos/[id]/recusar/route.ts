@@ -4,7 +4,7 @@ import { requireAuth } from "@/lib/requireAuth";
 import { assertRole, assertStatus } from "@/lib/regrasServico";
 import { ServicoStatus, UserRole } from "@prisma/client";
 import { registrarEvento } from "@/lib/servicoEvento";
-import { sendPushNotification } from "@/lib/notifications";
+import { criarNotificacao } from "@/lib/notifications";
 import { recusarServicoSchema } from "@/lib/schemas/servicos";
 import { isMotivoGrave, normalizarMotivo, registrarMotivoGrave } from "@/lib/safetyMotivo";
 
@@ -75,12 +75,18 @@ export async function POST(req: Request, { params }: Params) {
       });
     }
 
-    await sendPushNotification(
-      servico.clientId,
-      "Solicitação recusada",
-      "O profissional não pôde atender seu pedido. Procure outro profissional.",
-      { servicoId: servico.id, tipo: "SERVICO_RECUSADO", motivo: motivoTag ?? "outro" },
-    );
+    await criarNotificacao({
+      userId: servico.clientId,
+      type: "SERVICO_RECUSADO",
+      title: "Sua solicitação foi recusada",
+      body: "O profissional não pôde atender seu pedido. Procure outro profissional.",
+      servicoId: servico.id,
+      pushData: {
+        type: "SERVICO_RECUSADO",
+        servicoId: servico.id,
+        motivo: motivoTag ?? "outro",
+      },
+    });
 
     return NextResponse.json({ ok: true, servico: updated });
   } catch (error: unknown) {

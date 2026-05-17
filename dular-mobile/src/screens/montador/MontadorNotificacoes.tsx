@@ -4,6 +4,8 @@ import { useNavigation } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import { AppIcon, DEmptyState, DLoadingState, DScreen, type AppIconName } from "@/components/ui";
 import { useMontadorServicos } from "@/hooks/useMontadorServicos";
+import { useNotificacoes } from "@/hooks/useNotificacoes";
+import type { Notificacao } from "@/api/notificacoesApi";
 import { useProfileTheme } from "@/hooks/useProfileTheme";
 import type { MontadorTabParamList } from "@/navigation/MontadorNavigator";
 import { colors, radius, shadows, typography } from "@/theme";
@@ -22,8 +24,60 @@ type MontadorNotification = {
   badge: string;
   tone: NotificationTone;
   unread: boolean;
+  type?: string;
   servicoId?: string;
+  chatRoomId?: string;
+  remoteId?: string;
 };
+
+const CHAT_TYPES = new Set<string>(["CHAT_NOVA_MENSAGEM", "MENSAGEM_RECEBIDA"]);
+
+const TYPE_META: Record<string, { icon: AppIconName; badge: string; tone: NotificationTone }> = {
+  SERVICO_SOLICITADO: { icon: "BriefcaseBusiness", badge: "Solicitação", tone: "primary" },
+  SERVICO_ACEITO: { icon: "CheckCircle", badge: "Aceito", tone: "success" },
+  SERVICO_RECUSADO: { icon: "XCircle", badge: "Recusado", tone: "urgent" },
+  SERVICO_INICIADO: { icon: "Clock", badge: "Em andamento", tone: "info" },
+  SERVICO_FINALIZADO: { icon: "CheckCircle", badge: "Concluído", tone: "success" },
+  SERVICO_CANCELADO: { icon: "XCircle", badge: "Cancelado", tone: "urgent" },
+  MENSAGEM_RECEBIDA: { icon: "MessageCircle", badge: "Mensagem", tone: "support" },
+  CHAT_NOVA_MENSAGEM: { icon: "MessageCircle", badge: "Mensagem", tone: "support" },
+  AVALIACAO_RECEBIDA: { icon: "Star", badge: "Avaliação", tone: "success" },
+  ALERTA_SEGURANCA: { icon: "AlertTriangle", badge: "Urgente", tone: "urgent" },
+  SISTEMA: { icon: "Sparkles", badge: "Novidade", tone: "primary" },
+  NOVIDADE: { icon: "Megaphone", badge: "Novidade", tone: "primary" },
+};
+
+function tempoRelativo(iso: string): string {
+  const then = new Date(iso).getTime();
+  if (!Number.isFinite(then)) return "";
+  const diffMs = Math.max(0, Date.now() - then);
+  const minutes = Math.floor(diffMs / 60_000);
+  if (minutes < 1) return "Agora";
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} h`;
+  const days = Math.floor(hours / 24);
+  if (days < 2) return "Ontem";
+  return `${days} dias`;
+}
+
+function fromRemote(n: Notificacao): MontadorNotification {
+  const meta = TYPE_META[n.type] ?? { icon: "Bell" as AppIconName, badge: "Aviso", tone: "primary" as NotificationTone };
+  return {
+    id: `remote-${n.id}`,
+    remoteId: n.id,
+    title: n.title,
+    text: n.body,
+    time: tempoRelativo(n.createdAt),
+    icon: meta.icon,
+    badge: meta.badge,
+    tone: meta.tone,
+    unread: !n.readAt,
+    type: n.type,
+    servicoId: n.servicoId ?? undefined,
+    chatRoomId: n.chatRoomId ?? undefined,
+  };
+}
 
 const STATIC_NOTIFICATIONS: Omit<MontadorNotification, "unread">[] = [
   {
@@ -151,9 +205,17 @@ function NotificationCard({
 export function MontadorNotificacoes() {
   const navigation = useNavigation<Navigation>();
   const profileTheme = useProfileTheme("MONTADOR");
-  const { pendentes, loading } = useMontadorServicos();
+  const { pendentes, loading: loadingServicos } = useMontadorServicos();
+  const {
+    notificacoes,
+    loading: loadingRemote,
+    marcarComoLida,
+    marcarTodasComoLidas,
+  } = useNotificacoes();
   const [activeTab, setActiveTab] = useState<NotificationTab>("todas");
   const [readIds, setReadIds] = useState<Set<string>>(new Set());
+
+  const remoteItems = useMemo(() => notificacoes.map(fromRemote), [notificacoes]);
 
   const notifications = useMemo<MontadorNotification[]>(() => {
     const solicitacoes = pendentes.map((servico) => ({
@@ -173,12 +235,14 @@ export function MontadorNotificacoes() {
       unread: false,
     }));
 
-    return [...solicitacoes, ...staticItems].map((item) => ({
+    const combined = [...remoteItems, ...solicitacoes, ...staticItems];
+    return combined.map((item) => ({
       ...item,
       unread: item.unread && !readIds.has(item.id),
     }));
-  }, [pendentes, readIds]);
+  }, [pendentes, readIds, remoteItems]);
 
+  const loading = loadingRemote || loadingServicos;
   const unreadCount = notifications.filter((item) => item.unread).length;
   const filtered = useMemo(() => {
     if (activeTab === "nao_lidas") return notifications.filter((item) => item.unread);
@@ -188,10 +252,24 @@ export function MontadorNotificacoes() {
 
   const markAllAsRead = () => {
     setReadIds(new Set(notifications.map((item) => item.id)));
+    void marcarTodasComoLidas();
   };
 
   const openNotification = (item: MontadorNotification) => {
     setReadIds((current) => new Set(current).add(item.id));
+    if (item.remoteId) {
+      void marcarComoLida(item.remoteId);
+    }
+
+    // Notificações de chat: abrem a conversa do serviço (roomId === servicoId).
+    if (item.type && CHAT_TYPES.has(item.type)) {
+      if (item.servicoId) {
+        navigation.navigate("MontadorChat", { servicoId: item.servicoId });
+        return;
+      }
+      Alert.alert(item.title, "Conversa indisponível.");
+      return;
+    }
 
     if (item.servicoId) {
       navigation.navigate("MontadorDetalheSolicitacao", { servicoId: item.servicoId });

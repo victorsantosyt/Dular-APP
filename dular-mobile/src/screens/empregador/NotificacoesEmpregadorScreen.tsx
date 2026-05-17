@@ -1,10 +1,11 @@
 import { useCallback, useMemo, useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
-import { AppIcon } from "@/components/ui";
-import { useMensagens } from "@/hooks/useMensagens";
+import { AppIcon, DEmptyState, DLoadingState } from "@/components/ui";
+import { useNotificacoes } from "@/hooks/useNotificacoes";
+import type { Notificacao } from "@/api/notificacoesApi";
 import type { EmpregadorTabParamList } from "@/navigation/EmpregadorNavigator";
 import { colors, radius, shadows, spacing } from "@/theme";
 import {
@@ -13,98 +14,116 @@ import {
   NotificationSection,
   NotificationTab,
   NotificationTabs,
+  NotificationTone,
 } from "./notifications/components";
+import type { AppIconName } from "@/components/ui";
 
 type Navigation = BottomTabNavigationProp<EmpregadorTabParamList>;
 
-const MOCK_NOTIFICATIONS: NotificationItem[] = [
-  {
-    id: "sos-hoje",
-    section: "Hoje",
-    filter: "importantes",
-    type: "SOS",
-    title: "Alerta SOS recebido",
-    text: "Uma ocorrência de emergência foi registrada. Toque para acompanhar os detalhes e o status do atendimento.",
-    time: "Agora",
-    icon: "AlertTriangle",
-    tone: "urgent",
-    badge: "Urgente",
-    unread: true,
-  },
-  {
-    id: "reclamacao-hoje",
-    section: "Hoje",
-    filter: "importantes",
-    type: "Reclamação",
-    title: "Resposta do chamado de reclamação",
-    text: "Nossa equipe respondeu ao seu relato sobre o serviço #SD250514-8K7D. Veja a atualização.",
-    time: "12 min",
-    icon: "FileText",
-    tone: "analysis",
-    badge: "Em análise",
-    unread: true,
-  },
-  {
-    id: "sistema-hoje",
-    section: "Hoje",
-    filter: "sistema",
-    type: "Sistema",
-    title: "Melhorias no sistema",
-    text: "Atualizamos a experiência de agendamento e notificações para deixar seu uso mais rápido e seguro.",
-    time: "1 h",
-    icon: "Sparkles",
-    tone: "system",
-  },
-  {
-    id: "solicitacao-hoje",
-    section: "Hoje",
-    filter: "importantes",
-    type: "Solicitação",
-    title: "Solicitação confirmada",
-    text: "Sua solicitação para Diarista foi confirmada com sucesso. Acompanhe o andamento em Solicitações.",
-    time: "2 h",
-    icon: "CheckCircle",
-    tone: "success",
-    unread: true,
-  },
-  {
-    id: "seguranca-ontem",
-    section: "Ontem",
-    filter: "sistema",
-    type: "Segurança",
-    title: "Atualização de segurança",
-    text: "Seus dados continuam protegidos. Revise suas preferências e mantenha o app sempre atualizado.",
-    time: "Ontem",
-    icon: "ShieldCheck",
-    tone: "security",
-  },
-  {
-    id: "novidades-ontem",
-    section: "Ontem",
-    filter: "sistema",
-    type: "Novidades",
-    title: "Novidades do app Dular",
-    text: "Conheça novos recursos que chegaram para facilitar sua rotina e melhorar sua experiência.",
-    time: "Ontem",
-    icon: "Megaphone",
-    tone: "news",
-  },
-];
+type TypeMeta = {
+  icon: AppIconName;
+  tone: NotificationTone;
+  filter: "importantes" | "sistema";
+  typeLabel: string;
+  badge?: string;
+};
+
+const TYPE_META: Record<string, TypeMeta> = {
+  SERVICO_SOLICITADO: { icon: "BriefcaseBusiness", tone: "analysis", filter: "importantes", typeLabel: "Solicitação" },
+  SERVICO_ACEITO: { icon: "CheckCircle", tone: "success", filter: "importantes", typeLabel: "Solicitação", badge: "Aceito" },
+  SERVICO_RECUSADO: { icon: "XCircle", tone: "urgent", filter: "importantes", typeLabel: "Solicitação", badge: "Recusado" },
+  SERVICO_INICIADO: { icon: "Clock", tone: "analysis", filter: "importantes", typeLabel: "Serviço", badge: "Em andamento" },
+  SERVICO_FINALIZADO: { icon: "CheckCircle", tone: "success", filter: "importantes", typeLabel: "Serviço", badge: "Concluído" },
+  SERVICO_CANCELADO: { icon: "XCircle", tone: "urgent", filter: "importantes", typeLabel: "Serviço", badge: "Cancelado" },
+  MENSAGEM_RECEBIDA: { icon: "MessageCircle", tone: "analysis", filter: "importantes", typeLabel: "Mensagem" },
+  AVALIACAO_RECEBIDA: { icon: "Star", tone: "success", filter: "importantes", typeLabel: "Avaliação" },
+  ALERTA_SEGURANCA: { icon: "AlertTriangle", tone: "urgent", filter: "importantes", typeLabel: "Segurança", badge: "Urgente" },
+  SISTEMA: { icon: "Sparkles", tone: "system", filter: "sistema", typeLabel: "Sistema" },
+  NOVIDADE: { icon: "Megaphone", tone: "news", filter: "sistema", typeLabel: "Novidades" },
+};
+
+const DEFAULT_META: TypeMeta = {
+  icon: "Bell",
+  tone: "system",
+  filter: "sistema",
+  typeLabel: "Aviso",
+};
+
+function metaFor(type: string): TypeMeta {
+  return TYPE_META[type] ?? DEFAULT_META;
+}
+
+function tempoRelativo(iso: string): string {
+  const now = Date.now();
+  const then = new Date(iso).getTime();
+  if (!Number.isFinite(then)) return "";
+  const diffMs = Math.max(0, now - then);
+  const minutes = Math.floor(diffMs / 60_000);
+  if (minutes < 1) return "Agora";
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} h`;
+  const days = Math.floor(hours / 24);
+  if (days < 2) return "Ontem";
+  return `${days} dias`;
+}
+
+function sectionOf(iso: string): "Hoje" | "Ontem" | "Anteriores" {
+  const date = new Date(iso);
+  if (!Number.isFinite(date.getTime())) return "Anteriores";
+  const now = new Date();
+  const sameDay =
+    date.getFullYear() === now.getFullYear() &&
+    date.getMonth() === now.getMonth() &&
+    date.getDate() === now.getDate();
+  if (sameDay) return "Hoje";
+  const y = new Date(now);
+  y.setDate(now.getDate() - 1);
+  const isYesterday =
+    date.getFullYear() === y.getFullYear() &&
+    date.getMonth() === y.getMonth() &&
+    date.getDate() === y.getDate();
+  if (isYesterday) return "Ontem";
+  return "Anteriores";
+}
+
+function toNotificationItem(n: Notificacao): NotificationItem & { _raw: Notificacao } {
+  const meta = metaFor(n.type);
+  const section = sectionOf(n.createdAt);
+  return {
+    id: n.id,
+    section: section === "Anteriores" ? "Ontem" : section,
+    filter: meta.filter,
+    type: meta.typeLabel,
+    title: n.title,
+    text: n.body,
+    time: tempoRelativo(n.createdAt),
+    icon: meta.icon,
+    tone: meta.tone,
+    badge: meta.badge,
+    unread: !n.readAt,
+    _raw: n,
+  };
+}
 
 export function NotificacoesEmpregadorScreen() {
   const navigation = useNavigation<Navigation>();
   const [activeTab, setActiveTab] = useState<NotificationTab>("todas");
-  const { rooms } = useMensagens();
+  const {
+    notificacoes,
+    loading,
+    unreadCount,
+    refetch,
+    marcarComoLida,
+    marcarTodasComoLidas,
+  } = useNotificacoes();
 
-  const messagesBadge = useMemo(() => {
-    const unread = rooms.reduce((total, room) => total + Math.max(0, Number(room.naoLidas) || 0), 0);
-    return unread > 0 ? unread : undefined;
-  }, [rooms]);
+  const items = useMemo(() => notificacoes.map(toNotificationItem), [notificacoes]);
 
   const filtered = useMemo(() => {
-    if (activeTab === "todas") return MOCK_NOTIFICATIONS;
-    return MOCK_NOTIFICATIONS.filter((item) => item.filter === activeTab);
-  }, [activeTab]);
+    if (activeTab === "todas") return items;
+    return items.filter((item) => item.filter === activeTab);
+  }, [activeTab, items]);
 
   const grouped = useMemo(
     () => ({
@@ -114,46 +133,109 @@ export function NotificacoesEmpregadorScreen() {
     [filtered],
   );
 
+  const openNotification = useCallback(
+    (item: NotificationItem & { _raw: Notificacao }) => {
+      const raw = item._raw;
+      if (!raw.readAt) {
+        void marcarComoLida(raw.id);
+      }
+      if (raw.servicoId) {
+        navigation.navigate("EmpregadorDetalhe", { servicoId: raw.servicoId });
+        return;
+      }
+      if (raw.chatRoomId) {
+        navigation.navigate("ChatAberto", {
+          roomId: raw.chatRoomId,
+          servicoId: raw.chatRoomId,
+          nomeUsuario: "Conversa",
+        });
+      }
+    },
+    [marcarComoLida, navigation],
+  );
 
-  const openNotification = (item: NotificationItem) => {
-    Alert.alert(item.title, item.text);
-  };
+  const handleMarcarTodas = useCallback(() => {
+    void marcarTodasComoLidas();
+  }, [marcarTodasComoLidas]);
+
+  const isEmpty = !loading && items.length === 0;
 
   return (
     <SafeAreaView style={s.safe} edges={["top", "left", "right"]}>
       <View style={s.root}>
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.scroll}>
           <View style={s.headerTop}>
-            <Pressable onPress={() => navigation.goBack()} style={({ pressed }) => [s.roundButton, pressed && { opacity: 0.78 }]} hitSlop={10}>
+            <Pressable
+              onPress={() => navigation.goBack()}
+              style={({ pressed }) => [s.roundButton, pressed && { opacity: 0.78 }]}
+              hitSlop={10}
+            >
               <AppIcon name="ArrowLeft" size={21} color={colors.textPrimary} strokeWidth={2.3} />
             </Pressable>
             <Text style={s.title}>Notificações</Text>
-            <View style={s.bellButton}>
+            <Pressable
+              onPress={() => refetch()}
+              style={({ pressed }) => [s.bellButton, pressed && { opacity: 0.78 }]}
+              hitSlop={10}
+            >
               <AppIcon name="Bell" size={21} color={colors.primary} strokeWidth={2.2} />
-            </View>
+              {unreadCount > 0 ? (
+                <View style={s.bellBadge}>
+                  <Text style={s.bellBadgeText}>{unreadCount > 9 ? "9+" : String(unreadCount)}</Text>
+                </View>
+              ) : null}
+            </Pressable>
           </View>
 
           <Text style={s.subtitle}>
             Acompanhe alertas, novidades e atualizações importantes.
           </Text>
 
-          <NotificationTabs activeTab={activeTab} onChange={setActiveTab} />
+          <View style={s.actionsRow}>
+            <NotificationTabs activeTab={activeTab} onChange={setActiveTab} />
+            <Pressable
+              onPress={handleMarcarTodas}
+              disabled={unreadCount === 0}
+              style={({ pressed }) => [
+                s.markAllBtn,
+                pressed && { opacity: 0.78 },
+                unreadCount === 0 && s.markAllDisabled,
+              ]}
+              hitSlop={8}
+            >
+              <Text style={s.markAllText}>Marcar todas como lidas</Text>
+            </Pressable>
+          </View>
 
-          {grouped.Hoje.length > 0 ? (
-            <NotificationSection title="Hoje">
-              {grouped.Hoje.map((item) => (
-                <NotificationCard key={item.id} item={item} onPress={() => openNotification(item)} />
-              ))}
-            </NotificationSection>
-          ) : null}
+          {loading && items.length === 0 ? (
+            <DLoadingState text="Carregando notificações" color={colors.primary} />
+          ) : isEmpty ? (
+            <DEmptyState
+              icon="Bell"
+              title="Sem notificações"
+              subtitle="Quando houver novidades, solicitações ou avisos, eles aparecerão aqui."
+              accentColor={colors.primary}
+              softBg={colors.lavenderSoft}
+            />
+          ) : (
+            <>
+              {grouped.Hoje.length > 0 ? (
+                <NotificationSection title="Hoje">
+                  {grouped.Hoje.map((item) => (
+                    <NotificationCard key={item.id} item={item} onPress={() => openNotification(item)} />
+                  ))}
+                </NotificationSection>
+              ) : null}
 
-          {grouped.Ontem.length > 0 ? (
-            <NotificationSection title="Ontem">
-              {grouped.Ontem.map((item) => (
-                <NotificationCard key={item.id} item={item} onPress={() => openNotification(item)} />
-              ))}
-            </NotificationSection>
-          ) : null}
+              {grouped.Ontem.length > 0 ? (
+                <NotificationSection title="Anteriores">
+                  {grouped.Ontem.map((item) => (
+                    <NotificationCard key={item.id} item={item} onPress={() => openNotification(item)} />
+                  ))}
+                </NotificationSection>
+              ) : null}
+            </>
+          )}
         </ScrollView>
       </View>
     </SafeAreaView>
@@ -205,6 +287,23 @@ const s = StyleSheet.create({
     borderColor: colors.border,
     ...shadows.soft,
   },
+  bellBadge: {
+    position: "absolute",
+    top: 4,
+    right: 4,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    paddingHorizontal: 3,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.danger,
+  },
+  bellBadgeText: {
+    color: colors.white,
+    fontSize: 9,
+    fontWeight: "700",
+  },
   title: {
     flex: 1,
     color: colors.textPrimary,
@@ -222,5 +321,21 @@ const s = StyleSheet.create({
     fontWeight: "500",
     textAlign: "center",
     paddingHorizontal: spacing.md,
+  },
+  actionsRow: {
+    gap: 8,
+  },
+  markAllBtn: {
+    alignSelf: "flex-end",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  markAllDisabled: {
+    opacity: 0.4,
+  },
+  markAllText: {
+    color: colors.primary,
+    fontSize: 12,
+    fontWeight: "700",
   },
 });

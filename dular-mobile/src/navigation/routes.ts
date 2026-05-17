@@ -15,13 +15,13 @@ export const EMPREGADOR_STACK_ROUTES = {
   MINHAS: "EmpregadorMinhas",
   DETALHE: "EmpregadorDetalhe",
   PERFIL: "EmpregadorPerfil",
-  CHAT: "Chat",
+  CHAT: "ChatAberto",
 } as const;
 
 export const DIARISTA_STACK_ROUTES = {
   SOLICITACOES: "DiaristaSolicitacoes",
   DETALHE: "DiaristaDetalhe",
-  CHAT: "Chat",
+  CHAT: "ChatAberto",
 } as const;
 
 export const PERFIL_STACK_ROUTES = {

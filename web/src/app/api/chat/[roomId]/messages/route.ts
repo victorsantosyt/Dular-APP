@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/requireAuth";
+import { criarNotificacao } from "@/lib/notifications";
 import { z } from "zod";
 
 const ALLOWED_STATUSES = new Set([
@@ -42,13 +43,20 @@ type Params = { params: Promise<{ roomId: string }> };
 async function resolveRoom(servicoId: string, userId: string) {
   const servico = await prisma.servico.findUnique({
     where: { id: servicoId },
-    select: { status: true, clientId: true, diaristaId: true },
+    select: {
+      status: true,
+      clientId: true,
+      diaristaId: true,
+      montadorId: true,
+    },
   });
 
   if (!servico) return { error: "Serviço não encontrado.", status: 404 } as const;
 
   const isParticipant =
-    servico.clientId === userId || servico.diaristaId === userId;
+    servico.clientId === userId ||
+    servico.diaristaId === userId ||
+    servico.montadorId === userId;
   if (!isParticipant) return { error: "Acesso negado.", status: 403 } as const;
 
   if (!ALLOWED_STATUSES.has(servico.status)) {
@@ -105,8 +113,9 @@ export async function GET(req: Request, { params }: Params) {
     });
 
     // Marca como lidas as mensagens do outro participante que ainda não foram lidas
+    const profissionalUserId = servico.montadorId ?? servico.diaristaId;
     const otherUserId =
-      auth.userId === servico.clientId ? servico.diaristaId : servico.clientId;
+      auth.userId === servico.clientId ? profissionalUserId : servico.clientId;
 
     const unreadIds = messages
       .filter((m) => m.senderId === otherUserId && m.readAt === null)
@@ -153,7 +162,7 @@ export async function POST(req: Request, { params }: Params) {
       return NextResponse.json({ ok: false, error: resolved.error }, { status: resolved.status });
     }
 
-    const { room } = resolved;
+    const { room, servico } = resolved;
 
     const body = await req.json().catch(() => null);
     const parsed = postSchema.safeParse(body);
@@ -181,6 +190,33 @@ export async function POST(req: Request, { params }: Params) {
         sender: { select: { id: true, nome: true, avatarUrl: true } },
       },
     });
+
+    // Notifica a outra parte da nova mensagem (best-effort).
+    try {
+      const profissionalUserId = servico.montadorId ?? servico.diaristaId;
+      const outroUsuarioId =
+        auth.userId === servico.clientId ? profissionalUserId : servico.clientId;
+      if (outroUsuarioId) {
+        const preview =
+          parsed.data.type === "TEXT"
+            ? parsed.data.content.length > 80
+              ? `${parsed.data.content.slice(0, 77)}...`
+              : parsed.data.content
+            : parsed.data.type === "IMAGE"
+              ? "[imagem]"
+              : "[localização]";
+        await criarNotificacao({
+          userId: outroUsuarioId,
+          type: "CHAT_NOVA_MENSAGEM",
+          title: message.sender.nome || "Nova mensagem",
+          body: preview,
+          servicoId,
+          chatRoomId: room.id,
+        });
+      }
+    } catch (e) {
+      console.error("[chat] erro criando notificação de mensagem:", e);
+    }
 
     return NextResponse.json({ ok: true, message }, { status: 201 });
   } catch (error: unknown) {

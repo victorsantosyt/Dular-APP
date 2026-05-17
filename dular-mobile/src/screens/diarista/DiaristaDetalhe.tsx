@@ -23,7 +23,6 @@ import { MotivoModal } from "@/components/MotivoModal";
 import { SafeScoreBadge } from "@/components/SafeScoreBadge";
 import { formatPrice } from "@/utils/formatPrice";
 import { isStatusEncerrado } from "@/utils/servicoStatus";
-import { DIARISTA_STACK_ROUTES } from "@/navigation/routes";
 
 // ── Tokens ──────────────────────────────────────────────────────────────────
 import { colors, radius, shadow, spacing, typography } from "@/theme/tokens";
@@ -309,7 +308,11 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
             <DButton
               title="Abrir chat"
               variant="outline"
-              onPress={() => navigation.navigate(DIARISTA_STACK_ROUTES.CHAT, { servicoId: svc.id })}
+              onPress={() => navigation.navigate("ChatAberto", {
+                roomId: svc.id,
+                servicoId: svc.id,
+                nomeUsuario: svc.cliente?.nome ?? "Conversa",
+              })}
             />
           )}
           {svc.status === "ACEITO" && !isStatusEncerrado(svc.status) && (

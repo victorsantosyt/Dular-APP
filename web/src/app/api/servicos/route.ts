@@ -3,7 +3,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/requireAuth";
 import { criarServicoSchema } from "@/lib/schemas/servicos";
-import { sendPushNotification } from "@/lib/notifications";
+import { criarNotificacao } from "@/lib/notifications";
 import { calcularCompletudeMontador } from "@/lib/montadorProfile";
 import {
   isDiaristaProfileCompleteForServico,
@@ -217,12 +217,26 @@ export async function POST(req: Request) {
         },
       });
 
-      await sendPushNotification(
-        profissionalId,
-        "Nova solicitação de serviço",
-        `Você recebeu um pedido de montagem em ${bairro}.`,
-        { servicoId: servico.id, tipo: "NOVA_SOLICITACAO" },
-      );
+      // Garante ChatRoom já na criação — chat fica visível assim que aceito,
+      // mas a sala existir desde o início simplifica joins e evita corrida
+      // entre aceite e primeira leitura. (Upsert é idempotente.)
+      try {
+        await prisma.chatRoom.upsert({
+          where: { servicoId: servico.id },
+          update: {},
+          create: { servicoId: servico.id },
+        });
+      } catch (e) {
+        console.error("[servicos] erro garantindo chatRoom:", e);
+      }
+
+      await criarNotificacao({
+        userId: profissionalId,
+        type: "SERVICO_SOLICITADO",
+        title: "Nova solicitação de serviço",
+        body: `Você recebeu um pedido de montagem em ${bairro}.`,
+        servicoId: servico.id,
+      });
 
       return NextResponse.json({ ok: true, servicoId: servico.id });
     }
@@ -361,12 +375,24 @@ export async function POST(req: Request) {
       },
     });
 
-    await sendPushNotification(
-      diaristaUserId,
-      "Nova solicitação de serviço",
-      `Você recebeu um pedido de ${tipo.toLowerCase()} em ${bairro}.`,
-      { servicoId: servico.id, tipo: "NOVA_SOLICITACAO" }
-    );
+    // Garante ChatRoom já na criação. Ver comentário no branch MONTADOR.
+    try {
+      await prisma.chatRoom.upsert({
+        where: { servicoId: servico.id },
+        update: {},
+        create: { servicoId: servico.id },
+      });
+    } catch (e) {
+      console.error("[servicos] erro garantindo chatRoom:", e);
+    }
+
+    await criarNotificacao({
+      userId: diaristaUserId,
+      type: "SERVICO_SOLICITADO",
+      title: "Nova solicitação de serviço",
+      body: `Você recebeu um pedido de ${tipo.toLowerCase()} em ${bairro}.`,
+      servicoId: servico.id,
+    });
 
     return NextResponse.json({ ok: true, servicoId: servico.id });
   } catch (error: unknown) {

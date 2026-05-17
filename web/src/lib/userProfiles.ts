@@ -11,6 +11,17 @@ export function isProfileRole(role: UserRole | null | undefined): role is Profil
   return role === "EMPREGADOR" || role === "DIARISTA" || role === "MONTADOR";
 }
 
+const ROLE_LABELS: Record<UserRole, string> = {
+  EMPREGADOR: "Empregador",
+  DIARISTA: "Diarista",
+  MONTADOR: "Montador",
+  ADMIN: "Admin",
+};
+
+export function roleMismatchMessage(existingRole: UserRole, requestedRole: UserRole) {
+  return `Esta conta Google já está vinculada ao perfil ${ROLE_LABELS[existingRole]}. Use outra conta Google para entrar como ${ROLE_LABELS[requestedRole]}.`;
+}
+
 export async function ensureUserRoleProfile(
   prisma: ProfileClient,
   userId: string,

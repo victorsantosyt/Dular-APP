@@ -18,10 +18,60 @@ WebBrowser.maybeCompleteAuthSession();
 
 type Navigation = NativeStackNavigationProp<OnboardingStackParamList>;
 type Provider = "google" | "apple";
+type AuthRole = "EMPREGADOR" | "DIARISTA" | "MONTADOR" | "ADMIN";
 const MOBILE_AUTH_REDIRECT = "dular://auth/callback";
 const LOGIN_LOGO_CENTRAL_ASSET = "assets/images/auth/login_logo_central.png";
 const LOGIN_LOGO_EDGE_COLOR = "#fbf7ff";
 const loginLogoCentral = require("../../../assets/images/auth/login_logo_central.png");
+
+const roleLabels: Record<AuthRole, string> = {
+  EMPREGADOR: "Empregador",
+  DIARISTA: "Diarista",
+  MONTADOR: "Montador",
+  ADMIN: "Admin",
+};
+
+function normalizeAuthRole(value: string | null): AuthRole | null {
+  const normalized = value?.trim().toUpperCase();
+  if (
+    normalized === "EMPREGADOR" ||
+    normalized === "DIARISTA" ||
+    normalized === "MONTADOR" ||
+    normalized === "ADMIN"
+  ) {
+    return normalized;
+  }
+  return null;
+}
+
+function getRoleParam(params: URLSearchParams, keys: string[]): AuthRole | null {
+  for (const key of keys) {
+    const role = normalizeAuthRole(params.get(key));
+    if (role) return role;
+  }
+  return null;
+}
+
+function getRoleMismatchMessage(params: URLSearchParams, requestedFallback: AuthRole | null) {
+  const linkedRole = getRoleParam(params, [
+    "linkedRole",
+    "existingRole",
+    "currentRole",
+    "actualRole",
+    "accountRole",
+    "role",
+  ]);
+  const requestedRole =
+    getRoleParam(params, ["requestedRole", "expectedRole", "targetRole", "selectedRole"]) ?? requestedFallback;
+
+  const linkedRoleLabel = linkedRole ? roleLabels[linkedRole] : "outro perfil";
+  const requestedRoleLabel = requestedRole ? roleLabels[requestedRole] : "o perfil selecionado";
+
+  return [
+    `Esta conta Google já está vinculada ao perfil ${linkedRoleLabel}.`,
+    `Para entrar como ${requestedRoleLabel}, use outra conta Google.`,
+  ].join(" ");
+}
 
 function getGoogleOAuthUrlWarning(value: string) {
   try {
@@ -192,10 +242,16 @@ export function LoginScreen() {
 
       const url = new URL(result.url);
       const token = url.searchParams.get("token");
-      const returnedRole = url.searchParams.get("role") as "EMPREGADOR" | "DIARISTA" | "MONTADOR" | "ADMIN" | null;
+      const requestedRole = normalizeAuthRole(preLoginRole);
+      const returnedRole = normalizeAuthRole(url.searchParams.get("role"));
       const error = url.searchParams.get("error");
 
       if (error) {
+        if (error.toUpperCase() === "ROLE_MISMATCH") {
+          Alert.alert("Perfil Google já vinculado", getRoleMismatchMessage(url.searchParams, requestedRole));
+          return;
+        }
+
         Alert.alert("Erro", error === "no_role" ? "Perfil sem role definido." : "Falha na autenticação.");
         return;
       }

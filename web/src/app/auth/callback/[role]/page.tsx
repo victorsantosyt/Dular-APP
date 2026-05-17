@@ -1,6 +1,7 @@
 import { auth } from "@/lib/auth-oauth";
 import { prisma } from "@/lib/prisma";
-import { ensureUserRoleProfile } from "@/lib/userProfiles";
+import { ensureUserRoleProfile, roleMismatchMessage } from "@/lib/userProfiles";
+import type { UserRole } from "@prisma/client";
 import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
@@ -13,6 +14,24 @@ function roleHomePath(role: string | null | undefined) {
   if (role === "DIARISTA") return "/diarista";
   if (role === "MONTADOR") return "/montador";
   return "/";
+}
+
+function redirectRoleMismatch(role: string, isMobile: boolean, existingRole: UserRole, requestedRole: UserRole) {
+  const message = roleMismatchMessage(existingRole, requestedRole);
+  const params = new URLSearchParams({
+    error: "ROLE_MISMATCH",
+    message,
+    roleExistente: existingRole,
+    roleSolicitado: requestedRole,
+    existingRole,
+    requestedRole,
+  });
+
+  if (isMobile) {
+    redirect(`dular://auth/callback?${params.toString()}`);
+  }
+
+  redirect(`/login/${role}?${params.toString()}`);
 }
 
 export default async function AuthCallbackPage({
@@ -41,12 +60,15 @@ export default async function AuthCallbackPage({
     select: { role: true, cpf: true, telefone: true },
   });
 
-  // Aplica o role escolhido: sempre para usuários novos (sem role),
-  // e para mobile quando o role no banco difere do escolhido.
-  const finalRole = !user?.role || (isMobile && user.role !== dbRole) ? dbRole : user.role;
+  if (user?.role && user.role !== dbRole) {
+    redirectRoleMismatch(role, isMobile, user.role, dbRole);
+  }
+
+  const finalRole = user?.role ?? dbRole;
 
   user = await prisma.$transaction(async (tx) => {
-    const needsUpdate = finalRole !== user?.role || (generoValue !== undefined && isMobile);
+    const isAssigningRole = !user?.role;
+    const needsUpdate = isAssigningRole;
     const nextUser = needsUpdate
       ? await tx.user.update({
           where: { id: session.user.id },

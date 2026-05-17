@@ -12,12 +12,18 @@ export default async function OnboardingPage({
   const isMobile = platform === "mobile";
 
   const session = await auth();
-  if (!session?.user?.id) redirect("/");
+  if (!session?.user?.id) {
+    return <OnboardingForm role={null} nome={null} platform={platform} sessionExpired />;
+  }
 
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },
     select: { nome: true, telefone: true, cpf: true, role: true },
   });
+
+  if (!user) {
+    return <OnboardingForm role={null} nome={null} platform={platform} sessionExpired />;
+  }
 
   // Perfil já completo — mobile volta para gerar o token, web vai para a home
   if (user?.telefone && user?.cpf) {
@@ -29,8 +35,8 @@ export default async function OnboardingPage({
 
   return (
     <OnboardingForm
-      role={session.user.role ?? null}
-      nome={user?.nome ?? session.user.name}
+      role={user.role ?? session.user.role ?? null}
+      nome={user.nome ?? session.user.name}
       platform={platform}
     />
   );

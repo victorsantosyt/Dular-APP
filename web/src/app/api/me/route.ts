@@ -19,6 +19,10 @@ function parsePositiveCents(value: unknown) {
   return Number.isFinite(n) && Number.isInteger(n) && n > 0 ? n : null;
 }
 
+function staleSessionResponse() {
+  return NextResponse.json({ ok: false, error: "Sessão inválida." }, { status: 401 });
+}
+
 export async function GET(req: Request) {
   const t0 = Date.now();
   const isDev = process.env.NODE_ENV === "development";
@@ -63,7 +67,7 @@ export async function GET(req: Request) {
       if (isDev) console.log(`[me GET DIARISTA] queries: ${Date.now() - tQuery}ms`);
 
       if (!user) {
-        return NextResponse.json({ ok: false, error: "Usuário não encontrado." }, { status: 404 });
+        return staleSessionResponse();
       }
 
       if (isDev) console.log(`[me GET DIARISTA] TOTAL: ${Date.now() - t0}ms`);
@@ -112,7 +116,7 @@ export async function GET(req: Request) {
       if (isDev) console.log(`[me GET MONTADOR] queries: ${Date.now() - tQuery}ms`);
 
       if (!user) {
-        return NextResponse.json({ ok: false, error: "Usuário não encontrado." }, { status: 404 });
+        return staleSessionResponse();
       }
 
       const hasDocs = Boolean(profile?.documentoFrente || profile?.documentoVerso || profile?.selfieDoc);
@@ -161,7 +165,7 @@ export async function GET(req: Request) {
       if (isDev) console.log(`[me GET EMPREGADOR] queries: ${Date.now() - tQuery}ms`);
 
       if (!user) {
-        return NextResponse.json({ ok: false, error: "Usuário não encontrado." }, { status: 404 });
+        return staleSessionResponse();
       }
 
       if (isDev) console.log(`[me GET EMPREGADOR] TOTAL: ${Date.now() - t0}ms`);
@@ -188,7 +192,7 @@ export async function GET(req: Request) {
     const user = await userP;
     if (isDev) console.log(`[me GET DEFAULT] user query: ${Date.now() - tQueryDefault}ms`);
     if (!user) {
-      return NextResponse.json({ ok: false, error: "Usuário não encontrado." }, { status: 404 });
+      return staleSessionResponse();
     }
 
     if (isDev) console.log(`[me GET DEFAULT] TOTAL: ${Date.now() - t0}ms`);

@@ -3,6 +3,7 @@ import { Alert, Image, Pressable, StyleSheet, Text, View } from "react-native";
 import type { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
 import { AppIcon, DEmptyState, DErrorState, DLoadingState, DScreen } from "@/components/ui";
 import { aceitarSolicitacaoMontador, recusarSolicitacaoMontador } from "@/api/montadorApi";
+import { MotivoModal } from "@/components/MotivoModal";
 import { useMontadorServicos } from "@/hooks/useMontadorServicos";
 import { useProfileTheme } from "@/hooks/useProfileTheme";
 import type { MontadorTabParamList } from "@/navigation/MontadorNavigator";
@@ -21,6 +22,7 @@ export default function MontadorDetalheSolicitacao({ route, navigation }: Props)
   const profileTheme = useProfileTheme("MONTADOR");
   const { servicos, scoreByUser, loading, error, reload } = useMontadorServicos();
   const [actionLoading, setActionLoading] = useState(false);
+  const [recusarOpen, setRecusarOpen] = useState(false);
   const servico = servicos.find((item) => item.id === route.params.servicoId);
   const score = servico?.empregador?.id ? scoreByUser[servico.empregador.id] : null;
   const photos = servico?.fotos ?? [];
@@ -41,25 +43,22 @@ export default function MontadorDetalheSolicitacao({ route, navigation }: Props)
 
   const recusar = () => {
     if (!servico) return;
-    Alert.alert("Recusar solicitação", "Confirma que deseja recusar este pedido?", [
-      { text: "Voltar", style: "cancel" },
-      {
-        text: "Recusar",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            setActionLoading(true);
-            await recusarSolicitacaoMontador(servico.id);
-            reload();
-            navigation.navigate("MontadorSolicitacoes");
-          } catch {
-            Alert.alert("Erro", "Não foi possível recusar a solicitação.");
-          } finally {
-            setActionLoading(false);
-          }
-        },
-      },
-    ]);
+    setRecusarOpen(true);
+  };
+
+  const confirmarRecusa = async (motivo: string, observacao: string) => {
+    if (!servico) return;
+    try {
+      setActionLoading(true);
+      await recusarSolicitacaoMontador(servico.id, motivo, observacao || undefined);
+      setRecusarOpen(false);
+      reload();
+      navigation.navigate("MontadorSolicitacoes");
+    } catch {
+      Alert.alert("Erro", "Não foi possível recusar a solicitação.");
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   return (
@@ -128,6 +127,13 @@ export default function MontadorDetalheSolicitacao({ route, navigation }: Props)
           </View>
         </>
       )}
+      <MotivoModal
+        visible={recusarOpen}
+        title="Recusar serviço"
+        confirmLabel="Recusar"
+        onClose={() => setRecusarOpen(false)}
+        onConfirm={confirmarRecusa}
+      />
     </DScreen>
   );
 }

@@ -11,6 +11,8 @@ import { isMotivoGrave, normalizarMotivo, registrarMotivoGrave } from "@/lib/saf
 
 type Params = { params: Promise<{ id: string }> };
 
+export const dynamic = "force-dynamic";
+
 // Status nos quais ainda é possível cancelar. Inclui estados pós-aceite
 // para permitir cancelamento durante a execução (com motivo).
 const STATUS_CANCELAVEIS: ServicoStatus[] = [

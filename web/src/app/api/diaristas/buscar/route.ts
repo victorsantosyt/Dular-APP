@@ -39,9 +39,9 @@ export async function GET(req: Request) {
     const servicoParam = searchParams.get("servico");
     const servico = parseServico(servicoParam);
 
-    if (!cidade || !uf || !bairro) {
+    if (!cidade || !uf) {
       return NextResponse.json(
-        { error: "Informe cidade, uf e bairro" },
+        { error: "Informe cidade e uf" },
         { status: 400 }
       );
     }

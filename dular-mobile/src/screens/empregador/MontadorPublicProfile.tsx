@@ -29,6 +29,7 @@ import { getProfileTheme, type Genero } from "@/theme/profileTheme";
 import { radius, shadows, spacing, typography } from "@/theme";
 import type { EmpregadorTabParamList } from "@/navigation/EmpregadorNavigator";
 import { MONTADOR_ESPECIALIDADES, type MontadorItem } from "@/types/montador";
+import { isStatusEncerrado } from "@/utils/servicoStatus";
 
 type Navigation = BottomTabNavigationProp<EmpregadorTabParamList>;
 type RouteProps = RouteProp<EmpregadorTabParamList, "MontadorPublicProfile">;
@@ -134,10 +135,11 @@ export default function MontadorPublicProfile() {
         );
         if (cancelled) return;
         const servico = res.data?.servico ?? res.data?.activeService ?? null;
+        const hasActiveService = Boolean(res.data?.hasActiveService ?? servico) && !isStatusEncerrado(servico?.status);
         setActiveService({
-          hasActiveService: Boolean(res.data?.hasActiveService ?? servico),
-          id: servico?.id,
-          status: servico?.status,
+          hasActiveService,
+          id: hasActiveService ? servico?.id : undefined,
+          status: hasActiveService ? servico?.status : undefined,
         });
       } catch {
         if (!cancelled) setActiveService({ hasActiveService: false });

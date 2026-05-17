@@ -35,6 +35,7 @@ const TYPE_META: Record<string, TypeMeta> = {
   SERVICO_INICIADO: { icon: "Clock", tone: "analysis", filter: "importantes", typeLabel: "Serviço", badge: "Em andamento" },
   SERVICO_FINALIZADO: { icon: "CheckCircle", tone: "success", filter: "importantes", typeLabel: "Serviço", badge: "Concluído" },
   SERVICO_CANCELADO: { icon: "XCircle", tone: "urgent", filter: "importantes", typeLabel: "Serviço", badge: "Cancelado" },
+  CHAT_NOVA_MENSAGEM: { icon: "MessageCircle", tone: "analysis", filter: "importantes", typeLabel: "Mensagem" },
   MENSAGEM_RECEBIDA: { icon: "MessageCircle", tone: "analysis", filter: "importantes", typeLabel: "Mensagem" },
   AVALIACAO_RECEBIDA: { icon: "Star", tone: "success", filter: "importantes", typeLabel: "Avaliação" },
   ALERTA_SEGURANCA: { icon: "AlertTriangle", tone: "urgent", filter: "importantes", typeLabel: "Segurança", badge: "Urgente" },
@@ -139,16 +140,17 @@ export function NotificacoesEmpregadorScreen() {
       if (!raw.readAt) {
         void marcarComoLida(raw.id);
       }
-      if (raw.servicoId) {
-        navigation.navigate("EmpregadorDetalhe", { servicoId: raw.servicoId });
-        return;
-      }
       if (raw.chatRoomId) {
+        const servicoId = raw.servicoId ?? raw.chatRoomId;
         navigation.navigate("ChatAberto", {
-          roomId: raw.chatRoomId,
-          servicoId: raw.chatRoomId,
+          roomId: servicoId,
+          servicoId,
           nomeUsuario: "Conversa",
         });
+        return;
+      }
+      if (raw.servicoId) {
+        navigation.navigate("EmpregadorDetalhe", { servicoId: raw.servicoId });
       }
     },
     [marcarComoLida, navigation],

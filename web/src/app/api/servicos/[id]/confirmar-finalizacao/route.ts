@@ -8,6 +8,8 @@ import { criarNotificacao } from "@/lib/notifications";
 
 type Params = { params: Promise<{ id: string }> };
 
+export const dynamic = "force-dynamic";
+
 /**
  * Endpoint de **dupla confirmação** de finalização.
  *

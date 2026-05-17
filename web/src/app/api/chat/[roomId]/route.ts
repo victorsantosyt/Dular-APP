@@ -5,6 +5,8 @@ import { criarNotificacao } from "@/lib/notifications";
 import type { UserRole } from "@prisma/client";
 import { z } from "zod";
 
+export const dynamic = "force-dynamic";
+
 // roomId = servicoId
 // A sala é criada lazily na primeira visita, desde que o serviço esteja ACEITO ou posterior.
 

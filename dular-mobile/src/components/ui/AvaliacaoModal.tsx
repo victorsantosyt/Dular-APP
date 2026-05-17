@@ -52,7 +52,7 @@ export default function AvaliacaoModal({
   };
 
   return (
-    <Modal visible={visible} animationType="slide" transparent>
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={s.overlay}>
         <SafeAreaView style={s.sheet} edges={["bottom"]}>
           <Text style={s.title}>Avaliar {nomeAvaliado}</Text>

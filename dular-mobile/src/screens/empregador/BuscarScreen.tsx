@@ -51,12 +51,6 @@ type CategoriaCardItem = {
   };
 };
 
-type CategoriaPopularItem = {
-  icon: AppIconName;
-  label: string;
-  key: string;
-};
-
 type Profissional = {
   id: string;
   userId: string;
@@ -132,14 +126,6 @@ const CATEGORIAS: CategoriaCardItem[] = [
   },
 ];
 
-const CATEGORIAS_POPULARES: CategoriaPopularItem[] = [
-  { icon: "Shirt", label: "Lavadeira", key: "lavadeira" },
-  { icon: "BriefcaseBusiness", label: "Passadeira", key: "passadeira" },
-  { icon: "Sprout", label: "Jardineiro", key: "jardineiro" },
-  { icon: "Car", label: "Motorista", key: "motorista" },
-  { icon: "Grid2x2", label: "Mais", key: "mais" },
-];
-
 function mapApiToProf(d: ApiDiarista, bairro: string, cidade: string, categoria: Exclude<CategoriaKey, "montador"> = "diarista"): Profissional {
   const meta = DIARISTA_CATEGORY_META[categoria];
   return {
@@ -212,17 +198,6 @@ function CategoryCard({
       <Text style={s.catTitle}>{item.title}</Text>
       <Text style={s.catSubtitle}>{item.subtitle}</Text>
       <Image source={item.imageSource} resizeMode="contain" style={[s.catImage, item.imageStyle]} />
-    </Pressable>
-  );
-}
-
-function PopularItem({ item }: { item: CategoriaPopularItem }) {
-  return (
-    <Pressable style={({ pressed }) => [s.popItem, pressed && { opacity: 0.76 }]}>
-      <View style={s.popIconCircle}>
-        <AppIcon name={item.icon} size={20} color={colors.primary} strokeWidth={2} />
-      </View>
-      <Text style={s.popLabel}>{item.label}</Text>
     </Pressable>
   );
 }
@@ -466,9 +441,6 @@ export function BuscarScreen() {
                 returnKeyType="search"
               />
             </View>
-            <Pressable hitSlop={spacing.xs} style={({ pressed }) => [s.filterBtn, pressed && { opacity: 0.76 }]}>
-              <AppIcon name="SlidersHorizontal" size={19} color={colors.primary} strokeWidth={2} />
-            </Pressable>
           </View>
 
           <LocationPermissionCard
@@ -506,18 +478,12 @@ export function BuscarScreen() {
           </View>
 
           <View style={s.section}>
-            <Text style={s.sectionTitle}>Categorias populares</Text>
-            <View style={s.popRow}>
-              {CATEGORIAS_POPULARES.map((item) => (
-                <PopularItem key={item.key} item={item} />
-              ))}
-            </View>
-          </View>
-
-          <View style={s.section}>
             <View style={s.sectionHeaderRow}>
               <Text style={s.sectionTitle}>Profissionais em destaque</Text>
-              <Pressable style={({ pressed }) => [s.verTodasBtn, pressed && { opacity: 0.75 }]}>
+              <Pressable
+                onPress={() => navigation.navigate("ProfissionaisDestaque")}
+                style={({ pressed }) => [s.verTodasBtn, pressed && { opacity: 0.75 }]}
+              >
                 <Text style={s.verTodasText}>Ver todas</Text>
                 <AppIcon name="ChevronRight" size={17} color={colors.primary} strokeWidth={2.3} />
               </Pressable>
@@ -627,17 +593,6 @@ const s = StyleSheet.create({
     fontWeight: "500",
     paddingVertical: 8,
   },
-  filterBtn: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
-    backgroundColor: colors.lavenderSoft,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: colors.lavenderDivider,
-    ...shadows.soft,
-  },
   section: {
     paddingHorizontal: spacing.screenPadding,
     gap: 10,
@@ -700,30 +655,6 @@ const s = StyleSheet.create({
     position: "absolute",
     borderRadius: 0,
     zIndex: 1,
-  },
-  popRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
-  popItem: {
-    width: 54,
-    alignItems: "center",
-    gap: 7,
-  },
-  popIconCircle: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: colors.lavender,
-    alignItems: "center",
-    justifyContent: "center",
-    ...shadows.soft,
-  },
-  popLabel: {
-    color: colors.textSecondary,
-    ...typography.caption,
-    fontWeight: "500",
-    textAlign: "center",
   },
   profCard: {
     minHeight: 88,

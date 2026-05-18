@@ -8,6 +8,7 @@ import {
   cleanStringArray,
   normalizeEspecialidades,
 } from "@/lib/montadorProfile";
+import { autoVerificarMontadorSePossivel } from "@/lib/autoVerificacao";
 
 export const dynamic = "force-dynamic";
 
@@ -255,6 +256,13 @@ export async function PATCH(req: Request) {
         ...profileData,
       },
     });
+
+    // Auto-verificação lateral (silenciosa). Não derruba a request.
+    try {
+      await autoVerificarMontadorSePossivel(auth.userId);
+    } catch {
+      // intencionalmente silencioso
+    }
 
     const payload = await buildMontadorMeResponse(auth.userId);
     if (!payload) {

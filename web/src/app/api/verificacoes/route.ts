@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/requireAuth";
 import { parseMultipart } from "@/lib/parseMultipart";
 import { makeKey, putObject } from "@/lib/s3Objects";
+import { autoVerificarDiaristaSePossivel } from "@/lib/autoVerificacao";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -98,10 +99,19 @@ export async function POST(req: Request) {
       })
       .catch(() => null);
 
+    // Auto-verificação lateral (silenciosa). Após upload de doc, o critério
+    // de "docs enviados" passou; se o perfil estiver completo, promove.
+    let statusFinal: "PENDENTE" | "VERIFICADO" | "REPROVADO" = "PENDENTE";
+    try {
+      statusFinal = await autoVerificarDiaristaSePossivel(auth.userId);
+    } catch {
+      statusFinal = "PENDENTE";
+    }
+
     return NextResponse.json({
       ok: true,
       verificacao: {
-        status: "PENDENTE",
+        status: statusFinal,
         updatedAt: updated.updatedAt,
       },
     });

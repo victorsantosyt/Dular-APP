@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/requireAuth";
+import { autoVerificarDiaristaSePossivel } from "@/lib/autoVerificacao";
 
 export async function GET(req: Request) {
   try {
@@ -70,6 +71,13 @@ export async function PUT(req: Request) {
       where: { diaristaId: auth.userId },
       orderBy: [{ tipo: "asc" }, { categoria: "asc" }],
     });
+
+    // Auto-verificação lateral (silenciosa). Não derruba a request.
+    try {
+      await autoVerificarDiaristaSePossivel(auth.userId);
+    } catch {
+      // intencionalmente silencioso
+    }
 
     return NextResponse.json({ ok: true, habilidades: updated });
   } catch (e: any) {

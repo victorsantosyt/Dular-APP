@@ -54,6 +54,41 @@ export async function GET(req: Request) {
 
     if (isDev) {
       console.log(`[diaristas/buscar] query:`, { cidade, uf, bairro, servico, tipo, categoria });
+
+      // Sub-contadores DEV: ajudam a localizar exatamente qual filtro está
+      // excluindo profissionais. Cada query é independente para que o efeito
+      // de cada cláusula (ativo, user.status, verificacao, servicosOferecidos)
+      // possa ser inspecionado em isolado nos logs.
+      try {
+        const countTotal = await prisma.diaristaProfile.count({ where: {} });
+        console.log(`[diaristas/buscar] DEBUG: countTotal=${countTotal}`);
+
+        const countAtivo = await prisma.diaristaProfile.count({
+          where: { ativo: true },
+        });
+        console.log(`[diaristas/buscar] DEBUG: countAtivo=${countAtivo}`);
+
+        const countComUserAtivo = await prisma.diaristaProfile.count({
+          where: { ativo: true, user: { is: { status: "ATIVO" } } },
+        });
+        console.log(`[diaristas/buscar] DEBUG: countComUserAtivo=${countComUserAtivo}`);
+
+        const countVerificada = await prisma.diaristaProfile.count({
+          where: { ativo: true, verificacao: "VERIFICADO" },
+        });
+        console.log(`[diaristas/buscar] DEBUG: countVerificada=${countVerificada}`);
+
+        if (servico) {
+          const countComServico = await prisma.diaristaProfile.count({
+            where: { ativo: true, servicosOferecidos: { has: servico } },
+          });
+          console.log(
+            `[diaristas/buscar] DEBUG: countComServico(${servico})=${countComServico}`,
+          );
+        }
+      } catch (e) {
+        console.log(`[diaristas/buscar] DEBUG counters falhou:`, e);
+      }
     }
 
     const cidadeNorm = normalize(cidade);

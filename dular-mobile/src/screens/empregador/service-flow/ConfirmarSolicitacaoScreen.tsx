@@ -6,6 +6,8 @@ import { DCard } from "@/components/ui/DCard";
 import type { EmpregadorServiceFlowStackParamList } from "@/navigation/EmpregadorServiceFlowNavigator";
 import { colors, radius, spacing } from "@/theme";
 import { criarServico, prepararPayload } from "@/api/empregadorApi";
+import { motivoLabel } from "@/api/perfilApi";
+import { useAuth } from "@/stores/authStore";
 import { SERVICE_LABELS, useServiceFlow } from "./ServiceFlowContext";
 import { FlowPrimaryButton, flowStyles, StepHeader, SummaryCard } from "./components";
 import { getServiceFlowTheme } from "@/theme/serviceFlowTheme";
@@ -26,6 +28,36 @@ export function ConfirmarSolicitacaoScreen() {
   const flowTheme = getServiceFlowTheme(draft.tipo);
   const isMontador = draft.tipo === "MONTADOR";
 
+  const empregadorVerificado = useAuth(
+    (state) =>
+      state.user?.verificacao?.status === "APROVADO" ||
+      state.user?.verificado === true,
+  );
+
+  // T-18.5/T-18.6: modal bloqueante. Checa o estado local primeiro (UX
+  // rápido); o backend é a fonte da verdade e devolve 403 GUARDIAN_BLOCKED
+  // (Guardian) ou 403 VERIFICACAO_OBRIGATORIA (gate legado) — caso ocorra,
+  // mostramos o mesmo modal, agora com motivos do Guardian quando vierem.
+  function showVerificacaoObrigatoria(opts?: { motivos?: string[]; message?: string }) {
+    const baseTitle = "Verificação obrigatória";
+    const baseText =
+      opts?.message ??
+      "Para solicitar serviços, envie seus documentos. Essa etapa ajuda a manter a segurança da plataforma.";
+    const motivosTexto = (opts?.motivos ?? [])
+      .map(motivoLabel)
+      .filter(Boolean)
+      .map((m) => `• ${m}`)
+      .join("\n");
+    const finalText = motivosTexto ? `${baseText}\n\n${motivosTexto}` : baseText;
+    Alert.alert(baseTitle, finalText, [
+      { text: "Depois", style: "cancel" },
+      {
+        text: "Verificar agora",
+        onPress: () => navigation.getParent()?.navigate("VerificacaoDocs" as never),
+      },
+    ]);
+  }
+
   const confirmRequest = async () => {
     const prepared = prepararPayload(draft);
     if (!prepared.ok) {
@@ -33,11 +65,35 @@ export function ConfirmarSolicitacaoScreen() {
       return;
     }
 
+    if (!empregadorVerificado) {
+      showVerificacaoObrigatoria();
+      return;
+    }
+
     try {
       setSubmitting(true);
       const result = await criarServico(prepared.payload);
       navigation.navigate("SolicitacaoSucesso", { servicoId: result.servicoId });
-    } catch {
+    } catch (err: unknown) {
+      // 403 do backend: GUARDIAN_BLOCKED (T-18.6) ou VERIFICACAO_OBRIGATORIA
+      // (T-18.5 legado). Ambos abrem o mesmo modal — Guardian traz motivos.
+      const e = err as {
+        response?: {
+          status?: number;
+          data?: { error?: string; message?: string; motivos?: string[] };
+        };
+      };
+      const errorCode = e?.response?.data?.error;
+      if (
+        e?.response?.status === 403 &&
+        (errorCode === "GUARDIAN_BLOCKED" || errorCode === "VERIFICACAO_OBRIGATORIA")
+      ) {
+        showVerificacaoObrigatoria({
+          motivos: e?.response?.data?.motivos,
+          message: e?.response?.data?.message,
+        });
+        return;
+      }
       Alert.alert("Falha ao enviar", "Não foi possível criar a solicitação agora.");
     } finally {
       setSubmitting(false);

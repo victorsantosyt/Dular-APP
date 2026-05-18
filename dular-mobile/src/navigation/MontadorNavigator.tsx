@@ -10,6 +10,7 @@ import MontadorNotificacoes from "@/screens/montador/MontadorNotificacoes";
 import MontadorDetalheSolicitacao from "@/screens/montador/MontadorDetalheSolicitacao";
 import MontadorDetalheServico from "@/screens/montador/MontadorDetalheServico";
 import ChatScreen from "@/screens/chat/ChatScreen";
+import VerificacaoDocs from "@/screens/perfil/VerificacaoDocs";
 import { useMontadorServicos } from "@/hooks/useMontadorServicos";
 
 export type MontadorTabParamList = {
@@ -22,6 +23,7 @@ export type MontadorTabParamList = {
   MontadorDetalheSolicitacao: { servicoId: string };
   MontadorDetalheServico: { servicoId: string };
   MontadorChat: { servicoId: string };
+  VerificacaoDocs: undefined;
 };
 
 const Tab = createBottomTabNavigator<MontadorTabParamList>();
@@ -56,6 +58,7 @@ export function MontadorNavigator() {
         component={ChatScreen}
         options={{ tabBarStyle: { display: "none" } }}
       />
+      <Tab.Screen name="VerificacaoDocs" component={VerificacaoDocs} />
     </Tab.Navigator>
   );
 }

@@ -98,3 +98,61 @@ export async function uploadAvatarDataUrl(dataUrl: string) {
   const res = await api.post("/api/me/avatar", { dataUrl });
   return res.data; // { ok, user }
 }
+
+// ── SafeScore Guardian (T-18.6) ──────────────────────────────────────────────
+
+export type GuardianTier = "BRONZE" | "SILVER" | "GOLD" | "PLATINUM" | "BLOCKED";
+
+export type GuardianPermissions = {
+  ok: boolean;
+  score: number;
+  tier: GuardianTier;
+  verificationStatus: "VERIFICADO" | "PENDENTE" | "REPROVADO" | "NAO_ENVIADO";
+  canCreateServico: boolean;
+  canAppearInSearch: boolean;
+  canReceiveServico: boolean;
+  canAcceptServico: boolean;
+  motivos: string[];
+};
+
+export async function getGuardian(): Promise<GuardianPermissions | null> {
+  const res = await api.get("/api/me/guardian");
+  return (res.data?.guardian as GuardianPermissions | undefined) ?? null;
+}
+
+/**
+ * Mapeia código de motivo do Guardian para texto curto pt-BR exibível em UI.
+ * Códigos desconhecidos são devolvidos como-vem, formatados.
+ */
+export function motivoLabel(codigo: string): string {
+  const map: Record<string, string> = {
+    usuario_bloqueado: "Conta bloqueada",
+    usuario_nao_encontrado: "Usuário não encontrado",
+    documento_nao_enviado: "Documento ainda não foi enviado",
+    documento_aguardando_analise: "Documento em análise",
+    documento_reprovado: "Documento reprovado",
+    perfil_incompleto: "Perfil incompleto",
+    restricao_ativa_suspend_block: "Conta suspensa por segurança",
+    restricao_shadow_ban: "Perfil oculto temporariamente",
+    restricao_limit_bookings: "Limite de solicitações ativo",
+    score_baixo: "SafeScore abaixo do mínimo",
+    sem_perfil_diarista: "Perfil profissional não criado",
+    sem_perfil_montador: "Perfil profissional não criado",
+    falta_nome: "Informe o nome completo",
+    falta_bio: "Informe uma apresentação",
+    falta_especialidades: "Adicione ao menos uma especialidade",
+    falta_area_atendimento: "Defina sua área de atendimento",
+    perfil_inativo: "Perfil inativo",
+    usuario_bloqueado_status: "Conta bloqueada",
+    sem_servicos_oferecidos: "Selecione ao menos um serviço oferecido",
+    sem_localizacao: "Cadastre sua localização",
+    sem_preco_diarista: "Configure seu preço de diarista",
+    sem_preco_baba: "Configure seu preço de babá",
+    sem_preco_cozinheira: "Configure seu preço de cozinheira",
+    nao_oferece_diarista: "Não oferece serviço de diarista",
+    nao_oferece_baba: "Não oferece serviço de babá",
+    nao_oferece_cozinheira: "Não oferece serviço de cozinheira",
+  };
+  if (map[codigo]) return map[codigo];
+  return codigo.replace(/_/g, " ");
+}

@@ -1,6 +1,7 @@
-import React, { useState } from "react";
+import React, { useCallback, useState } from "react";
 import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import type { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
+import { useFocusEffect } from "@react-navigation/native";
 import { AppIcon, DEmptyState, DErrorState, DLoadingState, DScreen } from "@/components/ui";
 import {
   acionarSosMontador,
@@ -35,6 +36,17 @@ export default function MontadorDetalheServico({ route, navigation }: Props) {
   const servico = servicos.find((item) => item.id === route.params.servicoId);
   const status = upperStatus(servico?.status);
   const encerrado = isStatusEncerrado(status);
+
+  // Polling on focus para capturar a confirmação da outra parte. Sem isso, quando
+  // o Empregador confirma a finalização, o mobile do Montador continua mostrando
+  // "Aguardando confirmação da outra parte" indefinidamente (status real já é CONCLUIDO).
+  useFocusEffect(
+    useCallback(() => {
+      reload();
+      const timer = setInterval(() => reload(), 12000);
+      return () => clearInterval(timer);
+    }, [reload]),
+  );
   const isCanceladoOuRecusado = status === "CANCELADO" || status === "RECUSADO";
 
   const fazerCheckIn = () => {

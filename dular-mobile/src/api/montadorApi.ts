@@ -1,4 +1,5 @@
 import { api } from "@/lib/api";
+import { fetchUserScore } from "@/api/sharedFetcher";
 import type { Me } from "@/api/perfilApi";
 
 export type MontadorStatus =
@@ -215,7 +216,9 @@ export async function finalizarServicoMontador(servicoId: string) {
 }
 
 export async function confirmarFinalizacaoMontador(servicoId: string) {
-  const res = await api.post(`/api/servicos/${servicoId}/confirmar`);
+  // Endpoint T-14: dupla confirmação (EM_ANDAMENTO → AGUARDANDO_FINALIZACAO → CONCLUIDO).
+  // Não usar /confirmar (legado, CONCLUIDO → CONFIRMADO usado só no caminho de avaliação).
+  const res = await api.post(`/api/servicos/${servicoId}/confirmar-finalizacao`);
   return res.data;
 }
 
@@ -244,8 +247,8 @@ export async function atualizarPerfilMontador(payload: AtualizarPerfilMontadorPa
 
 export async function carregarSafeScoreUsuario(userId: string): Promise<MontadorSafeScore | null> {
   try {
-    const res = await api.get<MontadorSafeScore>(`/api/usuarios/${userId}/score`);
-    return res.data;
+    const data = (await fetchUserScore(userId)) as MontadorSafeScore | null;
+    return data ?? null;
   } catch {
     return null;
   }

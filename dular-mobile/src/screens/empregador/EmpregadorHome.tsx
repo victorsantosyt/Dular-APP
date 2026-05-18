@@ -342,8 +342,8 @@ export default function EmpregadorHome() {
 
   const quickActions: QuickAction[] = [
     { icon: "FileText",      label: "Solicitações",  onPress: () => navigation.navigate("Agendamentos") },
-    { icon: "Star",          label: "Favoritas",     onPress: () => navigation.navigate("Buscar") },
-    { icon: "Clock",         label: "Histórico",     onPress: () => navigation.navigate("Agendamentos") },
+    { icon: "Heart",         label: "Favoritos",     onPress: () => navigation.navigate("Favoritos") },
+    { icon: "Clock",         label: "Histórico",     onPress: () => navigation.navigate("Historico") },
     { icon: "MessageCircle", label: "Mensagens",     onPress: () => navigation.navigate("Mensagens") },
   ];
 
@@ -422,7 +422,7 @@ export default function EmpregadorHome() {
             <DSectionHeader
               title="Ações rápidas"
               action="Ver todas"
-              onAction={() => navigation.navigate("Buscar")}
+              onAction={() => navigation.navigate("AcoesRapidas")}
             />
             <View style={s.qaRow}>
               {quickActions.map((qa) => (
@@ -463,7 +463,7 @@ export default function EmpregadorHome() {
             <DSectionHeader
               title="Profissionais sugeridas"
               action="Ver todas"
-              onAction={() => navigation.navigate("Buscar")}
+              onAction={() => navigation.navigate("ProfissionaisSugeridos")}
             />
 
             {loading && !refreshing ? (

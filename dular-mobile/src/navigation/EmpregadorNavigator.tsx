@@ -11,6 +11,11 @@ import { DiaristaProfileScreen } from "@/screens/empregador/DiaristaProfileScree
 import MontadorPublicProfile from "@/screens/empregador/MontadorPublicProfile";
 import EmpregadorPerfil from "@/screens/empregador/EmpregadorPerfil";
 import EmpregadorDetalhe from "@/screens/empregador/EmpregadorDetalhe";
+import FavoritosEmpregadorScreen from "@/screens/empregador/FavoritosEmpregadorScreen";
+import HistoricoEmpregadorScreen from "@/screens/empregador/HistoricoEmpregadorScreen";
+import ProfissionaisSugeridosScreen from "@/screens/empregador/ProfissionaisSugeridosScreen";
+import AcoesRapidasEmpregadorScreen from "@/screens/empregador/AcoesRapidasEmpregadorScreen";
+import ProfissionaisDestaqueScreen from "@/screens/empregador/ProfissionaisDestaqueScreen";
 import { ChatAbertoScreen } from "@/screens/shared/ChatAbertoScreen";
 import type { ChatAbertoParams } from "@/screens/shared/ChatAbertoScreen";
 import PaywallScreen from "@/screens/PaywallScreen";
@@ -55,6 +60,11 @@ export type EmpregadorTabParamList = {
   ReportIncident: undefined;
   Termos: undefined;
   Privacidade: undefined;
+  Favoritos: undefined;
+  Historico: undefined;
+  ProfissionaisSugeridos: undefined;
+  AcoesRapidas: undefined;
+  ProfissionaisDestaque: undefined;
 };
 
 const Tab = createBottomTabNavigator<EmpregadorTabParamList>();
@@ -96,6 +106,11 @@ export function EmpregadorNavigator() {
       <Tab.Screen name="ReportIncident" component={ReportIncident} />
       <Tab.Screen name="Termos" component={Termos} />
       <Tab.Screen name="Privacidade" component={Privacidade} />
+      <Tab.Screen name="Favoritos" component={FavoritosEmpregadorScreen} />
+      <Tab.Screen name="Historico" component={HistoricoEmpregadorScreen} />
+      <Tab.Screen name="ProfissionaisSugeridos" component={ProfissionaisSugeridosScreen} />
+      <Tab.Screen name="AcoesRapidas" component={AcoesRapidasEmpregadorScreen} />
+      <Tab.Screen name="ProfissionaisDestaque" component={ProfissionaisDestaqueScreen} />
     </Tab.Navigator>
   );
 }

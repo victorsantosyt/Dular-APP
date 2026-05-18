@@ -22,6 +22,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { api } from "@/lib/api";
+import { fetchServicosMinhas } from "@/api/sharedFetcher";
 
 import { colors, radius, shadow, spacing, typography } from "@/theme/tokens";
 
@@ -95,11 +96,11 @@ export default function DiaristaCarteira() {
       setError(null);
       isRefresh ? setRefreshing(true) : setLoading(true);
 
-      const res = await api.get("/api/servicos/minhas");
-      const lista = Array.isArray(res.data?.servicos)
-        ? res.data.servicos
-        : Array.isArray(res.data)
-          ? res.data
+      const data = await fetchServicosMinhas();
+      const lista = Array.isArray(data?.servicos)
+        ? data.servicos
+        : Array.isArray(data)
+          ? data
           : [];
 
       const concluidos: ServicoConcluido[] = (lista as any[])

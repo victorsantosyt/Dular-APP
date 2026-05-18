@@ -17,6 +17,7 @@ import * as Location from "expo-location";
 import { LinearGradient } from "expo-linear-gradient";
 
 import { api } from "@/lib/api";
+import { fetchServicosMinhas, fetchUserScore } from "@/api/sharedFetcher";
 import type { MinhasResponse, ServicoListItem as Servico } from "../../../../shared/types/servico";
 import {
   confirmarFinalizacaoDiarista,
@@ -125,8 +126,8 @@ export default function DiaristaSolicitacoes({ navigation }: any) {
   const load = useCallback(async () => {
     try {
       setRefreshing(true);
-      const res = await api.get<MinhasResponse>("/api/servicos/minhas");
-      const list = res.data.servicos || [];
+      const data = (await fetchServicosMinhas()) as MinhasResponse;
+      const list = data?.servicos || [];
       setItems(list);
 
       const clientIds = Array.from(
@@ -136,8 +137,8 @@ export default function DiaristaSolicitacoes({ navigation }: any) {
         const entries = await Promise.all(
           clientIds.map(async (id) => {
             try {
-              const scoreRes = await api.get<SafeScoreSummary>(`/api/usuarios/${id}/score`);
-              return [id, scoreRes.data] as const;
+              const scoreData = (await fetchUserScore(id)) as SafeScoreSummary | null;
+              return scoreData ? ([id, scoreData] as const) : null;
             } catch {
               return null;
             }

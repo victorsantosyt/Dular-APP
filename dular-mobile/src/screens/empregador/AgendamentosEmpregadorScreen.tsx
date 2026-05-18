@@ -5,6 +5,7 @@ import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import { AppIcon } from "@/components/ui";
 import { api } from "@/lib/api";
+import { fetchServicosMinhas } from "@/api/sharedFetcher";
 import type { EmpregadorTabParamList } from "@/navigation/EmpregadorNavigator";
 import { colors, shadows, spacing, typography } from "@/theme";
 import {
@@ -144,8 +145,8 @@ export function AgendamentosEmpregadorScreen() {
       setError(null);
       if (mode === "initial") setLoading(true);
       if (mode === "refresh") setRefreshing(true);
-      const res = await api.get<MinhasServicosResponse>("/api/servicos/minhas");
-      const servicos = Array.isArray(res.data.servicos) ? res.data.servicos : [];
+      const data = (await fetchServicosMinhas()) as MinhasServicosResponse;
+      const servicos = Array.isArray(data?.servicos) ? data.servicos : [];
       setAgendamentos(servicos.map(mapServicoToAgendamento));
     } catch (err) {
       const message = err instanceof Error ? err.message : "Falha ao carregar solicitações.";

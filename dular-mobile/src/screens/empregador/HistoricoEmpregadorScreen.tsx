@@ -27,6 +27,7 @@ import {
   DSkeletonCard,
 } from "@/components/ui";
 import { api } from "@/lib/api";
+import { fetchServicosMinhas } from "@/api/sharedFetcher";
 import { colors, radius, shadows, spacing, typography } from "@/theme";
 import type { EmpregadorTabParamList } from "@/navigation/EmpregadorNavigator";
 
@@ -265,9 +266,9 @@ export function HistoricoEmpregadorScreen() {
       else setLoading(true);
       setError(null);
 
-      const res = await api.get<MinhasResponse>("/api/servicos/minhas");
-      const raw: ServicoRaw[] = Array.isArray(res.data?.servicos)
-        ? res.data!.servicos!
+      const data = (await fetchServicosMinhas()) as MinhasResponse;
+      const raw: ServicoRaw[] = Array.isArray(data?.servicos)
+        ? data!.servicos!
         : [];
 
       const filtrados = raw

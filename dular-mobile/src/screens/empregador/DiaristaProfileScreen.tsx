@@ -13,6 +13,7 @@ import { colors, radius, spacing, typography } from "@/theme/tokens";
 import { shadow } from "@/utils/platform";
 import { formatCurrencyBRL, formatDecimalBRL } from "@/api/diaristaApi";
 import { api } from "@/lib/api";
+import { fetchServicosMinhas } from "@/api/sharedFetcher";
 import type { EmpregadorTabParamList } from "@/navigation/EmpregadorNavigator";
 import type { ServicoOferecido } from "@/types/diarista";
 import { isStatusEncerrado } from "@/utils/servicoStatus";
@@ -92,9 +93,9 @@ export function DiaristaProfileScreen() {
         return;
       }
       try {
-        const res = await api.get<MinhasServicosResponse>("/api/servicos/minhas");
+        const data = (await fetchServicosMinhas()) as MinhasServicosResponse;
         if (cancelled) return;
-        const servicos = Array.isArray(res.data?.servicos) ? res.data.servicos : [];
+        const servicos = Array.isArray(data?.servicos) ? data.servicos : [];
         const active = servicos.find(
           (servico) =>
             servico.diarista?.id === diaristaId &&

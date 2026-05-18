@@ -892,10 +892,22 @@ export default function DiaristaPerfil({ onLogout }: Props) {
 
   // ── Toggle ativo (visibilidade do perfil) ────────────────────────────────
   const toggleAtivoPerfil = async (next: boolean) => {
-    // Nota: hoje o PATCH /api/diarista/me valida apenas `servicosOferecidos`.
-    // Mantemos o controle no client e mostramos como toggle de exibição.
+    // Atualização otimista para UX imediato.
+    const previous = profile?.ativo ?? true;
     setProfile((prev) => (prev ? { ...prev, ativo: next } : prev));
-    setToast(next ? "Perfil visível na busca." : "Perfil oculto temporariamente.");
+    try {
+      // PATCH /api/diarista/me — persiste no backend para que a busca de
+      // empregadores enxergue (ou esconda) o perfil. Sem isso, a query Prisma
+      // com `where: { ativo: true }` filtra a profissional para fora.
+      await patchDiaristaPerfil({ ativo: next });
+      if (!mountedRef.current) return;
+      setToast(next ? "Perfil visível na busca." : "Perfil oculto temporariamente.");
+    } catch (e: any) {
+      // Reverte o toggle em caso de falha para não inventar sucesso visual.
+      if (!mountedRef.current) return;
+      setProfile((prev) => (prev ? { ...prev, ativo: previous } : prev));
+      setToast(apiMsg(e, "Falha ao atualizar visibilidade do perfil."));
+    }
   };
 
   // ── Misc ─────────────────────────────────────────────────────────────────

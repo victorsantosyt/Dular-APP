@@ -26,6 +26,7 @@ import { FlashList, type ListRenderItemInfo } from "@shopify/flash-list";
 import { Ionicons } from "@expo/vector-icons";
 
 import { api } from "@/lib/api";
+import { fetchServicosMinhas } from "@/api/sharedFetcher";
 import type { MinhasResponse, ServicoListItem as Servico } from "../../../../shared/types/servico";
 
 // ── Tokens ──────────────────────────────────────────────────────────────────
@@ -85,8 +86,8 @@ export default function EmpregadorMinhas() {
       setError(null);
       if (mode === "initial") setLoading(true);
       if (mode === "refresh") setRefreshing(true);
-      const res = await api.get<MinhasResponse>("/api/servicos/minhas");
-      setItems(res.data.servicos || []);
+      const data = (await fetchServicosMinhas()) as MinhasResponse;
+      setItems(data?.servicos || []);
     } catch (e: any) {
       const msg = e?.response?.data?.error ?? e?.message ?? "Falha ao carregar";
       setError(msg);

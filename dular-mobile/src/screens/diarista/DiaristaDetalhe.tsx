@@ -11,6 +11,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
 import { api } from "@/lib/api";
+import { fetchServicosMinhas, fetchUserScore } from "@/api/sharedFetcher";
 import type { ServicoListItem as Servico } from "../../../../shared/types/servico";
 import {
   cancelarServicoDiarista,
@@ -76,8 +77,8 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
 
   async function reloadFromList() {
     try {
-      const res   = await api.get("/api/servicos/minhas");
-      const found = res.data?.servicos?.find((s: Servico) => s.id === servicoId);
+      const data = await fetchServicosMinhas();
+      const found = data?.servicos?.find((s: Servico) => s.id === servicoId);
       if (found) setSvc(found);
     } catch { /* silencioso */ }
   }
@@ -166,9 +167,9 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
   useEffect(() => {
     if (!svc?.cliente?.id) return;
     let alive = true;
-    api.get(`/api/usuarios/${svc.cliente.id}/score`)
-      .then((res) => {
-        if (alive) setClienteScore(res.data);
+    fetchUserScore(svc.cliente.id)
+      .then((data) => {
+        if (alive) setClienteScore(data);
       })
       .catch(() => {
         if (alive) setClienteScore(null);

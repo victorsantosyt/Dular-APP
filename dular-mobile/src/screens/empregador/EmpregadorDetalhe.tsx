@@ -12,6 +12,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 
 import { api } from "@/lib/api";
+import { fetchServicosMinhas } from "@/api/sharedFetcher";
 import type { ServicoListItem as Servico } from "../../../../shared/types/servico";
 import {
   cancelarServicoEmpregador,
@@ -60,6 +61,10 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
   const [svc, setSvc] = useState<Servico | null>(params.servico ?? null);
   const [loadingInit, setLoadingInit] = useState(!params.servico);
   const [confirming, setConfirming] = useState(false);
+  // Persistido em state separado do `svc` para sobreviver ao refetch periódico
+  // do /api/servicos/minhas — sem isso, o flag em `svc.__confirmedByClient`
+  // é perdido quando o backend reenvia o objeto.
+  const [confirmedByClient, setConfirmedByClient] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [avaliacaoVisible, setAvaliacaoVisible] = useState(false);
@@ -70,9 +75,9 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
   const fetchAtual = useCallback(async (silent = true) => {
     try {
       if (!silent) setRefreshing(true);
-      const res = await api.get("/api/servicos/minhas");
-      const found = Array.isArray(res.data?.servicos)
-        ? res.data.servicos.find((s: Servico) => s.id === servicoId)
+      const data = await fetchServicosMinhas();
+      const found = Array.isArray(data?.servicos)
+        ? data.servicos.find((s: Servico) => s.id === servicoId)
         : null;
       if (found) setSvc(found);
     } catch { /* silencioso */ } finally {
@@ -104,8 +109,8 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
   const statusRaw = useMemo(() => statusUp(svc?.status), [svc?.status]);
   const isFinal = useMemo(() => FINAL.includes(statusRaw), [statusRaw]);
   const alreadyConfirmed = useMemo(
-    () => Boolean((svc as any)?.__confirmedByClient || isFinal),
-    [svc, isFinal]
+    () => Boolean(confirmedByClient || (svc as any)?.__confirmedByClient || isFinal),
+    [confirmedByClient, svc, isFinal]
   );
   const alreadyRated = useMemo(
     () => Boolean(
@@ -135,9 +140,20 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
   const podeAvaliar = useMemo(
     () =>
       !alreadyRated &&
-      ["CONFIRMADO", "FINALIZADO"].includes(statusRaw),
+      ["CONCLUIDO", "CONCLUÍDO", "CONFIRMADO", "FINALIZADO"].includes(statusRaw),
     [alreadyRated, statusRaw]
   );
+
+  // Auto-trigger do modal de avaliação ao detectar finalização confirmada pelos
+  // dois lados. Só dispara uma vez por sessão (ref) — se o usuário fechar sem
+  // avaliar, ele pode reabrir pelo botão "Avaliar".
+  const avaliacaoAutoTriggeredRef = useRef(false);
+  useEffect(() => {
+    if (podeAvaliar && !avaliacaoAutoTriggeredRef.current) {
+      avaliacaoAutoTriggeredRef.current = true;
+      setAvaliacaoVisible(true);
+    }
+  }, [podeAvaliar]);
   const chatLiberado = useMemo(
     () => ["ACEITO", "INICIADO", "EM_ANDAMENTO"].includes(statusRaw),
     [statusRaw]
@@ -149,15 +165,35 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
     setConfirming(true);
     try {
       await confirmarFinalizacaoEmpregador(svc.id);
-      setSvc((cur) => cur ? { ...cur, status: "CONFIRMADO" as any, __confirmedByClient: true } : cur);
-      setToast("Serviço confirmado com sucesso.");
+      // T-14 dupla confirmação:
+      //   EM_ANDAMENTO          → AGUARDANDO_FINALIZACAO (1ª parte)
+      //   AGUARDANDO_FINALIZACAO → CONCLUIDO (2ª parte)
+      // Sem isso o status otimista virava "CONFIRMADO" indevidamente.
+      const nextStatus =
+        statusRaw === "AGUARDANDO_FINALIZACAO" ? "CONCLUIDO" : "AGUARDANDO_FINALIZACAO";
+      setSvc((cur) =>
+        cur ? { ...cur, status: nextStatus as any, __confirmedByClient: true } : cur,
+      );
+      // Flag fora do svc — sobrevive ao refetch periódico (POLL_MS) que reescreve `svc`.
+      setConfirmedByClient(true);
+      setToast(
+        nextStatus === "CONCLUIDO"
+          ? "Serviço finalizado."
+          : "Confirmação enviada. Aguardando a outra parte.",
+      );
     } catch (e: any) {
-      setToast(e?.response?.data?.error ?? "Falha ao confirmar serviço.");
+      // 409 = a outra parte já confirmou nesse meio tempo; sincroniza UI e segue.
+      if (e?.response?.status === 409) {
+        setConfirmedByClient(true);
+        void fetchAtual(true);
+      } else {
+        setToast(e?.response?.data?.error ?? "Falha ao confirmar serviço.");
+      }
     } finally {
       setConfirming(false);
       busyRef.current = false;
     }
-  }, [confirming, svc]);
+  }, [confirming, svc, statusRaw, fetchAtual]);
 
   const onCancelarComMotivo = useCallback(
     async (motivo: string, observacao: string) => {

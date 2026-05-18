@@ -1,7 +1,8 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
+  Keyboard,
   KeyboardAvoidingView,
   Pressable,
   StyleSheet,
@@ -9,7 +10,7 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { AppIcon } from "@/components/ui";
 import { MensagemBubble } from "@/components/ui/MensagemBubble";
@@ -33,11 +34,49 @@ export function ChatAbertoScreen({ route }: Props) {
   const navigation = useNavigation();
   const { roomId, nomeUsuario } = route.params;
   const userId = useAuth((state) => state.user?.id) ?? "";
+  const insets = useSafeAreaInsets();
+  const listRef = useRef<FlatList<Mensagem>>(null);
 
-  const { mensagens, loading, enviar } = useChat(roomId);
+  const { mensagens, servicoStatus, loading, enviar } = useChat(roomId);
+  // Status terminais → sala arquivada (somente leitura).
+  const arquivada = servicoStatus
+    ? ["CONCLUIDO", "CONFIRMADO", "FINALIZADO"].includes(servicoStatus.toUpperCase())
+    : false;
 
   const [text, setText] = useState("");
   const [enviando, setEnviando] = useState(false);
+  const [keyboardOpen, setKeyboardOpen] = useState(false);
+
+  // Detecta teclado aberto pra remover paddingBottom redundante (insets.bottom
+  // já é coberto pelo próprio teclado — sem isso, gera "espaço enorme" entre
+  // o input e o teclado).
+  useEffect(() => {
+    const showSub = Keyboard.addListener("keyboardWillShow", () => setKeyboardOpen(true));
+    const hideSub = Keyboard.addListener("keyboardWillHide", () => setKeyboardOpen(false));
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
+  // Mensagens em ordem cronológica (mais antiga em cima, recente embaixo — padrão WhatsApp).
+  // Backend devolve por `criadaEm ASC` mas a FlatList anterior usava `inverted`,
+  // o que mostrava a mensagem mais antiga embaixo. Removemos `inverted` e
+  // garantimos o sort no client para tolerar reordenações otimistas.
+  const sortedMensagens = useMemo(
+    () =>
+      [...mensagens].sort(
+        (a, b) => new Date(a.criadaEm).getTime() - new Date(b.criadaEm).getTime(),
+      ),
+    [mensagens],
+  );
+
+  // Sem `inverted`, novas mensagens não rolam sozinhas. Scrolla pro fim quando
+  // o número de mensagens muda.
+  useEffect(() => {
+    const t = setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 80);
+    return () => clearTimeout(t);
+  }, [sortedMensagens.length]);
 
   const handleEnviar = useCallback(async () => {
     const trimmed = text.trim();
@@ -81,14 +120,14 @@ export function ChatAbertoScreen({ route }: Props) {
       <KeyboardAvoidingView
         style={styles.kav}
         behavior={platformSelect({ ios: "padding", android: "height" })}
-        keyboardVerticalOffset={platformSelect({ ios: 90, android: 0 })}
+        keyboardVerticalOffset={0}
       >
         {/* Messages area */}
         {loading ? (
           <View style={styles.center}>
             <ActivityIndicator color={colors.primary} size="large" />
           </View>
-        ) : mensagens.length === 0 ? (
+        ) : sortedMensagens.length === 0 ? (
           <View style={styles.center}>
             <Text style={styles.emptyText}>
               {"Nenhuma mensagem ainda.\nDiga olá! 👋"}
@@ -96,23 +135,35 @@ export function ChatAbertoScreen({ route }: Props) {
           </View>
         ) : (
           <FlatList
-            inverted
-            data={mensagens}
+            ref={listRef}
+            data={sortedMensagens}
             keyExtractor={(item) => item.id}
             renderItem={renderItem}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.listContent}
             ItemSeparatorComponent={() => <View style={styles.separator} />}
             style={styles.list}
+            onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
           />
         )}
 
-        {/* Input bar */}
-        <SafeAreaView edges={["bottom"]} style={styles.inputSafe}>
+        {arquivada ? (
+          // Sala arquivada (serviço CONCLUIDO/CONFIRMADO/FINALIZADO): só leitura.
+          <View
+            style={[
+              styles.archivedBar,
+              { paddingBottom: Math.max(12, insets.bottom) },
+            ]}
+          >
+            <AppIcon name="Archive" size={16} color={colors.textMuted} strokeWidth={2.2} />
+            <Text style={styles.archivedText}>Conversa encerrada. Só leitura.</Text>
+          </View>
+        ) : (
+          /* Input bar — paddingBottom dinâmico evita gap excessivo com teclado aberto */
           <View
             style={[
               styles.inputBar,
-              { paddingBottom: platformSelect({ ios: 0, android: 8 }) },
+              { paddingBottom: keyboardOpen ? 8 : Math.max(8, insets.bottom) },
             ]}
           >
             <TextInput
@@ -134,7 +185,7 @@ export function ChatAbertoScreen({ route }: Props) {
               <AppIcon name="Send" size={19} color={colors.white} strokeWidth={2.5} />
             </Pressable>
           </View>
-        </SafeAreaView>
+        )}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -224,5 +275,21 @@ const styles = StyleSheet.create({
   },
   sendBtnDisabled: {
     opacity: 0.4,
+  },
+  archivedBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingHorizontal: spacing.lg,
+    paddingTop: 14,
+    backgroundColor: colors.surface,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  archivedText: {
+    ...typography.body,
+    color: colors.textMuted,
+    fontWeight: "700",
   },
 });

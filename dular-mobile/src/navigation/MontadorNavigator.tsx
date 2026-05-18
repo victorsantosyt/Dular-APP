@@ -51,7 +51,11 @@ export function MontadorNavigator() {
       <Tab.Screen name="MontadorNotificacoes" component={MontadorNotificacoes} />
       <Tab.Screen name="MontadorDetalheSolicitacao" component={MontadorDetalheSolicitacao} />
       <Tab.Screen name="MontadorDetalheServico" component={MontadorDetalheServico} />
-      <Tab.Screen name="MontadorChat" component={ChatScreen} />
+      <Tab.Screen
+        name="MontadorChat"
+        component={ChatScreen}
+        options={{ tabBarStyle: { display: "none" } }}
+      />
     </Tab.Navigator>
   );
 }

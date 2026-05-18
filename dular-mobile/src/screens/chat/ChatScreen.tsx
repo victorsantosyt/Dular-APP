@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Keyboard,
   KeyboardAvoidingView,
   Pressable,
   ScrollView,
@@ -21,7 +22,8 @@ import { PaperPlane3DIcon } from "@/assets/icons";
 import { colors, radius, shadow, spacing, typography } from "@/theme/tokens";
 import type { ChatMessage } from "../../../../shared/types/chat";
 
-const POLL_MS = 5000;
+const POLL_MS = 12000;
+const STATUS_ARQUIVADOS = new Set(["CONCLUIDO", "CONFIRMADO", "FINALIZADO"]);
 
 type ChatRoom = {
   other?: { nome?: string | null } | null;
@@ -39,6 +41,26 @@ export default function ChatScreen({ route, navigation }: any) {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [keyboardOpen, setKeyboardOpen] = useState(false);
+
+  // Detecta teclado aberto pra remover paddingBottom (insets.bottom já é coberto pelo teclado)
+  useEffect(() => {
+    const showSub = Keyboard.addListener("keyboardWillShow", () => setKeyboardOpen(true));
+    const hideSub = Keyboard.addListener("keyboardWillHide", () => setKeyboardOpen(false));
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
+  // Mensagens em ordem cronológica (mais antiga em cima, mais recente embaixo — estilo WhatsApp)
+  const sortedMessages = useMemo(
+    () =>
+      [...messages].sort(
+        (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+      ),
+    [messages],
+  );
 
   const scrollToBottom = useCallback(() => {
     setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 80);
@@ -72,15 +94,29 @@ export default function ChatScreen({ route, navigation }: any) {
   useFocusEffect(
     useCallback(() => {
       if (!servicoId) return; // sem guard a tela ficaria pollando 404 a cada 5s
-      load();
-      const timer = setInterval(() => load(true), POLL_MS);
-      return () => clearInterval(timer);
+      // Poll encadeado: só agenda o próximo DEPOIS do anterior completar.
+      // setInterval anterior empilhava requests em paralelo quando o backend
+      // estava lento (timeout 20s + polling 5s = race condition).
+      let active = true;
+      let timer: ReturnType<typeof setTimeout> | null = null;
+      const scheduleNext = () => {
+        if (!active) return;
+        timer = setTimeout(() => {
+          if (!active) return;
+          load(true).finally(() => scheduleNext());
+        }, POLL_MS);
+      };
+      load().finally(() => scheduleNext());
+      return () => {
+        active = false;
+        if (timer) clearTimeout(timer);
+      };
     }, [load, servicoId])
   );
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages.length, scrollToBottom]);
+  }, [sortedMessages.length, scrollToBottom]);
 
   const send = useCallback(async () => {
     const content = text.trim();
@@ -109,7 +145,7 @@ export default function ChatScreen({ route, navigation }: any) {
       <KeyboardAvoidingView
         style={s.flex}
         behavior={platformSelect({ ios: "padding", android: undefined })}
-        keyboardVerticalOffset={insets.top}
+        keyboardVerticalOffset={0}
       >
         <View style={s.header}>
           <Pressable onPress={() => navigation.goBack()} hitSlop={10} style={s.iconBtn}>
@@ -142,13 +178,13 @@ export default function ChatScreen({ route, navigation }: any) {
               keyboardShouldPersistTaps="handled"
               onContentSizeChange={scrollToBottom}
             >
-              {messages.length === 0 ? (
+              {sortedMessages.length === 0 ? (
                 <View style={s.empty}>
                   <PaperPlane3DIcon size={72} />
                   <Text style={s.emptyText}>Nenhuma mensagem ainda.</Text>
                 </View>
               ) : (
-                messages.map((message) => {
+                sortedMessages.map((message) => {
                   const mine = message.senderId === user?.id;
                   return (
                     <View key={message.id} style={[s.messageRow, mine ? s.messageRight : s.messageLeft]}>
@@ -170,33 +206,54 @@ export default function ChatScreen({ route, navigation }: any) {
               )}
             </ScrollView>
 
-            <View style={[s.inputBar, { paddingBottom: Math.max(10, insets.bottom) }]}>
-              <View style={s.attachments}>
-                <AppIcon name="Camera" size={19} color="purple" />
-                <AppIcon name="Image" size={19} color="pink" />
-                <AppIcon name="Mic" size={19} color="blue" />
-                <AppIcon name="FileText" size={19} color="green" />
-              </View>
-              <TextInput
-                value={text}
-                onChangeText={setText}
-                placeholder="Digite sua mensagem"
-                placeholderTextColor={colors.sub}
-                multiline
-                style={s.input}
-              />
-              <Pressable
-                onPress={send}
-                disabled={!text.trim() || sending}
-                style={[s.sendBtn, (!text.trim() || sending) && s.sendBtnDisabled]}
+            {STATUS_ARQUIVADOS.has(String(room?.servico?.status ?? "").toUpperCase()) ? (
+              <View
+                style={[
+                  s.archivedBar,
+                  { paddingBottom: Math.max(12, insets.bottom) },
+                ]}
               >
-                {sending ? (
-                  <ActivityIndicator color={colors.white} size="small" />
-                ) : (
-                  <AppIcon name="Send" size={18} color={colors.white} />
-                )}
-              </Pressable>
-            </View>
+                <AppIcon name="Archive" size={16} color={colors.sub} strokeWidth={2.2} />
+                <Text style={s.archivedText}>
+                  Conversa encerrada. Só leitura.
+                </Text>
+              </View>
+            ) : (
+              <View
+                style={[
+                  s.inputBar,
+                  // Quando teclado aberto, insets.bottom já é coberto pelo próprio teclado;
+                  // padding fixo de 8px evita o "espaço enorme" reportado no QA.
+                  { paddingBottom: keyboardOpen ? 8 : Math.max(10, insets.bottom) },
+                ]}
+              >
+                <View style={s.attachments}>
+                  <AppIcon name="Camera" size={19} color="purple" />
+                  <AppIcon name="Image" size={19} color="pink" />
+                  <AppIcon name="Mic" size={19} color="blue" />
+                  <AppIcon name="FileText" size={19} color="green" />
+                </View>
+                <TextInput
+                  value={text}
+                  onChangeText={setText}
+                  placeholder="Digite sua mensagem"
+                  placeholderTextColor={colors.sub}
+                  multiline
+                  style={s.input}
+                />
+                <Pressable
+                  onPress={send}
+                  disabled={!text.trim() || sending}
+                  style={[s.sendBtn, (!text.trim() || sending) && s.sendBtnDisabled]}
+                >
+                  {sending ? (
+                    <ActivityIndicator color={colors.white} size="small" />
+                  ) : (
+                    <AppIcon name="Send" size={18} color={colors.white} />
+                  )}
+                </Pressable>
+              </View>
+            )}
           </>
         )}
       </KeyboardAvoidingView>
@@ -311,4 +368,20 @@ const s = StyleSheet.create({
     marginBottom: 1,
   },
   sendBtnDisabled: { opacity: 0.55 },
+  archivedBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingHorizontal: spacing.lg,
+    paddingTop: 14,
+    backgroundColor: colors.card,
+    borderTopWidth: 1,
+    borderTopColor: colors.stroke,
+  },
+  archivedText: {
+    color: colors.sub,
+    fontSize: 13,
+    fontWeight: "700",
+  },
 });

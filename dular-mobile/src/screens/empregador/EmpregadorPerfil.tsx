@@ -47,6 +47,54 @@ type ProfileData = Partial<PerfilUsuario>;
 
 const GEO_KEY = "@dular:empregador_geo_enabled";
 
+// T-18.5: pop-up educativo dispara uma única vez por sessão quando o cadastro
+// está completo mas a verificação documental ainda não está APROVADA.
+// Module-level Set por userId: sobrevive a navegação; reseta com app reload.
+const AUTO_VERIFY_MODAL_SHOWN_EMPREGADOR = new Set<string>();
+
+type StatusCardCase =
+  | "PODE_SOLICITAR"
+  | "AGUARDANDO"
+  | "VERIFICAR"
+  | "REPROVADO"
+  | "INCOMPLETO";
+
+function statusCardCopy(
+  kase: StatusCardCase,
+): { title: string; text: string } {
+  if (kase === "PODE_SOLICITAR") {
+    return {
+      title: "Verificado",
+      text: "Você pode solicitar serviços.",
+    };
+  }
+  if (kase === "AGUARDANDO") {
+    return {
+      title: "Aguardando verificação",
+      text:
+        "Seus documentos estão em análise. Você ainda não pode solicitar serviços.",
+    };
+  }
+  if (kase === "REPROVADO") {
+    return {
+      title: "Documentos reprovados",
+      text:
+        "Documentos reprovados. Reenvie documentos válidos para poder solicitar serviços.",
+    };
+  }
+  if (kase === "VERIFICAR") {
+    return {
+      title: "Verificação necessária",
+      text:
+        "Envie seus documentos para poder solicitar serviços.",
+    };
+  }
+  return {
+    title: "Perfil incompleto",
+    text: "Complete os dados pendentes para preparar seu perfil.",
+  };
+}
+
 function textValue(value?: string | null) {
   const clean = value?.trim();
   return clean ? clean : null;
@@ -391,6 +439,57 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
   const locationIsEnabled = geoEnabled || profileData?.localizacaoPermitida === true;
   const verificationStatus = normalizeVerification(profileData);
   const completion = calculateProfileProgress(profileData, heroLocation);
+
+  // T-18.5: separar cadastro, documento e visibilidade. Empregador só pode
+  // solicitar serviço se verificacao === APROVADO (== VERIFICADO no backend).
+  const hasDocEnviado = Boolean(profileData?.docEnviado);
+  const statusCardCase: StatusCardCase = useMemo(() => {
+    if (!completion.completo) return "INCOMPLETO";
+    if (verificationStatus === "APROVADO" || verificationStatus === "VERIFICADO") {
+      return "PODE_SOLICITAR";
+    }
+    if (verificationStatus === "REPROVADO") return "REPROVADO";
+    if (hasDocEnviado && verificationStatus === "PENDENTE") return "AGUARDANDO";
+    return "VERIFICAR";
+  }, [completion.completo, verificationStatus, hasDocEnviado]);
+  const statusCopy = useMemo(() => statusCardCopy(statusCardCase), [statusCardCase]);
+  const ctaLabel =
+    statusCardCase === "REPROVADO"
+      ? "Reenviar documentos"
+      : hasDocEnviado
+        ? "Ver documentos"
+        : "Enviar documentos";
+  const podeSolicitar = statusCardCase === "PODE_SOLICITAR";
+
+  // Pop-up educativo: dispara uma vez por sessão quando o cadastro está
+  // completo mas a verificação não está aprovada. REPROVADO tem fluxo
+  // visual próprio (pílula/card), não recebe modal genérico.
+  const perfilCarregado = !loading && !!profileData;
+  useEffect(() => {
+    const uid = user?.id;
+    if (!uid) return;
+    if (!perfilCarregado) return;
+    if (!completion.completo) return;
+    if (podeSolicitar) return;
+    if (statusCardCase === "REPROVADO") return;
+    if (AUTO_VERIFY_MODAL_SHOWN_EMPREGADOR.has(uid)) return;
+    AUTO_VERIFY_MODAL_SHOWN_EMPREGADOR.add(uid);
+    Alert.alert(
+      "Verificação obrigatória",
+      "Para solicitar serviços, envie seus documentos. Essa etapa ajuda a manter a segurança da plataforma.",
+      [
+        { text: "Depois", style: "cancel" },
+        { text: "Verificar agora", onPress: () => navigation.navigate("VerificacaoDocs") },
+      ],
+    );
+  }, [
+    perfilCarregado,
+    completion.completo,
+    podeSolicitar,
+    statusCardCase,
+    user?.id,
+    navigation,
+  ]);
   const displayName = firstName(profileData?.nome);
   const avatarUri = avatarLocal ?? profileData?.avatarUrl ?? null;
   const avatarFallback: ImageSourcePropType | null = null;
@@ -461,16 +560,58 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
               />
 
               <ProfileSection title="Status do perfil">
+                {/* T-18.5: separa "cadastro completo" da "permissão para
+                    solicitar serviço". A barra reflete só o cadastro básico;
+                    o texto e a CTA refletem o estado real de verificação
+                    documental — que é o que destrava o POST /api/servicos. */}
                 <DCard style={s.statusCard}>
                   <View style={s.statusHeader}>
-                    <View style={[s.statusBadge, { backgroundColor: progressSoft }]}>
+                    <View
+                      style={[
+                        s.statusBadge,
+                        {
+                          backgroundColor: podeSolicitar
+                            ? colors.successSoft
+                            : statusCardCase === "REPROVADO"
+                              ? colors.dangerSoft
+                              : colors.warningSoft,
+                        },
+                      ]}
+                    >
                       <AppIcon
-                        name={completion.completo ? "CheckCircle" : "AlertTriangle"}
+                        name={
+                          podeSolicitar
+                            ? "CheckCircle"
+                            : statusCardCase === "AGUARDANDO"
+                              ? "Clock"
+                              : statusCardCase === "REPROVADO"
+                                ? "XCircle"
+                                : "AlertTriangle"
+                        }
                         size={14}
-                        color={progressTone}
+                        color={
+                          podeSolicitar
+                            ? colors.success
+                            : statusCardCase === "REPROVADO"
+                              ? colors.danger
+                              : colors.warning
+                        }
                         strokeWidth={2.4}
                       />
-                      <Text style={[s.statusBadgeText, { color: progressTone }]}>{progressLabel}</Text>
+                      <Text
+                        style={[
+                          s.statusBadgeText,
+                          {
+                            color: podeSolicitar
+                              ? colors.success
+                              : statusCardCase === "REPROVADO"
+                                ? colors.danger
+                                : colors.warning,
+                          },
+                        ]}
+                      >
+                        {statusCopy.title}
+                      </Text>
                     </View>
                     <Text style={s.statusProgress}>{completion.progresso}%</Text>
                   </View>
@@ -485,7 +626,18 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
                       ]}
                     />
                   </View>
-                  <Text style={s.statusHint}>{missingText}</Text>
+                  <Text style={s.statusHint}>
+                    {completion.completo ? "Cadastro básico completo." : missingText}
+                  </Text>
+                  <Text style={s.statusHint}>{statusCopy.text}</Text>
+                  {!podeSolicitar ? (
+                    <DButton
+                      label={ctaLabel}
+                      variant="primary"
+                      size="md"
+                      onPress={() => navigation.navigate("VerificacaoDocs")}
+                    />
+                  ) : null}
                 </DCard>
               </ProfileSection>
 

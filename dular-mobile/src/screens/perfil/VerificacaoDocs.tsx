@@ -168,10 +168,32 @@ export default function VerificacaoDocs() {
         // Mantém o estado otimista se /api/me falhar.
       }
 
-      if (nextStatus === "APROVADO") {
-        Alert.alert("Perfil visível", "Seu perfil está verificado e aparece na busca para empregadores.");
+      // T-18.6: standardiza o estado pós-upload usando o Guardian quando
+      // disponível na resposta. Em produção, sem AUTO_VERIFY_PROFILES, o
+      // status é sempre PENDENTE — a UI nunca pode anunciar "verificado"
+      // sem retorno APPROVED real (vindo de admin).
+      const guardianRoleOk =
+        res?.data?.guardian?.canCreateServico ||
+        res?.data?.guardian?.canAppearInSearch;
+
+      if (nextStatus === "APROVADO" && guardianRoleOk) {
+        // Caminho exclusivo de QA/E2E: AUTO_VERIFY_PROFILES=true promoveu
+        // de fato a verificação e o Guardian liberou as permissões.
+        if (currentUser?.role === "EMPREGADOR") {
+          Alert.alert("Verificação aprovada", "Você já pode solicitar serviços.");
+        } else {
+          Alert.alert(
+            "Perfil visível",
+            "Seu perfil está verificado e aparece na busca para empregadores.",
+          );
+        }
       } else {
-        Alert.alert("Aguardando verificação", "Seus documentos foram enviados. Seu perfil só ficará visível para empregadores após a verificação.");
+        Alert.alert(
+          "Documentos enviados para análise",
+          currentUser?.role === "EMPREGADOR"
+            ? "Você poderá solicitar serviços após a aprovação dos documentos."
+            : "Seu perfil só ficará visível para empregadores após a aprovação dos documentos.",
+        );
       }
     } catch (e: any) {
       setState("erro");
@@ -233,7 +255,11 @@ export default function VerificacaoDocs() {
 
         <Text style={{ fontSize: 15, fontWeight: "700", color: colors.ink }}>Envie seus documentos</Text>
         <Text style={{ color: colors.sub }}>
-          RG/CNH frente e verso. Usamos isso para manter a comunidade segura.
+          {currentUser?.role === "EMPREGADOR"
+            ? "RG/CNH frente e verso. Necessário para solicitar serviços e manter a plataforma segura."
+            : currentUser?.role === "MONTADOR"
+              ? "RG/CNH frente e verso. Necessário para receber serviços e manter a plataforma segura."
+              : "RG/CNH frente e verso. Usamos isso para manter a comunidade segura."}
         </Text>
 
         {renderPick("Documento (frente)", docFrente, "docFrente")}

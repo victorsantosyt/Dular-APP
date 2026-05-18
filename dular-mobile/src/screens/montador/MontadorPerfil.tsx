@@ -1,4 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { useNavigation } from "@react-navigation/native";
+import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
+import type { MontadorTabParamList } from "@/navigation/MontadorNavigator";
 import {
   ActivityIndicator,
   Alert,
@@ -35,6 +38,55 @@ import { platformSelect } from "@/utils/platform";
 import { firstName, formatMoneyFromCents, upperStatus } from "./montadorUtils";
 
 type ModalType = "dados" | "especialidades" | "area" | "precos" | "portfolio" | "documentos" | null;
+
+type MontadorNavigation = BottomTabNavigationProp<MontadorTabParamList>;
+
+// T-18.5: pop-up educativo dispara uma única vez por sessão para o montador
+// quando o cadastro está completo mas verificado=false.
+const AUTO_VERIFY_MODAL_SHOWN_MONTADOR = new Set<string>();
+
+type MontadorStatusCase =
+  | "VISIVEL"
+  | "AGUARDANDO"
+  | "VERIFICAR"
+  | "REPROVADO"
+  | "INCOMPLETO";
+
+function montadorStatusCopy(
+  kase: MontadorStatusCase,
+): { title: string; text: string } {
+  if (kase === "VISIVEL") {
+    return {
+      title: "Perfil visível",
+      text: "Seu perfil está verificado e aparece na busca para empregadores.",
+    };
+  }
+  if (kase === "AGUARDANDO") {
+    return {
+      title: "Aguardando verificação",
+      text:
+        "Seu perfil está completo, mas ainda não aparece na busca. Seus documentos foram enviados e estão aguardando verificação.",
+    };
+  }
+  if (kase === "REPROVADO") {
+    return {
+      title: "Documentos reprovados",
+      text:
+        "Seus documentos não foram aprovados. Envie novamente documentos legíveis e válidos para liberar sua visibilidade na busca.",
+    };
+  }
+  if (kase === "VERIFICAR") {
+    return {
+      title: "Verificação necessária",
+      text:
+        "Você completou seu perfil. Agora envie seus documentos para que seu perfil possa aparecer para empregadores.",
+    };
+  }
+  return {
+    title: "Perfil incompleto",
+    text: "Complete os blocos pendentes para preparar seu perfil.",
+  };
+}
 
 type DadosForm = {
   nome: string;
@@ -239,6 +291,7 @@ function ModalActions({
 
 export default function MontadorPerfil() {
   const profileTheme = useProfileTheme("MONTADOR");
+  const navigation = useNavigation<MontadorNavigation>();
   const authUser = useAuth((state) => state.user);
   const setUser = useAuth((state) => state.setUser);
   const clearSession = useAuth((state) => state.clearSession);
@@ -287,6 +340,50 @@ export default function MontadorPerfil() {
     : perfil?.precoBase
       ? formatMoneyFromCents(perfil.precoBase)
       : "Configure preço ou valor a combinar";
+
+  // T-18.5: separar cadastro, documentos enviados e visibilidade.
+  // Backend retorna verificacaoStatus do MontadorPerfil ("APROVADO" |
+  // "PENDENTE" | "NAO_ENVIADO"). REPROVADO não vem hoje desse endpoint
+  // mas tratamos defensivamente.
+  const verificacaoStatusMontador = String(perfil?.verificacaoStatus ?? "").toUpperCase();
+  const docsEnviados = Boolean(perfil?.documentosEnviados);
+  const statusCardCaseMontador: MontadorStatusCase = useMemo(() => {
+    if (!completo) return "INCOMPLETO";
+    if (verificado) return "VISIVEL";
+    if (verificacaoStatusMontador === "REPROVADO") return "REPROVADO";
+    if (docsEnviados && verificacaoStatusMontador === "PENDENTE") return "AGUARDANDO";
+    return "VERIFICAR";
+  }, [completo, verificado, verificacaoStatusMontador, docsEnviados]);
+  const statusCopyMontador = useMemo(
+    () => montadorStatusCopy(statusCardCaseMontador),
+    [statusCardCaseMontador],
+  );
+  const ctaLabelMontador =
+    statusCardCaseMontador === "REPROVADO"
+      ? "Reenviar documentos"
+      : docsEnviados
+        ? "Ver documentos"
+        : "Enviar documentos";
+
+  // Pop-up educativo: 1 vez por sessão quando cadastro completo + não verificado.
+  const userId = authUser?.id;
+  useEffect(() => {
+    if (!userId) return;
+    if (!profile) return;
+    if (!completo) return;
+    if (verificado) return;
+    if (statusCardCaseMontador === "REPROVADO") return;
+    if (AUTO_VERIFY_MODAL_SHOWN_MONTADOR.has(userId)) return;
+    AUTO_VERIFY_MODAL_SHOWN_MONTADOR.add(userId);
+    Alert.alert(
+      "Falta a verificação dos documentos",
+      "Seu cadastro está completo, mas seu perfil só fica visível para empregadores após a verificação dos documentos. Isso ajuda a manter a segurança da plataforma.",
+      [
+        { text: "Depois", style: "cancel" },
+        { text: ctaLabelMontador, onPress: () => navigation.navigate("VerificacaoDocs") },
+      ],
+    );
+  }, [userId, profile, completo, verificado, statusCardCaseMontador, ctaLabelMontador, navigation]);
 
   const syncForms = (next: MontadorPerfilMe) => {
     setDadosForm({
@@ -593,6 +690,69 @@ export default function MontadorPerfil() {
         </View>
       ) : null}
 
+      {/* T-18.5: separar cadastro / docs / visibilidade. Espelha o padrão da
+          Profissional de Casa (T-18.4). A barra superior já mostra
+          progresso de cadastro; este card comunica o passo seguinte. */}
+      <View
+        style={[
+          styles.ctaCard,
+          {
+            borderColor:
+              statusCardCaseMontador === "VISIVEL"
+                ? colors.success
+                : statusCardCaseMontador === "REPROVADO"
+                  ? colors.danger
+                  : profileTheme.border,
+            backgroundColor:
+              statusCardCaseMontador === "VISIVEL"
+                ? colors.successSoft
+                : statusCardCaseMontador === "REPROVADO"
+                  ? colors.dangerSoft
+                  : profileTheme.primarySoft,
+          },
+        ]}
+      >
+        <AppIcon
+          name={
+            statusCardCaseMontador === "VISIVEL"
+              ? "CheckCircle"
+              : statusCardCaseMontador === "AGUARDANDO"
+                ? "Clock"
+                : statusCardCaseMontador === "REPROVADO"
+                  ? "XCircle"
+                  : "AlertTriangle"
+          }
+          size={18}
+          color={
+            statusCardCaseMontador === "VISIVEL"
+              ? colors.success
+              : statusCardCaseMontador === "REPROVADO"
+                ? colors.danger
+                : profileTheme.primary
+          }
+        />
+        <View style={styles.ctaText}>
+          <Text style={[styles.ctaTitle, { color: profileTheme.textAccent }]}>
+            {statusCopyMontador.title}
+          </Text>
+          <Text style={styles.ctaSub}>{statusCopyMontador.text}</Text>
+          {statusCardCaseMontador !== "VISIVEL" ? (
+            <Pressable
+              onPress={() => navigation.navigate("VerificacaoDocs")}
+              style={[
+                styles.ctaButton,
+                {
+                  backgroundColor:
+                    statusCardCaseMontador === "REPROVADO" ? colors.danger : profileTheme.primary,
+                },
+              ]}
+            >
+              <Text style={styles.ctaButtonText}>{ctaLabelMontador}</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      </View>
+
       {savedMessage ? (
         <View style={[styles.savedCard, { borderColor: profileTheme.border }]}>
           <AppIcon name="CheckCircle" size={17} color={profileTheme.primary} />
@@ -890,6 +1050,19 @@ const styles = StyleSheet.create({
   ctaSub: {
     ...typography.caption,
     color: colors.textSecondary,
+  },
+  ctaButton: {
+    marginTop: 8,
+    borderRadius: radius.md,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    alignItems: "center",
+    alignSelf: "flex-start",
+  },
+  ctaButtonText: {
+    color: colors.white,
+    fontWeight: "700",
+    fontSize: 13,
   },
   savedCard: {
     flexDirection: "row",

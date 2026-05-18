@@ -94,7 +94,12 @@ const GEO_KEY = "@dular:diarista_geo_enabled";
 // só quando o JS context é recarregado, i.e. app fechado).
 const AUTO_VERIFY_MODAL_SHOWN = new Set<string>();
 
-type StatusCardCase = "VISIVEL" | "AGUARDANDO" | "VERIFICAR" | "INCOMPLETO";
+type StatusCardCase =
+  | "VISIVEL"
+  | "AGUARDANDO"
+  | "VERIFICAR"
+  | "REPROVADO"
+  | "INCOMPLETO";
 
 function statusCardCopy(
   kase: StatusCardCase,
@@ -110,6 +115,13 @@ function statusCardCopy(
       title: "Aguardando verificação",
       text:
         "Seu perfil está completo, mas ainda não aparece na busca. Seus documentos foram enviados e estão aguardando verificação.",
+    };
+  }
+  if (kase === "REPROVADO") {
+    return {
+      title: "Verificação reprovada",
+      text:
+        "Seus documentos não foram aprovados. Envie novamente documentos legíveis e válidos para liberar sua visibilidade na busca.",
     };
   }
   if (kase === "VERIFICAR") {
@@ -459,9 +471,8 @@ export default function DiaristaPerfil({ onLogout }: Props) {
   const statusCardCase: StatusCardCase = useMemo(() => {
     if (!completude.completo) return "INCOMPLETO";
     if (verificacao === "APROVADO") return "VISIVEL";
-    // Doc enviado e aguardando análise exige AMBOS: docUrl presente E PENDENTE
+    if (verificacao === "REPROVADO") return "REPROVADO";
     if (hasDocUrl && verificacao === "PENDENTE") return "AGUARDANDO";
-    // Sem docUrl OU REPROVADO → precisa enviar/reenviar documento
     return "VERIFICAR";
   }, [completude.completo, verificacao, hasDocUrl]);
   const statusCopy = useMemo(() => statusCardCopy(statusCardCase), [statusCardCase]);
@@ -479,6 +490,12 @@ export default function DiaristaPerfil({ onLogout }: Props) {
   // pop-up só ajuda a primeira tomada de consciência.
   const perfilCarregado = !loading && profile != null;
   const popupButtonLabel = !hasDocUrl ? "Enviar documentos" : "Ver documentos";
+  const verificationCtaLabel =
+    statusCardCase === "REPROVADO"
+      ? "Reenviar documentos"
+      : hasDocUrl
+        ? "Ver documentos"
+        : "Enviar documentos";
   useEffect(() => {
     const uid = user?.id;
     if (!uid) return;
@@ -1192,11 +1209,17 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                             ? "CheckCircle"
                             : statusCardCase === "AGUARDANDO"
                               ? "Clock"
-                              : "AlertTriangle"
+                              : statusCardCase === "REPROVADO"
+                                ? "XCircle"
+                                : "AlertTriangle"
                         }
                         size={14}
                         color={
-                          statusCardCase === "VISIVEL" ? colors.success : colors.warning
+                          statusCardCase === "VISIVEL"
+                            ? colors.success
+                            : statusCardCase === "REPROVADO"
+                              ? colors.danger
+                              : colors.warning
                         }
                         strokeWidth={2.4}
                       />
@@ -1205,7 +1228,11 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                           s.statusBadgeText,
                           {
                             color:
-                              statusCardCase === "VISIVEL" ? colors.success : colors.warning,
+                              statusCardCase === "VISIVEL"
+                                ? colors.success
+                                : statusCardCase === "REPROVADO"
+                                  ? colors.danger
+                                  : colors.warning,
                           },
                         ]}
                       >
@@ -1245,7 +1272,7 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                   <Text style={s.statusHint}>{statusCopy.text}</Text>
                   {verificacao !== "APROVADO" ? (
                     <DButton
-                      label="Verificar documentos"
+                      label={verificationCtaLabel}
                       variant="primary"
                       size="md"
                       onPress={() => navigation.navigate("VerificacaoDocs")}

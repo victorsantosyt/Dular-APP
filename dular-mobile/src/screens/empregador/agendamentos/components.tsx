@@ -515,10 +515,13 @@ const s = StyleSheet.create({
     letterSpacing: 0,
   },
   banner: {
+    width: "100%",
+    maxWidth: 430,
     marginTop: 0,
-    marginBottom: spacing.sm,
+    marginBottom: 0,
     borderRadius: radius.lg,
-    padding: 9,
+    paddingHorizontal: 10,
+    paddingVertical: 9,
     flexDirection: "row",
     alignItems: "center",
     gap: 9,
@@ -535,6 +538,7 @@ const s = StyleSheet.create({
   },
   bannerCopy: {
     flex: 1,
+    minWidth: 0,
     gap: 3,
   },
   bannerTitle: {

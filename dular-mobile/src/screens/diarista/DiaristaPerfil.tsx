@@ -88,6 +88,43 @@ type Navigation = BottomTabNavigationProp<DiaristaTabParamList>;
 
 const GEO_KEY = "@dular:diarista_geo_enabled";
 
+// T-18.4: pop-up educativo que dispara quando o cadastro fica 100% mas a
+// verificação documental ainda não está APROVADA. Module-level Set para
+// disparar uma única vez por sessão (sobrevive a navegação/foco; reseta
+// só quando o JS context é recarregado, i.e. app fechado).
+const AUTO_VERIFY_MODAL_SHOWN = new Set<string>();
+
+type StatusCardCase = "VISIVEL" | "AGUARDANDO" | "VERIFICAR" | "INCOMPLETO";
+
+function statusCardCopy(
+  kase: StatusCardCase,
+): { title: string; text: string } {
+  if (kase === "VISIVEL") {
+    return {
+      title: "Perfil visível",
+      text: "Seu perfil está completo e aparece na busca para empregadores.",
+    };
+  }
+  if (kase === "AGUARDANDO") {
+    return {
+      title: "Aguardando verificação",
+      text:
+        "Seu perfil está completo, mas ainda não aparece na busca. Seus documentos foram enviados e estão aguardando verificação.",
+    };
+  }
+  if (kase === "VERIFICAR") {
+    return {
+      title: "Verificação necessária",
+      text:
+        "Você completou seu perfil. Agora envie seus documentos para que seu perfil possa aparecer para empregadores.",
+    };
+  }
+  return {
+    title: "Perfil incompleto",
+    text: "Complete os blocos pendentes para preparar seu perfil.",
+  };
+}
+
 // ── Constantes domínio ───────────────────────────────────────────────────────
 const SERVICOS_OPTIONS: Array<{
   id: ServicoOferecido;
@@ -409,6 +446,71 @@ export default function DiaristaPerfil({ onLogout }: Props) {
     () => calcularCompletudeDiarista(profile, me?.nome ?? user?.nome ?? ""),
     [profile, me?.nome, user?.nome],
   );
+
+  // ── Verificação documental: estado derivado (T-18.4) ─────────────────────
+  // Cadastro completo, documento enviado e perfil visível são 3 conceitos
+  // distintos. A busca do empregador exige verificacao === APROVADO. Sem isso
+  // a profissional NÃO aparece, mesmo com 100% de cadastro.
+  //
+  // Importante: verificacao=PENDENTE NÃO prova que o documento foi enviado —
+  // o schema tem @default(PENDENTE), então a coluna nasce PENDENTE mesmo com
+  // docUrl=null. A única fonte da verdade para "doc enviado" é docUrl.
+  const hasDocUrl = Boolean(profile?.docUrl);
+  const statusCardCase: StatusCardCase = useMemo(() => {
+    if (!completude.completo) return "INCOMPLETO";
+    if (verificacao === "APROVADO") return "VISIVEL";
+    // Doc enviado e aguardando análise exige AMBOS: docUrl presente E PENDENTE
+    if (hasDocUrl && verificacao === "PENDENTE") return "AGUARDANDO";
+    // Sem docUrl OU REPROVADO → precisa enviar/reenviar documento
+    return "VERIFICAR";
+  }, [completude.completo, verificacao, hasDocUrl]);
+  const statusCopy = useMemo(() => statusCardCopy(statusCardCase), [statusCardCase]);
+  // Para o badge do hero, distinguir "PENDENTE com docs" de "PENDENTE sem
+  // docs". Sem docUrl, mapeamos para NAO_ENVIADO para o pill exibir
+  // "Não verificado" em vez de "Verificação pendente".
+  const heroVerificacaoStatus: VerificacaoStatus =
+    verificacao === "PENDENTE" && !hasDocUrl ? "NAO_ENVIADO" : verificacao;
+
+  // Pop-up educativo: dispara uma única vez por sessão quando o cadastro
+  // ficou 100% mas a verificação ainda não está APROVADA E o estado dos
+  // documentos é "ausente" ou "pendente". REPROVADO tem fluxo próprio (a
+  // pílula do hero já comunica) — o pop-up não interfere.
+  // Não bloqueia o fluxo: a CTA persistente no status card é primária; o
+  // pop-up só ajuda a primeira tomada de consciência.
+  const perfilCarregado = !loading && profile != null;
+  const popupButtonLabel = !hasDocUrl ? "Enviar documentos" : "Ver documentos";
+  useEffect(() => {
+    const uid = user?.id;
+    if (!uid) return;
+    if (!perfilCarregado) return;
+    if (!completude.completo) return;
+    if (verificacao === "APROVADO") return;
+    // Só dispara para os 2 estados que o pop-up resolve:
+    // (a) docUrl ausente, (b) docUrl presente + PENDENTE
+    const docUrlPendente = hasDocUrl && verificacao === "PENDENTE";
+    if (!(!hasDocUrl || docUrlPendente)) return;
+    if (AUTO_VERIFY_MODAL_SHOWN.has(uid)) return;
+    AUTO_VERIFY_MODAL_SHOWN.add(uid);
+    Alert.alert(
+      "Falta a verificação dos documentos",
+      "Seu cadastro básico está completo, mas seu perfil só fica visível para empregadores após a verificação dos documentos. Isso ajuda a manter a segurança da plataforma.",
+      [
+        { text: "Depois", style: "cancel" },
+        {
+          text: popupButtonLabel,
+          onPress: () => navigation.navigate("VerificacaoDocs"),
+        },
+      ],
+    );
+  }, [
+    perfilCarregado,
+    completude.completo,
+    verificacao,
+    hasDocUrl,
+    popupButtonLabel,
+    user?.id,
+    navigation,
+  ]);
 
   const precosResumo = useMemo(() => {
     if (profile?.valorACombinar) return "Valor a combinar";
@@ -1064,35 +1166,50 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                 avatarFallback={avatarFallback}
                 uploading={avatarUploading}
                 onAvatarPress={pickAvatar}
-                verificacaoStatus={verificacao}
+                verificacaoStatus={heroVerificacaoStatus}
                 hideMemberSinceIfEmpty
               />
 
               {/* ── Bloco A — Status do perfil ─────────────────────────── */}
+              {/* T-18.4: separar "cadastro completo" (barra/badge) de
+                  "perfil visível na busca" (verificacao=APROVADO). A barra
+                  representa só cadastro básico; o texto e a CTA refletem o
+                  estado real de visibilidade. */}
               <ProfileSection title="Status do perfil">
                 <View style={s.statusCard}>
                   <View style={s.statusHeader}>
                     <View
                       style={[
                         s.statusBadge,
-                        completude.completo ? s.statusBadgeOk : s.statusBadgeWarn,
+                        statusCardCase === "VISIVEL"
+                          ? s.statusBadgeOk
+                          : s.statusBadgeWarn,
                       ]}
                     >
                       <AppIcon
-                        name={completude.completo ? "CheckCircle" : "AlertTriangle"}
+                        name={
+                          statusCardCase === "VISIVEL"
+                            ? "CheckCircle"
+                            : statusCardCase === "AGUARDANDO"
+                              ? "Clock"
+                              : "AlertTriangle"
+                        }
                         size={14}
-                        color={completude.completo ? colors.success : colors.warning}
+                        color={
+                          statusCardCase === "VISIVEL" ? colors.success : colors.warning
+                        }
                         strokeWidth={2.4}
                       />
                       <Text
                         style={[
                           s.statusBadgeText,
                           {
-                            color: completude.completo ? colors.success : colors.warning,
+                            color:
+                              statusCardCase === "VISIVEL" ? colors.success : colors.warning,
                           },
                         ]}
                       >
-                        {completude.completo ? "Perfil completo" : "Perfil incompleto"}
+                        {statusCopy.title}
                       </Text>
                     </View>
                     <Text style={s.statusProgress}>{completude.progresso}%</Text>
@@ -1103,11 +1220,18 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                         s.progressFill,
                         {
                           width: `${Math.max(4, completude.progresso)}%`,
-                          backgroundColor: completude.completo ? colors.success : colors.warning,
+                          backgroundColor: completude.completo
+                            ? colors.success
+                            : colors.warning,
                         },
                       ]}
                     />
                   </View>
+                  <Text style={s.statusHint}>
+                    {completude.completo
+                      ? "Cadastro básico completo."
+                      : "Cadastro básico em andamento."}
+                  </Text>
                   {!completude.completo && completude.motivos.length > 0 ? (
                     <View style={s.motivosWrap}>
                       {completude.motivos.map((m) => (
@@ -1117,11 +1241,16 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                         </View>
                       ))}
                     </View>
-                  ) : (
-                    <Text style={s.statusHint}>
-                      Seu perfil está completo e aparece na busca para empregadores.
-                    </Text>
-                  )}
+                  ) : null}
+                  <Text style={s.statusHint}>{statusCopy.text}</Text>
+                  {verificacao !== "APROVADO" ? (
+                    <DButton
+                      label="Verificar documentos"
+                      variant="primary"
+                      size="md"
+                      onPress={() => navigation.navigate("VerificacaoDocs")}
+                    />
+                  ) : null}
                 </View>
                 <ProfileSwitchRow
                   icon="Eye"
@@ -1186,11 +1315,11 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                   subtitle={
                     verificacao === "APROVADO"
                       ? "Documentos aprovados"
-                      : verificacao === "PENDENTE"
-                        ? "Aguardando análise dos documentos"
-                        : verificacao === "REPROVADO"
-                          ? "Revise seus documentos"
-                          : "Envie seus documentos para verificação"
+                      : verificacao === "REPROVADO"
+                        ? "Revise seus documentos"
+                        : hasDocUrl
+                          ? "Aguardando análise dos documentos"
+                          : "Documentos pendentes"
                   }
                   onPress={() => navigation.navigate("VerificacaoDocs")}
                 />

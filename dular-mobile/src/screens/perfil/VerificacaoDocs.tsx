@@ -125,19 +125,54 @@ export default function VerificacaoDocs() {
       form.append("docFrente", docFrente as any);
       form.append("docVerso", docVerso as any);
 
-      await api.post("/api/verificacoes", form, {
+      const res = await api.post("/api/verificacoes", form, {
         headers: { "Content-Type": "multipart/form-data" },
       });
 
+      // T-18.4: o backend retorna VERIFICADO quando AUTO_VERIFY_PROFILES=true
+      // e a completude está OK; caso contrário, PENDENTE. Refletir no estado
+      // local em vez de assumir PENDENTE sempre.
+      const apiStatus = String(res?.data?.verificacao?.status ?? "PENDENTE").toUpperCase();
+      const nextStatus: VerificacaoStatus =
+        apiStatus === "VERIFICADO" || apiStatus === "APROVADO" ? "APROVADO" : "PENDENTE";
+
       setState("sucesso");
-      setVerificacao("PENDENTE");
+      setVerificacao(nextStatus);
       setDocEnviado(true);
-      setUser((prev) => prev ? ({
-        ...prev,
-        docEnviado: true,
-        verificacao: { status: "PENDENTE" },
-      }) : prev);
-      Alert.alert("Documentos enviados", "Sua verificação está pendente de análise.");
+      setUser((prev) =>
+        prev
+          ? {
+              ...prev,
+              docEnviado: true,
+              verificado: nextStatus === "APROVADO",
+              verificacao: { status: nextStatus },
+            }
+          : prev,
+      );
+
+      // Refresh completo do /api/me para garantir que os outros campos
+      // (verificado, status etc.) fiquem consistentes em toda a árvore.
+      try {
+        const me = await getMe();
+        setUser((prev) =>
+          prev
+            ? {
+                ...prev,
+                docEnviado: Boolean(me.docEnviado),
+                verificado: Boolean(me.verificado),
+                verificacao: me.verificacao ?? prev.verificacao,
+              }
+            : prev,
+        );
+      } catch {
+        // Mantém o estado otimista se /api/me falhar.
+      }
+
+      if (nextStatus === "APROVADO") {
+        Alert.alert("Perfil visível", "Seu perfil está verificado e aparece na busca para empregadores.");
+      } else {
+        Alert.alert("Aguardando verificação", "Seus documentos foram enviados. Seu perfil só ficará visível para empregadores após a verificação.");
+      }
     } catch (e: any) {
       setState("erro");
       setToast(apiMsg(e, "Falha ao enviar documentos."));

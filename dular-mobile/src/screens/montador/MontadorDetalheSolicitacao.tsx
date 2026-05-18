@@ -11,6 +11,7 @@ import { colors, radius, shadows, spacing, typography } from "@/theme";
 import {
   formatDateTime,
   formatMoneyFromCents,
+  isSolicitacaoPendente,
   labelServico,
   labelSubcategoria,
   localResumo,
@@ -26,15 +27,27 @@ export default function MontadorDetalheSolicitacao({ route, navigation }: Props)
   const servico = servicos.find((item) => item.id === route.params.servicoId);
   const score = servico?.empregador?.id ? scoreByUser[servico.empregador.id] : null;
   const photos = servico?.fotos ?? [];
+  // Botões "Aceitar/Recusar" só fazem sentido enquanto a solicitação está pendente.
+  // Sem essa checagem o botão "Aceitar" continua visível após o aceite enquanto
+  // a tela ainda não navegou, permitindo um segundo clique que volta 409.
+  const podeResponder = !!servico && isSolicitacaoPendente(servico);
 
   const aceitar = async () => {
     if (!servico) return;
     try {
       setActionLoading(true);
       await aceitarSolicitacaoMontador(servico.id);
-      reload();
+      // Aguarda o refetch para que o status reflita ACEITO antes da navegação,
+      // evitando que a tela mostre o botão "Aceitar" novamente ao voltar.
+      await reload();
       navigation.navigate("MontadorAgenda");
-    } catch {
+    } catch (err: any) {
+      // 409 = aceito por outro fluxo; sincroniza e leva para a agenda.
+      if (err?.response?.status === 409) {
+        await reload();
+        navigation.navigate("MontadorAgenda");
+        return;
+      }
       Alert.alert("Erro", "Não foi possível aceitar a solicitação.");
     } finally {
       setActionLoading(false);
@@ -117,14 +130,16 @@ export default function MontadorDetalheSolicitacao({ route, navigation }: Props)
             )}
           </View>
 
-          <View style={styles.actions}>
-            <Pressable disabled={actionLoading} onPress={aceitar} style={[styles.primaryButton, { backgroundColor: profileTheme.primary }]}>
-              <Text style={styles.primaryText}>{actionLoading ? "Processando" : "Aceitar"}</Text>
-            </Pressable>
-            <Pressable disabled={actionLoading} onPress={recusar} style={styles.rejectButton}>
-              <Text style={styles.rejectText}>Recusar</Text>
-            </Pressable>
-          </View>
+          {podeResponder ? (
+            <View style={styles.actions}>
+              <Pressable disabled={actionLoading} onPress={aceitar} style={[styles.primaryButton, { backgroundColor: profileTheme.primary }]}>
+                <Text style={styles.primaryText}>{actionLoading ? "Processando" : "Aceitar"}</Text>
+              </Pressable>
+              <Pressable disabled={actionLoading} onPress={recusar} style={styles.rejectButton}>
+                <Text style={styles.rejectText}>Recusar</Text>
+              </Pressable>
+            </View>
+          ) : null}
         </>
       )}
       <MotivoModal

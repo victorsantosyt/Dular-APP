@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/requireAuth";
-import { assertRole, assertStatus } from "@/lib/regrasServico";
+import { assertRole } from "@/lib/regrasServico";
 import { ServicoStatus, UserRole } from "@prisma/client";
 import { registrarEvento } from "@/lib/servicoEvento";
 import { criarNotificacao } from "@/lib/notifications";
@@ -33,7 +33,21 @@ export async function POST(req: Request, { params }: Params) {
       return NextResponse.json({ ok: false, error: "Não autorizado." }, { status: 403 });
     }
 
-    assertStatus(servico.status as ServicoStatus, ["SOLICITADO"]);
+    // Status atual exposto no 409 para o mobile sincronizar a UI sem re-fetch
+    // separado. Mantém a mesma regra (apenas SOLICITADO pode ser aceito).
+    if (servico.status !== "SOLICITADO") {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            servico.status === "ACEITO"
+              ? "Serviço já aceito."
+              : "Serviço não pode ser aceito neste estado.",
+          statusAtual: servico.status,
+        },
+        { status: 409 },
+      );
+    }
 
     const updated = await prisma.servico.update({
       where: { id },
@@ -42,6 +56,20 @@ export async function POST(req: Request, { params }: Params) {
         enderecoCompleto: enderecoCompleto ?? servico.enderecoCompleto ?? null,
       },
     });
+
+    // Garante ChatRoom no aceite. Em fluxos normais o room é criado em POST
+    // /api/servicos, mas serviços antigos (pré-T-16) podem não ter sala — o
+    // upsert é idempotente e mantém o chat acessível assim que o aceite é
+    // confirmado.
+    try {
+      await prisma.chatRoom.upsert({
+        where: { servicoId: servico.id },
+        update: {},
+        create: { servicoId: servico.id },
+      });
+    } catch (e) {
+      console.error("[servicos/aceitar] erro garantindo chatRoom:", e);
+    }
 
     await registrarEvento(servico.id, servico.status as ServicoStatus, "ACEITO", auth.role as UserRole, auth.userId);
 

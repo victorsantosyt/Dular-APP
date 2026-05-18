@@ -198,9 +198,17 @@ export default function MontadorSolicitacoes() {
     try {
       setActionLoading(servicoId);
       await aceitarSolicitacaoMontador(servicoId);
+      // Espera o refetch concluir ANTES de trocar a aba para evitar
+      // que o cartão fique stale exibindo o botão "Aceitar" novamente.
+      await reload();
       setTab("aceitas");
-      reload();
-    } catch {
+    } catch (err: any) {
+      // 409 = serviço já aceito por outro fluxo. Sincroniza estado e segue.
+      if (err?.response?.status === 409) {
+        await reload();
+        setTab("aceitas");
+        return;
+      }
       Alert.alert("Erro", "Não foi possível aceitar a solicitação.");
     } finally {
       setActionLoading(null);

@@ -7,6 +7,7 @@ import { requireAuth } from "@/lib/requireAuth";
 import { parseMultipart } from "@/lib/parseMultipart";
 import { makeKey, putObject } from "@/lib/s3Objects";
 import { autoVerificarDiaristaSePossivel } from "@/lib/autoVerificacao";
+import { getGuardianStatusForUser } from "@/lib/safeScoreGuardian";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -37,20 +38,42 @@ async function uploadDoc(file: formidable.File, prefix: string) {
 export async function POST(req: Request) {
   try {
     const auth = requireAuth(req);
-    if (auth.role !== "DIARISTA") {
-      return NextResponse.json({ ok: false, error: "Apenas diaristas podem enviar documentos." }, { status: 403 });
+    // T-18.5: endpoint agora aceita EMPREGADOR, DIARISTA e MONTADOR. Cada
+    // papel grava em local diferente:
+    //  - DIARISTA: DiaristaProfile.verificacao + docUrl (fluxo legado)
+    //  - EMPREGADOR: apenas DocumentVerification (sem campo no perfil)
+    //  - MONTADOR: apenas DocumentVerification (campos do MontadorPerfil são
+    //    populados por outro fluxo de upload — fora do escopo aqui)
+    if (auth.role !== "DIARISTA" && auth.role !== "EMPREGADOR" && auth.role !== "MONTADOR") {
+      return NextResponse.json({ ok: false, error: "Papel não suportado." }, { status: 403 });
     }
 
-    const profile = await prisma.diaristaProfile.findUnique({
-      where: { userId: auth.userId },
-      select: { verificacao: true, docUrl: true },
-    });
+    if (auth.role === "DIARISTA") {
+      const profile = await prisma.diaristaProfile.findUnique({
+        where: { userId: auth.userId },
+        select: { verificacao: true, docUrl: true },
+      });
 
-    if (profile?.verificacao === "VERIFICADO") {
-      return NextResponse.json({ ok: false, error: "Verificação já aprovada." }, { status: 409 });
-    }
-    if (profile?.verificacao === "PENDENTE" && profile.docUrl) {
-      return NextResponse.json({ ok: false, error: "Verificação já está pendente." }, { status: 409 });
+      if (profile?.verificacao === "VERIFICADO") {
+        return NextResponse.json({ ok: false, error: "Verificação já aprovada." }, { status: 409 });
+      }
+      if (profile?.verificacao === "PENDENTE" && profile.docUrl) {
+        return NextResponse.json({ ok: false, error: "Verificação já está pendente." }, { status: 409 });
+      }
+    } else {
+      // EMPREGADOR/MONTADOR: bloquear reenvio quando já existe uma submissão
+      // PENDING ou APPROVED ativa em DocumentVerification.
+      const ultimo = await prisma.documentVerification.findFirst({
+        where: { userId: auth.userId },
+        orderBy: { updatedAt: "desc" },
+        select: { status: true, docUrl: true },
+      });
+      if (ultimo?.status === "APPROVED") {
+        return NextResponse.json({ ok: false, error: "Verificação já aprovada." }, { status: 409 });
+      }
+      if (ultimo?.status === "PENDING" && ultimo.docUrl) {
+        return NextResponse.json({ ok: false, error: "Verificação já está pendente." }, { status: 409 });
+      }
     }
 
     const { files } = await parseMultipart(req, { maxFileSize: MAX_FILE_SIZE, maxFiles: 2 });
@@ -72,48 +95,70 @@ export async function POST(req: Request) {
       uploadedAt: new Date().toISOString(),
     });
 
-    const updated = await prisma.diaristaProfile.upsert({
-      where: { userId: auth.userId },
-      update: {
-        verificacao: "PENDENTE",
-        docUrl,
-      },
-      create: {
-        userId: auth.userId,
-        precoLeve: 0,
-        precoPesada: 0,
-        verificacao: "PENDENTE",
-        docUrl,
-      },
-      select: { verificacao: true, updatedAt: true },
-    });
+    const docType =
+      auth.role === "DIARISTA"
+        ? "KYC_DOCS"
+        : auth.role === "EMPREGADOR"
+          ? "EMPREGADOR_KYC"
+          : "MONTADOR_KYC";
+
+    let updatedAt: Date = new Date();
+    if (auth.role === "DIARISTA") {
+      const updated = await prisma.diaristaProfile.upsert({
+        where: { userId: auth.userId },
+        update: {
+          verificacao: "PENDENTE",
+          docUrl,
+        },
+        create: {
+          userId: auth.userId,
+          precoLeve: 0,
+          precoPesada: 0,
+          verificacao: "PENDENTE",
+          docUrl,
+        },
+        select: { updatedAt: true },
+      });
+      updatedAt = updated.updatedAt;
+    }
 
     await prisma.documentVerification
       .create({
         data: {
           userId: auth.userId,
-          docType: "KYC_DOCS",
+          docType,
           docUrl,
           reviewNote: `Submetido em ${new Date().toISOString()}`,
         },
       })
       .catch(() => null);
 
-    // Auto-verificação lateral (silenciosa). Após upload de doc, o critério
-    // de "docs enviados" passou; se o perfil estiver completo, promove.
+    // Auto-verificação lateral (silenciosa). Só roda para DIARISTA — o
+    // helper de empregador/montador (auto-aprovação por upload) não existe
+    // por design: empregador/montador dependem de aprovação humana via
+    // /api/admin/verificacoes/approve (T-18.6). Mesmo o caminho do diarista
+    // só promove quando AUTO_VERIFY_PROFILES=true (QA/E2E).
     let statusFinal: "PENDENTE" | "VERIFICADO" | "REPROVADO" = "PENDENTE";
-    try {
-      statusFinal = await autoVerificarDiaristaSePossivel(auth.userId);
-    } catch {
-      statusFinal = "PENDENTE";
+    if (auth.role === "DIARISTA") {
+      try {
+        statusFinal = await autoVerificarDiaristaSePossivel(auth.userId);
+      } catch {
+        statusFinal = "PENDENTE";
+      }
     }
+
+    // T-18.6: após persistir, recalcula o Guardian para devolver o estado
+    // composto (verificação + restrições + score + completude) ao mobile.
+    // O mobile usa esse retorno para mostrar exatamente o motivo do bloqueio.
+    const guardian = await getGuardianStatusForUser(auth.userId).catch(() => null);
 
     return NextResponse.json({
       ok: true,
       verificacao: {
         status: statusFinal,
-        updatedAt: updated.updatedAt,
+        updatedAt,
       },
+      guardian,
     });
   } catch (e: any) {
     if (e?.message === "Unauthorized") {

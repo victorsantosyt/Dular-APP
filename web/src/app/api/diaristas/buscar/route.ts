@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
   isDiaristaProfileCompleteForServico,
   getDiaristaProfileCompleteness,
   type ServicoOferecido,
 } from "@/lib/diaristaProfile";
+import { getGuardianStatusForUser } from "@/lib/safeScoreGuardian";
 
 function parseServico(value: string | null): ServicoOferecido | null {
   if (value === "DIARISTA" || value === "BABA" || value === "COZINHEIRA") return value;
@@ -95,6 +97,21 @@ export async function GET(req: Request) {
     const ufNorm = normalize(uf);
     const bairroNorm = normalize(bairro);
 
+    // T-18.6: filtro adicional do Guardian — excluir profissionais com
+    // restrições ativas (SHADOW_BAN, SUSPEND, BLOCK) e que ainda não
+    // expiraram. LIMIT_BOOKINGS não bloqueia visibilidade (afeta criação
+    // do empregador, não a busca do profissional). Espelha a regra de
+    // `canAppearInSearch` em safeScoreGuardian.ts.
+    // Sem `as const`: Prisma exige `UserRestrictionType[]` mutável, e o
+    // `as const` quebrava a inferência de tipo do `findMany` inteiro.
+    const restrictionFilter: Prisma.UserRestrictionListRelationFilter = {
+      none: {
+        type: { in: ["SHADOW_BAN", "SUSPEND", "BLOCK"] },
+        revokedAt: null,
+        OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+      },
+    };
+
     // Query mínima no banco: filtramos `ativo`, `verificado`, nicho e
     // `user.status`/`tipo` via Prisma. A comparação de cidade/UF/bairro é
     // feita em memória para usar normalização (case + acentos + sufixos
@@ -107,6 +124,7 @@ export async function GET(req: Request) {
         user: {
           is: {
             status: "ATIVO",
+            restrictions: restrictionFilter,
             ...(tipo
               ? {
                   habilidades: {
@@ -247,8 +265,41 @@ export async function GET(req: Request) {
       });
     }
 
+    // T-18.6B: gate final do Guardian. Os filtros anteriores (verificacao,
+    // restrições, localização, completude) já encolheram o conjunto; aqui
+    // rodamos getGuardianStatusForUser para cada candidato e descartamos
+    // quem não tiver `canAppearInSearch === true` (cobre SafeScore < 400 e
+    // qualquer outra regra futura). Paralelo via Promise.all; o `take: 300`
+    // do DB + filtros locais mantêm o N controlado.
+    const guardianResults = await Promise.all(
+      diaristas.map(async (p) => ({
+        diarista: p,
+        guardian: await getGuardianStatusForUser(p.userId).catch(() => null),
+      })),
+    );
+    const liberadas = guardianResults.filter(
+      (r) => r.guardian?.canAppearInSearch === true,
+    );
+
+    if (isDev) {
+      const blocked = guardianResults.filter(
+        (r) => r.guardian?.canAppearInSearch !== true,
+      );
+      blocked.forEach((r) => {
+        console.log(
+          `[guardian/search] rejeitado userId=${r.diarista.userId} motivos=${(r.guardian?.motivos ?? ["guardian_indisponivel"]).join(",")}`,
+        );
+      });
+      console.log(
+        `[diaristas/buscar] totalGuardianOk: ${liberadas.length} / ${guardianResults.length}`,
+      );
+    }
+
     // Mantém shape compatível com o cliente atual (apenas reduz array).
-    return NextResponse.json({ ok: true, diaristas });
+    return NextResponse.json({
+      ok: true,
+      diaristas: liberadas.map((r) => r.diarista),
+    });
   } catch (error) {
     console.error(error);
     return NextResponse.json({ error: "Erro interno" }, { status: 500 });

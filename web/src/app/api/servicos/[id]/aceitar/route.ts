@@ -5,6 +5,15 @@ import { assertRole } from "@/lib/regrasServico";
 import { ServicoStatus, UserRole } from "@prisma/client";
 import { registrarEvento } from "@/lib/servicoEvento";
 import { criarNotificacao } from "@/lib/notifications";
+import {
+  VerificacaoObrigatoriaError,
+  verificacaoErrorResponseBody,
+} from "@/lib/profileVerification";
+import {
+  assertGuardianProfessionalCanAcceptServico,
+  GuardianBlockedError,
+  guardianErrorResponseBody,
+} from "@/lib/safeScoreGuardian";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -14,6 +23,12 @@ export async function POST(req: Request, { params }: Params) {
   try {
     const auth = requireAuth(req);
     assertRole(auth.role as UserRole, ["DIARISTA", "MONTADOR"]);
+
+    // T-18.6: gate via SafeScore Guardian (verificação + restrições + score).
+    await assertGuardianProfessionalCanAcceptServico(
+      auth.userId,
+      auth.role as "DIARISTA" | "MONTADOR",
+    );
 
     const { id } = await params;
     const body = await req.json().catch(() => ({}));
@@ -83,6 +98,16 @@ export async function POST(req: Request, { params }: Params) {
 
     return NextResponse.json({ ok: true, servico: updated });
   } catch (error: unknown) {
+    if (error instanceof GuardianBlockedError) {
+      return NextResponse.json(guardianErrorResponseBody(error), {
+        status: error.httpStatus,
+      });
+    }
+    if (error instanceof VerificacaoObrigatoriaError) {
+      return NextResponse.json(verificacaoErrorResponseBody(error), {
+        status: error.httpStatus,
+      });
+    }
     const msg = error instanceof Error ? error.message : "Erro";
     const code = msg === "FORBIDDEN" ? 403 : msg === "INVALID_STATUS" ? 409 : 500;
     if (msg === "Unauthorized") {

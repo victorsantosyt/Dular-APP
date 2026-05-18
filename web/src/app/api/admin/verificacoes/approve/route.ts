@@ -33,15 +33,38 @@ export async function POST(req: Request) {
     return fail("bad_request", "Informe um motivo.", 400);
   }
 
-  await prisma.diaristaProfile.update({
-    where: { userId: id },
-    data: { verificacao: "VERIFICADO" },
+  // T-18.6: aprovação real precisa sincronizar TODOS os campos por role.
+  // - DIARISTA  → DiaristaProfile.verificacao = VERIFICADO
+  // - MONTADOR  → MontadorPerfil.verificado   = true
+  // - EMPREGADOR→ só DocumentVerification (sem campo no perfil; é o que
+  //               getEmpregadorVerificationStatus já consome)
+  // Em todos os casos a tabela DocumentVerification recebe um registro
+  // APPROVED como log de auditoria e KYC_APROVADO é disparado no
+  // SafeScore (que recalcula tier e propaga em SafeScoreProfile).
+  const target = await prisma.user.findUnique({
+    where: { id },
+    select: { id: true, role: true },
   });
+  if (!target) {
+    return fail("not_found", "Usuário não encontrado.", 404);
+  }
+
+  if (target.role === "DIARISTA") {
+    await prisma.diaristaProfile.update({
+      where: { userId: id },
+      data: { verificacao: "VERIFICADO" },
+    });
+  } else if (target.role === "MONTADOR") {
+    await prisma.montadorPerfil.update({
+      where: { userId: id },
+      data: { verificado: true },
+    });
+  }
 
   await prisma.documentVerification.create({
     data: {
       userId: id,
-      docType: "KYC_REVIEW",
+      docType: `${target.role ?? "KYC"}_REVIEW`,
       docUrl: "",
       status: "APPROVED",
       reviewedBy: auth.userId,

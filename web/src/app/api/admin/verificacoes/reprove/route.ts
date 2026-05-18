@@ -33,15 +33,33 @@ export async function POST(req: Request) {
     return fail("bad_request", "Informe um motivo.", 400);
   }
 
-  await prisma.diaristaProfile.update({
-    where: { userId: id },
-    data: { verificacao: "REPROVADO" },
+  // T-18.6: reprovação simétrica à aprovação. Sincroniza por role.
+  const target = await prisma.user.findUnique({
+    where: { id },
+    select: { id: true, role: true },
   });
+  if (!target) {
+    return fail("not_found", "Usuário não encontrado.", 404);
+  }
+
+  if (target.role === "DIARISTA") {
+    await prisma.diaristaProfile.update({
+      where: { userId: id },
+      data: { verificacao: "REPROVADO" },
+    });
+  } else if (target.role === "MONTADOR") {
+    // Montador volta a verificado=false (negação da aprovação anterior).
+    // O motivo fica preservado no DocumentVerification (REJECTED).
+    await prisma.montadorPerfil.update({
+      where: { userId: id },
+      data: { verificado: false },
+    });
+  }
 
   await prisma.documentVerification.create({
     data: {
       userId: id,
-      docType: "KYC_REVIEW",
+      docType: `${target.role ?? "KYC"}_REVIEW`,
       docUrl: "",
       status: "REJECTED",
       reviewedBy: auth.userId,

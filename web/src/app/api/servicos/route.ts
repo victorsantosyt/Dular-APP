@@ -10,6 +10,16 @@ import {
   nichoFromTipo,
   nichoFromCategoria,
 } from "@/lib/diaristaProfile";
+import {
+  VerificacaoObrigatoriaError,
+  verificacaoErrorResponseBody,
+} from "@/lib/profileVerification";
+import {
+  assertGuardianCanCreateServico,
+  assertGuardianProfessionalCanReceiveServico,
+  GuardianBlockedError,
+  guardianErrorResponseBody,
+} from "@/lib/safeScoreGuardian";
 
 export const dynamic = "force-dynamic";
 
@@ -81,6 +91,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: "Apenas empregador pode solicitar." }, { status: 403 });
     }
 
+    // T-18.6: gate via SafeScore Guardian. Compõe verificação documental,
+    // restrições ativas, score/tier e role. Substitui o gate isolado de
+    // T-18.5 (que só olhava DocumentVerification do empregador).
+    await assertGuardianCanCreateServico(auth.userId);
+
     const body = await req.json();
     const parsed = criarServicoSchema.safeParse(body);
     if (!parsed.success) {
@@ -141,6 +156,10 @@ export async function POST(req: Request) {
       if (!userMontador || userMontador.role !== "MONTADOR" || userMontador.status !== "ATIVO") {
         return NextResponse.json({ ok: false, error: "Montador inválido." }, { status: 400 });
       }
+
+      // T-18.6: gate via SafeScore Guardian. Aplica verificação +
+      // restrições + score; mantém alinhamento com /api/montadores/buscar.
+      await assertGuardianProfessionalCanReceiveServico(profissionalId, "MONTADOR");
 
       const montadorPerfil = await prisma.montadorPerfil.findUnique({
         where: { userId: profissionalId },
@@ -256,6 +275,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: "Diarista inválido." }, { status: 400 });
     }
 
+    // T-18.6: gate via SafeScore Guardian. Mesma regra de
+    // /api/diaristas/buscar + restrições/score.
+    await assertGuardianProfessionalCanReceiveServico(diaristaUserId, "DIARISTA");
+
     const prof = await prisma.diaristaProfile.findUnique({
       where: { userId: diaristaUserId },
       include: {
@@ -266,7 +289,7 @@ export async function POST(req: Request) {
         },
       },
     });
-    if (!prof || prof.verificacao !== "VERIFICADO") {
+    if (!prof) {
       return NextResponse.json({ ok: false, error: "Diarista não verificado." }, { status: 400 });
     }
 
@@ -436,6 +459,16 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ ok: true, servicoId: servico.id });
   } catch (error: unknown) {
+    if (error instanceof GuardianBlockedError) {
+      return NextResponse.json(guardianErrorResponseBody(error), {
+        status: error.httpStatus,
+      });
+    }
+    if (error instanceof VerificacaoObrigatoriaError) {
+      return NextResponse.json(verificacaoErrorResponseBody(error), {
+        status: error.httpStatus,
+      });
+    }
     if (error instanceof Error && error.message === "Unauthorized") {
       return NextResponse.json({ ok: false, error: "Não autorizado" }, { status: 401 });
     }

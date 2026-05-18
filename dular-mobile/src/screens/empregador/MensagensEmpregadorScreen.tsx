@@ -63,10 +63,13 @@ export function MensagensEmpregadorScreen() {
   const [activeTab, setActiveTab] = useState<MessagesTab>("conversas");
   const { rooms, loading, error, refetch } = useMensagens();
 
-  const visibleConversations = useMemo(
-    () => (activeTab === "conversas" ? rooms.map(roomToConversation) : []),
-    [activeTab, rooms],
-  );
+  const visibleConversations = useMemo(() => {
+    const filtered =
+      activeTab === "arquivadas"
+        ? rooms.filter((r) => r.arquivada)
+        : rooms.filter((r) => !r.arquivada);
+    return filtered.map(roomToConversation);
+  }, [activeTab, rooms]);
 
   const openChat = useCallback(
     (item: ConversationItem) => {
@@ -107,20 +110,22 @@ export function MensagensEmpregadorScreen() {
             </View>
           </DCard>
 
-          {activeTab === "arquivadas" ? (
-            <EmptyArchiveState />
-          ) : loading ? (
+          {loading ? (
             <DLoadingState text="Carregando conversas" color={colors.primary} />
           ) : error ? (
             <DErrorState message={error} onRetry={refetch} />
           ) : visibleConversations.length === 0 ? (
-            <DEmptyState
-              icon="MessageCircle"
-              title="Nenhuma conversa ainda"
-              subtitle="As conversas dos seus serviços confirmados aparecerão aqui."
-              accentColor={colors.primary}
-              softBg={colors.lavenderSoft}
-            />
+            activeTab === "arquivadas" ? (
+              <EmptyArchiveState />
+            ) : (
+              <DEmptyState
+                icon="MessageCircle"
+                title="Nenhuma conversa ainda"
+                subtitle="As conversas dos seus serviços confirmados aparecerão aqui."
+                accentColor={colors.primary}
+                softBg={colors.lavenderSoft}
+              />
+            )
           ) : (
             <View style={s.list}>
               {visibleConversations.map((item) => (

@@ -13,6 +13,8 @@ export interface Mensagem {
 
 export interface UseChatReturn {
   mensagens: Mensagem[];
+  /** Status do serviço associado a essa sala. Usado para bloquear envio quando arquivado. */
+  servicoStatus: string | null;
   loading: boolean;
   error: string | null;
   enviar: (texto: string) => Promise<void>;
@@ -65,6 +67,7 @@ function extractMessages(data: unknown): RawMessage[] {
 export function useChat(roomId: string): UseChatReturn {
   const userId = useAuth((state) => state.user?.id) ?? "";
   const [mensagens, setMensagens] = useState<Mensagem[]>([]);
+  const [servicoStatus, setServicoStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const isFirstFetch = useRef(true);
@@ -92,8 +95,11 @@ export function useChat(roomId: string): UseChatReturn {
       const sorted = rawList
         .map(normalize)
         .sort((a, b) => new Date(a.criadaEm).getTime() - new Date(b.criadaEm).getTime());
+      // Backend retorna `{ room: { servico: { status, ... } }, messages: [...] }`
+      const status: string | null = res.data?.room?.servico?.status ?? null;
       if (mountedRef.current) {
         setMensagens(sorted);
+        setServicoStatus(status);
         setError(null);
       }
     } catch (err) {
@@ -162,5 +168,5 @@ export function useChat(roomId: string): UseChatReturn {
     [roomId, userId],
   );
 
-  return { mensagens, loading, error, enviar, refetch };
+  return { mensagens, servicoStatus, loading, error, enviar, refetch };
 }

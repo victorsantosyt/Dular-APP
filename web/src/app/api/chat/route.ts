@@ -26,7 +26,17 @@ export async function GET(req: Request) {
             { montadorId: auth.userId },
           ],
           status: {
-            in: ["ACEITO", "EM_ANDAMENTO", "CONCLUIDO", "CONFIRMADO", "FINALIZADO"],
+            // ACEITO, EM_ANDAMENTO, AGUARDANDO_FINALIZACAO → chat ativo
+            // CONCLUIDO, CONFIRMADO, FINALIZADO            → chat arquivado (somente leitura)
+            // CANCELADO, RECUSADO, RASCUNHO, SOLICITADO    → não aparece
+            in: [
+              "ACEITO",
+              "EM_ANDAMENTO",
+              "AGUARDANDO_FINALIZACAO",
+              "CONCLUIDO",
+              "CONFIRMADO",
+              "FINALIZADO",
+            ],
           },
         },
       },
@@ -56,6 +66,11 @@ export async function GET(req: Request) {
       },
     });
 
+    // Status terminais = chat arquivado (somente leitura). Quando ambos os
+    // lados confirmam a finalização, o status vai para CONCLUIDO e o chat
+    // some da aba "Conversas" e aparece em "Arquivadas".
+    const ARQUIVADOS = new Set(["CONCLUIDO", "CONFIRMADO", "FINALIZADO"]);
+
     const payload = rooms.map((r) => {
       const servico = r.servico;
       const profissionalUserId = servico.montadorId ?? servico.diaristaId;
@@ -69,6 +84,7 @@ export async function GET(req: Request) {
         id: r.id,
         servicoId: r.servicoId,
         createdAt: r.createdAt,
+        arquivada: ARQUIVADOS.has(servico.status),
         outroUsuario: outroUsuario
           ? {
               id: outroUsuario.id,

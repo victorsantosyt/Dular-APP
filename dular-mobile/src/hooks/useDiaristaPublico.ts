@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
+import { fetchUserScore } from "@/api/sharedFetcher";
 import type { ServicoOferecido } from "@/types/diarista";
 import { calcularCompletudeDiarista } from "@/api/diaristaApi";
 
@@ -122,8 +123,8 @@ export function useDiaristaPublico(diaristaId: string): UseDiaristaPublicoReturn
       setError(null);
 
       try {
-        const [scoreRes, trustRes, perfilRes] = await Promise.all([
-          api.get<ScoreResponse>(`/api/usuarios/${diaristaId}/score`),
+        const [scoreData, trustRes, perfilRes] = await Promise.all([
+          fetchUserScore(diaristaId) as Promise<ScoreResponse>,
           api.get<TrustSignalsResponse>(`/api/usuarios/${diaristaId}/trust-signals`),
           api
             .get<DiaristaPerfilResponse>(`/api/diaristas/${diaristaId}`)
@@ -132,7 +133,7 @@ export function useDiaristaPublico(diaristaId: string): UseDiaristaPublicoReturn
 
         if (cancelled) return;
 
-        const score = scoreRes.data;
+        const score = scoreData;
         const trust = trustRes.data;
         const perfil = perfilRes.data?.diarista;
 

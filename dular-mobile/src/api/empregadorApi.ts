@@ -52,7 +52,9 @@ export async function cancelarServicoEmpregador(
 }
 
 export async function confirmarFinalizacaoEmpregador(servicoId: string) {
-  const res = await api.post(`/api/servicos/${servicoId}/confirmar`);
+  // Endpoint T-14: dupla confirmação (EM_ANDAMENTO → AGUARDANDO_FINALIZACAO → CONCLUIDO).
+  // Não usar /confirmar (legado, CONCLUIDO → CONFIRMADO usado só no caminho de avaliação).
+  const res = await api.post(`/api/servicos/${servicoId}/confirmar-finalizacao`);
   return res.data;
 }
 

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import { AppIcon } from "@/components/ui";
@@ -131,6 +131,7 @@ function mapServicoToAgendamento(servico: ServicoEmpregador): AgendamentoItem {
 
 export function AgendamentosEmpregadorScreen() {
   const navigation = useNavigation<Navigation>();
+  const insets = useSafeAreaInsets();
   const [categoriaAtiva, setCategoriaAtiva] = useState<CategoriaFiltro>("todas");
   const [statusAtivo, setStatusAtivo] = useState<StatusFiltro>("todas");
   const [agendamentos, setAgendamentos] = useState<AgendamentoItem[]>([]);
@@ -173,13 +174,15 @@ export function AgendamentosEmpregadorScreen() {
       }),
     [agendamentos, categoriaAtiva, statusAtivo],
   );
+  const tabBarBottomMargin = Math.max(insets.bottom - 24, 8);
+  const bannerBottom = tabBarBottomMargin + 86;
 
   return (
     <SafeAreaView style={s.safe} edges={["top", "left", "right"]}>
       <View style={s.root}>
         <ScrollView
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={s.scroll}
+          contentContainerStyle={[s.scroll, { paddingBottom: bannerBottom + 96 }]}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load("refresh")} />}
         >
           <View style={s.header}>
@@ -252,10 +255,12 @@ export function AgendamentosEmpregadorScreen() {
             )}
           </View>
 
+        </ScrollView>
+        <View pointerEvents="box-none" style={[s.bannerDock, { bottom: bannerBottom }]}>
           <BottomInfoBanner
             onPress={() => Alert.alert("Histórico", "Histórico completo em breve.")}
           />
-        </ScrollView>
+        </View>
       </View>
     </SafeAreaView>
   );
@@ -274,8 +279,14 @@ const s = StyleSheet.create({
   scroll: {
     paddingHorizontal: spacing.screenPadding,
     paddingTop: 10,
-    paddingBottom: 40,
     gap: 9,
+  },
+  bannerDock: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    alignItems: "center",
+    paddingHorizontal: spacing.screenPadding,
   },
   header: {
     minHeight: 52,

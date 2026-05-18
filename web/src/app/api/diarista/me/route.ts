@@ -6,6 +6,7 @@ import {
   getDiaristaProfileCompleteness,
   SERVICOS_OFERECIDOS_VALIDOS,
 } from "@/lib/diaristaProfile";
+import { autoVerificarDiaristaSePossivel } from "@/lib/autoVerificacao";
 
 export const dynamic = "force-dynamic";
 
@@ -317,6 +318,17 @@ export async function PATCH(req: Request) {
         select: { servicosOferecidos: true },
       });
       if (isDev) console.log(`[diarista/me PATCH] update (fast): ${Date.now() - tUpdate}ms`);
+
+      // Auto-verificação lateral (silenciosa). Não derruba a request.
+      try {
+        await autoVerificarDiaristaSePossivel(auth.userId);
+      } catch (err) {
+        if (isDev) {
+          const msg = err instanceof Error ? err.message : "unknown";
+          console.log(`[diarista/me PATCH] auto-verif (fast) falhou: ${msg}`);
+        }
+      }
+
       if (isDev) console.log(`[diarista/me PATCH] TOTAL: ${Date.now() - t0}ms`);
       return NextResponse.json({ ok: true, servicosOferecidos: updated.servicosOferecidos });
     }
@@ -345,8 +357,23 @@ export async function PATCH(req: Request) {
     });
     if (isDev) console.log(`[diarista/me PATCH] update: ${Date.now() - tUpdate}ms`);
 
+    // Auto-verificação lateral (silenciosa). Não derruba a request.
+    // Reflete a verificacao atualizada no response se promoveu.
+    let verificacaoFinal: typeof profile.verificacao = profile.verificacao;
+    try {
+      verificacaoFinal = await autoVerificarDiaristaSePossivel(auth.userId);
+    } catch (err) {
+      if (isDev) {
+        const msg = err instanceof Error ? err.message : "unknown";
+        console.log(`[diarista/me PATCH] auto-verif falhou: ${msg}`);
+      }
+    }
+
     if (isDev) console.log(`[diarista/me PATCH] TOTAL: ${Date.now() - t0}ms`);
-    return NextResponse.json({ ok: true, profile });
+    return NextResponse.json({
+      ok: true,
+      profile: { ...profile, verificacao: verificacaoFinal },
+    });
   } catch (error: unknown) {
     if (isDev) {
       const msg = error instanceof Error ? error.message : "unknown";

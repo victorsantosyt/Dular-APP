@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/requireAuth";
 import { updateBairrosSchema } from "@/lib/schemas/diarista";
+import { autoVerificarDiaristaSePossivel } from "@/lib/autoVerificacao";
 
 async function handle(req: Request) {
   try {
@@ -52,6 +53,13 @@ async function handle(req: Request) {
       where: { id: profile.id },
       include: { bairros: { include: { bairro: true } } },
     });
+
+    // Auto-verificação lateral (silenciosa). Não derruba a request.
+    try {
+      await autoVerificarDiaristaSePossivel(auth.userId);
+    } catch {
+      // intencionalmente silencioso
+    }
 
     return NextResponse.json({ ok: true, bairros: updated?.bairros ?? [] });
   } catch (error: unknown) {

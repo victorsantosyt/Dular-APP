@@ -1,78 +1,123 @@
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/requireAuth";
 import { rateLimit, cleanupRateLimit } from "@/lib/rateLimit";
 import { getRequestIp } from "@/lib/requestIp";
-import { fail, ok } from "@/lib/apiResponse";
 import { aplicarEvento } from "@/lib/safeScore";
+import { ensureUserRoleProfile } from "@/lib/userProfiles";
+import { getGuardianStatusForUser } from "@/lib/safeScoreGuardian";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+async function readPayload(req: Request) {
+  const contentType = req.headers.get("content-type") ?? "";
+  if (contentType.includes("application/json")) {
+    const body = await req.json().catch(() => ({}));
+    return {
+      id: typeof body.verificationId === "string" ? body.verificationId : typeof body.id === "string" ? body.id : "",
+      motivo: typeof body.motivo === "string" ? body.motivo : "",
+    };
+  }
+
+  const data = await req.formData().catch(() => null);
+  return {
+    id: (data?.get("verificationId") as string | null) ?? (data?.get("id") as string | null) ?? "",
+    motivo: (data?.get("motivo") as string | null) ?? "",
+  };
+}
+
+function adminGate(req: Request) {
+  try {
+    const auth = requireAuth(req);
+    if (auth.role !== "ADMIN") {
+      return { error: NextResponse.json({ ok: false, error: "Acesso negado." }, { status: 403 }) };
+    }
+    return { auth };
+  } catch {
+    return { error: NextResponse.json({ ok: false, error: "Não autorizado." }, { status: 401 }) };
+  }
+}
 
 export async function POST(req: Request) {
   cleanupRateLimit();
   const ip = getRequestIp(req);
   const rl = rateLimit({ key: `admin:${ip}`, limit: 30, windowMs: 60_000 });
   if (!rl.ok) {
-    return fail(
-      "rate_limited",
-      "Muitas ações em pouco tempo. Aguarde e tente novamente.",
-      429,
-      { retryAfterMs: Math.max(0, rl.resetAt - Date.now()) }
+    return NextResponse.json(
+      { ok: false, error: "Muitas ações em pouco tempo. Aguarde e tente novamente.", retryAfterMs: Math.max(0, rl.resetAt - Date.now()) },
+      { status: 429 },
     );
   }
 
-  const auth = requireAuth(req);
-  if (auth.role !== "ADMIN") {
-    return fail("forbidden", "Acesso negado.", 403);
-  }
+  const gate = adminGate(req);
+  if (gate.error) return gate.error;
 
-  const data = await req.formData().catch(() => null);
-  const id = (data?.get("id") as string | null)?.trim();
-  const motivo = (data?.get("motivo") as string | null)?.trim();
+  const payload = await readPayload(req);
+  const id = payload.id.trim();
+  const motivo = payload.motivo.trim() || "Documentos aprovados.";
   if (!id) {
-    return fail("bad_request", "ID inválido", 400);
-  }
-  if (!motivo) {
-    return fail("bad_request", "Informe um motivo.", 400);
+    return NextResponse.json({ ok: false, error: "ID inválido." }, { status: 400 });
   }
 
-  // T-18.6: aprovação real precisa sincronizar TODOS os campos por role.
-  // - DIARISTA  → DiaristaProfile.verificacao = VERIFICADO
-  // - MONTADOR  → MontadorPerfil.verificado   = true
-  // - EMPREGADOR→ só DocumentVerification (sem campo no perfil; é o que
-  //               getEmpregadorVerificationStatus já consome)
-  // Em todos os casos a tabela DocumentVerification recebe um registro
-  // APPROVED como log de auditoria e KYC_APROVADO é disparado no
-  // SafeScore (que recalcula tier e propaga em SafeScoreProfile).
-  const target = await prisma.user.findUnique({
+  const existing = await prisma.documentVerification.findUnique({
     where: { id },
-    select: { id: true, role: true },
-  });
-  if (!target) {
-    return fail("not_found", "Usuário não encontrado.", 404);
-  }
-
-  if (target.role === "DIARISTA") {
-    await prisma.diaristaProfile.update({
-      where: { userId: id },
-      data: { verificacao: "VERIFICADO" },
-    });
-  } else if (target.role === "MONTADOR") {
-    await prisma.montadorPerfil.update({
-      where: { userId: id },
-      data: { verificado: true },
-    });
-  }
-
-  await prisma.documentVerification.create({
-    data: {
-      userId: id,
-      docType: `${target.role ?? "KYC"}_REVIEW`,
-      docUrl: "",
-      status: "APPROVED",
-      reviewedBy: auth.userId,
-      reviewNote: `KYC APROVADO por admin ${auth.userId} em ${new Date().toISOString()} — ${motivo}`,
+    select: {
+      id: true,
+      userId: true,
+      docType: true,
+      status: true,
+      user: { select: { id: true, role: true } },
     },
   });
 
-  await aplicarEvento(id, "KYC_APROVADO", id, motivo);
+  if (!existing) {
+    return NextResponse.json({ ok: false, error: "Verificação não encontrada." }, { status: 404 });
+  }
 
-  return ok();
+  if (existing.user.role !== "EMPREGADOR" && existing.user.role !== "DIARISTA" && existing.user.role !== "MONTADOR") {
+    return NextResponse.json({ ok: false, error: "Perfil não suportado para verificação documental." }, { status: 400 });
+  }
+
+  const verification = await prisma.$transaction(async (tx) => {
+    await ensureUserRoleProfile(tx, existing.userId, existing.user.role);
+
+    if (existing.user.role === "DIARISTA") {
+      await tx.diaristaProfile.update({
+        where: { userId: existing.userId },
+        data: { verificacao: "VERIFICADO" },
+      });
+    }
+
+    if (existing.user.role === "MONTADOR") {
+      await tx.montadorPerfil.update({
+        where: { userId: existing.userId },
+        data: { verificado: true },
+      });
+    }
+
+    return tx.documentVerification.update({
+      where: { id },
+      data: {
+        status: "APPROVED",
+        reviewedBy: gate.auth.userId,
+        reviewNote: `KYC APROVADO por admin ${gate.auth.userId} em ${new Date().toISOString()} - ${motivo}`,
+      },
+      select: {
+        id: true,
+        userId: true,
+        docType: true,
+        status: true,
+        reviewedBy: true,
+        reviewNote: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+  });
+
+  await aplicarEvento(existing.userId, "KYC_APROVADO", id, motivo);
+  const guardian = await getGuardianStatusForUser(existing.userId);
+
+  return NextResponse.json({ ok: true, verification, guardian });
 }

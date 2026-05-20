@@ -44,6 +44,9 @@ export default function VerificacaoDocs() {
   const [docEnviado, setDocEnviado] = useState(Boolean(currentUser?.docEnviado));
   const [toast, setToast] = useState<string | null>(null);
   const busyRef = useRef(false);
+  // T-18.7: garante que goBack/navigate só rode uma vez após sucesso,
+  // mesmo se o usuário tocar OK várias vezes durante a animação.
+  const closedRef = useRef(false);
   const locked = verificacao === "APROVADO" || (verificacao === "PENDENTE" && docEnviado);
   const saving = state === "enviando";
 
@@ -176,25 +179,41 @@ export default function VerificacaoDocs() {
         res?.data?.guardian?.canCreateServico ||
         res?.data?.guardian?.canAppearInSearch;
 
+      // T-18.7: após sucesso, fechar a tela. Só dispara no caminho 200.
+      // Em erro, o catch abaixo mostra o toast e a tela permanece.
+      // closeOnce evita navegações duplicadas se o usuário tocar várias
+      // vezes em OK enquanto a animação ocorre.
+      const goBackToPerfil = () => {
+        if (closedRef.current) return;
+        closedRef.current = true;
+        if (nav.canGoBack()) {
+          nav.goBack();
+          return;
+        }
+        const fallback =
+          currentUser?.role === "MONTADOR" ? "MontadorPerfil" : "Perfil";
+        nav.navigate(fallback as never);
+      };
+
+      let alertTitle: string;
+      let alertBody: string;
       if (nextStatus === "APROVADO" && guardianRoleOk) {
         // Caminho exclusivo de QA/E2E: AUTO_VERIFY_PROFILES=true promoveu
         // de fato a verificação e o Guardian liberou as permissões.
         if (currentUser?.role === "EMPREGADOR") {
-          Alert.alert("Verificação aprovada", "Você já pode solicitar serviços.");
+          alertTitle = "Verificação aprovada";
+          alertBody = "Documentos aprovados.";
         } else {
-          Alert.alert(
-            "Perfil visível",
-            "Seu perfil está verificado e aparece na busca para empregadores.",
-          );
+          alertTitle = "Perfil visível";
+          alertBody = "Documentos aprovados.";
         }
       } else {
-        Alert.alert(
-          "Documentos enviados para análise",
-          currentUser?.role === "EMPREGADOR"
-            ? "Você poderá solicitar serviços após a aprovação dos documentos."
-            : "Seu perfil só ficará visível para empregadores após a aprovação dos documentos.",
-        );
+        alertTitle = "Documentos enviados para análise";
+        alertBody = "Documentos enviados. Análise pendente.";
       }
+      Alert.alert(alertTitle, alertBody, [
+        { text: "OK", onPress: goBackToPerfil },
+      ]);
     } catch (e: any) {
       setState("erro");
       setToast(apiMsg(e, "Falha ao enviar documentos."));

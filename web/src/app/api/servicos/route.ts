@@ -20,6 +20,7 @@ import {
   GuardianBlockedError,
   guardianErrorResponseBody,
 } from "@/lib/safeScoreGuardian";
+import { checkFeatureAccess } from "@/lib/featureGate";
 
 export const dynamic = "force-dynamic";
 
@@ -95,6 +96,24 @@ export async function POST(req: Request) {
     // restrições ativas, score/tier e role. Substitui o gate isolado de
     // T-18.5 (que só olhava DocumentVerification do empregador).
     await assertGuardianCanCreateServico(auth.userId);
+
+    const solicitacoesAccess = await checkFeatureAccess(auth.userId, "SOLICITACOES_MES");
+    if (!solicitacoesAccess.allowed) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "LIMIT_EXCEEDED",
+          message: "Você atingiu o limite de solicitações do seu plano atual.",
+          feature: "SOLICITACOES_MES",
+          plan: solicitacoesAccess.plan,
+          usage: {
+            used: solicitacoesAccess.used,
+            limit: solicitacoesAccess.limit,
+          },
+        },
+        { status: 403 },
+      );
+    }
 
     const body = await req.json();
     const parsed = criarServicoSchema.safeParse(body);

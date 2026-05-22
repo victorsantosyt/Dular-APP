@@ -4,8 +4,10 @@ import path from "node:path";
 import type formidable from "formidable";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/requireAuth";
+import { isServiceParticipant } from "@/lib/requireAuth";
 import { parseMultipart } from "@/lib/parseMultipart";
 import { makeKey, putObject } from "@/lib/s3Objects";
+import { z } from "zod";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,8 +15,8 @@ export const dynamic = "force-dynamic";
 const ALLOWED_MIME = new Set(["image/jpeg", "image/png"]);
 const MAX_FILES = 3;
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
-const INCIDENT_TYPES = ["ASSEDIO", "IMPORTUNACAO", "VIOLENCIA", "AMEACA", "OUTRO"];
-const SEVERITIES = ["BAIXA", "MEDIA", "ALTA"];
+const INCIDENT_TYPES = ["ASSEDIO", "IMPORTUNACAO", "VIOLENCIA", "AMEACA", "OUTRO"] as const;
+const SEVERITIES = ["BAIXA", "MEDIA", "ALTA"] as const;
 const CATEGORIAS = [
   "AGRESSAO_VERBAL",
   "AGRESSAO_FISICA",
@@ -28,8 +30,38 @@ const CATEGORIAS = [
   "VIOLACAO_PRIVACIDADE",
   "NO_SHOW",
   "OUTRO",
-];
-const GRAVIDADES = ["BAIXA", "MEDIA", "ALTA", "CRITICA"];
+] as const;
+const GRAVIDADES = ["BAIXA", "MEDIA", "ALTA", "CRITICA"] as const;
+
+const incidentSchema = z
+  .object({
+    reportedUserId: z.string().trim().min(1).optional(),
+    serviceId: z.string().trim().min(1).optional(),
+    categoria: z.enum(CATEGORIAS).default("OUTRO"),
+    subtipo: z.string().trim().min(1).optional(),
+    gravidade: z.enum(GRAVIDADES).default("MEDIA"),
+    type: z.enum(INCIDENT_TYPES).optional(),
+    severity: z.enum(SEVERITIES).optional(),
+    descricao: z.string().trim().optional(),
+    description: z.string().trim().optional(),
+    anonimo: z.boolean().default(false),
+  })
+  .superRefine((value, ctx) => {
+    if (!value.reportedUserId && !value.serviceId) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["serviceId"],
+        message: "Informe serviceId para reportar incidente.",
+      });
+    }
+    if (!value.subtipo && value.categoria !== "OUTRO") {
+      ctx.addIssue({
+        code: "custom",
+        path: ["subtipo"],
+        message: "Subtipo obrigatório.",
+      });
+    }
+  });
 
 function fieldValue(value: unknown) {
   const raw = Array.isArray(value) ? value[0] : value;
@@ -53,37 +85,43 @@ function gravidadeToSeverity(gravidade: string) {
   return gravidade === "CRITICA" ? "ALTA" : gravidade;
 }
 
-function validateFields(fields: Record<string, any>) {
-  const reportedUserId = fieldValue(fields.reportedUserId) || undefined;
-  const serviceId = fieldValue(fields.serviceId) || undefined;
-  const categoria = (fieldValue(fields.categoria)?.toUpperCase() || "OUTRO") as string;
-  const subtipo = fieldValue(fields.subtipo) || undefined;
-  const gravidade = (fieldValue(fields.gravidade)?.toUpperCase() || fieldValue(fields.severity)?.toUpperCase() || "MEDIA") as string;
-  const type = (fieldValue(fields.type)?.toUpperCase() || categoriaToType(categoria)) as string;
-  const severity = (fieldValue(fields.severity)?.toUpperCase() || gravidadeToSeverity(gravidade)) as string;
-  const descricao = fieldValue(fields.descricao) || fieldValue(fields.description) || "";
-  const anonimo = parseBool(fields.anonimo);
+function parseIncidentFields(fields: Record<string, any>) {
+  const parsed = incidentSchema.safeParse({
+    reportedUserId: fieldValue(fields.reportedUserId) || undefined,
+    serviceId: fieldValue(fields.serviceId) || undefined,
+    categoria: fieldValue(fields.categoria)?.toUpperCase() || "OUTRO",
+    subtipo: fieldValue(fields.subtipo) || undefined,
+    gravidade:
+      fieldValue(fields.gravidade)?.toUpperCase() ||
+      fieldValue(fields.severity)?.toUpperCase() ||
+      "MEDIA",
+    type: fieldValue(fields.type)?.toUpperCase() || undefined,
+    severity: fieldValue(fields.severity)?.toUpperCase() || undefined,
+    descricao: fieldValue(fields.descricao) || undefined,
+    description: fieldValue(fields.description) || undefined,
+    anonimo: parseBool(fields.anonimo),
+  });
 
-  if (!reportedUserId && !serviceId) {
-    return { error: "Informe reportedUserId ou serviceId." };
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Dados inválidos." };
   }
-  if (!CATEGORIAS.includes(categoria)) {
-    return { error: "Categoria inválida." };
-  }
-  if (!subtipo && fieldValue(fields.categoria)) {
-    return { error: "Subtipo obrigatório." };
-  }
-  if (!GRAVIDADES.includes(gravidade)) {
-    return { error: "Gravidade inválida." };
-  }
-  if (!INCIDENT_TYPES.includes(type)) {
-    return { error: "Tipo inválido." };
-  }
-  if (!SEVERITIES.includes(severity)) {
-    return { error: "Gravidade inválida." };
-  }
-  const description = descricao || subtipo || categoria;
-  return { reportedUserId, serviceId, type, severity, categoria, subtipo, gravidade, description, anonimo };
+
+  const data = parsed.data;
+  const type = data.type ?? categoriaToType(data.categoria);
+  const severity = data.severity ?? gravidadeToSeverity(data.gravidade);
+  const description = data.descricao || data.description || data.subtipo || data.categoria;
+
+  return {
+    reportedUserId: data.reportedUserId,
+    serviceId: data.serviceId,
+    type,
+    severity,
+    categoria: data.categoria,
+    subtipo: data.subtipo,
+    gravidade: data.gravidade,
+    description,
+    anonimo: data.anonimo,
+  };
 }
 
 async function resolveReportedUserId(
@@ -91,14 +129,24 @@ async function resolveReportedUserId(
   reportedUserId: string | undefined,
   serviceId: string | undefined,
 ): Promise<string | null> {
-  if (reportedUserId) return reportedUserId;
   if (!serviceId) return null;
   const svc = await prisma.servico.findUnique({
     where: { id: serviceId },
-    select: { clientId: true, diaristaId: true },
+    select: { clientId: true, diaristaId: true, montadorId: true },
   });
   if (!svc) return null;
-  return reporterId === svc.clientId ? svc.diaristaId : svc.clientId;
+  if (!isServiceParticipant(reporterId, svc)) return null;
+
+  const counterpartIds =
+    reporterId === svc.clientId
+      ? [svc.diaristaId, svc.montadorId].filter(Boolean)
+      : [svc.clientId];
+
+  if (reportedUserId) {
+    return counterpartIds.includes(reportedUserId) ? reportedUserId : null;
+  }
+
+  return counterpartIds[0] ?? null;
 }
 
 export async function POST(req: Request) {
@@ -109,7 +157,7 @@ export async function POST(req: Request) {
     // JSON fallback (sem anexos)
     if (contentType.includes("application/json")) {
       const body = await req.json();
-      const valid = validateFields(body);
+      const valid = parseIncidentFields(body);
       if ("error" in valid) {
         return NextResponse.json({ ok: false, error: valid.error }, { status: 400 });
       }
@@ -117,7 +165,7 @@ export async function POST(req: Request) {
 
       const resolvedReportedUserId = await resolveReportedUserId(auth.userId, reportedUserId, serviceId);
       if (!resolvedReportedUserId) {
-        return NextResponse.json({ ok: false, error: "Não foi possível identificar o usuário do incidente." }, { status: 400 });
+        return NextResponse.json({ ok: false, error: "Acesso negado ao serviço informado." }, { status: 403 });
       }
 
       const incident = await prisma.incidentReport.create({
@@ -141,7 +189,7 @@ export async function POST(req: Request) {
 
     // Multipart (com anexos)
     const { fields, files } = await parseMultipart(req, { maxFileSize: MAX_FILE_SIZE, maxFiles: MAX_FILES });
-    const valid = validateFields(fields as Record<string, any>);
+    const valid = parseIncidentFields(fields as Record<string, any>);
     if ("error" in valid) {
       return NextResponse.json({ ok: false, error: valid.error }, { status: 400 });
     }
@@ -154,7 +202,7 @@ export async function POST(req: Request) {
 
     const resolvedReportedUserId = await resolveReportedUserId(auth.userId, reportedUserId, serviceId);
     if (!resolvedReportedUserId) {
-      return NextResponse.json({ ok: false, error: "Não foi possível identificar o usuário do incidente." }, { status: 400 });
+      return NextResponse.json({ ok: false, error: "Acesso negado ao serviço informado." }, { status: 403 });
     }
 
     const incident = await prisma.incidentReport.create({
@@ -200,6 +248,6 @@ export async function POST(req: Request) {
     if (e?.message === "Unauthorized") {
       return NextResponse.json({ ok: false, error: "Não autorizado" }, { status: 401 });
     }
-    return NextResponse.json({ ok: false, error: e?.message ?? "Erro" }, { status: 500 });
+    return NextResponse.json({ ok: false, error: "Erro interno" }, { status: 500 });
   }
 }

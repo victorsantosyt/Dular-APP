@@ -69,7 +69,6 @@ export async function GET(_req: Request, { params }: Params) {
           select: {
             id: true,
             nome: true,
-            telefone: true,
             status: true,
             avatarUrl: true,
             habilidades: {
@@ -82,7 +81,6 @@ export async function GET(_req: Request, { params }: Params) {
             },
             safeScoreProfile: {
               select: {
-                currentScore: true,
                 tier: true,
               },
             },
@@ -160,7 +158,6 @@ export async function GET(_req: Request, { params }: Params) {
         totalServicos: diarista.totalServicos,
         safeScore: diarista.user.safeScoreProfile
           ? {
-              score: diarista.user.safeScoreProfile.currentScore,
               tier: diarista.user.safeScoreProfile.tier,
             }
           : null,

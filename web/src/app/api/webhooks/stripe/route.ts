@@ -5,26 +5,36 @@ import type Stripe from "stripe";
 
 export const dynamic = "force-dynamic";
 
+function hasValidWebhookSecret(secret: string) {
+  const value = secret.trim();
+  return value.startsWith("whsec_") && !value.includes("...");
+}
+
 export async function POST(request: Request) {
   const body = await request.text();
   const signature = request.headers.get("stripe-signature") ?? "";
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET ?? "";
+  const allowUnsignedDevWebhook =
+    process.env.NODE_ENV !== "production" &&
+    process.env.STRIPE_WEBHOOK_ALLOW_UNSIGNED_DEV === "true";
 
   let event: Stripe.Event;
 
-  if (webhookSecret && !webhookSecret.startsWith("whsec_...")) {
+  if (hasValidWebhookSecret(webhookSecret)) {
     try {
       event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
     } catch {
       return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
     }
-  } else {
-    // Sem webhook secret configurado — aceita o payload cru (dev only)
+  } else if (allowUnsignedDevWebhook) {
+    // DEV only: permite testar webhooks locais sem assinatura quando explicitamente habilitado.
     try {
       event = JSON.parse(body) as Stripe.Event;
     } catch {
       return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
     }
+  } else {
+    return NextResponse.json({ error: "Webhook not configured" }, { status: 400 });
   }
 
   try {

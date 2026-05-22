@@ -2,6 +2,8 @@ import { stripe, PLANS, type PlanId } from "@/lib/stripe";
 import { requireAuth } from "@/lib/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { ok, fail } from "@/lib/apiResponse";
+import { cleanupRateLimit, rateLimit, rateLimitRetryAfterMs } from "@/lib/rateLimit";
+import { getRequestIp } from "@/lib/requestIp";
 import { z } from "zod";
 
 const BASE_URL =
@@ -32,9 +34,27 @@ function legacyPlanoToPlanId(
 export async function POST(request: Request) {
   let payload;
   try {
+    cleanupRateLimit();
     payload = requireAuth(request);
   } catch {
     return fail("UNAUTHORIZED", "Não autenticado", 401);
+  }
+
+  const ip = getRequestIp(request);
+  const rlIp = rateLimit({ key: `checkout-ip:${ip}`, limit: 30, windowMs: 10 * 60_000 });
+  const rlUser = rateLimit({
+    key: `checkout-user:${payload.userId}`,
+    limit: 5,
+    windowMs: 10 * 60_000,
+  });
+  if (!rlIp.ok || !rlUser.ok) {
+    const resetAt = Math.max(!rlIp.ok ? rlIp.resetAt : 0, !rlUser.ok ? rlUser.resetAt : 0);
+    return fail(
+      "RATE_LIMITED",
+      "Muitas tentativas. Aguarde um pouco e tente novamente.",
+      429,
+      { retryAfterMs: rateLimitRetryAfterMs(resetAt) },
+    );
   }
 
   const body = await request.json().catch(() => ({}));

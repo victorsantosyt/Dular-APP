@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/requireAuth";
 import { criarNotificacao } from "@/lib/notifications";
+import { cleanupRateLimit, rateLimit, rateLimitRetryAfterMs } from "@/lib/rateLimit";
+import { getRequestIp } from "@/lib/requestIp";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
@@ -156,6 +158,8 @@ export async function GET(req: Request, { params }: Params) {
 
 export async function POST(req: Request, { params }: Params) {
   try {
+    cleanupRateLimit();
+
     const auth = requireAuth(req);
     const { roomId: servicoId } = await params;
 
@@ -165,6 +169,28 @@ export async function POST(req: Request, { params }: Params) {
     }
 
     const { room, servico } = resolved;
+    const ip = getRequestIp(req);
+    const rlIp = rateLimit({ key: `chat-ip:${ip}`, limit: 120, windowMs: 60_000 });
+    const rlUserRoom = rateLimit({
+      key: `chat-user-room:${auth.userId}:${servicoId}`,
+      limit: 30,
+      windowMs: 60_000,
+    });
+    if (!rlIp.ok || !rlUserRoom.ok) {
+      const resetAt = Math.max(
+        !rlIp.ok ? rlIp.resetAt : 0,
+        !rlUserRoom.ok ? rlUserRoom.resetAt : 0,
+      );
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "RATE_LIMITED",
+          message: "Muitas mensagens enviadas. Aguarde um pouco e tente novamente.",
+          retryAfterMs: rateLimitRetryAfterMs(resetAt),
+        },
+        { status: 429 },
+      );
+    }
 
     const body = await req.json().catch(() => null);
     const parsed = postSchema.safeParse(body);

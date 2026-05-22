@@ -1,12 +1,14 @@
 import { NextResponse } from "next/server";
 import fs from "node:fs/promises";
-import path from "node:path";
 import type formidable from "formidable";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/requireAuth";
 import { isServiceParticipant } from "@/lib/requireAuth";
 import { parseMultipart } from "@/lib/parseMultipart";
 import { makeKey, putObject } from "@/lib/s3Objects";
+import { cleanupRateLimit, rateLimit, rateLimitRetryAfterMs } from "@/lib/rateLimit";
+import { getRequestIp } from "@/lib/requestIp";
+import { detectImageMime, extensionForMime } from "@/lib/imageMagicBytes";
 import { z } from "zod";
 
 export const runtime = "nodejs";
@@ -151,7 +153,29 @@ async function resolveReportedUserId(
 
 export async function POST(req: Request) {
   try {
+    cleanupRateLimit();
+
     const auth = requireAuth(req);
+    const ip = getRequestIp(req);
+    const rlIp = rateLimit({ key: `incidentes-ip:${ip}`, limit: 20, windowMs: 10 * 60_000 });
+    const rlUser = rateLimit({
+      key: `incidentes-user:${auth.userId}`,
+      limit: 6,
+      windowMs: 10 * 60_000,
+    });
+    if (!rlIp.ok || !rlUser.ok) {
+      const resetAt = Math.max(!rlIp.ok ? rlIp.resetAt : 0, !rlUser.ok ? rlUser.resetAt : 0);
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "RATE_LIMITED",
+          message: "Muitas tentativas. Aguarde um pouco e tente novamente.",
+          retryAfterMs: rateLimitRetryAfterMs(resetAt),
+        },
+        { status: 429 },
+      );
+    }
+
     const contentType = req.headers.get("content-type") || "";
 
     // JSON fallback (sem anexos)
@@ -222,22 +246,30 @@ export async function POST(req: Request) {
     });
 
     for (const file of flatFiles) {
-      const mime = file.mimetype || "application/octet-stream";
-      if (!ALLOWED_MIME.has(mime)) {
+      const declaredMime = file.mimetype || "application/octet-stream";
+      if (!ALLOWED_MIME.has(declaredMime)) {
         continue;
       }
       if (file.size > MAX_FILE_SIZE) continue;
 
-      const ext = path.extname(file.originalFilename || "") || ".bin";
-      const key = makeKey(`incidents/${incident.id}`, ext);
       const buffer = await fs.readFile(file.filepath);
-      await putObject(key, buffer, mime);
+      const detectedMime = detectImageMime(buffer);
+      // Magic bytes precisam bater com o MIME declarado. Arquivos
+      // renomeados ou com header inválido são descartados (sem falhar
+      // o incidente — anexo é melhor-esforço).
+      if (!detectedMime || detectedMime !== declaredMime) {
+        continue;
+      }
+
+      const ext = extensionForMime(detectedMime);
+      const key = makeKey(`incidents/${incident.id}`, ext);
+      await putObject(key, buffer, detectedMime);
 
       await prisma.incidentAttachment.create({
         data: {
           incidentId: incident.id,
           key,
-          mime,
+          mime: detectedMime,
           size: file.size,
         },
       });

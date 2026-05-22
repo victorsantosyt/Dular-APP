@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { verifyPassword } from "@/lib/password";
 import { signToken } from "@/lib/auth";
 import { loginSchema } from "@/lib/schemas/auth";
-import { rateLimit, cleanupRateLimit } from "@/lib/rateLimit";
+import { rateLimit, cleanupRateLimit, rateLimitRetryAfterMs } from "@/lib/rateLimit";
 import { getRequestIp } from "@/lib/requestIp";
 import { fail, ok } from "@/lib/apiResponse";
 
@@ -21,8 +21,15 @@ export async function POST(req: Request) {
           ? body.telefone
           : "";
     const userAgent = req.headers.get("user-agent") ?? "unknown";
+    // Não logar o login completo (telefone/email). Apenas tipo + tamanho
+    // para diagnóstico, sem facilitar correlação/enumeração nos logs.
+    const loginKind = loginFromBody.includes("@")
+      ? "email"
+      : loginFromBody
+        ? "phone"
+        : "empty";
     console.log(
-      `[AUTH LOGIN] ${new Date().toISOString()} ip=${ip} ua="${userAgent}" login="${loginFromBody}"`
+      `[AUTH LOGIN] ${new Date().toISOString()} ip=${ip} ua="${userAgent}" loginKind=${loginKind} loginLen=${loginFromBody.length}`
     );
 
     const parsed = loginSchema.safeParse({
@@ -48,7 +55,8 @@ export async function POST(req: Request) {
     const rlUser = rateLimit({ key: `login-user:${identifier}`, limit: 8, windowMs: 60_000 });
 
     if (!rlIp.ok || !rlUser.ok) {
-      const retryAfterMs = Math.max(0, Math.min(rlIp.resetAt, rlUser.resetAt) - Date.now());
+      const resetAt = Math.max(!rlIp.ok ? rlIp.resetAt : 0, !rlUser.ok ? rlUser.resetAt : 0);
+      const retryAfterMs = rateLimitRetryAfterMs(resetAt);
       return fail(
         "rate_limited",
         "Muitas tentativas. Aguarde um pouco e tente novamente.",

@@ -1,0 +1,68 @@
+name: Security tests
+
+on:
+  pull_request:
+    paths:
+      - "web/**"
+      - ".github/workflows/security-tests.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "web/**"
+      - ".github/workflows/security-tests.yml"
+
+# Cancela runs antigas se o mesmo PR/branch tiver novo push.
+concurrency:
+  group: security-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  security:
+    name: web — helpers + rotas
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    # Vars dummy: as mesmas usadas em `npm run test:security`. Não são segredos
+    # reais — o test runner monta JWT com este SECRET e nenhuma das rotas
+    # testadas executa query no Prisma de verdade (todas mockadas via
+    # globalThis.prisma).
+    env:
+      JWT_SECRET: test_only_do_not_use_in_prod
+      DATABASE_URL: postgresql://test:test@localhost:5432/test
+      STRIPE_SECRET_KEY: sk_test_dummy_do_not_use
+      NODE_ENV: test
+      LOG_LEVEL: silent
+
+    defaults:
+      run:
+        working-directory: web
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install dependencies (ci, deterministic)
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Validate Prisma schema
+        run: npx prisma validate
+
+      - name: TypeScript type-check
+        run: npx tsc --noEmit --pretty false
+
+      - name: Run security test suite
+        run: npm run test:security
+
+  # Mobile fica fora do workflow de segurança para manter o gate rápido (<3min).
+  # Quando houver demanda, abrir workflow separado `mobile-typecheck.yml`.

@@ -10,7 +10,7 @@
     "build": "prisma generate && next build",
     "start": "next start",
     "lint": "eslint",
-    "test:security": "JWT_SECRET=test_only_do_not_use_in_prod DATABASE_URL=postgresql://test:test@localhost:5432/test STRIPE_SECRET_KEY=sk_test_dummy_do_not_use NODE_ENV=test node --import tsx --test test/security/*.test.ts"
+    "test:security": "JWT_SECRET=test_only_do_not_use_in_prod DATABASE_URL=postgresql://test:test@localhost:5432/test STRIPE_SECRET_KEY=sk_test_dummy_do_not_use NODE_ENV=test LOG_LEVEL=silent node --import tsx --test test/security/*.test.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.990.0",

@@ -1,3 +1,11 @@
+// Silencia ruído de console em test runs quando LOG_LEVEL=silent.
+// Mantém console.error para que falhas reais ainda apareçam.
+if (process.env.LOG_LEVEL === "silent") {
+  console.log = () => {};
+  console.warn = () => {};
+  console.info = () => {};
+}
+
 // Mocks compartilhados para testes de rota.
 //
 // Estratégia:

@@ -1,8 +1,28 @@
-# Security Testing — Dular Fase 1C
+# Security Testing — Dular Fases 1C → 1E
 
-Testes automatizados mínimos para impedir regressão das proteções introduzidas
-nas Fases 1A, 1A.1 e 1B (RBAC/IDOR, rate limit, magic bytes, request IP,
-ownership, hardening Stripe/admin).
+Testes automatizados das proteções introduzidas nas Fases 1A, 1A.1 e 1B
+(RBAC/IDOR, rate limit, magic bytes, request IP, ownership, hardening
+Stripe/admin) + CI gate (Fase 1E).
+
+## CI
+
+Workflow: [`.github/workflows/security-tests.yml`](../../.github/workflows/security-tests.yml).
+
+Gatilhos:
+- `pull_request` afetando `web/**`
+- `push` para `main` afetando `web/**`
+
+Etapas (job único `security`):
+1. checkout
+2. setup Node 20 com cache do npm em `web/package-lock.json`
+3. `npm ci` (instalação determinística)
+4. `npx prisma generate` (necessário antes do tsc)
+5. `npx prisma validate`
+6. `npx tsc --noEmit --pretty false`
+7. `npm run test:security`
+
+Mobile fica de fora deste workflow para manter o gate rápido (<3 min). Quando
+houver demanda, abrir `mobile-typecheck.yml` separado.
 
 ## Como rodar
 
@@ -105,71 +125,100 @@ o `JWT_SECRET` dummy e assere o `Response`.
 - 409 DIARISTA com verificação já APROVADA
 - 409 EMPREGADOR com verificação PENDING ativa
 
+### Verificacoes (magic bytes via multipart real) — Fase 1E
+- recusa `.jpg` com conteúdo de texto → 400
+- recusa PDF renomeado para `.jpg` → 400
+- recusa MIME `image/png` declarado mas bytes JPEG → 400 (mismatch)
+- recusa MIME `application/pdf` (não-image) → 400
+- JPG real válido passa magic bytes e chega ao `putObject` (S3 stubado) → ≠ 400
+
+### Incidentes (anexos com magic bytes via multipart real) — Fase 1E
+- anexo com bytes inválidos é **descartado** mas o incidente é criado (best-effort)
+- anexo JPG real é persistido em `IncidentAttachment`
+- anexo com MIME não-image é descartado no filtro inicial
+
+### Stripe webhook (fluxo positivo) — Fase 1E
+Com `stripe.webhooks.constructEvent` stubado:
+- `checkout.session.completed` em `subscription` faz `upsert` em Subscription com o plano correto
+- `checkout.session.completed` em `payment` credita `CreditWallet` e cria `CreditTransaction`
+- evento sem `client_reference_id` é no-op silencioso (200, sem persistir)
+- `customer.subscription.deleted` chama `updateMany` marcando `CANCELED`
+
 ### Login rate limit — `POST /api/auth/login`
 - **429** após exceder 8 tentativas por usuário (IPs distintos)
 - **429** após exceder 20 tentativas por IP (logins distintos)
 - `retryAfterMs` nunca negativo nem NaN
 
+## Harness multipart
+
+`web/test/security/_multipart.ts` constrói um body `multipart/form-data` real
+como `Buffer` com boundary explícito e devolve um `Request` standard com
+headers compatíveis com `formidable` (incluindo `content-length`). Resolve o
+erro `_transform() not implemented` que ocorre ao passar `FormData` direto
+como body do `Request`.
+
+API:
+- `buildMultipart(parts) → { body, contentType }` — monta o body.
+- `multipartRequest(url, parts, { userId, role })` — devolve `Request`
+  pronto, opcionalmente com header `Authorization: Bearer <jwt>`.
+- `JPEG_VALID`, `PNG_VALID` — buffers com magic bytes válidos para testes
+  positivos.
+
+`parts[]` aceita tanto `{ kind: "file" }` (com `filename`, `mime`, `data:
+Buffer`) quanto `{ kind: "field" }` (texto simples).
+
 ## Limitações conhecidas
 
-1. **Upload multipart real não é testado de rota inteira** — `formidable`
-   não consome bem o stream de `Readable.fromWeb(FormData)` do Request
-   web standard (erro `_transform() not implemented`). A lógica de
-   magic bytes está totalmente coberta unit em `imageMagicBytes.test.ts`.
-   O caminho de autorização de upload (401, 403, 409) está coberto. Fica
-   pendente um harness multipart próprio para Fase 1E.
+1. **Sem cobertura de Prisma real** — todas as queries são mockadas.
+   Queries reais precisam de banco de teste (fora do escopo desta fase).
 
-2. **Logs ruidosos** — `[AUTH LOGIN] ...` e similar aparecem no stdout
-   durante o run. Não afeta o resultado, mas atrapalha leitura.
-   Mitigação futura: env var `LOG_LEVEL=silent` reconhecida pelo produto.
-
-3. **Sem cobertura de Prisma real** — todas as queries são mockadas.
-   Queries reais precisam de banco de teste (não vale a pena nesta fase).
-
-4. **Sem coverage report** — Node `--test` nativo suporta
+2. **Sem coverage report** — `node --test` suporta
    `--experimental-test-coverage`. Pode ser ligado pontualmente.
 
-5. **Sem CI gate** — script `test:security` precisa ser ligado ao
-   workflow (GitHub Actions) em commit separado.
+3. **`npm audit` — 5 vulnerabilidades moderadas** — dívida controlada
+   por exigirem `audit fix --force` (breaking changes). Tracking em
+   issue separado, não bloqueia release de Fase 1E.
 
-## Pendências (Fase 1E recomendada)
+4. **Stripe webhook positivo depende de mock global** — `stripe.webhooks.
+   constructEvent` é monkey-patched no instance do singleton. Se outro
+   teste rodar em paralelo (não é o caso hoje, `node --test` é sequencial
+   por arquivo), poderia haver vazamento. Restaurado em `after()`.
 
-| Caso | Endpoint | Bloqueio |
-|------|----------|----------|
-| Upload `.jpg` com conteúdo PDF aceito por rota | `POST /api/verificacoes` | harness multipart funcional |
-| Magic bytes descartam anexo em `/api/incidentes` | `POST /api/incidentes` | idem |
-| Paywall server-side | endpoints premium | mocks de subscription |
-| Webhook Stripe processando evento real (mocked) | `POST /api/webhooks/stripe` | mock de `stripe.webhooks.constructEvent` |
+5. **Logs silenciados em test** — `LOG_LEVEL=silent` no `_mocks.ts`
+   sobrescreve `console.log/warn/info` para reduzir ruído. `console.error`
+   é mantido para que falhas reais apareçam.
 
-## Próximos passos recomendados (Fase 1E)
+## Pendências (Fase 1F recomendada)
 
-1. **Harness multipart**: investigar `busboy` direto ou wrapper que monte
-   o stream com `content-length` correto para o formidable. Alternativa:
-   refatorar `parseMultipart` para aceitar buffer pré-extraído.
-2. **Mock de stripe.webhooks**: testar processamento de
-   `checkout.session.completed` → upsert de subscription.
-3. **CI gate**: ligar `npm run test:security` ao workflow.
-4. **Suprimir logs em test**: env var reconhecida pelo logger interno.
-5. ~~Refatorar `isServiceParticipant` para defender contra `userId` nulo~~
-   ✅ Feito em Fase 1C.1.
+| Caso | Endpoint | Como atacar |
+|------|----------|-------------|
+| Paywall server-side | endpoints premium | mocks de `subscription` + assertar 402/403 |
+| Testes de integração com Prisma real | qualquer rota | provisionar Postgres em CI (ex.: service container) |
+| Rate limit cross-instance | rate limit geral | requer Redis/Upstash (mudança de produto) |
+| Coverage report no CI | meta-target | habilitar `--experimental-test-coverage` e publicar |
 
 ## Estrutura
 
 ```
+.github/
+└── workflows/
+    └── security-tests.yml                       ← CI gate (Fase 1E)
+
 web/
 ├── test/
 │   └── security/
-│       ├── _mocks.ts                            ← mock global de prisma
+│       ├── _mocks.ts                            ← mock global de prisma + silenciador de log
 │       ├── _helpers.ts                          ← JWT real para auth header
+│       ├── _multipart.ts                        ← harness multipart real (Fase 1E)
 │       ├── imageMagicBytes.test.ts              ← magic bytes JPEG/PNG (unit)
 │       ├── requestIp.test.ts                    ← IP defensivo (unit)
 │       ├── rateLimit.test.ts                    ← bucket, janela (unit)
 │       ├── requireAuth.test.ts                  ← isServiceParticipant (unit)
-│       ├── routes-stripe-webhook.test.ts        ← rota Stripe (1D)
+│       ├── routes-stripe-webhook.test.ts        ← rota Stripe rejeição + fluxo positivo (1D+1E)
 │       ├── routes-admin-promote.test.ts         ← rota admin RBAC (1D)
-│       ├── routes-incidentes.test.ts            ← rota IDOR de incidente (1D)
+│       ├── routes-incidentes.test.ts            ← rota IDOR + anexos com magic bytes (1D+1E)
 │       ├── routes-chat.test.ts                  ← rota chat IDOR + IMAGE (1D)
-│       ├── routes-verificacoes-upload.test.ts   ← rota autorização upload (1D)
+│       ├── routes-verificacoes-upload.test.ts   ← rota autorização + magic bytes via multipart (1D+1E)
 │       └── routes-login-ratelimit.test.ts       ← rota rate limit (1D)
 ├── docs/
 │   ├── SECURITY-TESTING.md                      ← este arquivo

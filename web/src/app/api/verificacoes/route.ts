@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import fs from "node:fs/promises";
-import path from "node:path";
 import type formidable from "formidable";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/requireAuth";
@@ -8,12 +7,22 @@ import { parseMultipart } from "@/lib/parseMultipart";
 import { makeKey, putObject } from "@/lib/s3Objects";
 import { autoVerificarDiaristaSePossivel } from "@/lib/autoVerificacao";
 import { getGuardianStatusForUser } from "@/lib/safeScoreGuardian";
+import { cleanupRateLimit, rateLimit, rateLimitRetryAfterMs } from "@/lib/rateLimit";
+import { getRequestIp } from "@/lib/requestIp";
+import { detectImageMime, extensionForMime } from "@/lib/imageMagicBytes";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const ALLOWED_MIME = new Set(["image/jpeg", "image/png"]);
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
+const FORMIDABLE_CLIENT_ERROR_CODES = new Set([1007, 1008, 1009, 1010, 1011, 1012, 1013, 1015, 1016]);
+
+class UploadValidationError extends Error {
+  constructor(public readonly publicMessage: string) {
+    super("UploadValidationError");
+  }
+}
 
 function firstFile(value: formidable.File | formidable.File[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
@@ -22,21 +31,28 @@ function firstFile(value: formidable.File | formidable.File[] | undefined) {
 async function uploadDoc(file: formidable.File, prefix: string) {
   const mime = file.mimetype || "application/octet-stream";
   if (!ALLOWED_MIME.has(mime)) {
-    throw new Error("Formato inválido. Envie JPG ou PNG.");
+    throw new UploadValidationError("Formato inválido. Envie JPG ou PNG.");
   }
   if (file.size > MAX_FILE_SIZE) {
-    throw new Error("Arquivo muito grande. Limite de 10MB.");
+    throw new UploadValidationError("Arquivo muito grande. Limite de 10MB.");
   }
 
-  const ext = path.extname(file.originalFilename || "") || (mime === "image/png" ? ".png" : ".jpg");
-  const key = makeKey(`verificacoes/${prefix}`, ext);
   const buffer = await fs.readFile(file.filepath);
-  await putObject(key, buffer, mime);
-  return { key, mime, size: file.size };
+  const detectedMime = detectImageMime(buffer);
+  if (detectedMime !== mime) {
+    throw new UploadValidationError("Arquivo inválido. Envie um JPG ou PNG válido.");
+  }
+
+  const ext = extensionForMime(detectedMime);
+  const key = makeKey(`verificacoes/${prefix}`, ext);
+  await putObject(key, buffer, detectedMime);
+  return { key, mime: detectedMime, size: file.size };
 }
 
 export async function POST(req: Request) {
   try {
+    cleanupRateLimit();
+
     const auth = requireAuth(req);
     // T-18.5: endpoint agora aceita EMPREGADOR, DIARISTA e MONTADOR. Cada
     // papel grava em local diferente:
@@ -46,6 +62,26 @@ export async function POST(req: Request) {
     //    populados por outro fluxo de upload — fora do escopo aqui)
     if (auth.role !== "DIARISTA" && auth.role !== "EMPREGADOR" && auth.role !== "MONTADOR") {
       return NextResponse.json({ ok: false, error: "Papel não suportado." }, { status: 403 });
+    }
+
+    const ip = getRequestIp(req);
+    const rlIp = rateLimit({ key: `verificacoes-ip:${ip}`, limit: 20, windowMs: 60 * 60_000 });
+    const rlUser = rateLimit({
+      key: `verificacoes-user:${auth.userId}`,
+      limit: 4,
+      windowMs: 60 * 60_000,
+    });
+    if (!rlIp.ok || !rlUser.ok) {
+      const resetAt = Math.max(!rlIp.ok ? rlIp.resetAt : 0, !rlUser.ok ? rlUser.resetAt : 0);
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "RATE_LIMITED",
+          message: "Muitas tentativas. Aguarde um pouco e tente novamente.",
+          retryAfterMs: rateLimitRetryAfterMs(resetAt),
+        },
+        { status: 429 },
+      );
     }
 
     if (auth.role === "DIARISTA") {
@@ -164,12 +200,20 @@ export async function POST(req: Request) {
     if (e?.message === "Unauthorized") {
       return NextResponse.json({ ok: false, error: "Não autorizado" }, { status: 401 });
     }
+    if (e instanceof UploadValidationError) {
+      console.warn("[api/verificacoes] upload recusado:", e.publicMessage);
+      return NextResponse.json({ ok: false, error: e.publicMessage }, { status: 400 });
+    }
+    if (FORMIDABLE_CLIENT_ERROR_CODES.has(Number(e?.code))) {
+      console.warn("[api/verificacoes] multipart recusado:", e?.code);
+      return NextResponse.json({ ok: false, error: "Upload inválido." }, { status: 400 });
+    }
     // T-18.6: log explícito para destravar diagnóstico em DEV. Em produção
     // o framework já registra o erro; aqui garantimos que o motivo real
     // aparece no console do `next dev` sem despejar stack em prod.
     if (process.env.NODE_ENV === "development") {
       console.error("[api/verificacoes] POST falhou:", e?.name, e?.message, e?.stack);
     }
-    return NextResponse.json({ ok: false, error: e?.message ?? "Erro ao enviar documentos." }, { status: 500 });
+    return NextResponse.json({ ok: false, error: "Erro ao enviar documentos." }, { status: 500 });
   }
 }

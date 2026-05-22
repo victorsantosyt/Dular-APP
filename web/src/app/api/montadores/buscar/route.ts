@@ -79,7 +79,6 @@ export async function GET(req: Request) {
           select: {
             id: true,
             nome: true,
-            telefone: true,
             genero: true,
             status: true,
             avatarUrl: true,
@@ -114,11 +113,19 @@ export async function GET(req: Request) {
         });
         const score = montador.user.safeScoreProfile?.currentScore ?? montador.user.safeScore?.score ?? 500;
         const faixa = getFaixa(score);
+        const publicUser = {
+          id: montador.user.id,
+          nome: montador.user.nome,
+          genero: montador.user.genero,
+          status: montador.user.status,
+          avatarUrl: montador.user.avatarUrl,
+        };
         const cidadeNormalizada = normalizeText(montador.cidade);
         const ufNormalizada = normalizeText(montador.estado);
         const bairrosNormalizados = montador.bairros.map((item) => normalizeText(item));
         return {
           ...montador,
+          user: publicUser,
           nome: montador.user.nome,
           apresentacao: montador.bio,
           avatarUrl: montador.fotoPerfil ?? montador.user.avatarUrl,
@@ -133,7 +140,6 @@ export async function GET(req: Request) {
               ? `A partir de R$ ${(Number(montador.precoBase) / 100).toFixed(2).replace(".", ",")}`
               : "A combinar",
           safeScore: {
-            score,
             faixa: faixa.label,
             cor: faixa.cor,
             bloqueado: faixa.bloqueado,

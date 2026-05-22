@@ -174,6 +174,15 @@ export async function POST(req: Request, { params }: Params) {
         { status: 400 },
       );
     }
+    if (parsed.data.type === "IMAGE") {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "Envio de imagem pelo chat exige upload seguro. URL externa não é aceita.",
+        },
+        { status: 400 },
+      );
+    }
 
     const message = await prisma.chatMessage.create({
       data: {
@@ -204,9 +213,7 @@ export async function POST(req: Request, { params }: Params) {
             ? parsed.data.content.length > 80
               ? `${parsed.data.content.slice(0, 77)}...`
               : parsed.data.content
-            : parsed.data.type === "IMAGE"
-              ? "[imagem]"
-              : "[localização]";
+            : "[localização]";
         await criarNotificacao({
           userId: outroUsuarioId,
           type: "CHAT_NOVA_MENSAGEM",

@@ -170,7 +170,6 @@ export async function GET(req: Request) {
           select: {
             id: true,
             nome: true,
-            telefone: true,
             status: true,
             avatarUrl: true,
           },

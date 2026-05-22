@@ -80,10 +80,15 @@ export function isServiceParticipant(
   service: ServiceParticipantLike | null | undefined
 ) {
   if (!service) return false;
+  // userId precisa ser uma string não-vazia. Defesa em profundidade contra
+  // caller que repasse null/undefined/"" — sem isto, null === null casaria
+  // com clientId/diaristaId/montadorId também null.
+  if (typeof userId !== "string" || userId.length === 0) return false;
+  // Cada campo do serviço só libera acesso se também for string não-vazia.
   return (
-    service.clientId === userId ||
-    service.diaristaId === userId ||
-    service.montadorId === userId
+    (typeof service.clientId === "string" && service.clientId.length > 0 && service.clientId === userId) ||
+    (typeof service.diaristaId === "string" && service.diaristaId.length > 0 && service.diaristaId === userId) ||
+    (typeof service.montadorId === "string" && service.montadorId.length > 0 && service.montadorId === userId)
   );
 }
 

@@ -137,6 +137,33 @@ o `JWT_SECRET` dummy e assere o `Response`.
 - anexo JPG real é persistido em `IncidentAttachment`
 - anexo com MIME não-image é descartado no filtro inicial
 
+### Paywall server-side — Fase 1F
+Cobertura de `POST /api/servicos` exercitando `checkFeatureAccess` real:
+- 401 sem token
+- 403 quando DIARISTA / MONTADOR tentam criar (role inválido)
+- 403 quando ADMIN tenta criar (rota exige EMPREGADOR estrito)
+- **403 `LIMIT_EXCEEDED`** quando EMPREGADOR atinge o limite do plano FREE
+  - body inclui `error: "LIMIT_EXCEEDED"`, `feature: "SOLICITACOES_MES"`, `plan`, `usage: { used, limit }`, `message`
+  - `servico.create` NÃO é chamado
+- **403 `LIMIT_EXCEEDED`** quando `FeatureLimit.enabled === false`
+- EMPREGADOR sob limite **não** é bloqueado (paywall passa)
+- Plano sem `FeatureLimit` configurado → libera (default permissivo)
+- Plano ACTIVE PREMIUM com `limit: null` → ilimitado
+- Subscription `CANCELED` → cai para FREE (plano efetivo passa a ser `"FREE"`)
+
+## Paywall server-side regression tests
+
+Cobertura:
+- bloqueio por limite;
+- criação permitida;
+- role inválido;
+- contrato de erro.
+
+Limitações:
+- não usa banco real;
+- não cobre todos os planos comerciais;
+- não substitui teste E2E de assinatura real Stripe.
+
 ### Stripe webhook (fluxo positivo) — Fase 1E
 Com `stripe.webhooks.constructEvent` stubado:
 - `checkout.session.completed` em `subscription` faz `upsert` em Subscription com o plano correto
@@ -148,6 +175,35 @@ Com `stripe.webhooks.constructEvent` stubado:
 - **429** após exceder 8 tentativas por usuário (IPs distintos)
 - **429** após exceder 20 tentativas por IP (logins distintos)
 - `retryAfterMs` nunca negativo nem NaN
+
+## GitHub branch protection recomendado
+
+Em Settings → Branches → Branch protection rule para `main`:
+
+- Require status checks to pass before merging.
+- Exigir o check: `Security tests / web — helpers + rotas`.
+- Require branches to be up to date before merging.
+- Opcional: Require pull request before merging.
+- Opcional: Dismiss stale approvals when new commits are pushed.
+
+Comandos `gh` equivalentes (NÃO executar sem autorização explícita do owner —
+branch protection afeta todos os colaboradores e bypassa hooks):
+
+```bash
+# Listar regras atuais
+gh api repos/:owner/:repo/branches/main/protection
+
+# Aplicar regra exigindo o check de segurança
+gh api -X PUT repos/:owner/:repo/branches/main/protection \
+  -F required_status_checks.strict=true \
+  -F 'required_status_checks.contexts[]=Security tests / web — helpers + rotas' \
+  -F enforce_admins=false \
+  -F required_pull_request_reviews=null \
+  -F restrictions=null
+```
+
+O nome do check (`Security tests / web — helpers + rotas`) corresponde ao `name`
+do workflow + `name` do job em `.github/workflows/security-tests.yml`.
 
 ## Harness multipart
 
@@ -219,7 +275,8 @@ web/
 │       ├── routes-incidentes.test.ts            ← rota IDOR + anexos com magic bytes (1D+1E)
 │       ├── routes-chat.test.ts                  ← rota chat IDOR + IMAGE (1D)
 │       ├── routes-verificacoes-upload.test.ts   ← rota autorização + magic bytes via multipart (1D+1E)
-│       └── routes-login-ratelimit.test.ts       ← rota rate limit (1D)
+│       ├── routes-login-ratelimit.test.ts       ← rota rate limit (1D)
+│       └── routes-servicos-paywall.test.ts      ← paywall server-side via checkFeatureAccess (1F)
 ├── docs/
 │   ├── SECURITY-TESTING.md                      ← este arquivo
 │   └── SECURITY-FASE-1B-TESTS.md                ← checklist manual existente

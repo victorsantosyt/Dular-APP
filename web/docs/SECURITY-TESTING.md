@@ -9,23 +9,48 @@ Stripe/admin) + CI gate (Fase 1E).
 Workflow: [`.github/workflows/security-tests.yml`](../../.github/workflows/security-tests.yml).
 
 Gatilhos:
-- `pull_request` afetando `web/**`
-- `push` para `main` afetando `web/**`
+- `pull_request` em qualquer arquivo
+- `push` para `main` em qualquer arquivo
 
-Etapas (job único `security`):
-1. checkout
-2. setup Node 20 com cache do npm em `web/package-lock.json`
-3. `npm ci` (instalação determinística)
-4. `npx prisma generate` (necessário antes do tsc)
-5. `npx prisma validate`
-6. `npx tsc --noEmit --pretty false`
-7. `npm run test:security`
+> Os filtros `paths` foram removidos de propósito: o workflow precisa
+> **sempre iniciar** para que o check obrigatório (required status check)
+> reporte status (success ou failure). Sem isso, PRs que não tocam em
+> `web/**` ficariam travados como “Expected — Waiting for status to be
+> reported” para sempre.
+
+Detecção de escopo (etapa `Detect relevant changes`):
+- compara `git diff` entre BASE e HEAD do evento
+  (`pull_request.base.sha`/`pull_request.head.sha` em PRs; `event.before`/
+  `github.sha` em pushes)
+- se algum arquivo alterado casa com `web/**` ou
+  `.github/workflows/security-tests.yml`, marca `relevant=true` e roda o
+  pipeline completo
+- caso contrário, marca `relevant=false`, imprime
+  `No web/security changes detected; reporting success without running
+  web security suite.` e pula os passos pesados — o job termina **verde**
+  imediatamente (no-op success)
+
+Etapas (job único `security`), condicionadas a `relevant == 'true'`:
+1. checkout (com `fetch-depth: 0` para o diff funcionar)
+2. detecção de escopo (sempre roda)
+3. setup Node 20 com cache do npm em `web/package-lock.json`
+4. `npm ci` (instalação determinística)
+5. `npx prisma generate` (necessário antes do tsc)
+6. `npx prisma validate`
+7. `npx tsc --noEmit --pretty false`
+8. `npm run test:security`
 
 Mobile fica de fora deste workflow para manter o gate rápido (<3 min).
 O typecheck do mobile vive em um workflow separado:
 [`.github/workflows/mobile-typecheck.yml`](../../.github/workflows/mobile-typecheck.yml)
 — Node 20 + `npm ci` + `npx tsc --noEmit --pretty false` em `dular-mobile/`.
-Disparado apenas quando arquivos em `dular-mobile/**` mudam.
+
+O workflow de mobile segue o mesmo padrão de detecção: sempre inicia, mas
+só roda `npm ci` + `tsc` se houver mudança em `dular-mobile/**` ou no
+próprio workflow. Caso contrário, reporta success imediatamente com a
+mensagem `No mobile changes detected; reporting success without running
+mobile typecheck.`. Isso evita required checks pendentes por path filter
+quando o PR mexe apenas em `web/**`.
 
 ## Como rodar
 

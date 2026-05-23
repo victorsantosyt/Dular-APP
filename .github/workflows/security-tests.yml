@@ -17,6 +17,9 @@ concurrency:
   group: security-tests-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   security:
     name: web — helpers + rotas

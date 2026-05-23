@@ -21,8 +21,11 @@ Etapas (job único `security`):
 6. `npx tsc --noEmit --pretty false`
 7. `npm run test:security`
 
-Mobile fica de fora deste workflow para manter o gate rápido (<3 min). Quando
-houver demanda, abrir `mobile-typecheck.yml` separado.
+Mobile fica de fora deste workflow para manter o gate rápido (<3 min).
+O typecheck do mobile vive em um workflow separado:
+[`.github/workflows/mobile-typecheck.yml`](../../.github/workflows/mobile-typecheck.yml)
+— Node 20 + `npm ci` + `npx tsc --noEmit --pretty false` em `dular-mobile/`.
+Disparado apenas quando arquivos em `dular-mobile/**` mudam.
 
 ## Como rodar
 

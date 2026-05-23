@@ -1,0 +1,52 @@
+name: Mobile typecheck
+
+on:
+  pull_request:
+    paths:
+      - "dular-mobile/**"
+      - ".github/workflows/mobile-typecheck.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "dular-mobile/**"
+      - ".github/workflows/mobile-typecheck.yml"
+
+# Cancela runs antigas se o mesmo PR/branch tiver novo push.
+concurrency:
+  group: mobile-typecheck-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  typecheck:
+    name: dular-mobile — tsc --noEmit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    defaults:
+      run:
+        working-directory: dular-mobile
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: dular-mobile/package-lock.json
+
+      - name: Install dependencies (ci, deterministic)
+        run: npm ci
+
+      - name: TypeScript type-check
+        run: npx tsc --noEmit --pretty false
+
+  # Notas operacionais:
+  # - expo-doctor / lint / build EAS ficam fora deste workflow para manter o
+  #   gate leve (<3min) e focado. expo-doctor exige tooling extra e tende a
+  #   produzir falsos positivos em sub-deps que não dependem deste repo.
+  # - Quando houver demanda, criar workflows separados (mobile-lint.yml,
+  #   mobile-build.yml) em vez de inchar este.

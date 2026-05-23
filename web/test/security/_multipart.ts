@@ -57,16 +57,20 @@ export function multipartRequest(
   opts: { userId?: string; role?: JwtPayload["role"]; extraHeaders?: Record<string, string> } = {},
 ): Request {
   const { body, contentType } = buildMultipart(parts);
+  // Converte Buffer → Uint8Array fatiado para garantir comportamento idêntico
+  // entre Node 20 (CI) e Node 24 (local). Buffer É Uint8Array, mas algumas
+  // versões de undici/Request tratam BodyInit Buffer vs Uint8Array com
+  // codificações diferentes (Buffer pode arrastar offset/byteOffset não-zero).
+  const bodyBytes = new Uint8Array(body.buffer, body.byteOffset, body.byteLength).slice();
   const headers: Record<string, string> = {
     "content-type": contentType,
-    "content-length": String(body.length),
+    "content-length": String(bodyBytes.byteLength),
     ...(opts.extraHeaders ?? {}),
   };
   if (opts.userId && opts.role) {
     headers.authorization = `Bearer ${signToken({ userId: opts.userId, role: opts.role })}`;
   }
-  // Request aceita Buffer/Uint8Array como body.
-  return new Request(url, { method: "POST", headers, body: body as unknown as BodyInit });
+  return new Request(url, { method: "POST", headers, body: bodyBytes });
 }
 
 export const JPEG_VALID = Buffer.concat([

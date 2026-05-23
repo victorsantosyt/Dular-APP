@@ -1,8 +1,9 @@
-import { describe, it, beforeEach } from "node:test";
+import { describe, it, beforeEach, after } from "node:test";
 import assert from "node:assert/strict";
 import { mockPrisma, resetMockPrisma } from "./_mocks";
 import { makeAuthHeaders, jsonRequest } from "./_helpers";
 import { multipartRequest, JPEG_VALID } from "./_multipart";
+import { stubS3Send, restoreS3Send } from "./_stubS3";
 
 async function getPost() {
   const mod = await import("../../src/app/api/incidentes/route");
@@ -133,7 +134,7 @@ describe("POST /api/incidentes — anexos com magic bytes", () => {
     return `u-empregador-attach-${label}-${Date.now()}`;
   }
 
-  beforeEach(async () => {
+  beforeEach(() => {
     resetMockPrisma();
     attachCalls = 0;
     mockPrisma.incidentReport.create = async () => ({ id: "inc-attach-1", status: "ABERTO" });
@@ -141,9 +142,22 @@ describe("POST /api/incidentes — anexos com magic bytes", () => {
       attachCalls += 1;
       return { id: `att-${attachCalls}` };
     };
-    const { s3 } = await import("../../src/lib/s3");
-    (s3 as { send: unknown }).send = async () => ({ $metadata: {} });
+    stubS3Send();
   });
+
+  after(() => {
+    restoreS3Send();
+  });
+
+  async function debugIfUnexpected(res: Response, expected: number, label: string) {
+    if (res.status !== expected) {
+      const cloned = res.clone();
+      const body = await cloned.text();
+      console.error(
+        `[incidentes test] expected ${expected} got ${res.status} — ${label} — body: ${body}`,
+      );
+    }
+  }
 
   it("descarta anexo com magic bytes inválidos mas cria o incidente (best-effort)", async () => {
     const userId = uniqueEmpregadorId("invalid");
@@ -185,7 +199,15 @@ describe("POST /api/incidentes — anexos com magic bytes", () => {
     );
     const POST = await getPost();
     const res = await POST(req);
-    assert.equal(res.status, 200);
+
+    // Diagnóstico verboso (apenas loga em caso de mismatch — não consome
+    // o body se status for 200).
+    const bodyDebug =
+      res.status === 200
+        ? "status=200"
+        : `status=${res.status} body=${await res.clone().text()}`;
+
+    assert.equal(res.status, 200, bodyDebug);
     assert.equal(attachCalls, 1, "incidentAttachment.create deveria ter sido chamado uma vez");
   });
 

@@ -28,7 +28,13 @@ function firstFile(value: formidable.File | formidable.File[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
 }
 
-async function uploadDoc(file: formidable.File, prefix: string) {
+type ValidatedDoc = {
+  buffer: Buffer;
+  mime: "image/jpeg" | "image/png";
+  size: number;
+};
+
+async function validateDoc(file: formidable.File): Promise<ValidatedDoc> {
   const mime = file.mimetype || "application/octet-stream";
   if (!ALLOWED_MIME.has(mime)) {
     throw new UploadValidationError("Formato inválido. Envie JPG ou PNG.");
@@ -43,10 +49,14 @@ async function uploadDoc(file: formidable.File, prefix: string) {
     throw new UploadValidationError("Arquivo inválido. Envie um JPG ou PNG válido.");
   }
 
-  const ext = extensionForMime(detectedMime);
+  return { buffer, mime: detectedMime, size: file.size };
+}
+
+async function persistDoc(doc: ValidatedDoc, prefix: string) {
+  const ext = extensionForMime(doc.mime);
   const key = makeKey(`verificacoes/${prefix}`, ext);
-  await putObject(key, buffer, detectedMime);
-  return { key, mime: detectedMime, size: file.size };
+  await putObject(key, doc.buffer, doc.mime);
+  return { key, mime: doc.mime, size: doc.size };
 }
 
 export async function POST(req: Request) {
@@ -120,9 +130,16 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: "Envie frente e verso do documento." }, { status: 400 });
     }
 
+    // Valida AMBOS antes de qualquer upload no S3 — evita upload parcial
+    // (vazamento do arquivo válido) quando o outro arquivo é inválido.
+    const [frenteData, versoData] = await Promise.all([
+      validateDoc(docFrente),
+      validateDoc(docVerso),
+    ]);
+
     const [frente, verso] = await Promise.all([
-      uploadDoc(docFrente, `${auth.userId}/frente`),
-      uploadDoc(docVerso, `${auth.userId}/verso`),
+      persistDoc(frenteData, `${auth.userId}/frente`),
+      persistDoc(versoData, `${auth.userId}/verso`),
     ]);
 
     const docUrl = JSON.stringify({

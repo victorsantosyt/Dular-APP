@@ -18,17 +18,24 @@ type AnyFn = (...args: any[]) => any;
 
 export type MockPrisma = {
   user: { findUnique: AnyFn; findFirst: AnyFn; update: AnyFn; count: AnyFn; create: AnyFn; upsert: AnyFn };
-  servico: { findUnique: AnyFn };
+  servico: { findUnique: AnyFn; count: AnyFn; create: AnyFn };
   incidentReport: { create: AnyFn };
   incidentAttachment: { create: AnyFn };
   chatRoom: { upsert: AnyFn };
   chatMessage: { findMany: AnyFn; updateMany: AnyFn; create: AnyFn };
   diaristaProfile: { findUnique: AnyFn; upsert: AnyFn };
   documentVerification: { findFirst: AnyFn; create: AnyFn };
-  subscription: { upsert: AnyFn; updateMany: AnyFn };
+  subscription: { upsert: AnyFn; updateMany: AnyFn; findUnique: AnyFn };
   creditWallet: { upsert: AnyFn };
   creditTransaction: { create: AnyFn };
   auditLog: { create: AnyFn };
+  featureLimit: { findUnique: AnyFn };
+  userRestriction: { findMany: AnyFn };
+  safeScoreProfile: { findUnique: AnyFn };
+  safeScore: { findUnique: AnyFn };
+  bairro: { findUnique: AnyFn };
+  diaristaBairro: { findFirst: AnyFn };
+  $queryRaw: AnyFn;
   $transaction: AnyFn;
 };
 
@@ -48,7 +55,11 @@ export function createMockPrisma(): MockPrisma {
       create: notMocked("user.create"),
       upsert: notMocked("user.upsert"),
     },
-    servico: { findUnique: notMocked("servico.findUnique") },
+    servico: {
+      findUnique: notMocked("servico.findUnique"),
+      count: notMocked("servico.count"),
+      create: notMocked("servico.create"),
+    },
     incidentReport: { create: notMocked("incidentReport.create") },
     incidentAttachment: { create: notMocked("incidentAttachment.create") },
     chatRoom: { upsert: notMocked("chatRoom.upsert") },
@@ -68,10 +79,18 @@ export function createMockPrisma(): MockPrisma {
     subscription: {
       upsert: notMocked("subscription.upsert"),
       updateMany: notMocked("subscription.updateMany"),
+      findUnique: notMocked("subscription.findUnique"),
     },
     creditWallet: { upsert: notMocked("creditWallet.upsert") },
     creditTransaction: { create: notMocked("creditTransaction.create") },
     auditLog: { create: notMocked("auditLog.create") },
+    featureLimit: { findUnique: notMocked("featureLimit.findUnique") },
+    userRestriction: { findMany: notMocked("userRestriction.findMany") },
+    safeScoreProfile: { findUnique: notMocked("safeScoreProfile.findUnique") },
+    safeScore: { findUnique: notMocked("safeScore.findUnique") },
+    bairro: { findUnique: notMocked("bairro.findUnique") },
+    diaristaBairro: { findFirst: notMocked("diaristaBairro.findFirst") },
+    $queryRaw: notMocked("$queryRaw"),
     $transaction: (async (cb: any) => {
       if (typeof cb === "function") {
         return cb(mock);

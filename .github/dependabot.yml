@@ -1,0 +1,69 @@
+# Dependabot — Dular
+#
+# Política: alertas de vulnerabilidade abertos por padrão. Apenas 4 pacotes
+# estão silenciados aqui, todos transitivos via Prisma/Next/Expo, com
+# decisão registrada em `docs/SECURITY-DEBT.md`.
+#
+# REGRA: NÃO ignorar nada além desta lista sem atualizar SECURITY-DEBT.md.
+# REGRA: NUNCA usar `npm audit fix --force` neste repositório.
+#
+# Os `ignore` abaixo são TEMPORÁRIOS — devem ser removidos no upgrade major
+# correspondente (Prisma / Next / Expo). Ver "Quando reabrir" em
+# docs/SECURITY-DEBT.md.
+
+version: 2
+updates:
+  # ---------- WEB (Next.js + Prisma) ----------
+  - package-ecosystem: "npm"
+    directory: "/web"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "web"
+    ignore:
+      # Transitivo via Prisma dev tooling. Vulnerável em <1.19.13
+      # (GHSA-92pp-h63x-v22m, middleware bypass em serveStatic do Hono).
+      # Não rodamos serveStatic em produção; @prisma/dev é dev-only.
+      # Resolver no upgrade major do Prisma.
+      - dependency-name: "@hono/node-server"
+
+      # Transitivo via Next/next-auth. Vulnerável em <8.5.10
+      # (GHSA-qx2v-qp2m-jg93, XSS no stringify do PostCSS).
+      # Roda em build-time; não processamos CSS de usuário.
+      # Resolver no upgrade major do Next.
+      - dependency-name: "postcss"
+
+  # ---------- MOBILE (Expo) ----------
+  - package-ecosystem: "npm"
+    directory: "/dular-mobile"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "mobile"
+    ignore:
+      # Transitivo via @expo/metro-config. Mesma CVE do postcss web —
+      # toolchain de build do Metro, não roda no app empacotado.
+      # Resolver no upgrade major do Expo.
+      - dependency-name: "postcss"
+
+      # Transitivo via @expo/config-plugins → xcode → uuid.
+      # Vulnerável em <11.1.1 (GHSA-w5hq-g745-h8pq, buffer bounds em
+      # v3/v5/v6). Caminho é prebuild iOS — input controlado pela
+      # toolchain Expo, sem vetor de input externo.
+      # Resolver no upgrade major do Expo.
+      - dependency-name: "uuid"
+
+  # ---------- GITHUB ACTIONS ----------
+  # Mantém os pinned actions atualizados (actions/checkout, setup-node).
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 3
+    labels:
+      - "dependencies"
+      - "ci"

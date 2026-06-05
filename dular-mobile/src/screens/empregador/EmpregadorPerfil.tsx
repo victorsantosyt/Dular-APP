@@ -214,7 +214,6 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
   const [modalVisible, setModalVisible] = useState(false);
   const [editNome, setEditNome] = useState("");
   const [editTelefone, setEditTelefone] = useState("");
-  const [editBio, setEditBio] = useState("");
   const [avatarLocal, setAvatarLocal] = useState<string | null>(null);
   const [avatarUploading, setAvatarUploading] = useState(false);
 
@@ -250,7 +249,6 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
     const nome = perfil?.nome ?? user?.nome ?? "";
     setEditNome(nome);
     setEditTelefone(perfil?.telefone ?? user?.telefone ?? "");
-    setEditBio(perfil?.bio ?? user?.bio ?? "");
   }, [perfil, user, modalVisible]);
 
   useFocusEffect(
@@ -264,7 +262,6 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
   const openModal = () => {
     setEditNome(perfil?.nome ?? user?.nome ?? "");
     setEditTelefone(perfil?.telefone ?? user?.telefone ?? "");
-    setEditBio(perfil?.bio ?? user?.bio ?? "");
     setModalVisible(true);
   };
 
@@ -278,7 +275,6 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
     const ok = await atualizar({
       nome: nomeTrim,
       telefone: editTelefone.trim(),
-      bio: editBio.trim(),
     });
 
     if (!ok) {
@@ -292,7 +288,6 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
             ...current,
             nome: nomeTrim,
             telefone: editTelefone.trim(),
-            bio: editBio.trim(),
           }
         : current,
     );
@@ -665,7 +660,7 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
                 />
                 <ProfileRow
                   icon="User"
-                  title="Nome, telefone, bio e foto"
+                  title="Nome, telefone e foto"
                   subtitle="Edite suas informações pessoais"
                   onPress={openModal}
                 />
@@ -792,21 +787,8 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
                 placeholderTextColor={colors.textMuted}
                 style={s.modalInput}
                 keyboardType="phone-pad"
-                returnKeyType="next"
+                returnKeyType="done"
               />
-
-              <Text style={s.modalLabel}>Bio</Text>
-              <TextInput
-                value={editBio}
-                onChangeText={(value) => setEditBio(value.slice(0, 300))}
-                placeholder="Conte um pouco sobre você"
-                placeholderTextColor={colors.textMuted}
-                style={[s.modalInput, s.modalInputMulti]}
-                multiline
-                maxLength={300}
-                textAlignVertical="top"
-              />
-              <Text style={s.charCount}>{editBio.length}/300</Text>
 
               <DButton
                 label={saving ? "Salvando..." : "Salvar alterações"}

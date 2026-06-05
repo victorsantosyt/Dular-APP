@@ -58,6 +58,13 @@ export async function confirmarFinalizacaoEmpregador(servicoId: string) {
   return res.data;
 }
 
+export async function aprovarServicoConcluido(servicoId: string) {
+  // Endpoint legado /confirmar: avança CONCLUIDO → CONFIRMADO (libera o
+  // caminho de avaliação). Só o empregador participante pode chamar.
+  const res = await api.post(`/api/servicos/${servicoId}/confirmar`);
+  return res.data;
+}
+
 type DraftSlice = {
   categoria: ServiceCategory;
   tipo?: "DIARISTA" | "MONTADOR";

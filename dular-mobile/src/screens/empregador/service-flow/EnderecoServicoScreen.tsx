@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { Alert, SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -8,6 +8,7 @@ import { DCard } from "@/components/ui/DCard";
 import { DInput } from "@/components/ui/DInput";
 import type { EmpregadorServiceFlowStackParamList } from "@/navigation/EmpregadorServiceFlowNavigator";
 import { colors, radius, shadows, spacing } from "@/theme";
+import { useAuth } from "@/stores/authStore";
 import { useServiceFlow } from "./ServiceFlowContext";
 import { FlowPrimaryButton, flowStyles, StepHeader } from "./components";
 import { getServiceFlowTheme } from "@/theme/serviceFlowTheme";
@@ -18,6 +19,27 @@ export function EnderecoServicoScreen() {
   const navigation = useNavigation<Navigation>();
   const { draft, updateDraft } = useServiceFlow();
   const flowTheme = getServiceFlowTheme(draft.tipo);
+  const user = useAuth((state) => state.user);
+
+  // Pré-preenche cidade/UF/bairro com a localização real salva do Empregador
+  // (mesma fonte da busca/perfil). Só seeda campos ainda vazios para não
+  // sobrescrever edição manual do usuário dentro do fluxo.
+  const perfilCidade = user?.cidadeAtual ?? user?.cidade ?? "";
+  const perfilUf = user?.estadoAtual ?? user?.estado ?? user?.uf ?? "";
+  const perfilBairro = user?.bairroAtual ?? "";
+  useEffect(() => {
+    const patch: Record<string, string> = {};
+    if (!draft.cidade && perfilCidade) patch.cidade = perfilCidade;
+    if (!draft.uf && perfilUf) patch.uf = perfilUf;
+    if (!draft.bairro && perfilBairro) patch.bairro = perfilBairro;
+    if (Object.keys(patch).length > 0) updateDraft(patch);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [perfilCidade, perfilUf, perfilBairro]);
+
+  const temLocalizacao = Boolean(draft.cidade.trim() && draft.uf.trim());
+  const cidadeUfLabel = temLocalizacao
+    ? `${draft.cidade} - ${draft.uf.toUpperCase()}`
+    : "Localização não definida";
 
   return (
     <SafeAreaView style={flowStyles.screen}>
@@ -37,20 +59,35 @@ export function EnderecoServicoScreen() {
               <AppIcon name="MapPin" size={20} color={flowTheme.primary} />
             </View>
             <View style={s.addressText}>
-              <Text style={s.addressTitle}>Rua Oscar Freire, 245</Text>
-              <Text style={s.addressSubtitle}>Jardim América, São Paulo - SP</Text>
-              <Text style={s.addressCep}>CEP 01426-001</Text>
+              <Text style={s.addressTitle}>{cidadeUfLabel}</Text>
+              <Text style={s.addressSubtitle}>
+                {temLocalizacao
+                  ? "Cidade/UF da sua localização salva. Confirme o endereço abaixo."
+                  : "Defina sua localização no perfil ou na busca para continuar."}
+              </Text>
             </View>
           </View>
         </DCard>
 
         <View style={s.form}>
           <DInput
+            placeholder="Rua / logradouro"
+            value={draft.rua}
+            onChangeText={(rua) => updateDraft({ rua })}
+            icon={<AppIcon name="MapPin" size={18} color={colors.textMuted} />}
+          />
+          <DInput
             placeholder="Número"
             value={draft.numero}
             onChangeText={(numero) => updateDraft({ numero })}
             keyboardType="number-pad"
             icon={<AppIcon name="Home" size={18} color={colors.textMuted} />}
+          />
+          <DInput
+            placeholder="Bairro"
+            value={draft.bairro}
+            onChangeText={(bairro) => updateDraft({ bairro })}
+            icon={<AppIcon name="MapPin" size={18} color={colors.textMuted} />}
           />
           <DInput
             placeholder="Complemento"

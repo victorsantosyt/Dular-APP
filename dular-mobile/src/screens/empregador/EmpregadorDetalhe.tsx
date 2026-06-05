@@ -142,7 +142,7 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
   // aprovado via "Confirmar finalização" → CONFIRMADO). Não incluir CONCLUIDO
   // aqui evita oferecer "Avaliar" num estado que o backend rejeita (409).
   const podeAvaliar = useMemo(
-    () => !alreadyRated && ["CONFIRMADO", "FINALIZADO"].includes(statusRaw),
+    () => !alreadyRated && statusRaw === "CONFIRMADO",
     [alreadyRated, statusRaw]
   );
 

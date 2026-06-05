@@ -5,6 +5,7 @@ import { useNavigation, useRoute, type RouteProp } from "@react-navigation/nativ
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 
 import { useDiaristaPublico } from "@/hooks/useDiaristaPublico";
+import { useFavoritos } from "@/hooks/useFavoritos";
 import { SafeScoreBadge } from "@/components/SafeScoreBadge";
 import { DAvatar } from "@/components/ui";
 import { AppIcon } from "@/components/ui";
@@ -81,9 +82,25 @@ export function DiaristaProfileScreen() {
 
   const { diarista, loading, error } = useDiaristaPublico(diaristaId);
   const [activeService, setActiveService] = useState<ServicoAtivoDiarista | null>(null);
+  const { isFavorito, toggle: toggleFavorito } = useFavoritos();
 
   const nome = diarista?.nome || nomeParam;
   const hasAvatar = Boolean(diarista?.avatarUrl);
+
+  const favoritoUserId = diarista?.userId ?? diaristaId ?? null;
+  const favorito = favoritoUserId ? isFavorito(favoritoUserId, "DIARISTA") : false;
+
+  const handleToggleFavorito = async () => {
+    if (!favoritoUserId) return;
+    try {
+      await toggleFavorito(favoritoUserId, "DIARISTA");
+    } catch {
+      Alert.alert(
+        "Não foi possível atualizar",
+        "Tente novamente em instantes. Verifique sua conexão.",
+      );
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -404,6 +421,22 @@ export function DiaristaProfileScreen() {
               strokeWidth={2.5}
             />
           </Pressable>
+          <Pressable
+            onPress={handleToggleFavorito}
+            disabled={!favoritoUserId}
+            hitSlop={12}
+            style={[s.backBtn, s.favHeaderBtn]}
+            pointerEvents="auto"
+            accessibilityRole="button"
+            accessibilityLabel={favorito ? "Remover dos favoritos" : "Adicionar aos favoritos"}
+          >
+            <AppIcon
+              name="Heart"
+              size={22}
+              color={favorito ? colors.danger : hasAvatar ? colors.white : colors.textMuted}
+              strokeWidth={favorito ? 2.6 : 2.4}
+            />
+          </Pressable>
         </View>
       </View>
     </View>
@@ -453,6 +486,9 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: colors.glassLight,
+  },
+  favHeaderBtn: {
+    marginLeft: "auto",
   },
 
   // Identification section

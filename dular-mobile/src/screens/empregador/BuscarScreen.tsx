@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   FlatList,
@@ -307,6 +307,10 @@ export function BuscarScreen() {
   const [regionConfirmed, setRegionConfirmed] = useState(false);
   const [savingRegion, setSavingRegion] = useState(false);
   const [regionError, setRegionError] = useState<string | null>(null);
+  // Semeia a região a partir do perfil salvo apenas UMA vez. Sem esse guard, o
+  // effect re-dispararia ao detectar GPS/edição manual (que zeram regionConfirmed)
+  // e sobrescreveria a localização recém-detectada de volta para a do perfil.
+  const profileSeededRef = useRef(false);
   const {
     profissionais: apiProfs,
     montadores: apiMontadores,
@@ -333,14 +337,19 @@ export function BuscarScreen() {
   );
 
   useEffect(() => {
+    // Fonte de verdade inicial: localização salva no perfil (source: "profile").
+    // GPS confirmado / manual confirmado têm prioridade e, uma vez aplicados,
+    // não são sobrescritos por este seed (guard via profileSeededRef).
+    if (profileSeededRef.current) return;
     const savedCidade = authUser?.cidadeAtual ?? authUser?.cidade ?? "";
     const savedUf = authUser?.estadoAtual ?? authUser?.estado ?? "";
     const savedBairro = authUser?.bairroAtual ?? "";
-    if (savedCidade && savedUf && !regionConfirmed) {
+    if (savedCidade && savedUf) {
+      profileSeededRef.current = true;
       setRegion({ cidade: savedCidade, uf: savedUf, bairro: savedBairro });
       setRegionConfirmed(true);
     }
-  }, [authUser?.bairroAtual, authUser?.cidade, authUser?.cidadeAtual, authUser?.estado, authUser?.estadoAtual, regionConfirmed]);
+  }, [authUser?.bairroAtual, authUser?.cidade, authUser?.cidadeAtual, authUser?.estado, authUser?.estadoAtual]);
 
   useEffect(() => {
     if (regionConfirmed && region.cidade && region.uf) {

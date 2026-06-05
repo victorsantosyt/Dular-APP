@@ -240,11 +240,21 @@ export function AgendamentosEmpregadorScreen() {
                 <Text style={s.emptyText}>{error}</Text>
               </Pressable>
             ) : filteredAgendamentos.length === 0 ? (
-              <View style={s.empty}>
-                <AppIcon name="Calendar" size={34} color="purple" variant="soft" />
-                <Text style={s.emptyTitle}>Nenhum agendamento encontrado</Text>
-                <Text style={s.emptyText}>Ajuste os filtros ou envie uma nova solicitação.</Text>
-              </View>
+              agendamentos.length === 0 ? (
+                <Pressable onPress={() => navigation.navigate("Buscar")} style={s.empty}>
+                  <AppIcon name="Calendar" size={34} color="purple" variant="soft" />
+                  <Text style={s.emptyTitle}>Você ainda não tem solicitações</Text>
+                  <Text style={s.emptyText}>
+                    Vá em Buscar, escolha um profissional e solicite um serviço. Ele aparecerá aqui.
+                  </Text>
+                </Pressable>
+              ) : (
+                <View style={s.empty}>
+                  <AppIcon name="Calendar" size={34} color="purple" variant="soft" />
+                  <Text style={s.emptyTitle}>Nenhum agendamento neste filtro</Text>
+                  <Text style={s.emptyText}>Ajuste os filtros para ver outras solicitações.</Text>
+                </View>
+              )
             ) : (
               filteredAgendamentos.map((item) => (
                 <AppointmentCard

@@ -37,15 +37,27 @@ export default function AvaliacaoModal({
     if (nota === 0 || enviando) return;
     setEnviando(true);
     try {
+      // O backend (avaliarServicoSchema) exige as quatro dimensões como
+      // inteiros 1–5. Este modal usa uma nota única (estrelas), então
+      // replicamos o valor nas quatro dimensões para satisfazer o contrato.
       await api.post(`/api/servicos/${servicoId}/avaliar`, {
-        nota,
+        notaGeral: nota,
+        pontualidade: nota,
+        qualidade: nota,
+        comunicacao: nota,
         ...(comentario.trim() ? { comentario: comentario.trim() } : {}),
       });
       setNota(0);
       setComentario("");
       onSucesso();
-    } catch {
-      Alert.alert("Erro", "Erro ao enviar avaliação.");
+    } catch (e: any) {
+      const backendMsg = e?.response?.data?.error ?? e?.response?.data?.message;
+      Alert.alert(
+        "Não foi possível avaliar",
+        typeof backendMsg === "string" && backendMsg.length > 0
+          ? backendMsg
+          : "Erro ao enviar avaliação. Tente novamente.",
+      );
     } finally {
       setEnviando(false);
     }

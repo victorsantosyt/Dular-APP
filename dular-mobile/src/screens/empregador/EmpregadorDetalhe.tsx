@@ -15,6 +15,7 @@ import { api } from "@/lib/api";
 import { fetchServicosMinhas } from "@/api/sharedFetcher";
 import type { ServicoListItem as Servico } from "../../../../shared/types/servico";
 import {
+  aprovarServicoConcluido,
   cancelarServicoEmpregador,
   confirmarFinalizacaoEmpregador,
 } from "@/api/empregadorApi";
@@ -137,10 +138,11 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
       ["PENDENTE", "SOLICITADO", "ACEITO"].includes(statusRaw),
     [statusRaw]
   );
+  // Backend exige status CONFIRMADO para avaliar (CONCLUIDO precisa antes ser
+  // aprovado via "Confirmar finalização" → CONFIRMADO). Não incluir CONCLUIDO
+  // aqui evita oferecer "Avaliar" num estado que o backend rejeita (409).
   const podeAvaliar = useMemo(
-    () =>
-      !alreadyRated &&
-      ["CONCLUIDO", "CONCLUÍDO", "CONFIRMADO", "FINALIZADO"].includes(statusRaw),
+    () => !alreadyRated && ["CONFIRMADO", "FINALIZADO"].includes(statusRaw),
     [alreadyRated, statusRaw]
   );
 
@@ -164,22 +166,33 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
     busyRef.current = true;
     setConfirming(true);
     try {
-      await confirmarFinalizacaoEmpregador(svc.id);
-      // T-14 dupla confirmação:
-      //   EM_ANDAMENTO          → AGUARDANDO_FINALIZACAO (1ª parte)
-      //   AGUARDANDO_FINALIZACAO → CONCLUIDO (2ª parte)
-      // Sem isso o status otimista virava "CONFIRMADO" indevidamente.
-      const nextStatus =
-        statusRaw === "AGUARDANDO_FINALIZACAO" ? "CONCLUIDO" : "AGUARDANDO_FINALIZACAO";
+      // Ciclo de finalização:
+      //   EM_ANDAMENTO          →(confirmar-finalizacao)→ AGUARDANDO_FINALIZACAO
+      //   AGUARDANDO_FINALIZACAO →(confirmar-finalizacao)→ CONCLUIDO
+      //   CONCLUIDO             →(confirmar legado)→ CONFIRMADO (libera avaliação)
+      // CONCLUIDO usa o endpoint /confirmar; os demais usam /confirmar-finalizacao.
+      const isAprovacaoFinal = ["CONCLUIDO", "CONCLUÍDO"].includes(statusRaw);
+      if (isAprovacaoFinal) {
+        await aprovarServicoConcluido(svc.id);
+      } else {
+        await confirmarFinalizacaoEmpregador(svc.id);
+      }
+      const nextStatus = isAprovacaoFinal
+        ? "CONFIRMADO"
+        : statusRaw === "AGUARDANDO_FINALIZACAO"
+          ? "CONCLUIDO"
+          : "AGUARDANDO_FINALIZACAO";
       setSvc((cur) =>
         cur ? { ...cur, status: nextStatus as any, __confirmedByClient: true } : cur,
       );
       // Flag fora do svc — sobrevive ao refetch periódico (POLL_MS) que reescreve `svc`.
       setConfirmedByClient(true);
       setToast(
-        nextStatus === "CONCLUIDO"
-          ? "Serviço finalizado."
-          : "Confirmação enviada. Aguardando a outra parte.",
+        nextStatus === "CONFIRMADO"
+          ? "Serviço aprovado. Você já pode avaliar."
+          : nextStatus === "CONCLUIDO"
+            ? "Serviço finalizado."
+            : "Confirmação enviada. Aguardando a outra parte.",
       );
     } catch (e: any) {
       // 409 = a outra parte já confirmou nesse meio tempo; sincroniza UI e segue.

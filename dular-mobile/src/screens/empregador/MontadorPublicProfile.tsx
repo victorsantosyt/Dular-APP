@@ -30,6 +30,7 @@ import { radius, shadows, spacing, typography } from "@/theme";
 import type { EmpregadorTabParamList } from "@/navigation/EmpregadorNavigator";
 import { MONTADOR_ESPECIALIDADES, type MontadorItem } from "@/types/montador";
 import { isStatusEncerrado } from "@/utils/servicoStatus";
+import { useFavoritos } from "@/hooks/useFavoritos";
 
 type Navigation = BottomTabNavigationProp<EmpregadorTabParamList>;
 type RouteProps = RouteProp<EmpregadorTabParamList, "MontadorPublicProfile">;
@@ -96,7 +97,23 @@ export default function MontadorPublicProfile() {
     };
   }, [montadorId]);
 
+  const { isFavorito, toggle: toggleFavorito } = useFavoritos();
+
   const profissionalId = montador?.userId ?? montador?.user.id ?? routeMontadorUserId ?? null;
+  const favorito = profissionalId ? isFavorito(profissionalId, "MONTADOR") : false;
+
+  const handleToggleFavorito = async () => {
+    if (!profissionalId) return;
+    try {
+      await toggleFavorito(profissionalId, "MONTADOR");
+    } catch {
+      Alert.alert(
+        "Não foi possível atualizar",
+        "Tente novamente em instantes. Verifique sua conexão.",
+      );
+    }
+  };
+
   const nome = montador?.user.nome ?? nomeParam ?? "Montador";
   const genero: Genero = (montador?.user.genero ?? null) as Genero;
   const theme = useMemo(
@@ -204,7 +221,21 @@ export default function MontadorPublicProfile() {
           <AppIcon name="ArrowLeft" size={20} color={theme.primary} strokeWidth={2.5} />
         </Pressable>
         <Text style={styles.headerTitle}>Perfil do Montador</Text>
-        <View style={styles.headerSpacer} />
+        <Pressable
+          onPress={handleToggleFavorito}
+          disabled={!profissionalId}
+          hitSlop={12}
+          accessibilityRole="button"
+          accessibilityLabel={favorito ? "Remover dos favoritos" : "Adicionar aos favoritos"}
+          style={({ pressed }) => [styles.backBtn, pressed && { opacity: 0.7 }]}
+        >
+          <AppIcon
+            name="Heart"
+            size={20}
+            color={favorito ? colors.danger : colors.textMuted}
+            strokeWidth={favorito ? 2.6 : 2.2}
+          />
+        </Pressable>
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>

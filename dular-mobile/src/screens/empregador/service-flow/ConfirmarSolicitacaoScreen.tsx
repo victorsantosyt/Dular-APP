@@ -94,20 +94,41 @@ export function ConfirmarSolicitacaoScreen() {
         });
         return;
       }
-      Alert.alert("Falha ao enviar", "Não foi possível criar a solicitação agora.");
+      // Paywall / limite de plano: mensagem clara do backend.
+      if (e?.response?.status === 403 && errorCode === "LIMIT_EXCEEDED") {
+        Alert.alert(
+          "Limite do plano atingido",
+          e?.response?.data?.message ??
+            "Você atingiu o limite de solicitações do seu plano atual.",
+        );
+        return;
+      }
+      // Demais erros de validação do backend (ex.: bairro não cadastrado,
+      // profissional indisponível): surface a mensagem específica quando houver.
+      const backendMsg = e?.response?.data?.message ?? e?.response?.data?.error;
+      Alert.alert(
+        "Não foi possível enviar",
+        backendMsg && backendMsg !== "LIMIT_EXCEEDED"
+          ? backendMsg
+          : "Não foi possível criar a solicitação agora. Tente novamente.",
+      );
     } finally {
       setSubmitting(false);
     }
   };
 
-  const address = [
-    "Rua Oscar Freire, 245",
-    draft.numero ? `número ${draft.numero}` : null,
-    "Jardim América, São Paulo - SP",
-    "CEP 01426-001",
+  const ruaLinha = [
+    draft.rua,
+    draft.numero ? `nº ${draft.numero}` : null,
+    draft.complemento || null,
   ]
     .filter(Boolean)
-    .join("\n");
+    .join(", ");
+  const cidadeUfLinha = [draft.bairro, [draft.cidade, draft.uf].filter(Boolean).join(" - ")]
+    .filter(Boolean)
+    .join(", ");
+  const address =
+    [ruaLinha, cidadeUfLinha].filter(Boolean).join("\n") || "Endereço não informado";
   const rows = useMemo(() => {
     if (isMontador) {
       return [

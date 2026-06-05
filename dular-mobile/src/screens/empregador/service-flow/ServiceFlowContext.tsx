@@ -27,9 +27,16 @@ export type ServiceDraft = {
   categoriaBackend?: string;
   dataISO: string;
   horario: string;
+  /** Endereço do atendimento. cidade/uf/bairro são pré-preenchidos a partir
+   *  da localização real salva do Empregador (authUser); rua/numero/complemento
+   *  são informados no fluxo. Nunca usar valores fixos. */
+  rua: string;
   numero: string;
   complemento: string;
   referencia: string;
+  bairro: string;
+  cidade: string;
+  uf: string;
   observacoes: string;
   chips: string[];
   prioridade: string;
@@ -53,9 +60,13 @@ const INITIAL_DRAFT: ServiceDraft = {
   tipoProfissional: "DIARISTA",
   dataISO: "",
   horario: "",
+  rua: "",
   numero: "",
   complemento: "",
   referencia: "",
+  bairro: "",
+  cidade: "",
+  uf: "",
   observacoes: "",
   chips: [],
   prioridade: "Horário flexível (recomendado)",

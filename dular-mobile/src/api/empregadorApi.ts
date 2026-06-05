@@ -67,8 +67,12 @@ type DraftSlice = {
   categoriaBackend?: string;
   dataISO: string;
   horario: string;
+  rua: string;
   numero: string;
   complemento: string;
+  bairro: string;
+  cidade: string;
+  uf: string;
   observacoes: string;
 };
 
@@ -111,8 +115,36 @@ export function prepararPayload(draft: DraftSlice): PrepareResult {
     }
   }
 
+  // Endereço real do atendimento. cidade/uf/bairro vêm da localização salva
+  // do Empregador (pré-preenchida na tela de endereço); rua/numero/complemento
+  // são informados no fluxo. Sem fallback fixo: bloqueia se faltar o essencial.
+  const cidade = draft.cidade.trim();
+  const uf = draft.uf.trim().toUpperCase();
+  const bairro = draft.bairro.trim();
+  const rua = draft.rua.trim();
+
+  if (!cidade || uf.length !== 2) {
+    return {
+      ok: false,
+      error:
+        "Defina sua localização (cidade e UF) no perfil ou na busca antes de solicitar um serviço.",
+    };
+  }
+  if (!bairro) {
+    return {
+      ok: false,
+      error: "Informe o bairro do atendimento para continuar.",
+    };
+  }
+  if (!rua) {
+    return {
+      ok: false,
+      error: "Informe a rua/logradouro do atendimento para continuar.",
+    };
+  }
+
   const partes = [
-    "Rua Oscar Freire, 245", // TODO: coletar do endereço cadastrado no perfil do usuário
+    rua,
     draft.numero ? `nº ${draft.numero}` : null,
     draft.complemento || null,
   ].filter(Boolean);
@@ -122,9 +154,9 @@ export function prepararPayload(draft: DraftSlice): PrepareResult {
     categoria: isMontador ? draft.categoriaBackend : undefined,
     dataISO: draft.dataISO,
     turno: horarioParaTurno(draft.horario || "10:00"),
-    cidade: "São Paulo",      // TODO: coletar cidade do perfil do usuário
-    uf: "SP",                 // TODO: coletar UF do perfil do usuário
-    bairro: "Jardim América", // TODO: coletar bairro do perfil do usuário
+    cidade,
+    uf,
+    bairro,
     enderecoCompleto: partes.join(", "),
     observacoes: draft.observacoes || undefined,
   };

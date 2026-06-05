@@ -37,7 +37,7 @@ export function ChatAbertoScreen({ route }: Props) {
   const insets = useSafeAreaInsets();
   const listRef = useRef<FlatList<Mensagem>>(null);
 
-  const { mensagens, servicoStatus, loading, enviar } = useChat(roomId);
+  const { mensagens, servicoStatus, loading, error, enviar, refetch } = useChat(roomId);
   // Status terminais → sala arquivada (somente leitura).
   const arquivada = servicoStatus
     ? ["CONCLUIDO", "CONFIRMADO", "FINALIZADO"].includes(servicoStatus.toUpperCase())
@@ -126,6 +126,17 @@ export function ChatAbertoScreen({ route }: Props) {
         {loading ? (
           <View style={styles.center}>
             <ActivityIndicator color={colors.primary} size="large" />
+          </View>
+        ) : error && sortedMensagens.length === 0 ? (
+          <View style={styles.center}>
+            <AppIcon name="AlertTriangle" size={30} color={colors.danger} variant="soft" />
+            <Text style={styles.emptyText}>{error}</Text>
+            <Pressable
+              onPress={refetch}
+              style={({ pressed }) => [styles.retryBtn, pressed && { opacity: 0.8 }]}
+            >
+              <Text style={styles.retryText}>Tentar novamente</Text>
+            </Pressable>
           </View>
         ) : sortedMensagens.length === 0 ? (
           <View style={styles.center}>
@@ -232,6 +243,19 @@ const styles = StyleSheet.create({
     ...typography.body,
     color: colors.textMuted,
     textAlign: "center",
+  },
+  retryBtn: {
+    marginTop: spacing.md,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: 10,
+    borderRadius: radius.pill,
+    borderWidth: 1.4,
+    borderColor: colors.primary,
+  },
+  retryText: {
+    ...typography.bodySmMedium,
+    color: colors.primary,
+    fontWeight: "700",
   },
   list: {
     flex: 1,

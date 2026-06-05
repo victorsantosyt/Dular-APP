@@ -77,9 +77,6 @@ export default function MontadorPublicProfile() {
       try {
         setLoading(true);
         setError(null);
-        // TODO (backend): endpoint dedicado /api/montadores/[id]. Por enquanto
-        // tentamos via /api/montadores/buscar e filtramos client-side; se não
-        // achar, exibimos o nome do route param e dados vazios.
         const res = await api.get<DetalheResponse>(`/api/montadores/${montadorId}`).catch(() => null);
         if (cancelled) return;
         if (res?.data?.montador) {

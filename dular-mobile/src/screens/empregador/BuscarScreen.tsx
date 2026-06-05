@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  Alert,
   FlatList,
   Image,
   Pressable,
@@ -24,6 +25,7 @@ import { LocationPermissionCard } from "@/components/location/LocationPermission
 import { colors, radius, shadows, spacing, typography } from "@/theme";
 import type { EmpregadorTabParamList } from "@/navigation/EmpregadorNavigator";
 import { useBuscar, type ApiDiarista } from "@/hooks/useBuscar";
+import { useFavoritos } from "@/hooks/useFavoritos";
 import { salvarLocalizacaoAtual } from "@/api/localizacaoApi";
 import { useAuth } from "@/stores/authStore";
 import { useCurrentRegion, type CurrentRegion } from "@/hooks/useCurrentRegion";
@@ -210,7 +212,15 @@ function ProfileButton({ onPress }: { onPress: () => void }) {
   );
 }
 
-function ProfCard({ prof }: { prof: Profissional }) {
+function ProfCard({
+  prof,
+  favorito,
+  onToggleFavorito,
+}: {
+  prof: Profissional;
+  favorito: boolean;
+  onToggleFavorito: () => void;
+}) {
   const navigation = useNavigation<Navigation>();
   const initials = prof.nome.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
 
@@ -243,6 +253,20 @@ function ProfCard({ prof }: { prof: Profissional }) {
       </View>
 
       <View style={s.profRight}>
+        <Pressable
+          onPress={onToggleFavorito}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel={favorito ? "Remover dos favoritos" : "Adicionar aos favoritos"}
+          style={({ pressed }) => [s.favBtn, pressed && { opacity: 0.7 }]}
+        >
+          <AppIcon
+            name="Heart"
+            size={18}
+            color={favorito ? colors.danger : colors.textMuted}
+            strokeWidth={favorito ? 2.6 : 2.2}
+          />
+        </Pressable>
         {prof.distancia ? <Text style={s.distText}>{prof.distancia}</Text> : null}
         <ProfileButton
           onPress={() => {
@@ -292,6 +316,21 @@ export function BuscarScreen() {
     montadoresError,
     buscar,
   } = useBuscar();
+  const { isFavorito, toggle: toggleFavorito } = useFavoritos();
+
+  const handleToggleFavorito = useCallback(
+    async (prof: Profissional) => {
+      try {
+        await toggleFavorito(prof.userId, prof.tipo);
+      } catch {
+        Alert.alert(
+          "Não foi possível atualizar",
+          "Tente novamente em instantes. Verifique sua conexão.",
+        );
+      }
+    },
+    [toggleFavorito],
+  );
 
   useEffect(() => {
     const savedCidade = authUser?.cidadeAtual ?? authUser?.cidade ?? "";
@@ -521,7 +560,13 @@ export function BuscarScreen() {
               <FlatList
                 data={filteredList}
                 keyExtractor={(item) => item.id}
-                renderItem={({ item }) => <ProfCard prof={item} />}
+                renderItem={({ item }) => (
+                  <ProfCard
+                    prof={item}
+                    favorito={isFavorito(item.userId, item.tipo)}
+                    onToggleFavorito={() => handleToggleFavorito(item)}
+                  />
+                )}
                 scrollEnabled={false}
                 ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
               />
@@ -679,6 +724,13 @@ const s = StyleSheet.create({
     alignItems: "center",
     gap: 9,
     ...shadows.soft,
+  },
+  favBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
   },
   avatarWrap: {
     width: 50,

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/requireAuth";
 import bcrypt from "bcryptjs";
@@ -262,9 +263,10 @@ export async function PUT(req: Request) {
     const auth = requireAuth(req);
     const body = await req.json();
 
-    const { nome, email, senhaAtual, novaSenha, bio, precoLeve, precoMedio, precoPesado, precoPesada } = body as {
+    const { nome, email, telefone, senhaAtual, novaSenha, bio, precoLeve, precoMedio, precoPesado, precoPesada } = body as {
       nome?: string;
       email?: string;
+      telefone?: string;
       senhaAtual?: string;
       novaSenha?: string;
       bio?: string;
@@ -277,6 +279,9 @@ export async function PUT(req: Request) {
     const data: any = {};
     if (typeof nome === "string") data.nome = nome.trim();
     if (typeof email === "string") data.email = email.trim() || null;
+    // telefone é String? @unique no schema: normaliza vazio→null para não
+    // colidir no índice único e para permitir limpar o campo.
+    if (typeof telefone === "string") data.telefone = telefone.trim() || null;
 
     if (novaSenha) {
       if (!senhaAtual) {
@@ -439,6 +444,18 @@ export async function PUT(req: Request) {
   } catch (e: any) {
     if (e?.message === "Unauthorized") {
       return NextResponse.json({ ok: false, error: "Não autorizado" }, { status: 401 });
+    }
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+      const target = Array.isArray(e.meta?.target) ? (e.meta?.target as string[]) : [];
+      const campo = target.includes("telefone")
+        ? "telefone"
+        : target.includes("email")
+          ? "e-mail"
+          : "dado";
+      return NextResponse.json(
+        { ok: false, error: `Este ${campo} já está em uso por outra conta.` },
+        { status: 409 },
+      );
     }
     return NextResponse.json({ ok: false, error: e?.message ?? "Erro" }, { status: 500 });
   }

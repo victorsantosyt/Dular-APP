@@ -443,25 +443,29 @@ export function BuscarScreen() {
             </View>
           </View>
 
-          <LocationPermissionCard
-            title="Região da busca"
-            subtitle="Use sua localização ou informe uma região para encontrar profissionais disponíveis."
-            region={region}
-            permissionStatus={currentRegion.permissionStatus}
-            loading={currentRegion.loading}
-            saving={savingRegion}
-            error={regionError ?? currentRegion.error}
-            confirmed={regionConfirmed}
-            confirmLabel="Usar esta região"
-            onRegionChange={(next) => {
-              setRegion(next);
-              setRegionConfirmed(false);
-            }}
-            onRequestLocation={requestRegion}
-            onDetected={handleDetectedRegion}
-            onManual={() => setRegionConfirmed(false)}
-            onConfirm={confirmRegion}
-          />
+          <View style={s.regionCardWrap}>
+            <View style={s.regionCardInner}>
+              <LocationPermissionCard
+                title="Região da busca"
+                subtitle="Use sua localização ou informe uma região para encontrar profissionais disponíveis."
+                region={region}
+                permissionStatus={currentRegion.permissionStatus}
+                loading={currentRegion.loading}
+                saving={savingRegion}
+                error={regionError ?? currentRegion.error}
+                confirmed={regionConfirmed}
+                confirmLabel="Usar esta região"
+                onRegionChange={(next) => {
+                  setRegion(next);
+                  setRegionConfirmed(false);
+                }}
+                onRequestLocation={requestRegion}
+                onDetected={handleDetectedRegion}
+                onManual={() => setRegionConfirmed(false)}
+                onConfirm={confirmRegion}
+              />
+            </View>
+          </View>
 
           <View style={s.section}>
             <Text style={s.sectionTitle}>Escolha uma categoria</Text>
@@ -592,6 +596,14 @@ const s = StyleSheet.create({
     ...typography.bodySmMedium,
     fontWeight: "500",
     paddingVertical: 8,
+  },
+  regionCardWrap: {
+    width: "100%",
+    alignItems: "center",
+    paddingHorizontal: spacing.screenPadding,
+  },
+  regionCardInner: {
+    width: "100%",
   },
   section: {
     paddingHorizontal: spacing.screenPadding,

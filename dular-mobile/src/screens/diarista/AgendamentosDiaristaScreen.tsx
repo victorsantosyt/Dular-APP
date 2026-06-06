@@ -6,6 +6,8 @@ import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import { AppIcon, DAvatar, DBadge, DButton, DCard } from "@/components/ui";
 import { colors, radius, spacing, typography } from "@/theme";
 import { useAuth } from "@/stores/authStore";
+import { useGenderTheme } from "@/hooks/useProfileTheme";
+import type { ProfileTheme } from "@/theme/profileTheme";
 import type { DiaristaTabParamList } from "@/navigation/DiaristaNavigator";
 import { useAgendamentosDiarista } from "@/hooks/useAgendamentosDiarista";
 import { useMensagens } from "@/hooks/useMensagens";
@@ -39,15 +41,17 @@ const FILTROS: { label: string; value: Filtro }[] = [
 function FilterChip({
   label,
   active,
+  accentColor,
   onPress,
 }: {
   label: string;
   active: boolean;
+  accentColor: string;
   onPress: () => void;
 }) {
   return (
     <Pressable onPress={onPress}>
-      <View style={[styles.filterChip, active ? styles.filterChipActive : styles.filterChipIdle]}>
+      <View style={[styles.filterChip, active ? { backgroundColor: accentColor, borderColor: accentColor } : styles.filterChipIdle]}>
         <Text style={[styles.filterLabel, active ? styles.filterLabelActive : styles.filterLabelIdle]}>
           {label}
         </Text>
@@ -56,7 +60,7 @@ function FilterChip({
   );
 }
 
-function AgendaResumo({ total }: { total: number }) {
+function AgendaResumo({ total, accentColor, softBg }: { total: number; accentColor: string; softBg: string }) {
   return (
     <DCard style={styles.calendarCard}>
       <View style={styles.calendarHeader}>
@@ -66,18 +70,20 @@ function AgendaResumo({ total }: { total: number }) {
             {total === 1 ? "1 agendamento carregado" : `${total} agendamentos carregados`}
           </Text>
         </View>
-        <AppIcon name="Calendar" size={24} color={colors.primary} variant="soft" />
+        <View style={[styles.resumoIconBox, { backgroundColor: softBg }]}>
+          <AppIcon name="Calendar" size={22} color={accentColor} strokeWidth={2.1} />
+        </View>
       </View>
     </DCard>
   );
 }
 
-function statusCardStyle(status: StatusAgendamento) {
+function statusCardStyle(status: StatusAgendamento, accentColor: string) {
   switch (status) {
     case "pendente":
       return styles.statusPendente;
     case "confirmado":
-      return styles.statusConfirmado;
+      return { borderColor: accentColor, borderWidth: 1.5 };
     case "andamento":
       return styles.statusAndamento;
     case "finalizado":
@@ -87,13 +93,19 @@ function statusCardStyle(status: StatusAgendamento) {
   }
 }
 
-function AgendamentoDiaristaCard({ agendamento }: { agendamento: Agendamento }) {
+function AgendamentoDiaristaCard({
+  agendamento,
+  accentColor,
+}: {
+  agendamento: Agendamento;
+  accentColor: string;
+}) {
   const navigation = useNavigation<Navigation>();
   const finished = agendamento.status === "finalizado";
   const canceled = agendamento.status === "cancelado";
 
   return (
-    <DCard style={[styles.appointmentCard, statusCardStyle(agendamento.status)]}>
+    <DCard style={[styles.appointmentCard, statusCardStyle(agendamento.status, accentColor)]}>
       <View style={styles.appointmentRow}>
         <DAvatar
           size="md"
@@ -107,7 +119,7 @@ function AgendamentoDiaristaCard({ agendamento }: { agendamento: Agendamento }) 
             <View style={styles.clientInfo}>
               <Text style={styles.clientName}>{agendamento.nomeCliente}</Text>
               <View style={styles.ratingRow}>
-                <AppIcon name="Star" size={12} color={colors.pink} strokeWidth={2.4} />
+                <AppIcon name="Star" size={12} color={colors.star} strokeWidth={2.4} />
                 <Text style={styles.ratingText}>{agendamento.avaliacao}</Text>
               </View>
             </View>
@@ -120,7 +132,7 @@ function AgendamentoDiaristaCard({ agendamento }: { agendamento: Agendamento }) 
             <Text style={styles.metaText}>{agendamento.localizacao}</Text>
           </View>
           <View style={styles.serviceRow}>
-            <AppIcon name="Sparkles" size={12} color={colors.primary} strokeWidth={2.3} />
+            <AppIcon name="Sparkles" size={12} color={accentColor} strokeWidth={2.3} />
             <Text style={styles.serviceText}>{agendamento.servico}</Text>
           </View>
           <View style={styles.metaRow}>
@@ -129,7 +141,7 @@ function AgendamentoDiaristaCard({ agendamento }: { agendamento: Agendamento }) 
               {agendamento.data}, {agendamento.hora}
             </Text>
           </View>
-          <Text style={styles.price}>R$ {agendamento.preco}</Text>
+          <Text style={[styles.price, { color: accentColor }]}>R$ {agendamento.preco}</Text>
         </View>
 
         <View style={styles.actions}>
@@ -172,6 +184,7 @@ function AgendamentoDiaristaCard({ agendamento }: { agendamento: Agendamento }) 
 export function AgendamentosDiaristaScreen() {
   const navigation = useNavigation<Navigation>();
   const { user } = useAuth();
+  const theme = useGenderTheme("DIARISTA");
   const firstName = (user?.nome || "Diarista").trim().split(/\s+/)[0];
   const [activeFilter, setActiveFilter] = useState<Filtro>("hoje");
   const { agendamentos: realAgendamentos, loading, error, refetch } = useAgendamentosDiarista();
@@ -212,8 +225,8 @@ export function AgendamentosDiaristaScreen() {
             hitSlop={spacing.sm}
             onPress={() => Alert.alert("Em breve", "Calendário completo ainda não está disponível.")}
           >
-            <View style={styles.calendarButton}>
-              <AppIcon name="Calendar" size={20} color="purple" />
+            <View style={[styles.calendarButton, { borderColor: theme.border, borderWidth: 1 }]}>
+              <AppIcon name="Calendar" size={20} color={theme.icon} />
             </View>
           </Pressable>
         </View>
@@ -225,17 +238,18 @@ export function AgendamentosDiaristaScreen() {
                 key={filter.value}
                 label={filter.label}
                 active={activeFilter === filter.value}
+                accentColor={theme.primary}
                 onPress={() => setActiveFilter(filter.value)}
               />
             ))}
           </View>
         </ScrollView>
 
-        <AgendaResumo total={realAgendamentos.length} />
+        <AgendaResumo total={realAgendamentos.length} accentColor={theme.primary} softBg={theme.primarySoft} />
 
         {loading && realAgendamentos.length === 0 ? (
           <View style={styles.centerState}>
-            <ActivityIndicator size="large" color={colors.primary} />
+            <ActivityIndicator size="large" color={theme.primary} />
           </View>
         ) : error ? (
           <View style={styles.centerState}>
@@ -246,17 +260,19 @@ export function AgendamentosDiaristaScreen() {
           <FlatList
             data={agendamentos}
             keyExtractor={(item) => item.id}
-            renderItem={({ item }) => <AgendamentoDiaristaCard agendamento={item} />}
+            renderItem={({ item }) => <AgendamentoDiaristaCard agendamento={item} accentColor={theme.primary} />}
             contentContainerStyle={styles.listContent}
             showsVerticalScrollIndicator={false}
             ItemSeparatorComponent={() => <View style={styles.listSeparator} />}
             ListEmptyComponent={
               <View style={styles.centerState}>
-                <AppIcon name="Calendar" size={36} color={colors.primary} variant="soft" />
+                <View style={[styles.emptyIconBox, { backgroundColor: theme.primarySoft }]}>
+                  <AppIcon name="Calendar" size={32} color={theme.primary} strokeWidth={2} />
+                </View>
                 <Text style={styles.emptyText}>Nenhum agendamento encontrado</Text>
               </View>
             }
-            refreshControl={<RefreshControl refreshing={loading} onRefresh={refetch} colors={[colors.primary]} />}
+            refreshControl={<RefreshControl refreshing={loading} onRefresh={refetch} tintColor={theme.primary} colors={[theme.primary]} />}
           />
         )}
       </View>
@@ -317,10 +333,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderWidth: 1.5,
   },
-  filterChipActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
   filterChipIdle: {
     backgroundColor: colors.surface,
     borderColor: colors.border,
@@ -340,6 +352,21 @@ const styles = StyleSheet.create({
     marginHorizontal: spacing.screenPadding,
     marginBottom: spacing.md,
     padding: spacing.md,
+  },
+  resumoIconBox: {
+    width: 42,
+    height: 42,
+    borderRadius: radius.md,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  emptyIconBox: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: spacing.md,
   },
   calendarHeader: {
     flexDirection: "row",
@@ -426,10 +453,6 @@ const styles = StyleSheet.create({
     borderColor: colors.warning,
     borderWidth: 1.5,
   },
-  statusConfirmado: {
-    borderColor: colors.primary,
-    borderWidth: 1.5,
-  },
   statusAndamento: {
     borderColor: colors.info,
     borderWidth: 1.5,
@@ -498,7 +521,7 @@ const styles = StyleSheet.create({
   price: {
     ...typography.bodySmMedium,
     fontWeight: "700",
-    color: colors.primary,
+    color: colors.textPrimary,
     marginTop: 6,
   },
   actions: {

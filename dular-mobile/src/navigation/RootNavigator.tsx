@@ -65,6 +65,7 @@ function AuthenticatedFlow({ role, onboardingSeen }: { role: string | null; onbo
 export function RootNavigator() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const role = useAuthStore((state) => state.role);
+  const user = useAuthStore((state) => state.user);
   const hydrated = useAuthStore((state) => state.hydrated);
   const hydrate = useAuthStore((state) => state.hydrate);
   const [onboardingSeen, setOnboardingSeen] = useState<boolean | null>(null);
@@ -111,6 +112,13 @@ export function RootNavigator() {
         <OnboardingNavigator key={initialRouteName} initialRouteName={initialRouteName} />
       </ThemeScope>
     );
+  }
+
+  // FASE 5B — autenticado mas objeto user ainda não resolvido (ex.: hydrate sem
+  // cache aguardando /api/me): segura na tela de boot. Nunca avança para o app
+  // nem pula o gate de gênero com user == null.
+  if (!user) {
+    return <View style={styles.bootScreen} />;
   }
 
   return <AuthenticatedFlow role={role} onboardingSeen={onboardingSeen} />;

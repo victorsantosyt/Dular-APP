@@ -3,6 +3,7 @@ import { Text, View, Pressable, Alert, Image, ActivityIndicator } from "react-na
 import { useNavigation } from "@react-navigation/native";
 import { Screen } from "@/components/Screen";
 import { Ionicons } from "@expo/vector-icons";
+import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 import { apiMsg } from "@/utils/apiMsg";
 import { api } from "@/lib/api";
@@ -19,14 +20,41 @@ type PickedFile = {
   type: string;
 };
 
+const ALLOWED_IMAGE_MIMES = new Set(["image/jpeg", "image/png"]);
+
+function extFrom(value?: string | null) {
+  return value?.split("?")[0]?.split(".").pop()?.toLowerCase();
+}
+
+function mimeFrom(mimeType?: string | null, name?: string | null, uri?: string | null, fallbackToJpeg = true) {
+  if (mimeType && ALLOWED_IMAGE_MIMES.has(mimeType)) return mimeType;
+  if (mimeType === "image/jpg") return "image/jpeg";
+  if (mimeType) return mimeType;
+
+  const ext = extFrom(name) ?? extFrom(uri);
+  if (ext === "png") return "image/png";
+  if (ext === "jpg" || ext === "jpeg") return "image/jpeg";
+
+  return fallbackToJpeg ? "image/jpeg" : "application/octet-stream";
+}
+
 function makeFile(asset: ImagePicker.ImagePickerAsset, fallbackName: string): PickedFile {
   const uri = asset.uri;
-  const ext = uri.split(".").pop()?.toLowerCase();
-  const type = asset.mimeType ?? (ext === "png" ? "image/png" : "image/jpeg");
+  const type = mimeFrom(asset.mimeType, asset.fileName, uri);
   const normalizedExt = type === "image/png" ? "png" : "jpg";
   return {
     uri,
     name: asset.fileName ?? `${fallbackName}.${normalizedExt}`,
+    type,
+  };
+}
+
+function makeDocumentFile(asset: DocumentPicker.DocumentPickerAsset, fallbackName: string): PickedFile {
+  const type = mimeFrom(asset.mimeType, asset.name, asset.uri, false);
+  const normalizedExt = type === "image/png" ? "png" : "jpg";
+  return {
+    uri: asset.uri,
+    name: asset.name ?? `${fallbackName}.${normalizedExt}`,
     type,
   };
 }
@@ -49,6 +77,7 @@ export default function VerificacaoDocs() {
   const closedRef = useRef(false);
   const locked = verificacao === "APROVADO" || (verificacao === "PENDENTE" && docEnviado);
   const saving = state === "enviando";
+  const selecting = state === "selecionando";
 
   useEffect(() => {
     if (!toast) return;
@@ -76,7 +105,16 @@ export default function VerificacaoDocs() {
     };
   }, []);
 
-  const pick = useCallback(async (field: FileField) => {
+  const setPickedFile = useCallback((field: FileField, file: PickedFile) => {
+    if (!ALLOWED_IMAGE_MIMES.has(file.type)) {
+      setToast("Formato inválido. Anexe uma imagem JPG ou PNG.");
+      return;
+    }
+    if (field === "docFrente") setDocFrente(file);
+    if (field === "docVerso") setDocVerso(file);
+  }, []);
+
+  const pickFromCamera = useCallback(async (field: FileField) => {
     if (locked) return;
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== "granted") {
@@ -101,14 +139,82 @@ export default function VerificacaoDocs() {
         return;
       }
       const file = makeFile(asset, field);
-      if (field === "docFrente") setDocFrente(file);
-      if (field === "docVerso") setDocVerso(file);
+      setPickedFile(field, file);
       setState("idle");
     } catch (e: any) {
       setState("erro");
       setToast(apiMsg(e, "Falha ao selecionar imagem."));
     }
-  }, [locked]);
+  }, [locked, setPickedFile]);
+
+  const pickFromGallery = useCallback(async (field: FileField) => {
+    if (locked) return;
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      setToast("Permissão negada para acessar a galeria.");
+      return;
+    }
+    try {
+      setState("selecionando");
+      const res = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [3, 4],
+        quality: 0.8,
+      });
+      if (res.canceled) {
+        setState("idle");
+        return;
+      }
+      const asset = res.assets?.[0];
+      if (!asset?.uri) {
+        setState("idle");
+        return;
+      }
+      const file = makeFile(asset, field);
+      setPickedFile(field, file);
+      setState("idle");
+    } catch (e: any) {
+      setState("erro");
+      setToast(apiMsg(e, "Falha ao anexar imagem da galeria."));
+    }
+  }, [locked, setPickedFile]);
+
+  const pickFromFiles = useCallback(async (field: FileField) => {
+    if (locked) return;
+    try {
+      setState("selecionando");
+      const res = await DocumentPicker.getDocumentAsync({
+        type: ["image/jpeg", "image/png"],
+        copyToCacheDirectory: true,
+        multiple: false,
+      });
+      if (res.canceled) {
+        setState("idle");
+        return;
+      }
+      const asset = res.assets?.[0];
+      if (!asset?.uri) {
+        setState("idle");
+        return;
+      }
+      const file = makeDocumentFile(asset, field);
+      setPickedFile(field, file);
+      setState("idle");
+    } catch (e: any) {
+      setState("erro");
+      setToast(apiMsg(e, "Falha ao anexar imagem dos arquivos."));
+    }
+  }, [locked, setPickedFile]);
+
+  const attach = useCallback((field: FileField) => {
+    if (locked || saving || selecting) return;
+    Alert.alert("Anexar imagem", "Escolha de onde deseja anexar o documento.", [
+      { text: "Galeria", onPress: () => void pickFromGallery(field) },
+      { text: "Drive/arquivos", onPress: () => void pickFromFiles(field) },
+      { text: "Cancelar", style: "cancel" },
+    ]);
+  }, [locked, pickFromFiles, pickFromGallery, saving, selecting]);
 
   const enviar = async () => {
     if (busyRef.current) return;
@@ -222,31 +328,74 @@ export default function VerificacaoDocs() {
     }
   };
 
-  const renderPick = (label: string, file: PickedFile | null, field: FileField) => (
-    <Pressable
-      onPress={() => pick(field)}
-      disabled={locked || saving || state === "selecionando"}
-      style={{
-        borderWidth: 1,
-        borderColor: colors.stroke,
-        borderRadius: 14,
-        padding: 12,
-        backgroundColor: "rgba(255,255,255,0.92)",
-        alignItems: "center",
-        opacity: locked ? 0.6 : 1,
-      }}
-    >
-      {file ? (
-        <Image source={{ uri: file.uri }} style={{ width: "100%", height: 160, borderRadius: 12 }} />
-      ) : (
-        <View style={{ alignItems: "center", gap: 6 }}>
-          <Ionicons name="cloud-upload-outline" size={26} color={colors.teal} />
-          <Text style={{ color: colors.ink, fontWeight: "700" }}>{label}</Text>
-          <Text style={{ color: colors.sub, fontSize: 12 }}>Toque para escolher</Text>
+  const renderPick = (label: string, file: PickedFile | null, field: FileField) => {
+    return (
+      <View
+        style={{
+          borderWidth: 1,
+          borderColor: colors.stroke,
+          borderRadius: 14,
+          padding: 12,
+          backgroundColor: "rgba(255,255,255,0.92)",
+          opacity: locked ? 0.6 : 1,
+          gap: 12,
+        }}
+      >
+        {file ? (
+          <View style={{ gap: 8 }}>
+            <Image source={{ uri: file.uri }} style={{ width: "100%", height: 160, borderRadius: 12 }} />
+            <Text numberOfLines={1} style={{ color: colors.sub, fontSize: 12, fontWeight: "700" }}>{file.name}</Text>
+          </View>
+        ) : (
+          <View style={{ alignItems: "center", gap: 6 }}>
+            <Ionicons name="cloud-upload-outline" size={26} color={colors.teal} />
+            <Text style={{ color: colors.ink, fontWeight: "700" }}>{label}</Text>
+            <Text style={{ color: colors.sub, fontSize: 12 }}>Tire uma foto ou anexe uma imagem JPG/PNG</Text>
+          </View>
+        )}
+        <View style={{ flexDirection: "row", gap: 10 }}>
+          <Pressable
+            onPress={() => pickFromCamera(field)}
+            disabled={locked || saving || selecting}
+            style={{
+              flex: 1,
+              minHeight: 44,
+              borderRadius: 12,
+              backgroundColor: colors.teal,
+              alignItems: "center",
+              justifyContent: "center",
+              flexDirection: "row",
+              gap: 6,
+              opacity: locked || saving || selecting ? 0.7 : 1,
+            }}
+          >
+            <Ionicons name="camera-outline" size={18} color={colors.white} />
+            <Text numberOfLines={1} style={{ color: colors.white, fontWeight: "800", flexShrink: 1 }}>Tirar foto</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => attach(field)}
+            disabled={locked || saving || selecting}
+            style={{
+              flex: 1,
+              minHeight: 44,
+              borderRadius: 12,
+              borderWidth: 1,
+              borderColor: colors.stroke,
+              backgroundColor: colors.white,
+              alignItems: "center",
+              justifyContent: "center",
+              flexDirection: "row",
+              gap: 6,
+              opacity: locked || saving || selecting ? 0.7 : 1,
+            }}
+          >
+            <Ionicons name="attach-outline" size={18} color={colors.teal} />
+            <Text numberOfLines={1} style={{ color: colors.ink, fontWeight: "800", flexShrink: 1 }}>Anexar imagem</Text>
+          </Pressable>
         </View>
-      )}
-    </Pressable>
-  );
+      </View>
+    );
+  };
 
   return (
     <Screen
@@ -286,17 +435,17 @@ export default function VerificacaoDocs() {
 
         <Pressable
           onPress={enviar}
-          disabled={locked || saving || state === "selecionando"}
+          disabled={locked || saving || selecting}
           style={{
             marginTop: 4,
             backgroundColor: colors.teal,
             borderRadius: 14,
             padding: 14,
             alignItems: "center",
-            opacity: locked || saving || state === "selecionando" ? 0.7 : 1,
+            opacity: locked || saving || selecting ? 0.7 : 1,
           }}
         >
-          {saving || state === "selecionando" ? (
+          {saving || selecting ? (
             <ActivityIndicator color={colors.white} />
           ) : (
             <Text style={{ color: colors.white, fontWeight: "700" }}>

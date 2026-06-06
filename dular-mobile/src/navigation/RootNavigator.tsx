@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import * as ExpoSplashScreen from "expo-splash-screen";
 import OnboardingNavigator from "@/navigation/OnboardingNavigator";
+import { GeneroGateScreen } from "@/screens/onboarding/GeneroGateScreen";
 import EmpregadorNavigator from "@/navigation/EmpregadorNavigator";
 import DiaristaNavigator from "@/navigation/DiaristaNavigator";
 import MontadorNavigator from "@/navigation/MontadorNavigator";
@@ -17,6 +18,19 @@ function PushNotificationsGate({ children }: { children: React.ReactNode }) {
 }
 
 function AuthenticatedFlow({ role, onboardingSeen }: { role: string | null; onboardingSeen: boolean }) {
+  const user = useAuthStore((state) => state.user);
+
+  // FASE 3 (gate de gênero, subset seguro): conta autenticada que ainda não tem
+  // gênero o define agora — grava no backend (fonte de verdade) e o gate some.
+  // Para contas que já têm gênero, esta tela nunca aparece. Não toca login/OAuth.
+  if (user && user.genero == null) {
+    return (
+      <ThemeScope forceLight>
+        <GeneroGateScreen />
+      </ThemeScope>
+    );
+  }
+
   const normalizedRole = role?.toLowerCase();
   if (normalizedRole === "empregador") {
     return (

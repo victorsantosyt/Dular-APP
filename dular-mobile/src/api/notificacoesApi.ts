@@ -27,13 +27,17 @@ export type Notificacao = {
 
 type ListResponse = {
   ok?: boolean;
+  // O backend (GET /api/notificacoes) responde com a chave `notifications`.
+  // Mantemos `notificacoes`/`items` como fallback defensivo para qualquer
+  // versão antiga do backend, mas `notifications` é o contrato atual.
+  notifications?: Notificacao[];
   notificacoes?: Notificacao[];
   items?: Notificacao[];
 };
 
 export async function listarNotificacoes(): Promise<Notificacao[]> {
   const res = await api.get<ListResponse>("/api/notificacoes");
-  const list = res.data?.notificacoes ?? res.data?.items ?? [];
+  const list = res.data?.notifications ?? res.data?.notificacoes ?? res.data?.items ?? [];
   return Array.isArray(list) ? list : [];
 }
 

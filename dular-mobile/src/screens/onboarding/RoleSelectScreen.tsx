@@ -193,7 +193,9 @@ export function RoleSelectScreen() {
       navigation.navigate("NichosSelect");
       return;
     }
-    navigation.navigate("GeneroSelect");
+    // FASE 3 — sem etapa de gênero pré-login; o gênero é coletado pós-login
+    // (GeneroGate) quando user.genero == null. Segue direto ao Login.
+    navigation.navigate("Login");
   };
 
   return (

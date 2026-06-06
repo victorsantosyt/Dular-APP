@@ -183,33 +183,25 @@ export function LoginScreen() {
           : null;
 
   useEffect(() => {
+    // FASE 3 — gênero deixou de ser requisito pré-login. Só a role é exigida
+    // antes do OAuth; o gênero é coletado pós-login pelo GeneroGate quando faltar.
     if (!preLoginRole || !callbackRole) {
       navigation.replace("RoleSelect");
-      return;
     }
-    if (!preLoginGenero) {
-      navigation.replace("GeneroSelect");
-    }
-  }, [navigation, callbackRole, preLoginGenero, preLoginRole]);
+  }, [navigation, callbackRole, preLoginRole]);
 
   const handleBack = () => {
     if (navigation.canGoBack()) {
       navigation.goBack();
       return;
     }
-    navigation.replace("GeneroSelect");
+    navigation.replace("RoleSelect");
   };
 
   const handleOAuthLogin = async (provider: Provider) => {
     if (!callbackRole) {
       Alert.alert("Perfil obrigatório", "Escolha Empregador, Diarista ou Montador antes de fazer login.");
       navigation.replace("RoleSelect");
-      return;
-    }
-
-    if (!preLoginGenero) {
-      Alert.alert("Gênero obrigatório", "Escolha Homem ou Mulher antes de fazer login.");
-      navigation.replace("GeneroSelect");
       return;
     }
 
@@ -229,7 +221,11 @@ export function LoginScreen() {
 
     setLoadingProvider(provider);
     try {
-      const callbackPath = `/auth/callback/${callbackRole}?platform=mobile&genero=${preLoginGenero}`;
+      // FASE 3 — gênero é opcional no pré-login (coletado pós-login pelo
+      // GeneroGate). Só envia se já houver, para o callback fazer o backfill
+      // na primeira atribuição de role.
+      const generoParam = preLoginGenero ? `&genero=${preLoginGenero}` : "";
+      const callbackPath = `/auth/callback/${callbackRole}?platform=mobile${generoParam}`;
       const loginUrl = new URL(
         provider === "google" ? "/api/auth/mobile-google" : "/api/auth/signin/apple",
         API_BASE_URL,

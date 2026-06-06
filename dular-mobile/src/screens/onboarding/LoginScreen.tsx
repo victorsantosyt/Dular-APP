@@ -168,7 +168,6 @@ function LoginLogo() {
 export function LoginScreen() {
   const navigation = useNavigation<Navigation>();
   const preLoginRole = useAuthStore((state) => state.selectedRole);
-  const preLoginGenero = useAuthStore((state) => state.selectedGenero);
   const servicosOferecidos = useAuthStore((state) => state.servicosOferecidos);
   const setSession = useAuthStore((state) => state.setSession);
   const [loadingProvider, setLoadingProvider] = useState<Provider | null>(null);
@@ -221,11 +220,9 @@ export function LoginScreen() {
 
     setLoadingProvider(provider);
     try {
-      // FASE 3 — gênero é opcional no pré-login (coletado pós-login pelo
-      // GeneroGate). Só envia se já houver, para o callback fazer o backfill
-      // na primeira atribuição de role.
-      const generoParam = preLoginGenero ? `&genero=${preLoginGenero}` : "";
-      const callbackPath = `/auth/callback/${callbackRole}?platform=mobile${generoParam}`;
+      // FASE 5C — gênero não é mais coletado no pré-login; é definido pós-login
+      // pelo GeneroGate (backend é a fonte). O callback não recebe mais genero.
+      const callbackPath = `/auth/callback/${callbackRole}?platform=mobile`;
       const loginUrl = new URL(
         provider === "google" ? "/api/auth/mobile-google" : "/api/auth/signin/apple",
         API_BASE_URL,

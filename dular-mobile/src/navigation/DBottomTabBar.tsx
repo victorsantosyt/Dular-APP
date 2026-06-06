@@ -69,8 +69,7 @@ export function DBottomTabBar({ state, navigation, variant, messagesBadge, reque
   const role = user?.role ?? (variant === "montador" ? "MONTADOR" : variant === "diarista" ? "DIARISTA" : "EMPREGADOR");
   const profileTheme = getProfileTheme({
     role,
-    // FASE 4 — gênero só de user.genero (sem selectedGenero); empregador não
-    // tematiza por gênero.
+    // FASE 4 — gênero só de user.genero; empregador não tematiza por gênero.
     genero: variant === "empregador" ? undefined : user?.genero,
   });
 

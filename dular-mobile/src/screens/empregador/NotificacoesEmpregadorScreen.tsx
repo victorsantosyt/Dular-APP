@@ -3,7 +3,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
-import { AppIcon, DEmptyState, DLoadingState } from "@/components/ui";
+import { AppIcon, DEmptyState, DErrorState, DLoadingState } from "@/components/ui";
 import { useNotificacoes } from "@/hooks/useNotificacoes";
 import type { Notificacao } from "@/api/notificacoesApi";
 import type { EmpregadorTabParamList } from "@/navigation/EmpregadorNavigator";
@@ -113,6 +113,7 @@ export function NotificacoesEmpregadorScreen() {
   const {
     notificacoes,
     loading,
+    error,
     unreadCount,
     refetch,
     marcarComoLida,
@@ -211,11 +212,13 @@ export function NotificacoesEmpregadorScreen() {
 
           {loading && items.length === 0 ? (
             <DLoadingState text="Carregando notificações" color={colors.primary} />
+          ) : error && items.length === 0 ? (
+            <DErrorState message={error} onRetry={refetch} />
           ) : isEmpty ? (
             <DEmptyState
               icon="Bell"
               title="Sem notificações"
-              subtitle="Quando houver novidades, solicitações ou avisos, eles aparecerão aqui."
+              subtitle="Atualizações de serviços, mensagens e segurança aparecerão aqui."
               accentColor={colors.primary}
               softBg={colors.lavenderSoft}
             />

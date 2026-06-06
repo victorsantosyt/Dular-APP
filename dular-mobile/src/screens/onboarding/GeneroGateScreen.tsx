@@ -56,7 +56,6 @@ function GeneroOption({ label, accent, softBg, loading, disabled, onPress }: Gen
 export function GeneroGateScreen() {
   const user = useAuth((state) => state.user);
   const setUser = useAuth((state) => state.setUser);
-  const setSelectedGenero = useAuth((state) => state.setSelectedGenero);
   const [saving, setSaving] = useState<Genero | null>(null);
 
   const masculinoTheme = getProfileTheme({ role: user?.role ?? "MONTADOR", genero: "MASCULINO" });
@@ -68,7 +67,6 @@ export function GeneroGateScreen() {
     try {
       // Backend é a fonte de verdade (backfill "set once").
       await updateGenero(genero);
-      setSelectedGenero(genero);
       // Atualiza o user persistido → RootNavigator sai do gate e entra no app.
       setUser((current) => (current ? { ...current, genero } : current));
     } catch {

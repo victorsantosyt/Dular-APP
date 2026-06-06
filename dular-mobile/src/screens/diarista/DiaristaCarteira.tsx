@@ -23,6 +23,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { api } from "@/lib/api";
 import { fetchServicosMinhas } from "@/api/sharedFetcher";
+import { useGenderTheme } from "@/hooks/useProfileTheme";
 
 import { colors, radius, shadow, spacing, typography } from "@/theme/tokens";
 
@@ -86,6 +87,7 @@ function mesAtualLabel() {
 }
 
 export default function DiaristaCarteira() {
+  const theme = useGenderTheme("DIARISTA");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -138,7 +140,7 @@ export default function DiaristaCarteira() {
       <ScrollView
         contentContainerStyle={s.scroll}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={colors.primary} />
+          <RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={theme.primary} />
         }
         showsVerticalScrollIndicator={false}
       >
@@ -149,16 +151,16 @@ export default function DiaristaCarteira() {
         {/* ─── Métricas do mês ─── */}
         <View style={s.metricsRow}>
           <View style={s.metricCard}>
-            <View style={s.metricIcon}>
-              <Ionicons name="briefcase" size={20} color={colors.primary} />
+            <View style={[s.metricIcon, { backgroundColor: theme.primarySoft }]}>
+              <Ionicons name="briefcase" size={20} color={theme.primary} />
             </View>
             <Text style={s.metricLabel}>Serviços no mês</Text>
             <Text style={s.metricValue}>{loading ? "—" : totalMes}</Text>
           </View>
 
           <View style={s.metricCard}>
-            <View style={[s.metricIcon, { backgroundColor: colors.muted }]}>
-              <Ionicons name="trending-up" size={20} color={colors.accent} />
+            <View style={[s.metricIcon, { backgroundColor: theme.primarySoft }]}>
+              <Ionicons name="trending-up" size={20} color={theme.primary} />
             </View>
             <Text style={s.metricLabel}>Faturamento estimado</Text>
             <Text style={s.metricValue}>{loading ? "—" : brl(faturamentoMes)}</Text>
@@ -191,8 +193,8 @@ export default function DiaristaCarteira() {
         ) : (
           ultimos.map((item) => (
             <View key={item.id} style={s.itemCard}>
-              <View style={s.itemIcon}>
-                <Ionicons name="checkmark-circle" size={20} color={colors.primary} />
+              <View style={[s.itemIcon, { backgroundColor: theme.primarySoft }]}>
+                <Ionicons name="checkmark-circle" size={20} color={theme.primary} />
               </View>
 
               <View style={{ flex: 1, gap: 2 }}>
@@ -202,7 +204,7 @@ export default function DiaristaCarteira() {
                 </Text>
               </View>
 
-              <Text style={s.itemValor}>{brl(item.valor)}</Text>
+              <Text style={[s.itemValor, { color: theme.primary }]}>{brl(item.valor)}</Text>
             </View>
           ))
         )}
@@ -328,7 +330,7 @@ const s = StyleSheet.create({
   itemValor: {
     ...typography.bodySmMedium,
     fontWeight: "700",
-    color: colors.primary,
+    color: colors.foreground,
   },
 
   // Erro

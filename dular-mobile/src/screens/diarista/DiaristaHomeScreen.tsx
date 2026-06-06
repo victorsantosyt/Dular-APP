@@ -1,70 +1,69 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import { AppIcon, type AppIconName, DAvatar, DBadge, DCard, DScreen, DSectionHeader } from "@/components/ui";
-import { DularLogo } from "@/assets/brand";
 import { Wallet3DIcon } from "@/assets/icons";
 import { colors, radius, shadows, spacing, typography } from "@/theme";
-import { useAuthStore } from "@/store/authStore";
+import { useAuth } from "@/stores/authStore";
+import { useGenderTheme } from "@/hooks/useProfileTheme";
+import type { ProfileTheme } from "@/theme/profileTheme";
 import type { DiaristaTabParamList } from "@/navigation/DiaristaNavigator";
 import { getMyRestrictions, type UserRestriction } from "@/api/safeScoreApi";
+import { acionarSosDiarista } from "@/api/diaristaApi";
 import { useAgendamentosDiarista, type AgendamentoDiarista, type StatusDiarista } from "@/hooks/useAgendamentosDiarista";
 import { useMensagens } from "@/hooks/useMensagens";
-import { getProfileTheme } from "@/theme/profileTheme";
 
 type Navigation = BottomTabNavigationProp<DiaristaTabParamList>;
 type BadgeType = "default" | "success" | "warning" | "error" | "info" | "accent";
-type QuickActionId = "agendamentos" | "carteira" | "avaliacoes" | "mensagens";
+type QuickActionId = "agendamentos" | "carteira" | "mensagens" | "suporte";
 
-const QUICK_ACTIONS: { id: QuickActionId; icon: AppIconName; label: string; tone: "purple" | "pink" | "green" | "blue" }[] = [
-  { id: "agendamentos", icon: "Calendar", label: "Meus\nAgendamentos", tone: "purple" },
-  { id: "carteira", icon: "Wallet", label: "Meus\nGanhos", tone: "purple" },
-  { id: "avaliacoes", icon: "Star", label: "Avaliações", tone: "pink" },
-  { id: "mensagens", icon: "MessageCircle", label: "Mensagens", tone: "pink" },
+const QUICK_ACTIONS: { id: QuickActionId; icon: AppIconName; label: string }[] = [
+  { id: "agendamentos", icon: "Calendar", label: "Agendamentos" },
+  { id: "carteira", icon: "Wallet", label: "Meus ganhos" },
+  { id: "mensagens", icon: "MessageCircle", label: "Mensagens" },
+  { id: "suporte", icon: "HelpCircle", label: "Suporte" },
 ];
 
-function MenuIcon({ onPress }: { onPress: () => void }) {
-  return (
-    <Pressable hitSlop={spacing.sm} onPress={onPress}>
-      <View style={styles.menuButton}>
-        <View style={styles.menuLine} />
-        <View style={styles.menuLine} />
-        <View style={styles.menuLine} />
-      </View>
-    </Pressable>
-  );
-}
-
 function TopBar({
+  firstName,
+  avatarUrl,
   unreadMessages,
-  onMenuPress,
-  onMessagesPress,
+  theme,
+  onProfilePress,
+  onBellPress,
 }: {
+  firstName: string;
+  avatarUrl?: string;
   unreadMessages: number;
-  onMenuPress: () => void;
-  onMessagesPress: () => void;
+  theme: ProfileTheme;
+  onProfilePress: () => void;
+  onBellPress: () => void;
 }) {
   const badgeLabel = unreadMessages > 9 ? "9+" : String(unreadMessages);
 
   return (
     <View style={styles.topBar}>
-      <MenuIcon onPress={onMenuPress} />
+      {/* avatar (com ring temático) */}
+      <Pressable hitSlop={8} onPress={onProfilePress} style={[styles.avatarRing, { borderColor: theme.primary }]}>
+        <DAvatar size="md" uri={avatarUrl} initials={firstName.slice(0, 2)} online />
+      </Pressable>
 
-      <View style={styles.brandCenter}>
-        <DularLogo size="sm" />
+      {/* nome do usuário */}
+      <View style={styles.topGreeting}>
+        <Text style={styles.greeting} numberOfLines={1}>Olá, {firstName}!</Text>
+        <Text style={styles.greetingSub} numberOfLines={1}>Que bom te ver por aqui!</Text>
       </View>
 
-      <Pressable hitSlop={spacing.sm} onPress={onMessagesPress}>
-        <View style={styles.notificationButton}>
-          <AppIcon name="Bell" size={20} color="purple" />
-          {unreadMessages > 0 ? (
-            <View style={styles.notificationBadge}>
-              <Text style={styles.notificationBadgeText}>{badgeLabel}</Text>
-            </View>
-          ) : null}
-        </View>
+      {/* sino (mantém a posição à direita) */}
+      <Pressable hitSlop={8} onPress={onBellPress} style={[styles.bellButton, { borderColor: theme.border }]}>
+        <AppIcon name="Bell" size={20} color={theme.icon} strokeWidth={2.2} />
+        {unreadMessages > 0 ? (
+          <View style={[styles.bellBadge, { backgroundColor: theme.primary }]}>
+            <Text style={styles.bellBadgeText}>{badgeLabel}</Text>
+          </View>
+        ) : null}
       </Pressable>
     </View>
   );
@@ -108,44 +107,23 @@ function AgendamentoItem({
   );
 }
 
-function ShortcutBtn({
-  icon,
-  label,
-  onPress,
-  accentColor,
-  softBg,
-}: {
-  icon: AppIconName;
-  label: string;
-  onPress: () => void;
-  accentColor: string;
-  softBg: string;
-}) {
-  return (
-    <Pressable onPress={onPress} style={({ pressed }) => [styles.shortcutItem, pressed && { opacity: 0.75 }]}>
-      <View style={[styles.shortcutIcon, { backgroundColor: softBg }]}>
-        <AppIcon name={icon} size={20} color={accentColor} strokeWidth={2.1} />
-      </View>
-      <Text style={styles.shortcutLabel}>{label}</Text>
-    </Pressable>
-  );
-}
-
 function AcaoRapidaBtn({
   icon,
   label,
-  tone,
+  accentColor,
+  softBg,
   onPress,
 }: {
   icon: AppIconName;
   label: string;
-  tone: "purple" | "pink" | "green" | "blue";
+  accentColor: string;
+  softBg: string;
   onPress: () => void;
 }) {
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [styles.quickAction, pressed && { opacity: 0.75 }]}>
-      <View style={styles.quickIconBox}>
-        <AppIcon name={icon} variant="soft" color={tone} />
+    <Pressable onPress={onPress} style={({ pressed }) => [styles.quickAction, pressed && styles.pressed]}>
+      <View style={[styles.quickIconBox, { backgroundColor: softBg }]}>
+        <AppIcon name={icon} size={22} color={accentColor} strokeWidth={2.1} />
       </View>
       <Text style={styles.quickLabel}>{label}</Text>
     </Pressable>
@@ -154,188 +132,231 @@ function AcaoRapidaBtn({
 
 export function DiaristaHomeScreen() {
   const navigation = useNavigation<Navigation>();
-  const user = useAuthStore((state) => state.user);
+  const user = useAuth((state) => state.user);
   const firstName = (user?.nome || "Diarista").trim().split(/\s+/)[0];
-  const profileTheme = getProfileTheme("DIARISTA", user?.genero);
-  const { agendamentos, loading: agendamentosLoading, error: agendamentosError } = useAgendamentosDiarista();
+  const profileTheme = useGenderTheme("DIARISTA");
+  const { agendamentos, loading: agendamentosLoading, error: agendamentosError, refetch } = useAgendamentosDiarista();
   const { rooms } = useMensagens();
 
   const [restrictions, setRestrictions] = useState<UserRestriction[]>([]);
+  const [sosLoading, setSosLoading] = useState(false);
   const nextAgendamento = agendamentos[0];
   const unreadMessages = useMemo(
     () => rooms.reduce((total, room) => total + Math.max(0, Number(room.naoLidas) || 0), 0),
     [rooms],
   );
-  const messagesBadge = unreadMessages > 0 ? unreadMessages : undefined;
+  const perfilPendente = !!user?.verificacao?.status && user.verificacao.status !== "APROVADO";
 
-  useEffect(() => {
+  const loadRestrictions = useCallback(() => {
     getMyRestrictions()
       .then(setRestrictions)
       .catch(() => []);
   }, []);
 
+  useEffect(() => {
+    loadRestrictions();
+  }, [loadRestrictions]);
+
+  const handleRefresh = useCallback(() => {
+    refetch();
+    loadRestrictions();
+  }, [refetch, loadRestrictions]);
+
   const handleQuickAction = useCallback((action: QuickActionId) => {
     if (action === "agendamentos") navigation.navigate("Agendamentos");
     if (action === "carteira") navigation.navigate("Carteira");
     if (action === "mensagens") navigation.navigate("Mensagens");
-    if (action === "avaliacoes") {
-      Alert.alert("Em breve", "Avaliações ainda não têm uma tela própria.");
-    }
+    if (action === "suporte") navigation.navigate("Suporte");
   }, [navigation]);
 
+  const acionarSOS = useCallback(async () => {
+    const servicoId = nextAgendamento?.id ?? agendamentos[0]?.id;
+    if (!servicoId) {
+      Alert.alert("SOS indisponível", "O SOS fica disponível quando houver um agendamento confirmado ou em andamento.");
+      return;
+    }
+    try {
+      setSosLoading(true);
+      await acionarSosDiarista(servicoId);
+      Alert.alert("SOS acionado", "A equipe de segurança foi notificada.");
+    } catch {
+      Alert.alert("Falha ao acionar SOS", "Não foi possível registrar o SOS no momento.");
+    } finally {
+      setSosLoading(false);
+    }
+  }, [nextAgendamento?.id, agendamentos]);
+
   return (
-    <DScreen backgroundColor={colors.background}>
-      <View style={styles.content}>
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-          <TopBar
-            unreadMessages={unreadMessages}
-            onMenuPress={() => navigation.navigate("Perfil")}
-            onMessagesPress={() => navigation.navigate("Mensagens")}
-          />
+    <DScreen
+      scroll
+      withBottomPadding
+      backgroundColor={profileTheme.background}
+      refreshing={agendamentosLoading}
+      refreshTintColor={profileTheme.primary}
+      onRefresh={handleRefresh}
+      contentContainerStyle={styles.scroll}
+    >
+      <TopBar
+        firstName={firstName}
+        avatarUrl={user?.avatarUrl ?? undefined}
+        unreadMessages={unreadMessages}
+        theme={profileTheme}
+        onProfilePress={() => navigation.navigate("Perfil")}
+        onBellPress={() => navigation.navigate("Mensagens")}
+      />
 
-          <View style={styles.header}>
-            <View>
-              <Text style={styles.greeting}>Olá, {firstName}!</Text>
-              <Text style={styles.greetingSub}>Que bom te ver por aqui!</Text>
-            </View>
-            <DAvatar size="md" uri={user?.avatarUrl ?? undefined} initials={firstName.slice(0, 2)} online />
+      {restrictions.length > 0 && (() => {
+        const r = restrictions[0];
+        const isCritical = r.type === "SUSPEND" || r.type === "BLOCK";
+        return (
+          <View style={isCritical ? styles.restrictionBannerCrit : styles.restrictionBannerWarn}>
+            <Text style={isCritical ? styles.restrictionTextCrit : styles.restrictionTextWarn}>
+              {isCritical
+                ? "⛔ Sua conta está suspensa. Entre em contato com o suporte."
+                : "⚠️ Sua conta está com restrições ativas. Alguns recursos podem estar limitados."}
+            </Text>
           </View>
+        );
+      })()}
 
-          {restrictions.length > 0 && (() => {
-            const r = restrictions[0];
-            const isCritical = r.type === "SUSPEND" || r.type === "BLOCK";
-            return (
-              <View style={isCritical ? styles.restrictionBannerCrit : styles.restrictionBannerWarn}>
-                <Text style={isCritical ? styles.restrictionTextCrit : styles.restrictionTextWarn}>
-                  {isCritical
-                    ? "⛔ Sua conta está suspensa. Entre em contato com o suporte."
-                    : "⚠️ Sua conta está com restrições ativas. Alguns recursos podem estar limitados."}
-                </Text>
-              </View>
-            );
-          })()}
-
-          <LinearGradient
-            colors={profileTheme.gradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.earningsCard}
-          >
-            <View style={styles.earningsBlob} />
-            <View style={styles.earningsTop}>
-              <View>
-                <View style={styles.earningsTitleRow}>
-                  <Text style={styles.earningsLabel}>Carteira</Text>
-                  <AppIcon name="Eye" size={15} color={colors.whiteAlpha80} strokeWidth={2.3} />
-                </View>
-                <Text style={styles.earningsPeriod}>Resumo financeiro</Text>
-                <Text style={styles.earningsValue}>Abrir carteira</Text>
-              </View>
-              <View style={styles.cardIconBox}>
-                <Wallet3DIcon size={44} />
-              </View>
+      {/* ── Carteira (hero) ── */}
+      <LinearGradient
+        colors={profileTheme.gradient}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.earningsCard}
+      >
+        <View style={styles.earningsBlob} />
+        <View style={styles.earningsTop}>
+          <View>
+            <View style={styles.earningsTitleRow}>
+              <Text style={styles.earningsLabel}>Carteira</Text>
+              <AppIcon name="Eye" size={15} color={colors.whiteAlpha80} strokeWidth={2.3} />
             </View>
-            <Pressable style={styles.detailsLinkWrap} onPress={() => navigation.navigate("Carteira")}>
-              <View style={styles.inlineLink}>
-                <Text style={styles.detailsLink}>Ver detalhes</Text>
-                <AppIcon name="ChevronRight" size={14} color={colors.whiteAlpha80} strokeWidth={2.4} />
-              </View>
-            </Pressable>
-          </LinearGradient>
+            <Text style={styles.earningsPeriod}>Resumo financeiro</Text>
+            <Text style={styles.earningsValue}>Abrir carteira</Text>
+          </View>
+          <View style={styles.cardIconBox}>
+            <Wallet3DIcon size={44} />
+          </View>
+        </View>
+        <Pressable style={styles.detailsLinkWrap} onPress={() => navigation.navigate("Carteira")}>
+          <View style={styles.inlineLink}>
+            <Text style={styles.detailsLink}>Ver detalhes</Text>
+            <AppIcon name="ChevronRight" size={14} color={colors.whiteAlpha80} strokeWidth={2.4} />
+          </View>
+        </Pressable>
+      </LinearGradient>
 
-          <DCard style={styles.todayCard}>
-            <DSectionHeader
-              title="Agendamentos de hoje"
-              action="Ver todos"
-              onAction={() => navigation.navigate("Agendamentos")}
+      {/* ── Segurança / atalhos (estilo Montador, com SOS) ── */}
+      <View style={styles.securityGrid}>
+        <Pressable
+          onPress={() => navigation.navigate("VerificacaoDocs")}
+          style={({ pressed }) => [styles.securityCard, { borderColor: profileTheme.border }, pressed && styles.pressed]}
+        >
+          <AppIcon name="ShieldCheck" size={22} color={profileTheme.primary} />
+          <Text style={styles.securityTitle}>Verificação</Text>
+          <Text style={styles.securitySub}>{perfilPendente ? "Pendente" : "Em dia"}</Text>
+        </Pressable>
+        <View style={[styles.securityCard, { borderColor: profileTheme.border }]}>
+          <AppIcon name="Award" size={22} color={profileTheme.primary} />
+          <Text style={styles.securityTitle}>SafeScore</Text>
+          <Text style={styles.securitySub}>{restrictions.length > 0 ? "Atenção" : "Proteção ativa"}</Text>
+        </View>
+        <Pressable
+          onPress={acionarSOS}
+          disabled={sosLoading}
+          style={({ pressed }) => [styles.sosCard, pressed && styles.pressed]}
+        >
+          <Text style={styles.sosTitle}>{sosLoading ? "Enviando" : "SOS"}</Text>
+          <Text style={styles.sosSub}>Segurança</Text>
+        </Pressable>
+      </View>
+
+      {/* ── Agendamentos de hoje ── */}
+      <DCard style={styles.todayCard}>
+        <DSectionHeader
+          title="Agendamentos de hoje"
+          action="Ver todos"
+          onAction={() => navigation.navigate("Agendamentos")}
+        />
+        <View style={styles.divider} />
+        {agendamentosLoading ? (
+          <View style={styles.appointmentState}>
+            <ActivityIndicator color={profileTheme.primary} />
+          </View>
+        ) : agendamentosError ? (
+          <Text style={styles.appointmentStateText}>Não foi possível carregar seus agendamentos agora.</Text>
+        ) : nextAgendamento ? (
+          <AgendamentoItem agendamento={nextAgendamento} accentColor={profileTheme.primary} softBg={profileTheme.primarySoft} />
+        ) : (
+          <Text style={styles.appointmentStateText}>Nenhum agendamento encontrado.</Text>
+        )}
+        <View style={styles.divider} />
+        <Pressable onPress={() => navigation.navigate("Agendamentos")}>
+          <View style={styles.allAppointmentsRow}>
+            <AppIcon name="Calendar" size={17} color={profileTheme.primary} strokeWidth={2.3} />
+            <Text style={[styles.allAppointmentsText, { color: profileTheme.primary }]}>Ver todos os agendamentos</Text>
+            <AppIcon name="ChevronRight" size={16} color={profileTheme.primary} strokeWidth={2.4} />
+          </View>
+        </Pressable>
+      </DCard>
+
+      {/* ── Ações rápidas ── */}
+      <View style={styles.quickSection}>
+        <DSectionHeader title="Ações rápidas" style={styles.sectionHeaderRow} />
+        <View style={styles.quickGrid}>
+          {QUICK_ACTIONS.map((item) => (
+            <AcaoRapidaBtn
+              key={item.id}
+              icon={item.icon}
+              label={item.label}
+              accentColor={profileTheme.primary}
+              softBg={profileTheme.primarySoft}
+              onPress={() => handleQuickAction(item.id)}
             />
-            <View style={styles.divider} />
-            {agendamentosLoading ? (
-              <View style={styles.appointmentState}>
-                <ActivityIndicator color={profileTheme.primary} />
-              </View>
-            ) : agendamentosError ? (
-              <Text style={styles.appointmentStateText}>Não foi possível carregar seus agendamentos agora.</Text>
-            ) : nextAgendamento ? (
-              <AgendamentoItem agendamento={nextAgendamento} accentColor={profileTheme.primary} softBg={profileTheme.primarySoft} />
-            ) : (
-              <Text style={styles.appointmentStateText}>Nenhum agendamento encontrado.</Text>
-            )}
-            <View style={styles.divider} />
-            <Pressable onPress={() => navigation.navigate("Agendamentos")}>
-              <View style={styles.allAppointmentsRow}>
-                <AppIcon name="Calendar" size={17} color={profileTheme.primary} strokeWidth={2.3} />
-                <Text style={[styles.allAppointmentsText, { color: profileTheme.primary }]}>Ver todos os agendamentos</Text>
-                <AppIcon name="ChevronRight" size={16} color={profileTheme.primary} strokeWidth={2.4} />
-              </View>
-            </Pressable>
-          </DCard>
+          ))}
+        </View>
+      </View>
 
-          <View style={styles.quickSection}>
-            <DSectionHeader title="Ações rápidas" style={styles.sectionHeaderRow} />
-            <View style={styles.quickGrid}>
-              {QUICK_ACTIONS.map((item) => (
-                <AcaoRapidaBtn
-                  key={item.id}
-                  icon={item.icon}
-                  label={item.label}
-                  tone={item.tone}
-                  onPress={() => handleQuickAction(item.id)}
-                />
-              ))}
-            </View>
+      {/* ── Dica de hoje ── */}
+      <DCard style={styles.tipCard}>
+        <View style={[styles.tipIconBox, { backgroundColor: profileTheme.primarySoft }]}>
+          <AppIcon name="ShieldCheck" size={22} color={profileTheme.primary} />
+        </View>
+        <View style={styles.tipText}>
+          <Text style={styles.tipTitle}>Dica de hoje</Text>
+          <Text style={styles.tipSubtitle}>
+            Mantenha seu perfil sempre atualizado para receber mais agendamentos!
+          </Text>
+        </View>
+        <View style={[styles.cleaningTipBox, { backgroundColor: profileTheme.primarySoft }]}>
+          <AppIcon name="Sparkles" size={26} color={profileTheme.primary} strokeWidth={2.1} />
+        </View>
+      </DCard>
+
+      {/* ── Meu desempenho ── */}
+      <View style={styles.performanceSection}>
+        <DSectionHeader title="Meu desempenho" style={styles.sectionHeaderRow} />
+        <View style={styles.metricsRow}>
+          <View style={styles.metricCard}>
+            <AppIcon name="Calendar" size={20} color={profileTheme.primary} strokeWidth={2} />
+            <Text style={styles.metricValue}>{agendamentosLoading ? "--" : agendamentos.length}</Text>
+            <Text style={styles.metricLabel}>Agendamentos</Text>
           </View>
-
-          <DCard style={styles.tipCard}>
-            <View style={[styles.tipIconBox, { backgroundColor: profileTheme.primarySoft }]}>
-              <AppIcon name="ShieldCheck" size={22} color={profileTheme.primary} />
-            </View>
-            <View style={styles.tipText}>
-              <Text style={styles.tipTitle}>Dica de hoje</Text>
-              <Text style={styles.tipSubtitle}>
-                Mantenha seu perfil sempre atualizado para receber mais agendamentos!
-              </Text>
-            </View>
-            <View style={styles.cleaningTipBox}>
-              <AppIcon name="Sparkles" size={32} color="pink" variant="soft" />
-            </View>
-          </DCard>
-
-          {/* ── Performance ── */}
-          <View style={styles.performanceSection}>
-            <DSectionHeader title="Meu desempenho" style={styles.sectionHeaderRow} />
-            <View style={styles.metricsRow}>
-              <View style={styles.metricCard}>
-                <AppIcon name="Calendar" size={20} color={colors.warning} strokeWidth={2} />
-                <Text style={styles.metricValue}>{agendamentosLoading ? "--" : agendamentos.length}</Text>
-                <Text style={styles.metricLabel}>Agendamentos</Text>
-              </View>
-              <View style={styles.metricDivider} />
-              <View style={styles.metricCard}>
-                <AppIcon name="MessageCircle" size={20} color={profileTheme.primary} strokeWidth={2} />
-                <Text style={styles.metricValue}>{unreadMessages}</Text>
-                <Text style={styles.metricLabel}>Mensagens</Text>
-              </View>
-              <View style={styles.metricDivider} />
-              <View style={styles.metricCard}>
-                <AppIcon name="ShieldCheck" size={20} color={colors.success} strokeWidth={2} />
-                <Text style={styles.metricValue}>{restrictions.length}</Text>
-                <Text style={styles.metricLabel}>Restrições</Text>
-              </View>
-            </View>
+          <View style={styles.metricDivider} />
+          <View style={styles.metricCard}>
+            <AppIcon name="MessageCircle" size={20} color={profileTheme.primary} strokeWidth={2} />
+            <Text style={styles.metricValue}>{unreadMessages}</Text>
+            <Text style={styles.metricLabel}>Mensagens</Text>
           </View>
-
-          {/* ── Atalhos ── */}
-          <View style={styles.shortcutsSection}>
-            <DSectionHeader title="Atalhos" style={styles.sectionHeaderRow} />
-            <View style={styles.shortcutsGrid}>
-              <ShortcutBtn icon="Wallet" label="Carteira" accentColor={profileTheme.primary} softBg={profileTheme.primarySoft} onPress={() => navigation.navigate("Carteira")} />
-              <ShortcutBtn icon="FileText" label="Documentos" accentColor={profileTheme.primary} softBg={profileTheme.primarySoft} onPress={() => navigation.navigate("VerificacaoDocs")} />
-              <ShortcutBtn icon="MessageCircle" label="Mensagens" accentColor={profileTheme.primary} softBg={profileTheme.primarySoft} onPress={() => navigation.navigate("Mensagens")} />
-              <ShortcutBtn icon="HelpCircle" label="Suporte" accentColor={profileTheme.primary} softBg={profileTheme.primarySoft} onPress={() => navigation.navigate("Suporte")} />
-            </View>
+          <View style={styles.metricDivider} />
+          <View style={styles.metricCard}>
+            <AppIcon name="ShieldCheck" size={20} color={restrictions.length > 0 ? colors.warning : colors.success} strokeWidth={2} />
+            <Text style={styles.metricValue}>{restrictions.length}</Text>
+            <Text style={styles.metricLabel}>Restrições</Text>
           </View>
-        </ScrollView>
+        </View>
       </View>
     </DScreen>
   );
@@ -344,71 +365,24 @@ export function DiaristaHomeScreen() {
 export default DiaristaHomeScreen;
 
 const styles = StyleSheet.create({
-  content: {
-    flex: 1,
-  },
   scroll: {
-    paddingBottom: 112,
+    gap: 14,
   },
+
+  // ── Top bar: avatar → nome → sino ──
   topBar: {
-    paddingHorizontal: spacing.screenPadding,
-    paddingTop: 10,
-    paddingBottom: 12,
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
+    gap: spacing.md,
   },
-  menuButton: {
-    width: 40,
-    height: 40,
-    alignItems: "center",
-    justifyContent: "center",
+  avatarRing: {
+    borderWidth: 2,
+    borderRadius: radius.pill,
+    padding: 2,
   },
-  menuLine: {
-    width: 20,
-    height: 2.5,
-    backgroundColor: colors.textPrimary,
-    borderRadius: 2,
-    marginVertical: 2,
-  },
-  brandCenter: {
-    flexDirection: "row",
-    gap: spacing.sm,
-    alignItems: "center",
-  },
-  notificationButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.surface,
-    alignItems: "center",
-    justifyContent: "center",
-    position: "relative",
-    ...shadows.soft,
-  },
-  notificationBadge: {
-    position: "absolute",
-    top: -2,
-    right: -2,
-    minWidth: 18,
-    height: 18,
-    borderRadius: 9,
-    paddingHorizontal: 4,
-    backgroundColor: colors.error,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  notificationBadgeText: {
-    ...typography.caption,
-    fontWeight: "700",
-    color: colors.white,
-  },
-  header: {
-    paddingHorizontal: spacing.screenPadding,
-    marginBottom: 14,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+  topGreeting: {
+    flex: 1,
+    minWidth: 0,
   },
   greeting: {
     ...typography.title,
@@ -420,14 +394,43 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginTop: 2,
   },
+  bellButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    position: "relative",
+    ...shadows.soft,
+  },
+  bellBadge: {
+    position: "absolute",
+    top: -2,
+    right: -2,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    paddingHorizontal: 4,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  bellBadgeText: {
+    fontSize: 11,
+    lineHeight: 14,
+    fontWeight: "700",
+    color: colors.white,
+  },
+
+  // ── Carteira (hero) ──
   earningsCard: {
-    borderRadius: 18,
+    borderRadius: radius.xl,
     paddingVertical: 16,
     paddingHorizontal: 16,
-    marginHorizontal: spacing.screenPadding,
-    marginBottom: 14,
     position: "relative",
     overflow: "hidden",
+    ...shadows.primaryButton,
   },
   earningsBlob: {
     position: "absolute",
@@ -485,9 +488,58 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 2,
   },
+
+  // ── Segurança / SOS grid ──
+  securityGrid: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  securityCard: {
+    flex: 1,
+    minHeight: 96,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    padding: 12,
+    justifyContent: "center",
+  },
+  securityTitle: {
+    ...typography.caption,
+    color: colors.textPrimary,
+    fontWeight: "700",
+    marginTop: 8,
+  },
+  securitySub: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    marginTop: 3,
+    fontWeight: "500",
+  },
+  sosCard: {
+    flex: 1,
+    minHeight: 96,
+    borderRadius: radius.lg,
+    backgroundColor: colors.danger,
+    padding: 12,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  sosTitle: {
+    color: colors.white,
+    fontSize: 18,
+    lineHeight: 23,
+    fontWeight: "700",
+  },
+  sosSub: {
+    color: colors.whiteAlpha80,
+    fontSize: 11,
+    fontWeight: "700",
+    marginTop: 4,
+  },
+
+  // ── Agendamentos de hoje ──
   todayCard: {
-    marginHorizontal: spacing.screenPadding,
-    marginBottom: 14,
+    gap: 0,
   },
   divider: {
     height: 1,
@@ -503,14 +555,12 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 14,
-    backgroundColor: colors.lavender,
     alignItems: "center",
     justifyContent: "center",
   },
   timeText: {
     ...typography.bodySmMedium,
     fontWeight: "700",
-    color: colors.primary,
   },
   appointmentText: {
     flex: 1,
@@ -547,7 +597,6 @@ const styles = StyleSheet.create({
     textAlignVertical: "center",
     color: colors.textSecondary,
     ...typography.bodySm,
-    
   },
   allAppointmentsRow: {
     flexDirection: "row",
@@ -556,13 +605,13 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   allAppointmentsText: {
-    color: colors.primary,
     ...typography.bodySmMedium,
     fontWeight: "600",
   },
+
+  // ── Ações rápidas ──
   quickSection: {
-    paddingHorizontal: spacing.screenPadding,
-    marginBottom: 14,
+    marginTop: 2,
   },
   sectionHeaderRow: {
     marginBottom: spacing.md,
@@ -574,26 +623,33 @@ const styles = StyleSheet.create({
   },
   quickAction: {
     width: "48%",
+    flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-  },
-  quickIconBox: {
-    width: 50,
-    height: 50,
-    borderRadius: 16,
+    gap: spacing.sm,
     backgroundColor: colors.surface,
-    alignItems: "center",
-    justifyContent: "center",
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
     ...shadows.soft,
   },
-  quickLabel: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    textAlign: "center",
+  quickIconBox: {
+    width: 42,
+    height: 42,
+    borderRadius: radius.md,
+    alignItems: "center",
+    justifyContent: "center",
   },
+  quickLabel: {
+    flex: 1,
+    ...typography.caption,
+    fontWeight: "600",
+    color: colors.textPrimary,
+  },
+
+  // ── Dica de hoje ──
   tipCard: {
-    marginHorizontal: spacing.screenPadding,
-    marginBottom: 20,
     flexDirection: "row",
     gap: spacing.md,
     alignItems: "center",
@@ -602,7 +658,6 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: radius.md,
-    backgroundColor: colors.primaryLight,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -618,27 +673,21 @@ const styles = StyleSheet.create({
     ...typography.caption,
     color: colors.textSecondary,
     marginTop: spacing.xs,
-    
   },
   cleaningTipBox: {
-    width: 54,
-    height: 54,
+    width: 48,
+    height: 48,
+    borderRadius: radius.md,
     alignItems: "center",
     justifyContent: "center",
   },
-  cleaningTip: {
-    ...typography.h2,
-    textAlign: "center",
-  },
 
-  // Banner de restrição
+  // ── Banner de restrição ──
   restrictionBannerWarn: {
     backgroundColor: colors.warningSoft,
     borderLeftWidth: 4,
     borderLeftColor: colors.warning,
     padding: spacing.md,
-    marginHorizontal: spacing.lg,
-    marginBottom: spacing.md,
     borderRadius: radius.sm,
   },
   restrictionBannerCrit: {
@@ -646,8 +695,6 @@ const styles = StyleSheet.create({
     borderLeftWidth: 4,
     borderLeftColor: colors.danger,
     padding: spacing.md,
-    marginHorizontal: spacing.lg,
-    marginBottom: spacing.md,
     borderRadius: radius.sm,
   },
   restrictionTextWarn: {
@@ -661,10 +708,9 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
 
-  // Performance section
+  // ── Meu desempenho ──
   performanceSection: {
-    paddingHorizontal: spacing.screenPadding,
-    marginBottom: 14,
+    marginTop: 2,
   },
   metricsRow: {
     flexDirection: "row",
@@ -674,7 +720,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     ...shadows.soft,
-    marginTop: spacing.md,
   },
   metricCard: {
     flex: 1,
@@ -698,39 +743,7 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
 
-  // Shortcuts section
-  shortcutsSection: {
-    paddingHorizontal: spacing.screenPadding,
-    marginBottom: 20,
-  },
-  shortcutsGrid: {
-    flexDirection: "row",
-    marginTop: spacing.md,
-    gap: spacing.sm,
-  },
-  shortcutItem: {
-    flex: 1,
-    alignItems: "center",
-    gap: spacing.xs,
-    backgroundColor: colors.surface,
-    borderRadius: 18,
-    paddingVertical: 14,
-    borderWidth: 1,
-    borderColor: colors.border,
-    ...shadows.soft,
-  },
-  shortcutIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: radius.md,
-    backgroundColor: colors.lavender,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  shortcutLabel: {
-    ...typography.caption,
-    fontWeight: "600",
-    color: colors.textSecondary,
-    textAlign: "center",
+  pressed: {
+    opacity: 0.75,
   },
 });

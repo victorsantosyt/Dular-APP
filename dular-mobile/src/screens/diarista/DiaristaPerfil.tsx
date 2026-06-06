@@ -73,6 +73,8 @@ import { PERFIL_STACK_ROUTES } from "@/navigation/routes";
 import type { DiaristaTabParamList } from "@/navigation/DiaristaNavigator";
 import { radius, shadows, spacing, typography } from "@/theme";
 import { useDularColors } from "@/hooks/useDularColors";
+import { useGenderTheme } from "@/hooks/useProfileTheme";
+import type { ProfileTheme } from "@/theme/profileTheme";
 import { useThemeStore } from "@/stores/useThemeStore";
 import { platformSelect } from "@/utils/platform";
 import {
@@ -247,10 +249,11 @@ function splitBairros(value: string): string[] {
 export default function DiaristaPerfil({ onLogout }: Props) {
   const navigation = useNavigation<Navigation>();
   const colors = useDularColors();
+  const theme = useGenderTheme("DIARISTA");
   const insets = useSafeAreaInsets();
   const themeMode = useThemeStore((state) => state.mode);
   const toggleTheme = useThemeStore((state) => state.toggleTheme);
-  const s = useMemo(() => makeStyles(colors), [colors]);
+  const s = useMemo(() => makeStyles(colors, theme), [colors, theme]);
   const setUser = useAuth((state) => state.setUser);
   const user = useAuth((state) => state.user);
   const setServicosOferecidosStore = useAuth((state) => state.setServicosOferecidos);
@@ -1164,7 +1167,7 @@ export default function DiaristaPerfil({ onLogout }: Props) {
 
           {loading ? (
             <View style={s.centerCard}>
-              <ActivityIndicator color={colors.primary} size="large" />
+              <ActivityIndicator color={theme.primary} size="large" />
             </View>
           ) : error ? (
             <DCard style={s.errorCard}>
@@ -1184,6 +1187,10 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                 uploading={avatarUploading}
                 onAvatarPress={pickAvatar}
                 verificacaoStatus={heroVerificacaoStatus}
+                gradient={theme.gradient}
+                accentColor={theme.primary}
+                cameraColor={theme.primary}
+                memberSincePrefix={user?.genero === "MASCULINO" ? "Usuário desde" : "Usuária desde"}
                 hideMemberSinceIfEmpty
               />
 
@@ -1280,6 +1287,9 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                   ) : null}
                 </View>
                 <ProfileSwitchRow
+                  accentColor={theme.primary}
+                  accentSoft={theme.primarySoft}
+                  accentLight={theme.primaryLight}
                   icon="Eye"
                   title="Perfil ativo"
                   subtitle="Ficar visível na busca de empregadores"
@@ -1292,6 +1302,8 @@ export default function DiaristaPerfil({ onLogout }: Props) {
               {/* ── Dados profissionais ─────────────────────────────────── */}
               <ProfileSection title="Dados profissionais">
                 <ProfileRow
+                  accentColor={theme.primary}
+                  accentSoft={theme.primarySoft}
                   icon="User"
                   title="Nome, telefone e apresentação"
                   subtitle={
@@ -1302,30 +1314,40 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                   onPress={() => openModal("dados")}
                 />
                 <ProfileRow
+                  accentColor={theme.primary}
+                  accentSoft={theme.primarySoft}
                   icon="Sparkles"
                   title="O que você oferece"
                   subtitle={servicosResumo}
                   onPress={() => openModal("servicos")}
                 />
                 <ProfileRow
+                  accentColor={theme.primary}
+                  accentSoft={theme.primarySoft}
                   icon="MapPin"
                   title="Cidades, UF e bairros"
                   subtitle={cidadeUf}
                   onPress={() => openModal("area")}
                 />
                 <ProfileRow
+                  accentColor={theme.primary}
+                  accentSoft={theme.primarySoft}
                   icon="Wallet"
                   title="Valores por intensidade de serviço"
                   subtitle={precosResumo}
                   onPress={() => openModal("precos")}
                 />
                 <ProfileRow
+                  accentColor={theme.primary}
+                  accentSoft={theme.primarySoft}
                   icon="Star"
                   title="Catálogo de serviços"
                   subtitle={habilidadesResumo}
                   onPress={() => openModal("habilidades")}
                 />
                 <ProfileRow
+                  accentColor={theme.primary}
+                  accentSoft={theme.primarySoft}
                   icon="Calendar"
                   title="Dias e turnos"
                   subtitle={disponibilidadeResumo}
@@ -1337,6 +1359,8 @@ export default function DiaristaPerfil({ onLogout }: Props) {
               {/* ── Documentos e segurança ──────────────────────────────── */}
               <ProfileSection title="Documentos e segurança">
                 <ProfileRow
+                  accentColor={theme.primary}
+                  accentSoft={theme.primarySoft}
                   icon="FileText"
                   title="Verificação de documentos"
                   subtitle={
@@ -1351,6 +1375,8 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                   onPress={() => navigation.navigate("VerificacaoDocs")}
                 />
                 <ProfileRow
+                  accentColor={theme.primary}
+                  accentSoft={theme.primarySoft}
                   icon="ShieldCheck"
                   title="Segurança e SafeScore"
                   subtitle="Histórico e badges de segurança"
@@ -1359,6 +1385,8 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                   }
                 />
                 <ProfileRow
+                  accentColor={theme.primary}
+                  accentSoft={theme.primarySoft}
                   icon="AlertTriangle"
                   title="Reportar incidente"
                   subtitle="Botão SOS"
@@ -1368,6 +1396,8 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                   }
                 />
                 <ProfileRow
+                  accentColor={theme.primary}
+                  accentSoft={theme.primarySoft}
                   icon="Shield"
                   title="Privacidade"
                   subtitle="Controle seus dados"
@@ -1379,24 +1409,33 @@ export default function DiaristaPerfil({ onLogout }: Props) {
               {/* ── Suporte, termos e utilidades ────────────────────────── */}
               <ProfileSection title="Suporte, termos e utilidades">
                 <ProfileRow
+                  accentColor={theme.primary}
+                  accentSoft={theme.primarySoft}
                   icon="Lock"
                   title="Alterar senha"
                   subtitle="Segurança da conta"
                   onPress={() => (navigation as any).navigate(PERFIL_STACK_ROUTES.ALTERAR_SENHA)}
                 />
                 <ProfileRow
+                  accentColor={theme.primary}
+                  accentSoft={theme.primarySoft}
                   icon="MessageCircle"
                   title="Suporte no WhatsApp"
                   subtitle="Fale com a equipe"
                   onPress={openWhats}
                 />
                 <ProfileRow
+                  accentColor={theme.primary}
+                  accentSoft={theme.primarySoft}
                   icon="FileText"
                   title="Termos de uso"
                   subtitle="Leia as regras da plataforma"
                   onPress={() => (navigation as any).navigate(PERFIL_STACK_ROUTES.TERMOS)}
                 />
                 <ProfileSwitchRow
+                  accentColor={theme.primary}
+                  accentSoft={theme.primarySoft}
+                  accentLight={theme.primaryLight}
                   icon="MapPin"
                   title="Ativar geolocalização"
                   subtitle="Melhorar sugestões perto de você"
@@ -1404,6 +1443,9 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                   onValueChange={handleGeoToggle}
                 />
                 <ProfileSwitchRow
+                  accentColor={theme.primary}
+                  accentSoft={theme.primarySoft}
+                  accentLight={theme.primaryLight}
                   icon="Sparkles"
                   title="Dark mode"
                   subtitle="Tema escuro do app"
@@ -1536,7 +1578,7 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                       <AppIcon
                         name={item.icon}
                         size={18}
-                        color={active ? colors.white : colors.primary}
+                        color={active ? colors.white : theme.primary}
                         strokeWidth={2.3}
                       />
                     </View>
@@ -1628,7 +1670,7 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                     setAreaForm((cur) => ({ ...cur, atendeTodaCidade: v }))
                   }
                   thumbColor={colors.white}
-                  trackColor={{ false: colors.border, true: colors.primary }}
+                  trackColor={{ false: colors.border, true: theme.primary }}
                 />
               </View>
 
@@ -1642,9 +1684,9 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                 ]}
               >
                 {localizacaoLoading ? (
-                  <ActivityIndicator color={colors.primary} size="small" />
+                  <ActivityIndicator color={theme.primary} size="small" />
                 ) : (
-                  <AppIcon name="MapPin" size={16} color={colors.primary} strokeWidth={2.2} />
+                  <AppIcon name="MapPin" size={16} color={theme.primary} strokeWidth={2.2} />
                 )}
                 <Text style={s.locationButtonText}>
                   {localizacaoLoading ? "Buscando..." : "Usar localização atual"}
@@ -1731,7 +1773,7 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                     setPrecosForm((cur) => ({ ...cur, valorACombinar: v }))
                   }
                   thumbColor={colors.white}
-                  trackColor={{ false: colors.border, true: colors.primary }}
+                  trackColor={{ false: colors.border, true: theme.primary }}
                 />
               </View>
 
@@ -1828,7 +1870,7 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                         setPrecosForm((cur) => ({ ...cur, cobraDeslocamento: v }))
                       }
                       thumbColor={colors.white}
-                      trackColor={{ false: colors.border, true: colors.primary }}
+                      trackColor={{ false: colors.border, true: theme.primary }}
                     />
                   </View>
                 </>
@@ -1994,7 +2036,7 @@ export default function DiaristaPerfil({ onLogout }: Props) {
 // ── Styles ───────────────────────────────────────────────────────────────────
 type ThemeColors = ReturnType<typeof useDularColors>;
 
-function makeStyles(colors: ThemeColors) {
+function makeStyles(colors: ThemeColors, theme: ProfileTheme) {
   return StyleSheet.create({
     safe: {
       flex: 1,
@@ -2271,13 +2313,13 @@ function makeStyles(colors: ThemeColors) {
       paddingHorizontal: spacing.md,
       borderRadius: radius.md,
       borderWidth: 1.5,
-      borderColor: colors.primary,
-      backgroundColor: colors.lavenderSoft,
+      borderColor: theme.primary,
+      backgroundColor: theme.primarySoft,
       marginTop: spacing.xs,
       marginBottom: spacing.sm,
     },
     locationButtonText: {
-      color: colors.primary,
+      color: theme.primary,
       fontSize: 14,
       fontWeight: "700",
     },
@@ -2325,8 +2367,8 @@ function makeStyles(colors: ThemeColors) {
       gap: 10,
     },
     servicoCardActive: {
-      borderColor: colors.primary,
-      backgroundColor: colors.lavenderSoft,
+      borderColor: theme.primary,
+      backgroundColor: theme.primarySoft,
     },
     servicoIcon: {
       width: 36,
@@ -2334,10 +2376,10 @@ function makeStyles(colors: ThemeColors) {
       borderRadius: 12,
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: colors.lavender,
+      backgroundColor: theme.primarySoft,
     },
     servicoIconActive: {
-      backgroundColor: colors.primary,
+      backgroundColor: theme.primary,
     },
     servicoTextWrap: {
       flex: 1,
@@ -2365,8 +2407,8 @@ function makeStyles(colors: ThemeColors) {
       backgroundColor: colors.surface,
     },
     servicoCheckActive: {
-      borderColor: colors.primary,
-      backgroundColor: colors.primary,
+      borderColor: theme.primary,
+      backgroundColor: theme.primary,
     },
 
     // Chips
@@ -2385,13 +2427,13 @@ function makeStyles(colors: ThemeColors) {
       paddingHorizontal: 12,
       paddingVertical: 7,
       borderRadius: radius.pill,
-      backgroundColor: colors.lavenderSoft,
+      backgroundColor: theme.primarySoft,
       borderWidth: 1,
-      borderColor: colors.lavenderStrong,
+      borderColor: theme.border,
     },
     chipOn: {
-      backgroundColor: colors.primary,
-      borderColor: colors.primary,
+      backgroundColor: theme.primary,
+      borderColor: theme.primary,
     },
     chipText: {
       fontSize: 12,

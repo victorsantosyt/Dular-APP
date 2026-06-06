@@ -38,6 +38,10 @@ type ProfileHeroCardProps = {
   /** Cor do ícone Check + texto da pílula "Verificado" e ícone do avatar
    *  fallback. Default: `colors.primary` (roxo). */
   accentColor?: string;
+  /** Cor do badge da câmera sobre o avatar. Default: `colors.pink`
+   *  (preserva o visual legado do Empregador). Identidades por gênero passam
+   *  a cor do tema para não vazar rosa em paleta masculina. */
+  cameraColor?: string;
   /** Texto do prefixo da data — algumas identidades preferem "Usuário desde"
    *  no masculino. Default: "Usuária desde". */
   memberSincePrefix?: string;
@@ -79,6 +83,7 @@ export function ProfileHeroCard({
   onAvatarPress,
   gradient,
   accentColor,
+  cameraColor,
   memberSincePrefix = "Usuária desde",
   verificacaoStatus,
   hideMemberSinceIfEmpty,
@@ -87,6 +92,7 @@ export function ProfileHeroCard({
   const s = useMemo(() => makeStyles(colors), [colors]);
   const heroGradient = gradient ?? [colors.primary, colors.primaryLight];
   const accent = accentColor ?? colors.primary;
+  const cameraBadgeColor = cameraColor ?? colors.pink;
   const pill = verificacaoPill(verificacaoStatus, colors, accent);
   // Quando o status é passado, o badge já comunica o estado da verificação,
   // então o subtitle vira informativo (ou pode ser omitido pelo chamador).
@@ -113,7 +119,7 @@ export function ProfileHeroCard({
               <AppIcon name="User" size={42} color={accent} />
             </View>
           )}
-          <View style={s.cameraBadge}>
+          <View style={[s.cameraBadge, { backgroundColor: cameraBadgeColor }]}>
             {uploading ? (
               <AppIcon name="Clock" size={13} color={colors.white} />
             ) : (

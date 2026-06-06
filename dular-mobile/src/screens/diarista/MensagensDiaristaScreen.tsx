@@ -7,6 +7,7 @@ import { AppIcon } from "@/components/ui";
 import { ConversaCard, ConversaCardSkeleton } from "@/components/ui/ConversaCard";
 import { useMensagens } from "@/hooks/useMensagens";
 import type { ChatRoom } from "@/hooks/useMensagens";
+import { useGenderTheme } from "@/hooks/useProfileTheme";
 import { colors, spacing, typography } from "@/theme/tokens";
 import type { DiaristaTabParamList } from "@/navigation/DiaristaNavigator";
 
@@ -14,11 +15,11 @@ type Navigation = BottomTabNavigationProp<DiaristaTabParamList>;
 
 const SKELETON_COUNT = 5;
 
-function EmptyState() {
+function EmptyState({ accentColor, softBg }: { accentColor: string; softBg: string }) {
   return (
     <View style={styles.emptyWrap}>
-      <View style={styles.emptyIconWrap}>
-        <AppIcon name="MessageCircle" size={40} color={colors.primary} strokeWidth={1.5} />
+      <View style={[styles.emptyIconWrap, { backgroundColor: softBg }]}>
+        <AppIcon name="MessageCircle" size={40} color={accentColor} strokeWidth={1.5} />
       </View>
       <Text style={styles.emptyTitle}>Nenhuma conversa ainda</Text>
       <Text style={styles.emptySubtitle}>
@@ -40,6 +41,7 @@ function SkeletonList() {
 
 export function MensagensDiaristaScreen() {
   const navigation = useNavigation<Navigation>();
+  const theme = useGenderTheme("DIARISTA");
   const { rooms, loading, refetch } = useMensagens();
   const [refreshing, setRefreshing] = useState(false);
 
@@ -85,11 +87,11 @@ export function MensagensDiaristaScreen() {
               <RefreshControl
                 refreshing={refreshing}
                 onRefresh={onRefresh}
-                tintColor={colors.primary}
-                colors={[colors.primary]}
+                tintColor={theme.primary}
+                colors={[theme.primary]}
               />
             }
-            ListEmptyComponent={<EmptyState />}
+            ListEmptyComponent={<EmptyState accentColor={theme.primary} softBg={theme.primarySoft} />}
           />
         )}
       </View>

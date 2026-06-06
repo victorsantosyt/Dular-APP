@@ -219,6 +219,21 @@ export async function cancelarServicoDiarista(
   return res.data;
 }
 
+// ── Segurança / SOS ───────────────────────────────────────────────────────────
+
+/**
+ * Aciona o SOS de segurança para um serviço da profissional.
+ * Usa o mesmo endpoint compartilhado do fluxo do montador (/api/seguranca/sos);
+ * o backend identifica o papel pelo token.
+ */
+export async function acionarSosDiarista(servicoId: string, mensagem?: string) {
+  const res = await api.post("/api/seguranca/sos", {
+    servicoId,
+    mensagem: mensagem ?? "SOS acionado pela profissional no aplicativo.",
+  });
+  return res.data;
+}
+
 // ── Helpers de domínio ────────────────────────────────────────────────────────
 
 export type DiaristaCompletude = {

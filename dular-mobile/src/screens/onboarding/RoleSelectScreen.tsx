@@ -17,7 +17,6 @@ import { useAuthStore } from "@/stores/authStore";
 import type { OnboardingStackParamList } from "@/navigation/OnboardingNavigator";
 import { PageDots } from "@/components/onboarding/PageDots";
 import { colors as tc, typography } from "@/theme/tokens";
-import { getProfileTheme } from "@/theme/profileTheme";
 
 type Role = "EMPREGADOR" | "DIARISTA" | "MONTADOR";
 
@@ -32,10 +31,12 @@ const diaristaImg = require("../../../assets/images/roles/role_diarista_card.png
 const MONTADOR_IMAGE_ASSET = "assets/images/roles/role_montador_card.png";
 const montadorImg = require("../../../assets/images/roles/role_montador_card.png");
 
-// Role card accent colors — always use fallback palettes (gender not yet known on this screen)
-const PURPLE = getProfileTheme("EMPREGADOR", null).primary;   // #7B5CFA
-const PINK   = getProfileTheme("DIARISTA",   null).primary;   // #F7658B  (fallback = Feminino)
-const TEAL   = getProfileTheme("MONTADOR",   null).primary;   // #4FA38F  (fallback = Masculino)
+// Cores de identidade dos cards de role (preview de onboarding, pré-login).
+// FASE 4 — desacopladas do resolvedor de tema, que não infere mais gênero por
+// role. Constantes diretas preservam o visual histórico.
+const PURPLE = "#7B5CFA";  // Empregador
+const PINK   = "#F7658B";  // Profissional Casa
+const TEAL   = "#4FA38F";  // Montador
 
 const DARK = tc.navyDeep;
 const GRAY = tc.grayMid;

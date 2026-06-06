@@ -66,11 +66,12 @@ export function DBottomTabBar({ state, navigation, variant, messagesBadge, reque
   const shouldHide = !!currentRoute && HIDDEN_ROUTES[variant].has(currentRoute);
   const activeTab = TAB_BY_ROUTE[variant][currentRoute] ?? null;
   const user = useAuth((auth) => auth.user);
-  const selectedGenero = useAuth((auth) => auth.selectedGenero);
   const role = user?.role ?? (variant === "montador" ? "MONTADOR" : variant === "diarista" ? "DIARISTA" : "EMPREGADOR");
   const profileTheme = getProfileTheme({
     role,
-    genero: variant === "empregador" ? undefined : user?.genero ?? selectedGenero,
+    // FASE 4 — gênero só de user.genero (sem selectedGenero); empregador não
+    // tematiza por gênero.
+    genero: variant === "empregador" ? undefined : user?.genero,
   });
 
   const handlePress = useCallback(

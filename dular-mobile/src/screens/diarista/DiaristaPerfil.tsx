@@ -1518,6 +1518,19 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                 keyboardType="phone-pad"
               />
 
+              {/* Gênero — SOMENTE LEITURA (fonte: user.genero, definido no cadastro) */}
+              <Text style={s.modalLabel}>Gênero</Text>
+              <View style={s.modalReadonly}>
+                <Text style={s.modalReadonlyValue}>
+                  {user?.genero === "FEMININO"
+                    ? "Feminino"
+                    : user?.genero === "MASCULINO"
+                      ? "Masculino"
+                      : "Não informado"}
+                </Text>
+              </View>
+              <Text style={s.modalReadonlyHint}>Definido no cadastro — não editável aqui.</Text>
+
               <Text style={s.modalLabel}>Apresentação</Text>
               <TextInput
                 value={dadosForm.bio}
@@ -2268,6 +2281,27 @@ function makeStyles(colors: ThemeColors, theme: ProfileTheme) {
     modalInputMulti: {
       minHeight: 94,
       paddingTop: 12,
+    },
+    modalReadonly: {
+      minHeight: 44,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      borderColor: colors.border,
+      paddingHorizontal: spacing.md,
+      paddingVertical: 10,
+      backgroundColor: colors.background,
+      justifyContent: "center",
+    },
+    modalReadonlyValue: {
+      color: colors.textPrimary,
+      fontSize: 15,
+      fontWeight: "600",
+    },
+    modalReadonlyHint: {
+      marginTop: 4,
+      color: colors.textMuted,
+      fontSize: 12,
+      fontWeight: "500",
     },
     charCount: {
       alignSelf: "flex-end",

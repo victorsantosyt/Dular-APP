@@ -32,7 +32,7 @@
     "react-easy-crop": "^5.5.6",
     "recharts": "^3.6.0",
     "stripe": "^22.1.0",
-    "zod": "^4.3.5"
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.0",

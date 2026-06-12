@@ -57,6 +57,21 @@ updates:
       # Resolver no upgrade major do Expo.
       - dependency-name: "uuid"
 
+      # Pacotes expo-* são acoplados à versão do Expo SDK (expo@~54 / SDK54),
+      # via bundledNativeModules. O Dependabot não entende esse acoplamento e
+      # abre PRs subindo-os para a linha "56.x" (ex.: expo-notifications@56,
+      # expo-location@56, expo-font@56), incompatível com o SDK54 — o que quebra
+      # o CI em dois pontos: `npm ci` falha com EUSAGE (package.json/lock fora de
+      # sync) e `tsc` falha (TS2339: o tipo perde `.status`). Já recorreu 2x
+      # (commits e602310 e c6d45ed). Atualizar SEMPRE via `expo install` /
+      # upgrade de SDK, nunca individualmente.
+      # Bloqueia só version-updates major/minor (os bumps bogus são todos major);
+      # alertas de SEGURANÇA seguem abertos, conforme a política deste arquivo.
+      - dependency-name: "expo"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "expo-*"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+
   # ---------- GITHUB ACTIONS ----------
   # Mantém os pinned actions atualizados (actions/checkout, setup-node).
   - package-ecosystem: "github-actions"

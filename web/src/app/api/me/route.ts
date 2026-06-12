@@ -263,7 +263,7 @@ export async function PUT(req: Request) {
     const auth = requireAuth(req);
     const body = await req.json();
 
-    const { nome, email, telefone, senhaAtual, novaSenha, bio, precoLeve, precoMedio, precoPesado, precoPesada } = body as {
+    const { nome, email, telefone, senhaAtual, novaSenha, bio, precoLeve, precoMedio, precoPesado, precoPesada, genero } = body as {
       nome?: string;
       email?: string;
       telefone?: string;
@@ -274,7 +274,18 @@ export async function PUT(req: Request) {
       precoMedio?: number;
       precoPesado?: number;
       precoPesada?: number;
+      genero?: "MASCULINO" | "FEMININO";
     };
+
+    // FASE 3 (gate de gênero) — backfill atômico: grava o gênero UMA única vez,
+    // quando a conta ainda não tem (genero: null). Nunca troca um gênero já
+    // definido (set once). Não afeta os demais campos deste handler.
+    if (genero === "MASCULINO" || genero === "FEMININO") {
+      await prisma.user.updateMany({
+        where: { id: auth.userId, genero: null },
+        data: { genero },
+      });
+    }
 
     const data: any = {};
     if (typeof nome === "string") data.nome = nome.trim();

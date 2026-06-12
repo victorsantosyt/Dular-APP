@@ -57,10 +57,11 @@ export function NichosSelectScreen() {
     );
   };
 
-  const continueToGenero = async () => {
+  const continueToLogin = async () => {
     if (!canContinue) return;
     await setServicosOferecidos(selected);
-    navigation.navigate("GeneroSelect");
+    // FASE 3 — gênero é coletado pós-login (GeneroGate); segue direto ao Login.
+    navigation.navigate("Login");
   };
 
   return (
@@ -123,7 +124,7 @@ export function NichosSelectScreen() {
 
       <SafeAreaView edges={["bottom"]} style={s.footer}>
         <Pressable
-          onPress={continueToGenero}
+          onPress={continueToLogin}
           disabled={!canContinue}
           style={({ pressed }) => [
             s.primaryButton,

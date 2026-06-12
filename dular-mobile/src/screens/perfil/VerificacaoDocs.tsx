@@ -438,7 +438,8 @@ export default function VerificacaoDocs() {
           disabled={locked || saving || selecting}
           style={{
             marginTop: 4,
-            backgroundColor: colors.teal,
+            // Ação importante (verificação): cor de alerta âmbar, não teal/azul.
+            backgroundColor: colors.warning,
             borderRadius: 14,
             padding: 14,
             alignItems: "center",

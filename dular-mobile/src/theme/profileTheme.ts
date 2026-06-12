@@ -76,15 +76,36 @@ const MASCULINO_THEME: ProfileTheme = {
 };
 
 /**
+ * NEUTRAL_THEME — paleta neutra (cinza/slate), sem conotação de gênero.
+ * FASE 4: usada quando não há gênero definido e o role não é EMPREGADOR.
+ * Nunca inferir gênero pelo role.
+ */
+const NEUTRAL_THEME: ProfileTheme = {
+  primary: "#6B7280",
+  primaryDark: "#4B5563",
+  primaryLight: "#9CA3AF",
+  primarySoft: "#F3F4F6",
+  background: "#FBFBFC",
+  backgroundSoft: "#EEF0F3",
+  textAccent: "#4B5563",
+  gradient: ["#6B7280", "#9CA3AF"] as const,
+  border: "#E3E6EB",
+  icon: "#6B7280",
+  tabActive: "#6B7280",
+  tabInactive: "#9B94A8",
+};
+
+/**
  * Returns the brand palette for the given role + gender combination.
  *
  * Accepts either getProfileTheme({ role, genero }) or the legacy
  * getProfileTheme(role, genero) call shape so existing screens keep working.
  *
- * Gender has priority over role. Fallbacks when gender is absent:
- *   DIARISTA  → Feminino palette
- *   MONTADOR  → Masculino palette
- *   EMPREGADOR (or unknown) → Empregador palette
+ * FASE 4 — o gênero é a ÚNICA fonte da cor; NUNCA se infere gênero pelo role:
+ *   FEMININO   → Feminino (rosa)
+ *   MASCULINO  → Masculino (verde)
+ *   EMPREGADOR (sem gênero) → Empregador (roxo)
+ *   sem gênero (não-empregador) → NEUTRAL_THEME (cinza)
  */
 export function getProfileTheme(
   input: GetProfileThemeArgs | string | null | undefined,
@@ -96,9 +117,9 @@ export function getProfileTheme(
   if (genero === "FEMININO") return FEMININO_THEME;
   if (genero === "MASCULINO") return MASCULINO_THEME;
 
+  // Sem inferência de gênero por role: apenas EMPREGADOR tem paleta própria;
+  // qualquer outro role sem gênero cai no tema neutro.
   if (role === "EMPREGADOR") return EMPREGADOR_THEME;
-  if (role === "DIARISTA") return FEMININO_THEME;
-  if (role === "MONTADOR") return MASCULINO_THEME;
 
-  return EMPREGADOR_THEME;
+  return NEUTRAL_THEME;
 }

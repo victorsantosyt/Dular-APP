@@ -13,7 +13,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useDularColors } from "@/hooks/useDularColors";
 import { radius, shadows } from "@/theme";
 
-type Variant = "primary" | "secondary" | "outline" | "accent" | "ghost" | "danger";
+type Variant = "primary" | "secondary" | "outline" | "accent" | "ghost" | "danger" | "warning";
 type Size = "sm" | "md" | "lg";
 type ThemeColors = ReturnType<typeof useDularColors>;
 
@@ -139,6 +139,8 @@ function textColorFor(v: Variant, colors: ThemeColors): string {
       return colors.textSecondary;
     case "danger":
       return colors.error;
+    case "warning":
+      return colors.white;
   }
 }
 
@@ -152,6 +154,9 @@ function flatStyle(v: Variant, colors: ThemeColors): ViewStyle {
       return { backgroundColor: "transparent" };
     case "danger":
       return { borderWidth: 1.5, borderColor: colors.error, backgroundColor: "transparent" };
+    case "warning":
+      // Ação importante — cor de alerta âmbar (fundo cheio, texto branco).
+      return { backgroundColor: colors.warning };
     default:
       return {};
   }

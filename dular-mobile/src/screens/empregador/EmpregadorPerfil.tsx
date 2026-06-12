@@ -490,6 +490,12 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
   const avatarFallback: ImageSourcePropType | null = null;
   const memberSince = formatMemberSince(profileData?.createdAt ?? profileData?.criadoEm);
   const telefoneText = textValue(profileData?.telefone) ?? "Não informado";
+  const generoText =
+    profileData?.genero === "FEMININO"
+      ? "Feminino"
+      : profileData?.genero === "MASCULINO"
+        ? "Masculino"
+        : "Não informado";
   const emailText = textValue(profileData?.email) ?? "Não informado";
   const roleText = roleLabel(profileData?.role);
   const createdAtText = memberSince || "Não informado";
@@ -628,7 +634,7 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
                   {!podeSolicitar ? (
                     <DButton
                       label={ctaLabel}
-                      variant="primary"
+                      variant="warning"
                       size="md"
                       onPress={() => navigation.navigate("VerificacaoDocs")}
                     />
@@ -639,6 +645,7 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
               <ProfileSection title="Dados da conta">
                 <DCard style={s.infoCard}>
                   <InfoLine icon="Phone" label="Telefone" value={telefoneText} styles={s} colors={colors} />
+                  <InfoLine icon="UserRound" label="Gênero" value={generoText} styles={s} colors={colors} />
                   <InfoLine icon="FileText" label="Email" value={emailText} styles={s} colors={colors} />
                   <InfoLine icon="User" label="Perfil" value={roleText} styles={s} colors={colors} />
                   <InfoLine icon="Calendar" label="Criado em" value={createdAtText} styles={s} colors={colors} isLast />

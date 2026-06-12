@@ -57,7 +57,14 @@ export function usePerfil(): UsePerfilReturn {
       const data = await getMe();
       if (!mountedRef.current) return;
       setPerfil(data as PerfilUsuario);
-      setUser((current) => (current ? { ...current, ...(data as Partial<typeof current>) } : (data as any)));
+      setUser((current) => {
+        if (!current) return data as any;
+        const merged = { ...current, ...(data as Partial<typeof current>) };
+        // FASE 2: backend é a fonte de verdade para valores válidos, mas um
+        // gênero já conhecido nunca pode ser apagado por um null vindo da API.
+        if (merged.genero == null && current.genero != null) merged.genero = current.genero;
+        return merged;
+      });
       setError(null);
     } catch (err) {
       if (!mountedRef.current) return;
@@ -91,7 +98,13 @@ export function usePerfil(): UsePerfilReturn {
         setPerfil((prev) =>
           prev ? { ...prev, ...(updated as Partial<PerfilUsuario>) } : updated
         );
-        setUser((current) => (current ? { ...current, ...(updated as Partial<typeof current>) } : (updated as any)));
+        setUser((current) => {
+          if (!current) return updated as any;
+          const merged = { ...current, ...(updated as Partial<typeof current>) };
+          // FASE 2: idem fetch() — não apagar gênero válido com null da API.
+          if (merged.genero == null && current.genero != null) merged.genero = current.genero;
+          return merged;
+        });
         return true;
       } catch {
         return false;

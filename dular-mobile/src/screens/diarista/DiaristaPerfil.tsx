@@ -1280,7 +1280,7 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                   {verificacao !== "APROVADO" ? (
                     <DButton
                       label={verificationCtaLabel}
-                      variant="primary"
+                      variant="warning"
                       size="md"
                       onPress={() => navigation.navigate("VerificacaoDocs")}
                     />

@@ -634,7 +634,7 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
                   {!podeSolicitar ? (
                     <DButton
                       label={ctaLabel}
-                      variant="primary"
+                      variant="warning"
                       size="md"
                       onPress={() => navigation.navigate("VerificacaoDocs")}
                     />

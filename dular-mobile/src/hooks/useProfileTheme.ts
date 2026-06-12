@@ -3,46 +3,35 @@ import { useAuth } from "@/stores/authStore";
 import { getProfileTheme, type ProfileTheme } from "@/theme/profileTheme";
 
 /**
- * useGenderTheme — fonte ÚNICA de verdade para a identidade visual por gênero.
+ * useGenderTheme — fonte ÚNICA de verdade visual por gênero.
  *
- * Lê o gênero/role já PERSISTIDO no authStore (nunca de estado temporário de
- * tela). A origem do gênero é o backend (`GET /api/me`), reconciliado e
- * persistido pelo authStore em:
- *   - SecureStorage (objeto `user` completo)
- *   - AsyncStorage (chave "genero")
- * e re-hidratado no boot (`authStore.hydrate`). Por isso o tema é reconstruído
- * de forma determinística sempre que qualquer tela monta — sobrevive a
- * reload/relogin sem depender de props ou de estado local.
+ * FASE 4: o gênero vem EXCLUSIVAMENTE de `user.genero` (atributo de conta,
+ * persistido pelo backend via GET /api/me e cacheado em SecureStorage/
+ * AsyncStorage, re-hidratado no boot). NÃO há fallback para o gênero
+ * temporário do onboarding — o backend é a única fonte.
  *
  * Mapeamento (ver theme/profileTheme.ts):
- *   FEMININO  → paleta Rosa
- *   MASCULINO → paleta Verde
- * Sem fallback aleatório: na ausência de gênero, cai no fallback determinístico
- * por role (DIARISTA→Rosa, MONTADOR→Verde, EMPREGADOR→Roxo).
+ *   FEMININO   → paleta Rosa
+ *   MASCULINO  → paleta Verde
+ *   EMPREGADOR (sem gênero passado) → Roxo
+ *   sem gênero (não-empregador)     → NEUTRAL_THEME (nunca infere gênero por role)
  *
- * @param roleFallback role usada apenas quando user.role e selectedRole estão
- *   ausentes (ex.: tela aberta antes do /api/me responder).
+ * @param roleFallback usado só para distinguir EMPREGADOR enquanto `user.role`
+ *   não carregou; não influencia a cor de gênero.
  */
 export function useGenderTheme(roleFallback?: string | null): ProfileTheme {
   const user = useAuth((state) => state.user);
   const selectedRole = useAuth((state) => state.selectedRole);
-  const selectedGenero = useAuth((state) => state.selectedGenero);
 
   return useMemo(
     () =>
       getProfileTheme({
         role: user?.role ?? selectedRole ?? roleFallback,
-        genero: user?.genero ?? selectedGenero,
+        genero: user?.genero,
       }),
-    [roleFallback, selectedGenero, selectedRole, user?.genero, user?.role],
+    [roleFallback, selectedRole, user?.genero, user?.role],
   );
 }
 
-/**
- * useProfileTheme — alias histórico de useGenderTheme.
- *
- * Mantido porque várias telas (fluxo Montador/Empregador) já o importam. Ambos
- * resolvem exatamente a mesma paleta a partir da mesma fonte persistida, então
- * não há lógica de cor duplicada espalhada pelas telas.
- */
+/** useProfileTheme — alias histórico de useGenderTheme (mesma fonte única). */
 export const useProfileTheme = useGenderTheme;

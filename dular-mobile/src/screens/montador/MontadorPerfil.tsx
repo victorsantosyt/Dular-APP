@@ -743,7 +743,7 @@ export default function MontadorPerfil() {
                 styles.ctaButton,
                 {
                   backgroundColor:
-                    statusCardCaseMontador === "REPROVADO" ? colors.danger : profileTheme.primary,
+                    statusCardCaseMontador === "REPROVADO" ? colors.danger : colors.warning,
                 },
               ]}
             >
@@ -771,7 +771,7 @@ export default function MontadorPerfil() {
       </Section>
 
       <Section title="Documentos e segurança" borderColor={profileTheme.border}>
-        <Row icon="FileText" title="Documentos/verificação" subtitle={perfil.verificacaoStatus === "APROVADO" ? "Documentos aprovados" : "Documentos pendentes"} theme={profileTheme} onPress={() => openModal("documentos")} />
+        <Row icon="FileText" title="Documentos/verificação" subtitle={perfil.verificacaoStatus === "APROVADO" ? "Documentos aprovados" : "Documentos pendentes"} theme={profileTheme} onPress={() => navigation.navigate("VerificacaoDocs")} />
         <Row icon="ShieldCheck" title="Segurança/SafeScore" subtitle={perfil.safeScore?.faixa ?? "SafeScore em análise"} theme={profileTheme} onPress={() => openModal("documentos")} />
       </Section>
 
@@ -937,6 +937,15 @@ export default function MontadorPerfil() {
           <Text style={styles.emptyTitle}>{perfil.verificacaoStatus === "APROVADO" ? "Verificação aprovada" : "Documentos pendentes"}</Text>
           <Text style={styles.emptyText}>Status: {perfil.verificacaoStatus}. O envio de documentos será conectado ao fluxo de verificação.</Text>
           <Text style={styles.emptyText}>SafeScore: {perfil.safeScore?.faixa ?? "Em análise"}</Text>
+          <Pressable
+            onPress={() => {
+              setModal(null);
+              navigation.navigate("VerificacaoDocs");
+            }}
+            style={[styles.primaryButton, { backgroundColor: profileTheme.primary }]}
+          >
+            <Text style={styles.primaryButtonText}>{ctaLabelMontador}</Text>
+          </Pressable>
         </View>
       </FloatingCard>
     </DScreen>

@@ -24,6 +24,8 @@ export type MockPrisma = {
   chatRoom: { upsert: AnyFn };
   chatMessage: { findMany: AnyFn; updateMany: AnyFn; create: AnyFn };
   diaristaProfile: { findUnique: AnyFn; upsert: AnyFn };
+  empregadorFavorito: { findMany: AnyFn; upsert: AnyFn; delete: AnyFn };
+  montadorPerfil: { findUnique: AnyFn };
   documentVerification: { findFirst: AnyFn; create: AnyFn };
   subscription: { upsert: AnyFn; updateMany: AnyFn; findUnique: AnyFn };
   creditWallet: { upsert: AnyFn };
@@ -71,6 +73,14 @@ export function createMockPrisma(): MockPrisma {
     diaristaProfile: {
       findUnique: notMocked("diaristaProfile.findUnique"),
       upsert: notMocked("diaristaProfile.upsert"),
+    },
+    empregadorFavorito: {
+      findMany: notMocked("empregadorFavorito.findMany"),
+      upsert: notMocked("empregadorFavorito.upsert"),
+      delete: notMocked("empregadorFavorito.delete"),
+    },
+    montadorPerfil: {
+      findUnique: notMocked("montadorPerfil.findUnique"),
     },
     documentVerification: {
       findFirst: notMocked("documentVerification.findFirst"),

@@ -179,6 +179,11 @@ enum FeatureKey {
   SUPORTE_PRIORITARIO
 }
 
+enum FavoritoTipo {
+  DIARISTA
+  MONTADOR
+}
+
 model User {
   id             String        @id @default(cuid())
   nome           String
@@ -216,6 +221,8 @@ model User {
   subscription          Subscription?
   creditWallet          CreditWallet?
   notifications         Notification[]
+  empregadorFavoritos   EmpregadorFavorito[] @relation("EmpregadorFavoritos")
+  profissionalFavoritado EmpregadorFavorito[] @relation("ProfissionalFavoritado")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -782,4 +789,19 @@ model UserRestriction {
   createdAt DateTime            @default(now())
 
   @@index([userId])
+}
+
+model EmpregadorFavorito {
+  id                 String   @id @default(cuid())
+  empregadorUserId   String
+  profissionalUserId String
+  tipo               FavoritoTipo
+  createdAt          DateTime @default(now())
+
+  empregador         User     @relation("EmpregadorFavoritos", fields: [empregadorUserId], references: [id], onDelete: Cascade)
+  profissional       User     @relation("ProfissionalFavoritado", fields: [profissionalUserId], references: [id], onDelete: Cascade)
+
+  @@unique([empregadorUserId, profissionalUserId, tipo])
+  @@index([empregadorUserId])
+  @@index([profissionalUserId])
 }

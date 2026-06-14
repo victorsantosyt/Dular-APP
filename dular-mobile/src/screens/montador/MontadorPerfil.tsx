@@ -1,10 +1,11 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigation } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import type { MontadorTabParamList } from "@/navigation/MontadorNavigator";
 import {
   ActivityIndicator,
   Alert,
+  Image,
   KeyboardAvoidingView,
   Modal,
   Pressable,
@@ -17,6 +18,7 @@ import {
   type KeyboardTypeOptions,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import * as ImagePicker from "expo-image-picker";
 import { AppIcon, DErrorState, DLoadingState, DScreen } from "@/components/ui";
 import { LocationPermissionCard } from "@/components/location/LocationPermissionCard";
 import { salvarLocalizacaoAtual } from "@/api/localizacaoApi";
@@ -28,6 +30,7 @@ import {
   type MontadorEspecialidadeId,
   type MontadorPerfilMe,
 } from "@/api/montadorApi";
+import { uploadAvatarDataUrl } from "@/api/perfilApi";
 import { useMontadorServicos } from "@/hooks/useMontadorServicos";
 import { useCurrentRegion, type CurrentRegion } from "@/hooks/useCurrentRegion";
 import { useProfileTheme } from "@/hooks/useProfileTheme";
@@ -37,7 +40,7 @@ import type { ProfileTheme } from "@/theme/profileTheme";
 import { platformSelect } from "@/utils/platform";
 import { firstName, formatMoneyFromCents, upperStatus } from "./montadorUtils";
 
-type ModalType = "dados" | "especialidades" | "area" | "precos" | "portfolio" | "documentos" | null;
+type ModalType = "dados" | "especialidades" | "area" | "precos" | "portfolio" | "avaliacoes" | "documentos" | null;
 
 type MontadorNavigation = BottomTabNavigationProp<MontadorTabParamList>;
 
@@ -289,6 +292,23 @@ function ModalActions({
   );
 }
 
+function StarRow({ value, size = 14, color }: { value: number; size?: number; color: string }) {
+  const filled = Math.round(value);
+  return (
+    <View style={styles.starRow}>
+      {[1, 2, 3, 4, 5].map((i) => (
+        <AppIcon key={i} name="Star" size={size} color={i <= filled ? color : colors.border} strokeWidth={2} />
+      ))}
+    </View>
+  );
+}
+
+function formatReviewDate(iso: string) {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" });
+}
+
 export default function MontadorPerfil() {
   const profileTheme = useProfileTheme("MONTADOR");
   const navigation = useNavigation<MontadorNavigation>();
@@ -307,6 +327,10 @@ export default function MontadorPerfil() {
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
   const [modal, setModal] = useState<ModalType>(null);
   const [areaCoords, setAreaCoords] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [avatarLocal, setAvatarLocal] = useState<string | null>(null);
+  const [avatarRemote, setAvatarRemote] = useState<string | null>(null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const busyRef = useRef(false);
 
   const [dadosForm, setDadosForm] = useState<DadosForm>({ nome: "", telefone: "", bio: "", anosExperiencia: "" });
   const [especialidadesForm, setEspecialidadesForm] = useState<MontadorEspecialidadeId[]>([]);
@@ -324,6 +348,10 @@ export default function MontadorPerfil() {
   const perfil = profile?.perfil;
   const user = profile?.user;
   const nome = firstName(user?.nome ?? authUser?.nome);
+  const avatarUri = avatarLocal ?? avatarRemote ?? user?.avatarUrl ?? authUser?.avatarUrl ?? null;
+  const avaliacoesItens = perfil?.avaliacoes?.itens ?? [];
+  const avaliacoesMedia = perfil?.avaliacoes?.media ?? perfil?.rating ?? 0;
+  const avaliacoesTotal = perfil?.avaliacoes?.total ?? 0;
   const progresso = perfil?.completude.progresso ?? 0;
   const completo = Boolean(perfil?.completude.completo);
   const verificado = Boolean(perfil?.verificado);
@@ -490,6 +518,44 @@ export default function MontadorPerfil() {
       bio: dadosForm.bio || null,
       anosExperiencia,
     }, "Dados profissionais salvos.");
+  };
+
+  // ── Avatar ─────────────────────────────────────────────────────────────────
+  const pickAvatar = async () => {
+    if (busyRef.current) return;
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("Permissão necessária", "Permita o acesso às fotos para escolher seu avatar.");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.82,
+      base64: true,
+    });
+    if (result.canceled) return;
+    const asset = result.assets?.[0];
+    if (!asset?.uri || !asset.base64) return;
+
+    setAvatarLocal(asset.uri);
+    setAvatarUploading(true);
+    busyRef.current = true;
+    try {
+      const mime = (asset as { mimeType?: string }).mimeType ?? "image/jpeg";
+      const dataUrl = `data:${mime};base64,${asset.base64}`;
+      const uploaded = await uploadAvatarDataUrl(dataUrl);
+      const finalUrl = uploaded?.user?.avatarUrl ?? dataUrl;
+      setAvatarRemote(finalUrl);
+      setUser((u) => (u ? { ...u, avatarUrl: finalUrl ?? u.avatarUrl } : u));
+    } catch (e) {
+      setAvatarLocal(null);
+      Alert.alert("Erro", e instanceof Error ? e.message : "Falha ao atualizar a foto.");
+    } finally {
+      setAvatarUploading(false);
+      busyRef.current = false;
+    }
   };
 
   const saveEspecialidades = () => {
@@ -660,9 +726,16 @@ export default function MontadorPerfil() {
       </View>
 
       <LinearGradient colors={profileTheme.gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
-        <View style={styles.avatar}>
-          <AppIcon name="UserRound" size={34} color={colors.white} strokeWidth={2.1} />
-        </View>
+        <Pressable onPress={pickAvatar} disabled={avatarUploading} style={styles.avatar}>
+          {avatarUri ? (
+            <Image source={{ uri: avatarUri }} style={styles.avatarImg} />
+          ) : (
+            <AppIcon name="UserRound" size={34} color={colors.white} strokeWidth={2.1} />
+          )}
+          <View style={[styles.cameraBadge, { backgroundColor: profileTheme.primary }]}>
+            <AppIcon name={avatarUploading ? "Clock" : "Camera"} size={13} color={colors.white} />
+          </View>
+        </Pressable>
         <View style={styles.heroText}>
           <Text style={styles.name}>{nome}</Text>
           <Text style={styles.role}>Montador profissional</Text>
@@ -766,7 +839,7 @@ export default function MontadorPerfil() {
         <Row icon="MapPin" title="Área de atendimento" subtitle={areaResumo} theme={profileTheme} onPress={() => openModal("area")} />
         <Row icon="Wallet" title="Preços" subtitle={precoResumo} theme={profileTheme} onPress={() => openModal("precos")} />
         <Row icon="Camera" title="Portfólio" subtitle={perfil.portfolioFotos.length ? `${perfil.portfolioFotos.length} foto(s)` : "Sem fotos no portfólio"} theme={profileTheme} onPress={() => openModal("portfolio")} />
-        <Row icon="Star" title="Avaliações" subtitle={perfil.avaliacoes?.total ? `${perfil.avaliacoes.total} avaliação(ões)` : "Sem avaliações ainda"} theme={profileTheme} onPress={() => openModal("portfolio")} />
+        <Row icon="Star" title="Avaliações" subtitle={perfil.avaliacoes?.total ? `${perfil.avaliacoes.total} avaliação(ões)` : "Sem avaliações ainda"} theme={profileTheme} onPress={() => openModal("avaliacoes")} />
         <Row icon="CreditCard" title="Carteira/Ganhos" subtitle={formatMoneyFromCents(ganhos)} theme={profileTheme} onPress={() => Alert.alert("Carteira", "Carteira do montador será conectada ao backend.")} />
       </Section>
 
@@ -791,6 +864,20 @@ export default function MontadorPerfil() {
         >
           <Field label="Nome profissional" value={dadosForm.nome} onChangeText={(nomeValue) => setDadosForm((prev) => ({ ...prev, nome: nomeValue }))} />
           <Field label="Telefone" value={dadosForm.telefone} onChangeText={(telefone) => setDadosForm((prev) => ({ ...prev, telefone }))} keyboardType="phone-pad" />
+          {/* Gênero — SOMENTE LEITURA (fonte: authUser.genero, definido no cadastro) */}
+          <View style={styles.field}>
+            <Text style={styles.fieldLabel}>Gênero</Text>
+            <View style={styles.readonlyBox}>
+              <Text style={styles.readonlyValue}>
+                {authUser?.genero === "FEMININO"
+                  ? "Feminino"
+                  : authUser?.genero === "MASCULINO"
+                    ? "Masculino"
+                    : "Não informado"}
+              </Text>
+            </View>
+            <Text style={styles.readonlyHint}>Definido no cadastro — não editável aqui.</Text>
+          </View>
           <Field label="Apresentação" value={dadosForm.bio} onChangeText={(bio) => setDadosForm((prev) => ({ ...prev, bio }))} multiline placeholder="Conte sua experiência, tipo de montagem que atende e diferenciais." />
           <Field label="Anos de experiência" value={dadosForm.anosExperiencia} onChangeText={(anosExperiencia) => setDadosForm((prev) => ({ ...prev, anosExperiencia }))} keyboardType="number-pad" />
           {formError ? <Text style={styles.errorText}>{formError}</Text> : null}
@@ -915,7 +1002,7 @@ export default function MontadorPerfil() {
         </ScrollView>
       </FloatingCard>
 
-      <FloatingCard visible={modal === "portfolio"} title="Portfólio e avaliações" subtitle="Uploads avançados entram em uma etapa posterior." theme={profileTheme} onClose={() => setModal(null)}>
+      <FloatingCard visible={modal === "portfolio"} title="Portfólio" subtitle="Uploads avançados entram em uma etapa posterior." theme={profileTheme} onClose={() => setModal(null)}>
         <View style={[styles.emptyCard, { borderColor: profileTheme.border }]}>
           <AppIcon name="Camera" size={24} color={profileTheme.primary} />
           <Text style={styles.emptyTitle}>{perfil.portfolioFotos.length ? "Fotos cadastradas" : "Sem fotos no portfólio"}</Text>
@@ -924,11 +1011,35 @@ export default function MontadorPerfil() {
             <Text style={styles.primaryButtonText}>Adicionar foto</Text>
           </Pressable>
         </View>
-        <View style={[styles.emptyCard, { borderColor: profileTheme.border }]}>
-          <AppIcon name="Star" size={24} color={profileTheme.primary} />
-          <Text style={styles.emptyTitle}>Avaliações</Text>
-          <Text style={styles.emptyText}>{perfil.avaliacoes?.total ? `${perfil.avaliacoes.total} avaliação(ões) recebida(s).` : "Você ainda não recebeu avaliações."}</Text>
-        </View>
+      </FloatingCard>
+
+      <FloatingCard visible={modal === "avaliacoes"} title="Avaliações" subtitle="O que os clientes disseram sobre os seus serviços." theme={profileTheme} onClose={() => setModal(null)}>
+        {avaliacoesItens.length > 0 ? (
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalScroll}>
+            <View style={[styles.ratingSummary, { borderColor: profileTheme.border }]}>
+              <Text style={[styles.ratingScore, { color: profileTheme.primary }]}>{avaliacoesMedia.toFixed(1)}</Text>
+              <View style={styles.ratingSummaryInfo}>
+                <StarRow value={avaliacoesMedia} size={16} color={profileTheme.primary} />
+                <Text style={styles.ratingSummaryText}>{avaliacoesTotal} avaliação(ões)</Text>
+              </View>
+            </View>
+            {avaliacoesItens.map((item) => (
+              <View key={item.id} style={[styles.reviewCard, { borderColor: profileTheme.border }]}>
+                <View style={styles.reviewHeader}>
+                  <StarRow value={item.notaGeral} size={14} color={profileTheme.primary} />
+                  <Text style={styles.reviewDate}>{formatReviewDate(item.createdAt)}</Text>
+                </View>
+                {item.comentario ? <Text style={styles.reviewComment}>{item.comentario}</Text> : null}
+              </View>
+            ))}
+          </ScrollView>
+        ) : (
+          <View style={[styles.emptyCard, { borderColor: profileTheme.border }]}>
+            <AppIcon name="Star" size={24} color={profileTheme.primary} />
+            <Text style={styles.emptyTitle}>Sem avaliações ainda</Text>
+            <Text style={styles.emptyText}>Você ainda não recebeu avaliações. Conclua serviços para começar a recebê-las.</Text>
+          </View>
+        )}
       </FloatingCard>
 
       <FloatingCard visible={modal === "documentos"} title="Documentos e segurança" subtitle="Acompanhe sua verificação e SafeScore." theme={profileTheme} onClose={() => setModal(null)}>
@@ -986,6 +1097,71 @@ const styles = StyleSheet.create({
     backgroundColor: colors.whiteAlpha20,
     borderWidth: 1,
     borderColor: colors.glassBorder,
+    position: "relative",
+  },
+  avatarImg: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+  },
+  cameraBadge: {
+    position: "absolute",
+    right: -1,
+    bottom: 2,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 3,
+    borderColor: colors.white,
+  },
+  starRow: {
+    flexDirection: "row",
+    gap: 2,
+  },
+  ratingSummary: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    padding: 14,
+    backgroundColor: colors.background,
+  },
+  ratingScore: {
+    ...typography.h2,
+    fontWeight: "800",
+  },
+  ratingSummaryInfo: {
+    gap: 4,
+  },
+  ratingSummaryText: {
+    color: colors.textSecondary,
+    ...typography.caption,
+    fontWeight: "600",
+  },
+  reviewCard: {
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    padding: 14,
+    gap: 8,
+    backgroundColor: colors.background,
+  },
+  reviewHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  reviewDate: {
+    color: colors.textMuted,
+    ...typography.caption,
+    fontWeight: "500",
+  },
+  reviewComment: {
+    color: colors.textPrimary,
+    ...typography.bodySm,
+    fontWeight: "500",
   },
   heroText: {
     flex: 1,
@@ -1211,6 +1387,26 @@ const styles = StyleSheet.create({
   inputMultiline: {
     minHeight: 96,
     textAlignVertical: "top",
+  },
+  readonlyBox: {
+    minHeight: 46,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.background,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    justifyContent: "center",
+  },
+  readonlyValue: {
+    color: colors.textPrimary,
+    ...typography.bodySm,
+    fontWeight: "600",
+  },
+  readonlyHint: {
+    color: colors.textMuted,
+    ...typography.caption,
+    fontWeight: "500",
   },
   tagsWrap: {
     flexDirection: "row",

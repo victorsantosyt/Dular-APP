@@ -791,6 +791,20 @@ export default function MontadorPerfil() {
         >
           <Field label="Nome profissional" value={dadosForm.nome} onChangeText={(nomeValue) => setDadosForm((prev) => ({ ...prev, nome: nomeValue }))} />
           <Field label="Telefone" value={dadosForm.telefone} onChangeText={(telefone) => setDadosForm((prev) => ({ ...prev, telefone }))} keyboardType="phone-pad" />
+          {/* Gênero — SOMENTE LEITURA (fonte: authUser.genero, definido no cadastro) */}
+          <View style={styles.field}>
+            <Text style={styles.fieldLabel}>Gênero</Text>
+            <View style={styles.readonlyBox}>
+              <Text style={styles.readonlyValue}>
+                {authUser?.genero === "FEMININO"
+                  ? "Feminino"
+                  : authUser?.genero === "MASCULINO"
+                    ? "Masculino"
+                    : "Não informado"}
+              </Text>
+            </View>
+            <Text style={styles.readonlyHint}>Definido no cadastro — não editável aqui.</Text>
+          </View>
           <Field label="Apresentação" value={dadosForm.bio} onChangeText={(bio) => setDadosForm((prev) => ({ ...prev, bio }))} multiline placeholder="Conte sua experiência, tipo de montagem que atende e diferenciais." />
           <Field label="Anos de experiência" value={dadosForm.anosExperiencia} onChangeText={(anosExperiencia) => setDadosForm((prev) => ({ ...prev, anosExperiencia }))} keyboardType="number-pad" />
           {formError ? <Text style={styles.errorText}>{formError}</Text> : null}
@@ -1211,6 +1225,26 @@ const styles = StyleSheet.create({
   inputMultiline: {
     minHeight: 96,
     textAlignVertical: "top",
+  },
+  readonlyBox: {
+    minHeight: 46,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.background,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    justifyContent: "center",
+  },
+  readonlyValue: {
+    color: colors.textPrimary,
+    ...typography.bodySm,
+    fontWeight: "600",
+  },
+  readonlyHint: {
+    color: colors.textMuted,
+    ...typography.caption,
+    fontWeight: "500",
   },
   tagsWrap: {
     flexDirection: "row",

@@ -457,24 +457,36 @@ export default function MontadorPerfil() {
     }));
   };
 
-  const loadProfile = async (mode: "initial" | "refresh" = "initial") => {
+  const loadProfile = async (mode: "initial" | "refresh" | "silent" = "initial") => {
     try {
       if (mode === "initial") setLoading(true);
       if (mode === "refresh") setRefreshing(true);
-      setError(null);
+      if (mode !== "silent") setError(null);
       const next = await carregarPerfilMontador();
       applyProfile(next);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Falha ao carregar perfil do montador.");
+      // "silent" = re-busca ao focar a tela: não derruba a UI com erro,
+      // mantém os dados já exibidos.
+      if (mode !== "silent") setError(err instanceof Error ? err.message : "Falha ao carregar perfil do montador.");
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (mode === "initial") setLoading(false);
+      if (mode === "refresh") setRefreshing(false);
     }
   };
 
   useEffect(() => {
     void loadProfile("initial");
   }, []);
+
+  // Re-busca o perfil sempre que a tela ganha foco (voltar de VerificacaoDocs,
+  // troca de aba ou após aprovação no backend), evitando status defasado — ex.:
+  // continuar mostrando "incompleto"/"enviar documentos" mesmo já verificado.
+  useEffect(() => {
+    const unsubscribe = navigation.addListener("focus", () => {
+      void loadProfile("silent");
+    });
+    return unsubscribe;
+  }, [navigation]);
 
   const openModal = (type: Exclude<ModalType, null>) => {
     if (profile) syncForms(profile);

@@ -27,13 +27,18 @@ export type Notificacao = {
 
 type ListResponse = {
   ok?: boolean;
+  notifications?: Notificacao[];
   notificacoes?: Notificacao[];
   items?: Notificacao[];
 };
 
 export async function listarNotificacoes(): Promise<Notificacao[]> {
   const res = await api.get<ListResponse>("/api/notificacoes");
-  const list = res.data?.notificacoes ?? res.data?.items ?? [];
+  const list =
+    res.data?.notifications ??
+    res.data?.notificacoes ??
+    res.data?.items ??
+    [];
   return Array.isArray(list) ? list : [];
 }
 

@@ -1,10 +1,11 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigation } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import type { MontadorTabParamList } from "@/navigation/MontadorNavigator";
 import {
   ActivityIndicator,
   Alert,
+  Image,
   KeyboardAvoidingView,
   Modal,
   Pressable,
@@ -17,6 +18,7 @@ import {
   type KeyboardTypeOptions,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import * as ImagePicker from "expo-image-picker";
 import { AppIcon, DErrorState, DLoadingState, DScreen } from "@/components/ui";
 import { LocationPermissionCard } from "@/components/location/LocationPermissionCard";
 import { salvarLocalizacaoAtual } from "@/api/localizacaoApi";
@@ -28,6 +30,7 @@ import {
   type MontadorEspecialidadeId,
   type MontadorPerfilMe,
 } from "@/api/montadorApi";
+import { uploadAvatarDataUrl } from "@/api/perfilApi";
 import { useMontadorServicos } from "@/hooks/useMontadorServicos";
 import { useCurrentRegion, type CurrentRegion } from "@/hooks/useCurrentRegion";
 import { useProfileTheme } from "@/hooks/useProfileTheme";
@@ -307,6 +310,10 @@ export default function MontadorPerfil() {
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
   const [modal, setModal] = useState<ModalType>(null);
   const [areaCoords, setAreaCoords] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [avatarLocal, setAvatarLocal] = useState<string | null>(null);
+  const [avatarRemote, setAvatarRemote] = useState<string | null>(null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const busyRef = useRef(false);
 
   const [dadosForm, setDadosForm] = useState<DadosForm>({ nome: "", telefone: "", bio: "", anosExperiencia: "" });
   const [especialidadesForm, setEspecialidadesForm] = useState<MontadorEspecialidadeId[]>([]);
@@ -324,6 +331,7 @@ export default function MontadorPerfil() {
   const perfil = profile?.perfil;
   const user = profile?.user;
   const nome = firstName(user?.nome ?? authUser?.nome);
+  const avatarUri = avatarLocal ?? avatarRemote ?? user?.avatarUrl ?? authUser?.avatarUrl ?? null;
   const progresso = perfil?.completude.progresso ?? 0;
   const completo = Boolean(perfil?.completude.completo);
   const verificado = Boolean(perfil?.verificado);
@@ -490,6 +498,44 @@ export default function MontadorPerfil() {
       bio: dadosForm.bio || null,
       anosExperiencia,
     }, "Dados profissionais salvos.");
+  };
+
+  // ── Avatar ─────────────────────────────────────────────────────────────────
+  const pickAvatar = async () => {
+    if (busyRef.current) return;
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("Permissão necessária", "Permita o acesso às fotos para escolher seu avatar.");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.82,
+      base64: true,
+    });
+    if (result.canceled) return;
+    const asset = result.assets?.[0];
+    if (!asset?.uri || !asset.base64) return;
+
+    setAvatarLocal(asset.uri);
+    setAvatarUploading(true);
+    busyRef.current = true;
+    try {
+      const mime = (asset as { mimeType?: string }).mimeType ?? "image/jpeg";
+      const dataUrl = `data:${mime};base64,${asset.base64}`;
+      const uploaded = await uploadAvatarDataUrl(dataUrl);
+      const finalUrl = uploaded?.user?.avatarUrl ?? dataUrl;
+      setAvatarRemote(finalUrl);
+      setUser((u) => (u ? { ...u, avatarUrl: finalUrl ?? u.avatarUrl } : u));
+    } catch (e) {
+      setAvatarLocal(null);
+      Alert.alert("Erro", e instanceof Error ? e.message : "Falha ao atualizar a foto.");
+    } finally {
+      setAvatarUploading(false);
+      busyRef.current = false;
+    }
   };
 
   const saveEspecialidades = () => {
@@ -660,9 +706,16 @@ export default function MontadorPerfil() {
       </View>
 
       <LinearGradient colors={profileTheme.gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
-        <View style={styles.avatar}>
-          <AppIcon name="UserRound" size={34} color={colors.white} strokeWidth={2.1} />
-        </View>
+        <Pressable onPress={pickAvatar} disabled={avatarUploading} style={styles.avatar}>
+          {avatarUri ? (
+            <Image source={{ uri: avatarUri }} style={styles.avatarImg} />
+          ) : (
+            <AppIcon name="UserRound" size={34} color={colors.white} strokeWidth={2.1} />
+          )}
+          <View style={[styles.cameraBadge, { backgroundColor: profileTheme.primary }]}>
+            <AppIcon name={avatarUploading ? "Clock" : "Camera"} size={13} color={colors.white} />
+          </View>
+        </Pressable>
         <View style={styles.heroText}>
           <Text style={styles.name}>{nome}</Text>
           <Text style={styles.role}>Montador profissional</Text>
@@ -1000,6 +1053,24 @@ const styles = StyleSheet.create({
     backgroundColor: colors.whiteAlpha20,
     borderWidth: 1,
     borderColor: colors.glassBorder,
+    position: "relative",
+  },
+  avatarImg: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+  },
+  cameraBadge: {
+    position: "absolute",
+    right: -1,
+    bottom: 2,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 3,
+    borderColor: colors.white,
   },
   heroText: {
     flex: 1,

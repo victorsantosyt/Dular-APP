@@ -23,7 +23,10 @@ export async function putObject(key: string, body: Buffer, contentType: string) 
 
 export async function signGetUrl(key: string, expiresSec = 60) {
   const cmd = new GetObjectCommand({ Bucket: S3_BUCKET, Key: key });
-  return getSignedUrl(s3, cmd, { expiresIn: expiresSec });
+  // Cast necessário por skew de versão entre @aws-sdk/client-s3 e
+  // @aws-sdk/s3-request-presigner (duplicidade de @smithy/types). Em runtime
+  // o client é aceito normalmente; o cast só silencia o conflito de tipos.
+  return getSignedUrl(s3 as never, cmd, { expiresIn: expiresSec });
 }
 
 export async function deleteObject(key: string) {

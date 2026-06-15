@@ -49,6 +49,7 @@ export default function SosFlowScreen() {
   const theme = useProfileTheme(currentUser?.role);
 
   const setLastSos = useSosStore((s) => s.setLastSos);
+  const voltarPerfil = () => nav.navigate(currentUser?.role === "MONTADOR" ? "MontadorPerfil" : "Perfil");
   const [step, setStep] = useState<Step>("tipo");
   const [tipoId, setTipoId] = useState<string | null>(null);
   const [relato, setRelato] = useState("");
@@ -99,8 +100,8 @@ export default function SosFlowScreen() {
     <Screen
       title={title}
       rightAction={
-        <Pressable onPress={() => nav.goBack()} hitSlop={12}>
-          <Ionicons name="chevron-back" size={22} color={colors.ink} />
+        <Pressable onPress={voltarPerfil} hitSlop={12}>
+          <Ionicons name="chevron-forward" size={22} color={colors.ink} />
         </Pressable>
       }
       contentStyle={{ gap: 14 }}
@@ -302,7 +303,7 @@ export default function SosFlowScreen() {
             </View>
           ))}
 
-          <Pressable onPress={() => nav.goBack()} style={{ marginTop: 6, backgroundColor: theme.primary, borderRadius: 14, padding: 14, alignItems: "center" }}>
+          <Pressable onPress={voltarPerfil} style={{ marginTop: 6, backgroundColor: theme.primary, borderRadius: 14, padding: 14, alignItems: "center" }}>
             <Text style={{ color: colors.white, fontWeight: "800" }}>Entendi</Text>
           </Pressable>
         </ScrollView>

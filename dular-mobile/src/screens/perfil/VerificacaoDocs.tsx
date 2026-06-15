@@ -66,6 +66,8 @@ export default function VerificacaoDocs() {
   const setUser = useAuth((s) => s.setUser);
   // Mesma fonte de cor por gênero usada no resto do perfil (role + user.genero).
   const theme = useProfileTheme(currentUser?.role);
+  // Volta direto para o perfil do papel (estas telas são abas: goBack cairia na Home).
+  const voltarPerfil = () => nav.navigate(currentUser?.role === "MONTADOR" ? "MontadorPerfil" : "Perfil");
   const [docFrente, setDocFrente] = useState<PickedFile | null>(null);
   const [docVerso, setDocVerso] = useState<PickedFile | null>(null);
   const [state, setState] = useState<UploadState>("idle");
@@ -296,13 +298,7 @@ export default function VerificacaoDocs() {
       const goBackToPerfil = () => {
         if (closedRef.current) return;
         closedRef.current = true;
-        if (nav.canGoBack()) {
-          nav.goBack();
-          return;
-        }
-        const fallback =
-          currentUser?.role === "MONTADOR" ? "MontadorPerfil" : "Perfil";
-        nav.navigate(fallback as never);
+        voltarPerfil();
       };
 
       let alertTitle: string;
@@ -409,8 +405,8 @@ export default function VerificacaoDocs() {
     <Screen
       title="Verificação"
       rightAction={
-        <Pressable onPress={() => nav.goBack()} hitSlop={12}>
-          <Ionicons name="chevron-back" size={22} color={colors.ink} />
+        <Pressable onPress={voltarPerfil} hitSlop={12}>
+          <Ionicons name="chevron-forward" size={22} color={colors.ink} />
         </Pressable>
       }
       contentStyle={{ gap: 12 }}

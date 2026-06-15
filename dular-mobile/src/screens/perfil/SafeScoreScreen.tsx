@@ -22,6 +22,7 @@ export default function SafeScoreScreen() {
   const currentUser = useAuth((s) => s.user);
   const theme = useProfileTheme(currentUser?.role);
   const lastSos = useSosStore((s) => s.lastSos);
+  const voltarPerfil = () => nav.navigate(currentUser?.role === "MONTADOR" ? "MontadorPerfil" : "Perfil");
   const [score, setScore] = useState<PublicScore | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -70,8 +71,8 @@ export default function SafeScoreScreen() {
     <Screen
       title="SafeScore"
       rightAction={
-        <Pressable onPress={() => nav.goBack()} hitSlop={12}>
-          <Ionicons name="chevron-back" size={22} color={colors.ink} />
+        <Pressable onPress={voltarPerfil} hitSlop={12}>
+          <Ionicons name="chevron-forward" size={22} color={colors.ink} />
         </Pressable>
       }
       contentStyle={{ gap: 14 }}

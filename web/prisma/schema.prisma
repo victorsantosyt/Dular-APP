@@ -414,6 +414,13 @@ model Servico {
 
   precoFinal Int
 
+  // Reagendamento com aprovação: o profissional propõe nova data/turno e o
+  // empregador (client) confirma ou recusa. reagendamentoData != null = proposta pendente.
+  reagendamentoData  DateTime?
+  reagendamentoTurno Turno?
+  reagendamentoPor   String?
+  reagendamentoEm    DateTime?
+
   clientId   String
   // diaristaId é opcional: serviços do tipo MONTADOR não têm diarista.
   // O campo permanece para preservar dados existentes (todos os serviços

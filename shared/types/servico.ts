@@ -40,6 +40,10 @@ export type Servico = {
   categoria: ServicoCategoria | null;
   data: DateString;
   turno: Turno;
+  reagendamentoData?: DateString | null;
+  reagendamentoTurno?: Turno | null;
+  reagendamentoPor?: string | null;
+  reagendamentoEm?: DateString | null;
   cidade: string;
   uf: string;
   bairro: string;

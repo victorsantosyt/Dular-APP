@@ -6,6 +6,7 @@ import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import { AppIcon, DCard, DEmptyState, DErrorState, DLoadingState, DScreen } from "@/components/ui";
 import { acionarSosMontador } from "@/api/montadorApi";
 import { useMontadorServicos } from "@/hooks/useMontadorServicos";
+import { useNotificacoes } from "@/hooks/useNotificacoes";
 import { useProfileTheme } from "@/hooks/useProfileTheme";
 import { useAuth } from "@/stores/authStore";
 import type { MontadorTabParamList } from "@/navigation/MontadorNavigator";
@@ -26,6 +27,7 @@ export function MontadorHome() {
   const user = useAuth((state) => state.user);
   const profileTheme = useProfileTheme("MONTADOR");
   const { servicos, agenda, pendentes, loading, error, refetch } = useMontadorServicos();
+  const { unreadCount } = useNotificacoes();
   const [online, setOnline] = useState(true);
   const [sosLoading, setSosLoading] = useState(false);
 
@@ -85,7 +87,7 @@ export function MontadorHome() {
           style={[styles.notificationButton, { borderColor: profileTheme.border }]}
         >
           <AppIcon name="Bell" size={20} color={profileTheme.icon} strokeWidth={2.2} />
-          {pendentes.length > 0 ? <View style={[styles.dot, { backgroundColor: profileTheme.primary }]} /> : null}
+          {unreadCount > 0 ? <View style={[styles.dot, { backgroundColor: profileTheme.primary }]} /> : null}
         </Pressable>
       </View>
 

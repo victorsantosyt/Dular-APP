@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import type { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
 import { useFocusEffect } from "@react-navigation/native";
@@ -12,6 +12,7 @@ import {
 } from "@/api/montadorApi";
 import { MotivoModal } from "@/components/MotivoModal";
 import { useMontadorServicos } from "@/hooks/useMontadorServicos";
+import { useSeguranca } from "@/hooks/useSeguranca";
 import { useProfileTheme } from "@/hooks/useProfileTheme";
 import type { MontadorTabParamList } from "@/navigation/MontadorNavigator";
 import { isStatusEncerrado } from "@/utils/servicoStatus";
@@ -31,6 +32,10 @@ type Props = BottomTabScreenProps<MontadorTabParamList, "MontadorDetalheServico"
 export default function MontadorDetalheServico({ route, navigation }: Props) {
   const profileTheme = useProfileTheme("MONTADOR");
   const { servicos, loading, error, reload } = useMontadorServicos();
+  // Check-in real (mesmo hook do diarista): POST /api/seguranca/checkin com
+  // localização best-effort. Estado conduz o rótulo do botão.
+  const { checkInRealizado, checkInLoading, fazerCheckIn: registrarCheckIn } = useSeguranca();
+  const checkinAlertRef = useRef(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [cancelOpen, setCancelOpen] = useState(false);
   const servico = servicos.find((item) => item.id === route.params.servicoId);
@@ -49,8 +54,17 @@ export default function MontadorDetalheServico({ route, navigation }: Props) {
   );
   const isCanceladoOuRecusado = status === "CANCELADO" || status === "RECUSADO";
 
-  const fazerCheckIn = () => {
-    Alert.alert("Check-in", "Check-in será conectado ao endpoint de segurança do serviço.");
+  // Feedback de sucesso (uma vez) quando o check-in é registrado no backend.
+  useEffect(() => {
+    if (checkInRealizado && !checkinAlertRef.current) {
+      checkinAlertRef.current = true;
+      Alert.alert("Check-in realizado", "Seu check-in de segurança foi registrado.");
+    }
+  }, [checkInRealizado]);
+
+  const fazerCheckIn = async () => {
+    if (!servico || checkInLoading || checkInRealizado) return;
+    await registrarCheckIn(servico.id);
   };
   const iniciarServico = async () => {
     if (!servico) return;
@@ -161,8 +175,8 @@ export default function MontadorDetalheServico({ route, navigation }: Props) {
             ) : null}
             {!encerrado ? (
               <ActionButton
-                label="Fazer check-in"
-                icon="MapPin"
+                label={checkInLoading ? "Registrando check-in…" : checkInRealizado ? "Check-in realizado" : "Fazer check-in"}
+                icon={checkInRealizado ? "CheckCircle" : "MapPin"}
                 accent={profileTheme.primary}
                 soft={profileTheme.primarySoft}
                 onPress={fazerCheckIn}

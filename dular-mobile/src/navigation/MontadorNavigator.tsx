@@ -9,9 +9,16 @@ import MontadorPerfil from "@/screens/montador/MontadorPerfil";
 import MontadorNotificacoes from "@/screens/montador/MontadorNotificacoes";
 import MontadorDetalheSolicitacao from "@/screens/montador/MontadorDetalheSolicitacao";
 import MontadorDetalheServico from "@/screens/montador/MontadorDetalheServico";
+import CarteiraScreen from "@/screens/montador/CarteiraScreen";
 import ChatScreen from "@/screens/chat/ChatScreen";
 import VerificacaoDocs from "@/screens/perfil/VerificacaoDocs";
 import SafeScoreScreen from "@/screens/perfil/SafeScoreScreen";
+import SosFlowScreen from "@/screens/perfil/SosFlowScreen";
+import ReportIncident from "@/screens/perfil/ReportIncident";
+import Suporte from "@/screens/perfil/Suporte";
+import Termos from "@/screens/perfil/Termos";
+import Privacidade from "@/screens/perfil/Privacidade";
+import AlterarSenha from "@/screens/perfil/AlterarSenha";
 import { useMontadorServicos } from "@/hooks/useMontadorServicos";
 
 export type MontadorTabParamList = {
@@ -24,8 +31,15 @@ export type MontadorTabParamList = {
   MontadorDetalheSolicitacao: { servicoId: string };
   MontadorDetalheServico: { servicoId: string };
   MontadorChat: { servicoId: string };
+  Carteira: { from?: keyof MontadorTabParamList } | undefined;
   VerificacaoDocs: undefined;
   SafeScore: undefined;
+  SosFlow: undefined;
+  ReportIncident: undefined;
+  Suporte: undefined;
+  Termos: undefined;
+  Privacidade: undefined;
+  AlterarSenha: undefined;
 };
 
 const Tab = createBottomTabNavigator<MontadorTabParamList>();
@@ -61,7 +75,14 @@ export function MontadorNavigator() {
         options={{ tabBarStyle: { display: "none" } }}
       />
       <Tab.Screen name="VerificacaoDocs" component={VerificacaoDocs} />
+      <Tab.Screen name="Carteira" component={CarteiraScreen} />
       <Tab.Screen name="SafeScore" component={SafeScoreScreen} />
+      <Tab.Screen name="SosFlow" component={SosFlowScreen} />
+      <Tab.Screen name="ReportIncident" component={ReportIncident} />
+      <Tab.Screen name="Suporte" component={Suporte} />
+      <Tab.Screen name="Termos" component={Termos} />
+      <Tab.Screen name="Privacidade" component={Privacidade} />
+      <Tab.Screen name="AlterarSenha" component={AlterarSenha} />
     </Tab.Navigator>
   );
 }

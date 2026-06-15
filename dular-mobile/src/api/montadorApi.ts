@@ -261,3 +261,16 @@ export async function acionarSosMontador(servicoId: string, mensagem?: string) {
   });
   return res.data;
 }
+
+// ── Portfólio (upload real no S3) ────────────────────────────────────────────
+// As fotos são enviadas como data URL; o backend sobe pro S3, guarda a key e
+// devolve a lista já com URLs assinadas para exibição.
+export async function adicionarFotoPortfolio(dataUrl: string): Promise<string[]> {
+  const res = await api.post("/api/montador/portfolio", { dataUrl });
+  return Array.isArray(res.data?.portfolioFotos) ? res.data.portfolioFotos : [];
+}
+
+export async function removerFotoPortfolio(index: number): Promise<string[]> {
+  const res = await api.delete(`/api/montador/portfolio?index=${index}`);
+  return Array.isArray(res.data?.portfolioFotos) ? res.data.portfolioFotos : [];
+}

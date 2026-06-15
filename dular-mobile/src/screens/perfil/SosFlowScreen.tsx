@@ -5,6 +5,8 @@ import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 
 import { Screen } from "@/components/Screen";
+import { BackCircleButton } from "@/components/ui";
+import { acionarSos } from "@/api/segurancaApi";
 import { useAuth } from "@/stores/authStore";
 import { useProfileTheme } from "@/hooks/useProfileTheme";
 import { useSosStore } from "@/stores/sosStore";
@@ -108,11 +110,19 @@ export default function SosFlowScreen() {
     ]);
   };
 
-  const enviar = () => {
+  const enviar = async () => {
     setStep("enviando");
-    setTimeout(() => {
+    const agora = new Date();
+    // O endpoint /api/seguranca/sos aceita apenas texto livre (máx. 500 chars):
+    // consolidamos tipo + prioridade + relato numa única mensagem. As provas
+    // (fotos) ainda não são enviadas — o endpoint atual não tem campo de anexo.
+    const mensagem = [tipo?.label ?? "Incidente", `Prioridade: ${prioridadeInfo.label}`, relato.trim()]
+      .filter(Boolean)
+      .join(" — ")
+      .slice(0, 500);
+    try {
+      await acionarSos({ mensagem });
       const novoProtocolo = gerarProtocolo();
-      const agora = new Date();
       setProtocolo(novoProtocolo);
       enviadoEm.current = agora;
       setLastSos({
@@ -123,7 +133,13 @@ export default function SosFlowScreen() {
         criadoEm: agora.toISOString(),
       });
       setStep("sucesso");
-    }, 1800);
+    } catch {
+      Alert.alert(
+        "Falha ao enviar SOS",
+        "Não foi possível registrar seu SOS agora. Verifique sua conexão e tente novamente.",
+      );
+      setStep("revisao");
+    }
   };
 
   const dataHora = enviadoEm.current
@@ -136,11 +152,7 @@ export default function SosFlowScreen() {
   return (
     <Screen
       title={title}
-      rightAction={
-        <Pressable onPress={voltarPerfil} hitSlop={12}>
-          <Ionicons name="chevron-forward" size={22} color={colors.ink} />
-        </Pressable>
-      }
+      rightAction={<BackCircleButton onPress={voltarPerfil} color={theme.icon} borderColor={theme.border} />}
       contentStyle={{ gap: 14 }}
     >
       {/* ───────────────── TIPO (ANTES) ───────────────── */}

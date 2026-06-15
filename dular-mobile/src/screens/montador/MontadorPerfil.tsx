@@ -24,8 +24,10 @@ import { LocationPermissionCard } from "@/components/location/LocationPermission
 import { salvarLocalizacaoAtual } from "@/api/localizacaoApi";
 import {
   MONTADOR_ESPECIALIDADES,
+  adicionarFotoPortfolio,
   atualizarPerfilMontador,
   carregarPerfilMontador,
+  removerFotoPortfolio,
   type AtualizarPerfilMontadorPayload,
   type MontadorEspecialidadeId,
   type MontadorPerfilMe,
@@ -330,6 +332,8 @@ export default function MontadorPerfil() {
   const [avatarLocal, setAvatarLocal] = useState<string | null>(null);
   const [avatarRemote, setAvatarRemote] = useState<string | null>(null);
   const [avatarUploading, setAvatarUploading] = useState(false);
+  const [portfolio, setPortfolio] = useState<string[]>([]);
+  const [portfolioBusy, setPortfolioBusy] = useState(false);
   const [showVisivelCard, setShowVisivelCard] = useState(false);
   const busyRef = useRef(false);
   const prevVerificadoRef = useRef<boolean | null>(null);
@@ -503,6 +507,11 @@ export default function MontadorPerfil() {
     }
   }, [verificado]);
 
+  // Mantém a lista local do portfólio em sincronia com o perfil carregado.
+  useEffect(() => {
+    setPortfolio(profile?.perfil?.portfolioFotos ?? []);
+  }, [profile?.perfil?.portfolioFotos]);
+
   const openModal = (type: Exclude<ModalType, null>) => {
     if (profile) syncForms(profile);
     setFormError(null);
@@ -583,6 +592,75 @@ export default function MontadorPerfil() {
       setAvatarUploading(false);
       busyRef.current = false;
     }
+  };
+
+  // ── Portfólio (upload real → S3) ─────────────────────────────────────────────
+  const adicionarPortfolio = async (source: "camera" | "gallery") => {
+    if (portfolioBusy) return;
+    if (source === "camera") {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("Permissão necessária", "Permita o acesso à câmera para tirar a foto.");
+        return;
+      }
+    } else {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("Permissão necessária", "Permita o acesso às fotos para anexar.");
+        return;
+      }
+    }
+    const result =
+      source === "camera"
+        ? await ImagePicker.launchCameraAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.7, base64: true })
+        : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.7, base64: true });
+    if (result.canceled) return;
+    const asset = result.assets?.[0];
+    if (!asset?.base64) return;
+    const mime = (asset as { mimeType?: string }).mimeType ?? "image/jpeg";
+    const dataUrl = `data:${mime};base64,${asset.base64}`;
+    setPortfolioBusy(true);
+    try {
+      const updated = await adicionarFotoPortfolio(dataUrl);
+      setPortfolio(updated);
+      setProfile((prev) => (prev ? { ...prev, perfil: { ...prev.perfil, portfolioFotos: updated } } : prev));
+    } catch (e) {
+      Alert.alert("Erro", e instanceof Error ? e.message : "Não foi possível enviar a foto.");
+    } finally {
+      setPortfolioBusy(false);
+    }
+  };
+
+  const escolherFontePortfolio = () => {
+    if (portfolioBusy) return;
+    Alert.alert("Adicionar foto", "Escolha a origem da foto.", [
+      { text: "Tirar foto", onPress: () => void adicionarPortfolio("camera") },
+      { text: "Galeria", onPress: () => void adicionarPortfolio("gallery") },
+      { text: "Cancelar", style: "cancel" },
+    ]);
+  };
+
+  const removerPortfolio = (index: number) => {
+    if (portfolioBusy) return;
+    Alert.alert("Remover foto", "Remover esta foto do portfólio?", [
+      { text: "Cancelar", style: "cancel" },
+      {
+        text: "Remover",
+        style: "destructive",
+        onPress: async () => {
+          setPortfolioBusy(true);
+          try {
+            const updated = await removerFotoPortfolio(index);
+            setPortfolio(updated);
+            setProfile((prev) => (prev ? { ...prev, perfil: { ...prev.perfil, portfolioFotos: updated } } : prev));
+          } catch (e) {
+            Alert.alert("Erro", e instanceof Error ? e.message : "Não foi possível remover a foto.");
+          } finally {
+            setPortfolioBusy(false);
+          }
+        },
+      },
+    ]);
   };
 
   const saveEspecialidades = () => {
@@ -872,7 +950,7 @@ export default function MontadorPerfil() {
         <Row icon="Wallet" title="Preços" subtitle={precoResumo} theme={profileTheme} onPress={() => openModal("precos")} />
         <Row icon="Camera" title="Portfólio" subtitle={perfil.portfolioFotos.length ? `${perfil.portfolioFotos.length} foto(s)` : "Sem fotos no portfólio"} theme={profileTheme} onPress={() => openModal("portfolio")} />
         <Row icon="Star" title="Avaliações" subtitle={perfil.avaliacoes?.total ? `${perfil.avaliacoes.total} avaliação(ões)` : "Sem avaliações ainda"} theme={profileTheme} onPress={() => openModal("avaliacoes")} />
-        <Row icon="CreditCard" title="Carteira/Ganhos" subtitle={formatMoneyFromCents(ganhos)} theme={profileTheme} onPress={() => Alert.alert("Carteira", "Carteira do montador será conectada ao backend.")} />
+        <Row icon="CreditCard" title="Carteira/Ganhos" subtitle={formatMoneyFromCents(ganhos)} theme={profileTheme} onPress={() => navigation.navigate("Carteira", { from: "MontadorPerfil" })} />
       </Section>
 
       <Section title="Documentos e segurança" borderColor={profileTheme.border}>
@@ -881,9 +959,11 @@ export default function MontadorPerfil() {
         <Row icon="AlertTriangle" title="SOS / Emergência" subtitle="Reportar incidente com prioridade" theme={profileTheme} danger onPress={() => navigation.navigate("SosFlow")} />
       </Section>
 
-      <Section title="Suporte e termos" borderColor={profileTheme.border}>
-        <Row icon="HelpCircle" title="Suporte" subtitle="Fale com o Dular" theme={profileTheme} onPress={() => Alert.alert("Suporte", "Atendimento será conectado em breve.")} />
-        <Row icon="FileText" title="Termos" subtitle="Termos e políticas da plataforma" theme={profileTheme} onPress={() => Alert.alert("Termos", "Termos serão exibidos em breve.")} />
+      <Section title="Conta, suporte e termos" borderColor={profileTheme.border}>
+        <Row icon="Lock" title="Alterar senha" subtitle="Segurança da conta" theme={profileTheme} onPress={() => navigation.navigate("AlterarSenha")} />
+        <Row icon="Shield" title="Privacidade" subtitle="Controle seus dados" theme={profileTheme} onPress={() => navigation.navigate("Privacidade")} />
+        <Row icon="HelpCircle" title="Suporte" subtitle="Fale com o Dular" theme={profileTheme} onPress={() => navigation.navigate("Suporte")} />
+        <Row icon="FileText" title="Termos" subtitle="Termos e políticas da plataforma" theme={profileTheme} onPress={() => navigation.navigate("Termos")} />
         <Row icon="LogOut" title="Sair" subtitle="Encerrar sessão da conta" theme={profileTheme} danger onPress={sairDaConta} />
       </Section>
 
@@ -1035,15 +1115,35 @@ export default function MontadorPerfil() {
         </ScrollView>
       </FloatingCard>
 
-      <FloatingCard visible={modal === "portfolio"} title="Portfólio" subtitle="Uploads avançados entram em uma etapa posterior." theme={profileTheme} onClose={() => setModal(null)}>
-        <View style={[styles.emptyCard, { borderColor: profileTheme.border }]}>
-          <AppIcon name="Camera" size={24} color={profileTheme.primary} />
-          <Text style={styles.emptyTitle}>{perfil.portfolioFotos.length ? "Fotos cadastradas" : "Sem fotos no portfólio"}</Text>
-          <Text style={styles.emptyText}>Adicione fotos de montagens, reparos e acabamentos quando o upload estiver disponível.</Text>
-          <Pressable onPress={() => Alert.alert("Portfólio", "Upload de fotos será conectado em breve.")} style={[styles.primaryButton, { backgroundColor: profileTheme.primary }]}>
-            <Text style={styles.primaryButtonText}>Adicionar foto</Text>
-          </Pressable>
-        </View>
+      <FloatingCard visible={modal === "portfolio"} title="Portfólio" subtitle="Mostre fotos dos seus melhores trabalhos (até 12)." theme={profileTheme} onClose={() => setModal(null)}>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalScroll}>
+          <View style={styles.portfolioGrid}>
+            {portfolio.map((uri, index) => (
+              <View key={`${uri}-${index}`} style={styles.portfolioItem}>
+                <Image source={{ uri }} style={styles.portfolioImg} />
+                <Pressable onPress={() => removerPortfolio(index)} disabled={portfolioBusy} hitSlop={8} style={styles.portfolioRemove}>
+                  <AppIcon name="XCircle" size={20} color={colors.white} />
+                </Pressable>
+              </View>
+            ))}
+            {portfolio.length < 12 ? (
+              <Pressable onPress={escolherFontePortfolio} disabled={portfolioBusy} style={[styles.portfolioAdd, { borderColor: profileTheme.border }]}>
+                {portfolioBusy ? (
+                  <ActivityIndicator color={profileTheme.primary} />
+                ) : (
+                  <>
+                    <AppIcon name="Camera" size={22} color={profileTheme.primary} />
+                    <Text style={styles.portfolioAddText}>Adicionar</Text>
+                  </>
+                )}
+              </Pressable>
+            ) : null}
+          </View>
+          {portfolio.length === 0 ? (
+            <Text style={styles.emptyText}>Você ainda não adicionou fotos. Toque em “Adicionar” para enviar pela câmera ou galeria.</Text>
+          ) : null}
+          <Text style={styles.readonlyHint}>{portfolio.length}/12 fotos</Text>
+        </ScrollView>
       </FloatingCard>
 
       <FloatingCard visible={modal === "avaliacoes"} title="Avaliações" subtitle="O que os clientes disseram sobre os seus serviços." theme={profileTheme} onClose={() => setModal(null)}>
@@ -1508,6 +1608,50 @@ const styles = StyleSheet.create({
   errorText: {
     color: colors.danger,
     ...typography.caption,
+    fontWeight: "700",
+  },
+  portfolioGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  portfolioItem: {
+    width: "31%",
+    aspectRatio: 1,
+    borderRadius: radius.md,
+    overflow: "hidden",
+    position: "relative",
+    backgroundColor: colors.background,
+  },
+  portfolioImg: {
+    width: "100%",
+    height: "100%",
+  },
+  portfolioRemove: {
+    position: "absolute",
+    top: 4,
+    right: 4,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  portfolioAdd: {
+    width: "31%",
+    aspectRatio: 1,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderStyle: "dashed",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    backgroundColor: colors.background,
+  },
+  portfolioAddText: {
+    ...typography.caption,
+    color: colors.textSecondary,
     fontWeight: "700",
   },
   emptyCard: {

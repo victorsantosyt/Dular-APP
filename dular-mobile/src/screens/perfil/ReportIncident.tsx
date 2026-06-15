@@ -16,7 +16,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { api } from "@/lib/api";
 import { apiMsg } from "@/utils/apiMsg";
 import { useAuth } from "@/stores/authStore";
-import { AppIcon, type AppIconName } from "@/components/ui";
+import { AppIcon, BackCircleButton, type AppIconName } from "@/components/ui";
 import { PaperPlane3DIcon, SOSIcon } from "@/assets/icons";
 import { colors, radius, shadow, spacing, typography } from "@/theme/tokens";
 
@@ -252,11 +252,9 @@ export default function ReportIncident({ route }: any) {
   return (
     <SafeAreaView style={s.safe} edges={["top", "left", "right"]}>
       <View style={s.header}>
-        <View style={{ width: 26 }} />
+        <View style={{ width: 42 }} />
         <Text style={s.headerTitle}>Relatar incidente</Text>
-        <Pressable onPress={voltarPerfil} hitSlop={10}>
-          <AppIcon name="ChevronRight" size={26} color={colors.foreground} />
-        </Pressable>
+        <BackCircleButton onPress={voltarPerfil} />
       </View>
 
       <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>

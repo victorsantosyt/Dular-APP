@@ -58,6 +58,12 @@ export default function SosFlowScreen() {
   const enviadoEm = useRef<Date | null>(null);
 
   const tipo = useMemo(() => TIPOS.find((t) => t.id === tipoId) ?? null, [tipoId]);
+  // Prestadores (montador/diarista) não relatam "danos materiais" — não são donos
+  // do imóvel. O empregador (recebe pessoas em casa) vê a lista completa.
+  const tipos = useMemo(
+    () => (currentUser?.role === "EMPREGADOR" ? TIPOS : TIPOS.filter((t) => t.id !== "danos")),
+    [currentUser?.role],
+  );
 
   const addProva = async () => {
     if (provas.length >= 10) return;
@@ -124,7 +130,7 @@ export default function SosFlowScreen() {
 
           <Text style={{ fontWeight: "800", color: colors.ink, marginTop: 4 }}>O que aconteceu?</Text>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
-            {TIPOS.map((t) => {
+            {tipos.map((t) => {
               const active = tipoId === t.id;
               return (
                 <Pressable

@@ -719,6 +719,12 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
                   onPress={() => navigation.navigate("AlterarSenha")}
                 />
                 <ProfileRow
+                  icon="ShieldCheck"
+                  title="SafeScore"
+                  subtitle="Reputação e acompanhamento de segurança"
+                  onPress={() => navigation.navigate("SafeScore")}
+                />
+                <ProfileRow
                   icon="AlertTriangle"
                   title="Reportar incidente"
                   subtitle="Botão SOS"

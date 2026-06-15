@@ -10,6 +10,7 @@ import { create } from "zustand";
 export type SosRecord = {
   protocolo: string;
   tipoLabel: string;
+  prioridade: string;
   status: "EM_ANALISE";
   criadoEm: string; // ISO
 };

@@ -12,11 +12,43 @@ import { api } from "@/lib/api";
 export type AcionarSosPayload = {
   servicoId?: string;
   mensagem?: string;
+  /** Rótulo do tipo de incidente — guardado em meta para o acompanhamento. */
+  tipo?: string;
+  /** Prioridade (Baixa/Média/Alta/Crítica) — guardada em meta. */
+  prioridade?: string;
   latitude?: number;
   longitude?: number;
 };
 
-export async function acionarSos(payload: AcionarSosPayload = {}) {
+export async function acionarSos(payload: AcionarSosPayload = {}): Promise<{ ok?: boolean; id?: string }> {
   const res = await api.post("/api/seguranca/sos", payload);
-  return res.data;
+  return res.data ?? {};
+}
+
+/** Protocolo legível derivado do id do SafetyEvent (mesma fórmula em todas as telas). */
+export function protocoloFromId(id?: string | null): string {
+  if (!id) return "#SOS";
+  return `#SOS-${id.slice(-6).toUpperCase()}`;
+}
+
+export type SafetyEventTipo = "SOS_SILENT" | "CHECKIN_OK";
+
+export type SafetyEvent = {
+  id: string;
+  type: SafetyEventTipo;
+  serviceId: string | null;
+  createdAt: string;
+  meta?: { mensagem?: string; tipo?: string; prioridade?: string } | null;
+};
+
+/** Lista os eventos de segurança do usuário (SOS/check-in), mais recentes primeiro. */
+export async function listarEventosSeguranca(
+  type?: SafetyEventTipo,
+  limit = 20,
+): Promise<SafetyEvent[]> {
+  const params = new URLSearchParams();
+  if (type) params.set("type", type);
+  params.set("limit", String(limit));
+  const res = await api.get(`/api/seguranca/eventos?${params.toString()}`);
+  return Array.isArray(res.data?.eventos) ? res.data.eventos : [];
 }

@@ -34,6 +34,14 @@ const TIPOS: IncidentType[] = [
   { id: "outro", label: "Outro tipo", icon: "ellipsis-horizontal", hint: "Outros incidentes" },
 ];
 
+type Prioridade = "BAIXA" | "MEDIA" | "ALTA" | "CRITICA";
+const PRIORIDADES: { value: Prioridade; label: string; color: string }[] = [
+  { value: "BAIXA", label: "Baixa", color: colors.sub },
+  { value: "MEDIA", label: "Média", color: colors.warning },
+  { value: "ALTA", label: "Alta", color: colors.danger },
+  { value: "CRITICA", label: "Crítica", color: colors.incidentCritical },
+];
+
 function gerarProtocolo() {
   const now = new Date();
   const y = now.getFullYear();
@@ -53,6 +61,7 @@ export default function SosFlowScreen() {
   const [step, setStep] = useState<Step>("tipo");
   const [tipoId, setTipoId] = useState<string | null>(null);
   const [relato, setRelato] = useState("");
+  const [prioridade, setPrioridade] = useState<Prioridade>("MEDIA");
   const [provas, setProvas] = useState<string[]>([]);
   const [protocolo, setProtocolo] = useState<string | null>(null);
   const enviadoEm = useRef<Date | null>(null);
@@ -64,6 +73,7 @@ export default function SosFlowScreen() {
     () => (currentUser?.role === "EMPREGADOR" ? TIPOS : TIPOS.filter((t) => t.id !== "danos")),
     [currentUser?.role],
   );
+  const prioridadeInfo = PRIORIDADES.find((p) => p.value === prioridade) ?? PRIORIDADES[1];
 
   const addProva = async () => {
     if (provas.length >= 10) return;
@@ -88,6 +98,7 @@ export default function SosFlowScreen() {
       setLastSos({
         protocolo: novoProtocolo,
         tipoLabel: tipo?.label ?? "Incidente",
+        prioridade: prioridadeInfo.label,
         status: "EM_ANALISE",
         criadoEm: agora.toISOString(),
       });
@@ -185,6 +196,22 @@ export default function SosFlowScreen() {
           />
           <Text style={{ alignSelf: "flex-end", color: colors.sub, fontSize: 12 }}>{relato.length}/{RELATO_MAX}</Text>
 
+          <Text style={{ fontWeight: "800", color: colors.ink }}>Prioridade</Text>
+          <View style={{ flexDirection: "row", gap: 8 }}>
+            {PRIORIDADES.map((p) => {
+              const active = prioridade === p.value;
+              return (
+                <Pressable
+                  key={p.value}
+                  onPress={() => setPrioridade(p.value)}
+                  style={{ flex: 1, borderWidth: 1.5, borderColor: active ? p.color : theme.border, backgroundColor: active ? p.color : "rgba(255,255,255,0.92)", borderRadius: 12, paddingVertical: 10, alignItems: "center" }}
+                >
+                  <Text style={{ color: active ? colors.white : colors.ink, fontWeight: "800", fontSize: 12 }}>{p.label}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
           <Text style={{ fontWeight: "800", color: colors.ink }}>Envie provas (opcional)</Text>
           <Text style={{ color: colors.sub, fontSize: 12 }}>Fotos, prints ou documentos. Máx. 10 arquivos.</Text>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
@@ -228,6 +255,10 @@ export default function SosFlowScreen() {
           <View style={{ borderWidth: 1, borderColor: theme.border, borderRadius: 12, padding: 14, gap: 4, backgroundColor: theme.backgroundSoft }}>
             <Text style={{ color: colors.sub, fontSize: 12, fontWeight: "700" }}>Tipo de incidente</Text>
             <Text style={{ color: colors.ink, fontWeight: "700" }}>{tipo?.label ?? "—"}</Text>
+          </View>
+          <View style={{ borderWidth: 1, borderColor: theme.border, borderRadius: 12, padding: 14, gap: 4, backgroundColor: theme.backgroundSoft }}>
+            <Text style={{ color: colors.sub, fontSize: 12, fontWeight: "700" }}>Prioridade</Text>
+            <Text style={{ color: prioridadeInfo.color, fontWeight: "800" }}>{prioridadeInfo.label}</Text>
           </View>
           <View style={{ borderWidth: 1, borderColor: theme.border, borderRadius: 12, padding: 14, gap: 4, backgroundColor: theme.backgroundSoft }}>
             <Text style={{ color: colors.sub, fontSize: 12, fontWeight: "700" }}>Relato</Text>
@@ -288,6 +319,10 @@ export default function SosFlowScreen() {
             <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
               <Text style={{ color: colors.sub, fontSize: 12 }}>Tipo de incidente</Text>
               <Text style={{ color: colors.ink, fontWeight: "700", fontSize: 12 }}>{tipo?.label}</Text>
+            </View>
+            <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+              <Text style={{ color: colors.sub, fontSize: 12 }}>Prioridade</Text>
+              <Text style={{ color: prioridadeInfo.color, fontWeight: "800", fontSize: 12 }}>{prioridadeInfo.label}</Text>
             </View>
             <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
               <Text style={{ color: colors.sub, fontSize: 12 }}>Status</Text>

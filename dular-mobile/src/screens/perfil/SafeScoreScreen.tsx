@@ -133,6 +133,10 @@ export default function SafeScoreScreen() {
                 <Text style={{ color: colors.ink, fontWeight: "700", fontSize: 12 }}>{lastSos.tipoLabel}</Text>
               </View>
               <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                <Text style={{ color: colors.sub, fontSize: 12 }}>Prioridade</Text>
+                <Text style={{ color: colors.ink, fontWeight: "700", fontSize: 12 }}>{lastSos.prioridade}</Text>
+              </View>
+              <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
                 <Text style={{ color: colors.sub, fontSize: 12 }}>Acionado em</Text>
                 <Text style={{ color: colors.ink, fontWeight: "700", fontSize: 12 }}>
                   {new Date(lastSos.criadoEm).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}

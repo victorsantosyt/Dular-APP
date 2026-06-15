@@ -40,7 +40,7 @@ import type { ProfileTheme } from "@/theme/profileTheme";
 import { platformSelect } from "@/utils/platform";
 import { firstName, formatMoneyFromCents, upperStatus } from "./montadorUtils";
 
-type ModalType = "dados" | "especialidades" | "area" | "precos" | "portfolio" | "avaliacoes" | "documentos" | null;
+type ModalType = "dados" | "especialidades" | "area" | "precos" | "portfolio" | "avaliacoes" | null;
 
 type MontadorNavigation = BottomTabNavigationProp<MontadorTabParamList>;
 
@@ -330,7 +330,9 @@ export default function MontadorPerfil() {
   const [avatarLocal, setAvatarLocal] = useState<string | null>(null);
   const [avatarRemote, setAvatarRemote] = useState<string | null>(null);
   const [avatarUploading, setAvatarUploading] = useState(false);
+  const [showVisivelCard, setShowVisivelCard] = useState(false);
   const busyRef = useRef(false);
+  const prevVerificadoRef = useRef<boolean | null>(null);
 
   const [dadosForm, setDadosForm] = useState<DadosForm>({ nome: "", telefone: "", bio: "", anosExperiencia: "" });
   const [especialidadesForm, setEspecialidadesForm] = useState<MontadorEspecialidadeId[]>([]);
@@ -487,6 +489,19 @@ export default function MontadorPerfil() {
     });
     return unsubscribe;
   }, [navigation]);
+
+  // Card "Perfil visível" é transitório: ao detectar a transição para verificado
+  // (false -> true), mostra por ~20s e some, deixando o perfil limpo. Se o perfil
+  // já carrega verificado (sem transição), o card não aparece.
+  useEffect(() => {
+    const prev = prevVerificadoRef.current;
+    prevVerificadoRef.current = verificado;
+    if (prev === false && verificado === true) {
+      setShowVisivelCard(true);
+      const timer = setTimeout(() => setShowVisivelCard(false), 20000);
+      return () => clearTimeout(timer);
+    }
+  }, [verificado]);
 
   const openModal = (type: Exclude<ModalType, null>) => {
     if (profile) syncForms(profile);
@@ -749,7 +764,10 @@ export default function MontadorPerfil() {
           </View>
         </Pressable>
         <View style={styles.heroText}>
-          <Text style={styles.name}>{nome}</Text>
+          <View style={styles.nameRow}>
+            <Text style={styles.name}>{nome}</Text>
+            {verificado ? <AppIcon name="ShieldCheck" size={16} color={colors.white} /> : null}
+          </View>
           <Text style={styles.role}>Montador profissional</Text>
           <View style={styles.heroBadges}>
             <View style={styles.badge}><Text style={styles.badgeText}>{perfil.rating > 0 ? perfil.rating.toFixed(1) : "Sem avaliações"}</Text></View>
@@ -775,9 +793,10 @@ export default function MontadorPerfil() {
         </View>
       ) : null}
 
-      {/* T-18.5: separar cadastro / docs / visibilidade. Espelha o padrão da
-          Profissional de Casa (T-18.4). A barra superior já mostra
-          progresso de cadastro; este card comunica o passo seguinte. */}
+      {/* Status do perfil. O caso VISIVEL é transitório: o card "Perfil visível"
+          aparece ~20s após a aprovação e some, deixando o perfil limpo. Os demais
+          casos (incompleto/aguardando/reprovado) seguem como CTA persistente. */}
+      {statusCardCaseMontador !== "VISIVEL" || showVisivelCard ? (
       <View
         style={[
           styles.ctaCard,
@@ -837,6 +856,7 @@ export default function MontadorPerfil() {
           ) : null}
         </View>
       </View>
+      ) : null}
 
       {savedMessage ? (
         <View style={[styles.savedCard, { borderColor: profileTheme.border }]}>
@@ -856,8 +876,8 @@ export default function MontadorPerfil() {
       </Section>
 
       <Section title="Documentos e segurança" borderColor={profileTheme.border}>
-        <Row icon="FileText" title="Documentos/verificação" subtitle={perfil.verificacaoStatus === "APROVADO" ? "Documentos aprovados" : "Documentos pendentes"} theme={profileTheme} onPress={() => navigation.navigate("VerificacaoDocs")} />
-        <Row icon="ShieldCheck" title="Segurança/SafeScore" subtitle={perfil.safeScore?.faixa ?? "SafeScore em análise"} theme={profileTheme} onPress={() => openModal("documentos")} />
+        <Row icon="FileText" title="Documentos" subtitle={perfil.verificacaoStatus === "APROVADO" ? "Verificado" : perfil.verificacaoStatus === "PENDENTE" ? "Em análise" : "Enviar documento"} theme={profileTheme} onPress={() => navigation.navigate("VerificacaoDocs")} />
+        <Row icon="ShieldCheck" title="SafeScore" subtitle={perfil.safeScore?.faixa ?? "SafeScore em análise"} theme={profileTheme} onPress={() => navigation.navigate("SafeScore")} />
       </Section>
 
       <Section title="Suporte e termos" borderColor={profileTheme.border}>
@@ -1053,24 +1073,6 @@ export default function MontadorPerfil() {
           </View>
         )}
       </FloatingCard>
-
-      <FloatingCard visible={modal === "documentos"} title="Documentos e segurança" subtitle="Acompanhe sua verificação e SafeScore." theme={profileTheme} onClose={() => setModal(null)}>
-        <View style={[styles.emptyCard, { borderColor: profileTheme.border }]}>
-          <AppIcon name="ShieldCheck" size={24} color={profileTheme.primary} />
-          <Text style={styles.emptyTitle}>{perfil.verificacaoStatus === "APROVADO" ? "Verificação aprovada" : "Documentos pendentes"}</Text>
-          <Text style={styles.emptyText}>Status: {perfil.verificacaoStatus}. O envio de documentos será conectado ao fluxo de verificação.</Text>
-          <Text style={styles.emptyText}>SafeScore: {perfil.safeScore?.faixa ?? "Em análise"}</Text>
-          <Pressable
-            onPress={() => {
-              setModal(null);
-              navigation.navigate("VerificacaoDocs");
-            }}
-            style={[styles.primaryButton, { backgroundColor: profileTheme.primary }]}
-          >
-            <Text style={styles.primaryButtonText}>{ctaLabelMontador}</Text>
-          </Pressable>
-        </View>
-      </FloatingCard>
     </DScreen>
   );
 }
@@ -1179,6 +1181,11 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
     gap: 5,
+  },
+  nameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
   },
   name: {
     ...typography.h3,

@@ -285,6 +285,8 @@ export default function DiaristaPerfil({ onLogout }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [verificacao, setVerificacao] = useState<VerificacaoStatus>("NAO_ENVIADO");
+  const [showVisivelCard, setShowVisivelCard] = useState(false);
+  const prevAprovadoRef = useRef<boolean | null>(null);
   const [catalogo, setCatalogo] = useState<CatalogoTipo[]>([]);
   const [habilidades, setHabilidades] = useState<HabilidadePayload[]>([]);
 
@@ -478,6 +480,19 @@ export default function DiaristaPerfil({ onLogout }: Props) {
     if (hasDocUrl && verificacao === "PENDENTE") return "AGUARDANDO";
     return "VERIFICAR";
   }, [completude.completo, verificacao, hasDocUrl]);
+
+  // Card de status "Perfil visível" é transitório: mostra ~20s na transição
+  // não-aprovado -> aprovado e some, deixando o perfil limpo.
+  useEffect(() => {
+    const aprovado = verificacao === "APROVADO";
+    const prev = prevAprovadoRef.current;
+    prevAprovadoRef.current = aprovado;
+    if (prev === false && aprovado === true) {
+      setShowVisivelCard(true);
+      const timer = setTimeout(() => setShowVisivelCard(false), 20000);
+      return () => clearTimeout(timer);
+    }
+  }, [verificacao]);
   const statusCopy = useMemo(() => statusCardCopy(statusCardCase), [statusCardCase]);
   // Para o badge do hero, distinguir "PENDENTE com docs" de "PENDENTE sem
   // docs". Sem docUrl, mapeamos para NAO_ENVIADO para o pill exibir
@@ -1200,6 +1215,7 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                   representa só cadastro básico; o texto e a CTA refletem o
                   estado real de visibilidade. */}
               <ProfileSection title="Status do perfil">
+                {statusCardCase !== "VISIVEL" || showVisivelCard ? (
                 <View style={s.statusCard}>
                   <View style={s.statusHeader}>
                     <View
@@ -1286,6 +1302,7 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                     />
                   ) : null}
                 </View>
+                ) : null}
                 <ProfileSwitchRow
                   accentColor={theme.primary}
                   accentSoft={theme.primarySoft}
@@ -1362,15 +1379,15 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                   accentColor={theme.primary}
                   accentSoft={theme.primarySoft}
                   icon="FileText"
-                  title="Verificação de documentos"
+                  title="Documentos"
                   subtitle={
                     verificacao === "APROVADO"
-                      ? "Documentos aprovados"
+                      ? "Verificado"
                       : verificacao === "REPROVADO"
                         ? "Revise seus documentos"
                         : hasDocUrl
-                          ? "Aguardando análise dos documentos"
-                          : "Documentos pendentes"
+                          ? "Em análise"
+                          : "Enviar documento"
                   }
                   onPress={() => navigation.navigate("VerificacaoDocs")}
                 />
@@ -1378,11 +1395,9 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                   accentColor={theme.primary}
                   accentSoft={theme.primarySoft}
                   icon="ShieldCheck"
-                  title="Segurança e SafeScore"
-                  subtitle="Histórico e badges de segurança"
-                  onPress={() =>
-                    Alert.alert("SafeScore", "Seu SafeScore reflete histórico de comportamento na plataforma.")
-                  }
+                  title="SafeScore"
+                  subtitle="Reputação e acompanhamento de segurança"
+                  onPress={() => navigation.navigate("SafeScore")}
                 />
                 <ProfileRow
                   accentColor={theme.primary}

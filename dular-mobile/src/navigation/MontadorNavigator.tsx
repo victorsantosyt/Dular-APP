@@ -12,6 +12,8 @@ import MontadorDetalheServico from "@/screens/montador/MontadorDetalheServico";
 import ChatScreen from "@/screens/chat/ChatScreen";
 import VerificacaoDocs from "@/screens/perfil/VerificacaoDocs";
 import SafeScoreScreen from "@/screens/perfil/SafeScoreScreen";
+import SosFlowScreen from "@/screens/perfil/SosFlowScreen";
+import ReportIncident from "@/screens/perfil/ReportIncident";
 import { useMontadorServicos } from "@/hooks/useMontadorServicos";
 
 export type MontadorTabParamList = {
@@ -26,6 +28,8 @@ export type MontadorTabParamList = {
   MontadorChat: { servicoId: string };
   VerificacaoDocs: undefined;
   SafeScore: undefined;
+  SosFlow: undefined;
+  ReportIncident: undefined;
 };
 
 const Tab = createBottomTabNavigator<MontadorTabParamList>();
@@ -62,6 +66,8 @@ export function MontadorNavigator() {
       />
       <Tab.Screen name="VerificacaoDocs" component={VerificacaoDocs} />
       <Tab.Screen name="SafeScore" component={SafeScoreScreen} />
+      <Tab.Screen name="SosFlow" component={SosFlowScreen} />
+      <Tab.Screen name="ReportIncident" component={ReportIncident} />
     </Tab.Navigator>
   );
 }

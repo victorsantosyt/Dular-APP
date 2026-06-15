@@ -723,7 +723,7 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
                   title="Reportar incidente"
                   subtitle="Botão SOS"
                   danger
-                  onPress={() => navigation.navigate("ReportIncident")}
+                  onPress={() => navigation.navigate("SosFlow")}
                 />
                 <ProfileRow
                   icon="MessageCircle"

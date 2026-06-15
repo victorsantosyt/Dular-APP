@@ -13,6 +13,8 @@ import SegurancaScreen from "@/screens/diarista/SegurancaScreen";
 import DiaristaCarteira from "@/screens/diarista/DiaristaCarteira";
 import VerificacaoDocs from "@/screens/perfil/VerificacaoDocs";
 import SafeScoreScreen from "@/screens/perfil/SafeScoreScreen";
+import SosFlowScreen from "@/screens/perfil/SosFlowScreen";
+import ReportIncident from "@/screens/perfil/ReportIncident";
 import Suporte from "@/screens/perfil/Suporte";
 import { useAuth } from "@/stores/authStore";
 
@@ -31,6 +33,8 @@ export type DiaristaTabParamList = {
   Carteira: undefined;
   VerificacaoDocs: undefined;
   SafeScore: undefined;
+  SosFlow: undefined;
+  ReportIncident: undefined;
   Suporte: undefined;
 };
 
@@ -73,6 +77,8 @@ export function DiaristaNavigator() {
       <Tab.Screen name="Carteira" component={DiaristaCarteira} />
       <Tab.Screen name="VerificacaoDocs" component={VerificacaoDocs} />
       <Tab.Screen name="SafeScore" component={SafeScoreScreen} />
+      <Tab.Screen name="SosFlow" component={SosFlowScreen} />
+      <Tab.Screen name="ReportIncident" component={ReportIncident} />
       <Tab.Screen name="Suporte" component={Suporte} />
     </Tab.Navigator>
   );

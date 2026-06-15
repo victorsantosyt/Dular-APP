@@ -6,6 +6,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
 import { useAuth } from "@/stores/authStore";
 import { useProfileTheme } from "@/hooks/useProfileTheme";
+import { useSosStore } from "@/stores/sosStore";
 import { getPublicScore, type PublicScore } from "@/api/safeScoreApi";
 import { colors } from "@/theme/tokens";
 
@@ -20,6 +21,7 @@ export default function SafeScoreScreen() {
   const nav = useNavigation<any>();
   const currentUser = useAuth((s) => s.user);
   const theme = useProfileTheme(currentUser?.role);
+  const lastSos = useSosStore((s) => s.lastSos);
   const [score, setScore] = useState<PublicScore | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -108,23 +110,56 @@ export default function SafeScoreScreen() {
           <Text style={{ fontSize: 15, fontWeight: "800", color: colors.ink, marginTop: 6 }}>
             Acompanhamento de SOS
           </Text>
-          <View
-            style={{
-              borderWidth: 1,
-              borderColor: theme.border,
-              borderRadius: 14,
-              padding: 16,
-              gap: 8,
-              alignItems: "center",
-              backgroundColor: "rgba(255,255,255,0.92)",
-            }}
-          >
-            <Ionicons name="notifications-outline" size={28} color={theme.primary} />
-            <Text style={{ color: colors.ink, fontWeight: "700" }}>Nenhum SOS acionado</Text>
-            <Text style={{ color: colors.sub, fontSize: 12, textAlign: "center" }}>
-              Quando você acionar o SOS, o status e o protocolo do atendimento aparecem aqui para acompanhamento.
-            </Text>
-          </View>
+          {lastSos ? (
+            <View
+              style={{
+                borderWidth: 1,
+                borderColor: theme.border,
+                borderRadius: 14,
+                padding: 16,
+                gap: 10,
+                backgroundColor: theme.backgroundSoft,
+              }}
+            >
+              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                <Text style={{ color: theme.textAccent, fontWeight: "800", fontSize: 15 }}>{lastSos.protocolo}</Text>
+                <View style={{ backgroundColor: colors.warningSoft, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999 }}>
+                  <Text style={{ color: colors.warning, fontWeight: "800", fontSize: 12 }}>Em análise</Text>
+                </View>
+              </View>
+              <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                <Text style={{ color: colors.sub, fontSize: 12 }}>Tipo</Text>
+                <Text style={{ color: colors.ink, fontWeight: "700", fontSize: 12 }}>{lastSos.tipoLabel}</Text>
+              </View>
+              <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                <Text style={{ color: colors.sub, fontSize: 12 }}>Acionado em</Text>
+                <Text style={{ color: colors.ink, fontWeight: "700", fontSize: 12 }}>
+                  {new Date(lastSos.criadoEm).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                </Text>
+              </View>
+              <Text style={{ color: colors.sub, fontSize: 12 }}>
+                Nossa equipe foi notificada e você receberá atualizações sobre o andamento.
+              </Text>
+            </View>
+          ) : (
+            <View
+              style={{
+                borderWidth: 1,
+                borderColor: theme.border,
+                borderRadius: 14,
+                padding: 16,
+                gap: 8,
+                alignItems: "center",
+                backgroundColor: "rgba(255,255,255,0.92)",
+              }}
+            >
+              <Ionicons name="notifications-outline" size={28} color={theme.primary} />
+              <Text style={{ color: colors.ink, fontWeight: "700" }}>Nenhum SOS acionado</Text>
+              <Text style={{ color: colors.sub, fontSize: 12, textAlign: "center" }}>
+                Quando você acionar o SOS, o status e o protocolo do atendimento aparecem aqui para acompanhamento.
+              </Text>
+            </View>
+          )}
         </>
       )}
     </Screen>

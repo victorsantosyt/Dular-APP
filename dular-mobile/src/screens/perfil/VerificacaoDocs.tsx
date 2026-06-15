@@ -421,47 +421,72 @@ export default function VerificacaoDocs() {
           </View>
         ) : null}
 
-        {locked ? (
-          <View style={{ padding: 12, borderRadius: 12, backgroundColor: theme.backgroundSoft }}>
-            <Text style={{ color: theme.textAccent, fontWeight: "700" }}>
-              {verificacao === "APROVADO" ? "Verificação aprovada." : "Documentos enviados. Análise pendente."}
+        {verificacao === "APROVADO" ? (
+          // Estado APROVADO: tela de status com escudo + selo de verificado.
+          <View style={{ alignItems: "center", gap: 14, paddingTop: 28 }}>
+            <View style={{ width: 124, height: 124, borderRadius: 62, backgroundColor: theme.backgroundSoft, alignItems: "center", justifyContent: "center" }}>
+              <Ionicons name="shield-checkmark" size={70} color={theme.primary} />
+            </View>
+            <Text style={{ fontSize: 20, fontWeight: "800", color: colors.ink, textAlign: "center" }}>Verificação aprovada</Text>
+            <Text style={{ color: colors.sub, textAlign: "center", paddingHorizontal: 16 }}>
+              Seu perfil está verificado. O selo de verificado aparece no seu perfil e você já pode usar a plataforma normalmente.
             </Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: theme.backgroundSoft, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999 }}>
+              <Ionicons name="checkmark-circle" size={18} color={theme.primary} />
+              <Text style={{ color: theme.textAccent, fontWeight: "800" }}>Perfil verificado</Text>
+            </View>
           </View>
-        ) : null}
-
-        <Text style={{ fontSize: 15, fontWeight: "700", color: colors.ink }}>Envie seus documentos</Text>
-        <Text style={{ color: colors.sub }}>
-          {currentUser?.role === "EMPREGADOR"
-            ? "RG/CNH frente e verso. Necessário para solicitar serviços e manter a plataforma segura."
-            : currentUser?.role === "MONTADOR"
-              ? "RG/CNH frente e verso. Necessário para receber serviços e manter a plataforma segura."
-              : "RG/CNH frente e verso. Usamos isso para manter a comunidade segura."}
-        </Text>
-
-        {renderPick("Documento (frente)", docFrente, "docFrente")}
-        {renderPick("Documento (verso)", docVerso, "docVerso")}
-
-        <Pressable
-          onPress={enviar}
-          disabled={locked || saving || selecting}
-          style={{
-            marginTop: 4,
-            // Segue a cor do perfil (gênero/role), como o resto das telas.
-            backgroundColor: theme.primary,
-            borderRadius: 14,
-            padding: 14,
-            alignItems: "center",
-            opacity: locked || saving || selecting ? 0.7 : 1,
-          }}
-        >
-          {saving || selecting ? (
-            <ActivityIndicator color={colors.white} />
-          ) : (
-            <Text style={{ color: colors.white, fontWeight: "700" }}>
-              {state === "sucesso" ? "Documentos enviados" : "Enviar documentos"}
+        ) : locked ? (
+          // Estado AGUARDANDO: documentos enviados, em análise.
+          <View style={{ alignItems: "center", gap: 14, paddingTop: 28 }}>
+            <View style={{ width: 124, height: 124, borderRadius: 62, backgroundColor: theme.backgroundSoft, alignItems: "center", justifyContent: "center" }}>
+              <Ionicons name="time-outline" size={66} color={theme.primary} />
+            </View>
+            <Text style={{ fontSize: 20, fontWeight: "800", color: colors.ink, textAlign: "center" }}>Documentação enviada</Text>
+            <Text style={{ color: colors.sub, textAlign: "center", paddingHorizontal: 16 }}>
+              Recebemos seus documentos e eles estão em análise. Avisaremos assim que a verificação for concluída.
             </Text>
-          )}
-        </Pressable>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: theme.backgroundSoft, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999 }}>
+              <Ionicons name="hourglass-outline" size={16} color={theme.primary} />
+              <Text style={{ color: theme.textAccent, fontWeight: "800" }}>Aguardando aprovação</Text>
+            </View>
+          </View>
+        ) : (
+          // Estado INICIAL: envio dos documentos.
+          <>
+            <Text style={{ fontSize: 15, fontWeight: "700", color: colors.ink }}>Envie seus documentos</Text>
+            <Text style={{ color: colors.sub }}>
+              {currentUser?.role === "EMPREGADOR"
+                ? "RG/CNH frente e verso. Necessário para solicitar serviços e manter a plataforma segura."
+                : currentUser?.role === "MONTADOR"
+                  ? "RG/CNH frente e verso. Necessário para receber serviços e manter a plataforma segura."
+                  : "RG/CNH frente e verso. Usamos isso para manter a comunidade segura."}
+            </Text>
+
+            {renderPick("Documento (frente)", docFrente, "docFrente")}
+            {renderPick("Documento (verso)", docVerso, "docVerso")}
+
+            <Pressable
+              onPress={enviar}
+              disabled={saving || selecting}
+              style={{
+                marginTop: 4,
+                // Segue a cor do perfil (gênero/role), como o resto das telas.
+                backgroundColor: theme.primary,
+                borderRadius: 14,
+                padding: 14,
+                alignItems: "center",
+                opacity: saving || selecting ? 0.7 : 1,
+              }}
+            >
+              {saving || selecting ? (
+                <ActivityIndicator color={colors.white} />
+              ) : (
+                <Text style={{ color: colors.white, fontWeight: "700" }}>Enviar documentos</Text>
+              )}
+            </Pressable>
+          </>
+        )}
     </Screen>
   );
 }

@@ -207,6 +207,7 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
   const { perfil, loading, saving, error, atualizar, refetch } = usePerfil();
   const { requestRegion } = useCurrentRegion();
   const busyRef = useRef(false);
+  const prevAprovadoRef = useRef<boolean | null>(null);
 
   const [geoEnabled, setGeoEnabled] = useState(false);
   const [geoSaving, setGeoSaving] = useState(false);
@@ -216,6 +217,7 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
   const [editTelefone, setEditTelefone] = useState("");
   const [avatarLocal, setAvatarLocal] = useState<string | null>(null);
   const [avatarUploading, setAvatarUploading] = useState(false);
+  const [showVisivelCard, setShowVisivelCard] = useState(false);
 
   useEffect(() => {
     const backendEnabled = Boolean((perfil ?? user)?.localizacaoPermitida);
@@ -448,6 +450,19 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
     return "VERIFICAR";
   }, [completion.completo, verificationStatus, hasDocEnviado]);
   const statusCopy = useMemo(() => statusCardCopy(statusCardCase), [statusCardCase]);
+
+  // Card de status "Perfil visível" é transitório: mostra ~20s na transição
+  // para VISIVEL e some, deixando o perfil limpo.
+  useEffect(() => {
+    const visivel = statusCardCase === "PODE_SOLICITAR";
+    const prev = prevAprovadoRef.current;
+    prevAprovadoRef.current = visivel;
+    if (prev === false && visivel === true) {
+      setShowVisivelCard(true);
+      const timer = setTimeout(() => setShowVisivelCard(false), 20000);
+      return () => clearTimeout(timer);
+    }
+  }, [statusCardCase]);
   const ctaLabel =
     statusCardCase === "REPROVADO"
       ? "Reenviar documentos"
@@ -560,6 +575,7 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
                 hideMemberSinceIfEmpty
               />
 
+              {statusCardCase !== "PODE_SOLICITAR" || showVisivelCard ? (
               <ProfileSection title="Status do perfil">
                 {/* T-18.5: separa "cadastro completo" da "permissão para
                     solicitar serviço". A barra reflete só o cadastro básico;
@@ -641,6 +657,7 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
                   ) : null}
                 </DCard>
               </ProfileSection>
+              ) : null}
 
               <ProfileSection title="Dados da conta">
                 <DCard style={s.infoCard}>
@@ -655,15 +672,21 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
               <ProfileSection title="Conta">
                 <ProfileRow
                   icon="FileText"
-                  title="Enviar documentos"
-                  subtitle="Envie seus documentos"
+                  title="Documentos"
+                  subtitle={
+                    verificationStatus === "APROVADO" || verificationStatus === "VERIFICADO"
+                      ? "Verificado"
+                      : verificationStatus === "PENDENTE"
+                        ? "Em análise"
+                        : "Enviar documento"
+                  }
                   onPress={() => navigation.navigate("VerificacaoDocs")}
                 />
                 <ProfileRow
                   icon="ShieldCheck"
                   title="Verificação de perfil"
                   subtitle={verificationText(verificationStatus)}
-                  onPress={() => Alert.alert("Verificação", "Status disponível na tela de documentos.")}
+                  onPress={() => navigation.navigate("VerificacaoDocs")}
                 />
                 <ProfileRow
                   icon="User"

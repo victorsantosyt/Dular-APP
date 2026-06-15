@@ -37,6 +37,9 @@ import { useMontadorServicos } from "@/hooks/useMontadorServicos";
 import { useCurrentRegion, type CurrentRegion } from "@/hooks/useCurrentRegion";
 import { useProfileTheme } from "@/hooks/useProfileTheme";
 import { useAuth } from "@/stores/authStore";
+import { useThemeStore } from "@/stores/useThemeStore";
+import { requestLocationWithAddress } from "@/lib/location";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { colors, radius, shadows, spacing, typography } from "@/theme";
 import type { ProfileTheme } from "@/theme/profileTheme";
 import { platformSelect } from "@/utils/platform";
@@ -201,6 +204,42 @@ function Row({
   );
 }
 
+function ToggleRow({
+  icon,
+  title,
+  subtitle,
+  theme,
+  value,
+  onValueChange,
+}: {
+  icon: React.ComponentProps<typeof AppIcon>["name"];
+  title: string;
+  subtitle?: string;
+  theme: ProfileTheme;
+  value: boolean;
+  onValueChange: (value: boolean) => void;
+}) {
+  return (
+    <View style={[styles.row, { borderBottomColor: theme.border }]}>
+      <View style={[styles.rowIcon, { backgroundColor: theme.primarySoft }]}>
+        <AppIcon name={icon} size={18} color={theme.primary} />
+      </View>
+      <View style={styles.rowText}>
+        <Text style={styles.rowTitle}>{title}</Text>
+        {subtitle ? <Text style={styles.rowSub} numberOfLines={2}>{subtitle}</Text> : null}
+      </View>
+      <Switch
+        value={value}
+        onValueChange={onValueChange}
+        trackColor={{ false: colors.border, true: theme.primarySoft }}
+        thumbColor={value ? theme.primary : colors.textMuted}
+      />
+    </View>
+  );
+}
+
+const GEO_KEY = "@dular:montador_geo_enabled";
+
 function FloatingCard({
   visible,
   title,
@@ -317,6 +356,8 @@ export default function MontadorPerfil() {
   const authUser = useAuth((state) => state.user);
   const setUser = useAuth((state) => state.setUser);
   const clearSession = useAuth((state) => state.clearSession);
+  const themeMode = useThemeStore((state) => state.mode);
+  const toggleTheme = useThemeStore((state) => state.toggleTheme);
   const { agenda } = useMontadorServicos();
   const currentRegion = useCurrentRegion();
 
@@ -334,6 +375,7 @@ export default function MontadorPerfil() {
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [portfolio, setPortfolio] = useState<string[]>([]);
   const [portfolioBusy, setPortfolioBusy] = useState(false);
+  const [geoEnabled, setGeoEnabled] = useState(true);
   const [showVisivelCard, setShowVisivelCard] = useState(false);
   const busyRef = useRef(false);
   const prevVerificadoRef = useRef<boolean | null>(null);
@@ -511,6 +553,16 @@ export default function MontadorPerfil() {
   useEffect(() => {
     setPortfolio(profile?.perfil?.portfolioFotos ?? []);
   }, [profile?.perfil?.portfolioFotos]);
+
+  // Geolocalização: preferência local persistida.
+  useEffect(() => {
+    AsyncStorage.getItem(GEO_KEY)
+      .then((value) => {
+        if (value === "0") setGeoEnabled(false);
+        if (value === "1") setGeoEnabled(true);
+      })
+      .catch(() => undefined);
+  }, []);
 
   const openModal = (type: Exclude<ModalType, null>) => {
     if (profile) syncForms(profile);
@@ -792,6 +844,25 @@ export default function MontadorPerfil() {
     );
   };
 
+  const handleGeoToggle = async (value: boolean) => {
+    setGeoEnabled(value);
+    AsyncStorage.setItem(GEO_KEY, value ? "1" : "0").catch(() => undefined);
+    if (!value) return;
+    try {
+      const { address } = await requestLocationWithAddress();
+      const addr = address as
+        | { city?: string | null; subregion?: string | null; region?: string | null; region_code?: string | null }
+        | null;
+      const cidade = addr?.city || addr?.subregion || "Localização";
+      const uf = addr?.region_code || addr?.region || "";
+      Alert.alert("Localização ativada", `${cidade}${uf ? "/" + uf : ""}`);
+    } catch (e) {
+      Alert.alert("Localização", e instanceof Error ? e.message : "Não foi possível obter sua localização.");
+      setGeoEnabled(false);
+      AsyncStorage.setItem(GEO_KEY, "0").catch(() => undefined);
+    }
+  };
+
   const sairDaConta = () => {
     Alert.alert("Sair", "Encerrar sessão da conta?", [
       { text: "Voltar", style: "cancel" },
@@ -957,6 +1028,11 @@ export default function MontadorPerfil() {
         <Row icon="FileText" title="Documentos" subtitle={perfil.verificacaoStatus === "APROVADO" ? "Verificado" : perfil.verificacaoStatus === "PENDENTE" ? "Em análise" : "Enviar documento"} theme={profileTheme} onPress={() => navigation.navigate("VerificacaoDocs")} />
         <Row icon="ShieldCheck" title="SafeScore" subtitle={perfil.safeScore?.faixa ?? "SafeScore em análise"} theme={profileTheme} onPress={() => navigation.navigate("SafeScore")} />
         <Row icon="AlertTriangle" title="SOS / Emergência" subtitle="Reportar incidente com prioridade" theme={profileTheme} danger onPress={() => navigation.navigate("SosFlow")} />
+      </Section>
+
+      <Section title="Preferências" borderColor={profileTheme.border}>
+        <ToggleRow icon="MapPin" title="Geolocalização" subtitle="Melhorar sugestões e área perto de você" theme={profileTheme} value={geoEnabled} onValueChange={handleGeoToggle} />
+        <ToggleRow icon="Sparkles" title="Modo escuro" subtitle="Tema escuro do app" theme={profileTheme} value={themeMode === "dark"} onValueChange={toggleTheme} />
       </Section>
 
       <Section title="Conta, suporte e termos" borderColor={profileTheme.border}>

@@ -65,6 +65,12 @@ export async function aprovarServicoConcluido(servicoId: string) {
   return res.data;
 }
 
+// Reagendamento (com aprovação): o profissional propõe; o empregador decide.
+export async function decidirReagendamento(servicoId: string, aceitar: boolean) {
+  const res = await api.patch(`/api/servicos/${servicoId}/reagendar`, { aceitar });
+  return res.data;
+}
+
 type DraftSlice = {
   categoria: ServiceCategory;
   tipo?: "DIARISTA" | "MONTADOR";

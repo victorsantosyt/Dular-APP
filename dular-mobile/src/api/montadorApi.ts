@@ -38,6 +38,10 @@ export type MontadorServico = {
   subcategoria?: string | null;
   data?: string | Date | null;
   turno?: string | null;
+  reagendamentoData?: string | Date | null;
+  reagendamentoTurno?: string | null;
+  reagendamentoPor?: string | null;
+  reagendamentoEm?: string | Date | null;
   bairro?: string | null;
   cidade?: string | null;
   uf?: string | null;
@@ -232,6 +236,15 @@ export async function cancelarServicoMontador(
   };
   if (observacao) body.observacao = observacao;
   const res = await api.post(`/api/servicos/${servicoId}/cancelar`, body);
+  return res.data;
+}
+
+export async function proporReagendamento(
+  servicoId: string,
+  data: string,
+  turno: "MANHA" | "TARDE",
+) {
+  const res = await api.post(`/api/servicos/${servicoId}/reagendar`, { data, turno });
   return res.data;
 }
 

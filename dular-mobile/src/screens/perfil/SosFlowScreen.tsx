@@ -1,5 +1,5 @@
 import React, { useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Image, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, Image, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
@@ -75,17 +75,37 @@ export default function SosFlowScreen() {
   );
   const prioridadeInfo = PRIORIDADES.find((p) => p.value === prioridade) ?? PRIORIDADES[1];
 
-  const addProva = async () => {
-    if (provas.length >= 10) return;
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== "granted") return;
-    const res = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.All,
-      quality: 0.7,
-    });
-    if (res.canceled) return;
-    const uri = res.assets?.[0]?.uri;
+  const adicionarUri = (uri?: string) => {
     if (uri) setProvas((prev) => [...prev, uri]);
+  };
+
+  const tirarFoto = async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("Permissão necessária", "Permita o acesso à câmera para registrar uma foto do incidente.");
+      return;
+    }
+    const res = await ImagePicker.launchCameraAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.7 });
+    if (!res.canceled) adicionarUri(res.assets?.[0]?.uri);
+  };
+
+  const escolherDaGaleria = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("Permissão necessária", "Permita o acesso às fotos para anexar provas.");
+      return;
+    }
+    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.All, quality: 0.7 });
+    if (!res.canceled) adicionarUri(res.assets?.[0]?.uri);
+  };
+
+  const addProva = () => {
+    if (provas.length >= 10) return;
+    Alert.alert("Adicionar prova", "Como deseja registrar?", [
+      { text: "Tirar foto", onPress: () => void tirarFoto() },
+      { text: "Galeria", onPress: () => void escolherDaGaleria() },
+      { text: "Cancelar", style: "cancel" },
+    ]);
   };
 
   const enviar = () => {
@@ -213,7 +233,7 @@ export default function SosFlowScreen() {
           </View>
 
           <Text style={{ fontWeight: "800", color: colors.ink }}>Envie provas (opcional)</Text>
-          <Text style={{ color: colors.sub, fontSize: 12 }}>Fotos, prints ou documentos. Máx. 10 arquivos.</Text>
+          <Text style={{ color: colors.sub, fontSize: 12 }}>Tire uma foto na hora pela câmera ou anexe da galeria. Máx. 10 arquivos.</Text>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
             {provas.map((uri, i) => (
               <View key={`${uri}-${i}`} style={{ width: 72, height: 72, borderRadius: 10, overflow: "hidden", backgroundColor: theme.backgroundSoft }}>

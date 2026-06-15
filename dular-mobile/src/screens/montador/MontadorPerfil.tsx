@@ -878,6 +878,7 @@ export default function MontadorPerfil() {
       <Section title="Documentos e segurança" borderColor={profileTheme.border}>
         <Row icon="FileText" title="Documentos" subtitle={perfil.verificacaoStatus === "APROVADO" ? "Verificado" : perfil.verificacaoStatus === "PENDENTE" ? "Em análise" : "Enviar documento"} theme={profileTheme} onPress={() => navigation.navigate("VerificacaoDocs")} />
         <Row icon="ShieldCheck" title="SafeScore" subtitle={perfil.safeScore?.faixa ?? "SafeScore em análise"} theme={profileTheme} onPress={() => navigation.navigate("SafeScore")} />
+        <Row icon="AlertTriangle" title="SOS / Emergência" subtitle="Reportar incidente com prioridade" theme={profileTheme} danger onPress={() => navigation.navigate("SosFlow")} />
       </Section>
 
       <Section title="Suporte e termos" borderColor={profileTheme.border}>

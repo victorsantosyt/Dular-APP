@@ -35,7 +35,7 @@ export type MontadorTabParamList = {
   VerificacaoDocs: undefined;
   SafeScore: undefined;
   SosFlow: undefined;
-  ReportIncident: undefined;
+  ReportIncident: { servicoId?: string; serviceId?: string; reportedUserId?: string } | undefined;
   Suporte: undefined;
   Termos: undefined;
   Privacidade: undefined;

@@ -1,10 +1,11 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import { AppIcon, DAvatar, DCard, DEmptyState, DErrorState, DLoadingState, DScreen } from "@/components/ui";
-import { acionarSosMontador } from "@/api/montadorApi";
+import { acionarSosMontador, atualizarPerfilMontador, carregarPerfilMontador } from "@/api/montadorApi";
+import { getPublicScore } from "@/api/safeScoreApi";
 import { useMontadorServicos } from "@/hooks/useMontadorServicos";
 import { useNotificacoes } from "@/hooks/useNotificacoes";
 import { useProfileTheme } from "@/hooks/useProfileTheme";
@@ -29,6 +30,8 @@ export function MontadorHome() {
   const { servicos, agenda, pendentes, loading, error, refetch } = useMontadorServicos();
   const { unreadCount } = useNotificacoes();
   const [online, setOnline] = useState(true);
+  const [onlineSaving, setOnlineSaving] = useState(false);
+  const [safeFaixa, setSafeFaixa] = useState<string | null>(null);
   const [sosLoading, setSosLoading] = useState(false);
 
   const displayName = firstName(user?.nome);
@@ -44,8 +47,41 @@ export function MontadorHome() {
 
   const perfilPendente = user?.verificacao?.status && user.verificacao.status !== "APROVADO";
 
+  // Carrega a disponibilidade real (perfil.ativo) e a faixa do SafeScore.
+  useEffect(() => {
+    let alive = true;
+    carregarPerfilMontador()
+      .then((p) => {
+        if (alive && typeof p?.perfil?.ativo === "boolean") setOnline(p.perfil.ativo);
+      })
+      .catch(() => {});
+    if (user?.id) {
+      getPublicScore(user.id)
+        .then((s) => {
+          if (alive) setSafeFaixa(s.faixa);
+        })
+        .catch(() => {});
+    }
+    return () => {
+      alive = false;
+    };
+  }, [user?.id]);
+
   const carregarResumoMontador = refetch;
-  const alternarDisponibilidade = () => setOnline((current) => !current);
+  const alternarDisponibilidade = async () => {
+    if (onlineSaving) return;
+    const next = !online;
+    setOnline(next); // otimista
+    setOnlineSaving(true);
+    try {
+      await atualizarPerfilMontador({ ativo: next });
+    } catch {
+      setOnline(!next); // reverte
+      Alert.alert("Erro", "Não foi possível atualizar sua disponibilidade.");
+    } finally {
+      setOnlineSaving(false);
+    }
+  };
   const abrirCarteira = () => navigation.navigate("Carteira", { from: "MontadorHome" });
   const abrirDetalheServico = (servicoId: string) => navigation.navigate("MontadorDetalheServico", { servicoId });
   const acionarSOS = async () => {
@@ -132,9 +168,9 @@ export function MontadorHome() {
             </View>
           </Pressable>
         </View>
-        <Pressable onPress={alternarDisponibilidade} style={styles.availabilityButton}>
+        <Pressable onPress={alternarDisponibilidade} disabled={onlineSaving} style={styles.availabilityButton}>
           <Text style={styles.availabilityText}>
-            {online ? "Online - Ficar indisponível" : "Indisponível - Ficar online"}
+            {onlineSaving ? "Salvando…" : online ? "Online · Ficar indisponível" : "Indisponível · Ficar online"}
           </Text>
         </Pressable>
       </LinearGradient>
@@ -166,16 +202,22 @@ export function MontadorHome() {
       </DCard>
 
       <View style={styles.securityGrid}>
-        <View style={[styles.securityCard, { borderColor: profileTheme.border }]}>
+        <Pressable
+          onPress={() => navigation.navigate("VerificacaoDocs")}
+          style={({ pressed }) => [styles.securityCard, { borderColor: profileTheme.border }, pressed && styles.pressed]}
+        >
           <AppIcon name="ShieldCheck" size={22} color={profileTheme.primary} />
           <Text style={styles.securityTitle}>Verificação</Text>
           <Text style={styles.securitySub}>{perfilPendente ? "Pendente" : "Em dia"}</Text>
-        </View>
-        <View style={[styles.securityCard, { borderColor: profileTheme.border }]}>
+        </Pressable>
+        <Pressable
+          onPress={() => navigation.navigate("SafeScore")}
+          style={({ pressed }) => [styles.securityCard, { borderColor: profileTheme.border }, pressed && styles.pressed]}
+        >
           <AppIcon name="Award" size={22} color={profileTheme.primary} />
           <Text style={styles.securityTitle}>SafeScore</Text>
-          <Text style={styles.securitySub}>Proteção ativa</Text>
-        </View>
+          <Text style={styles.securitySub}>{safeFaixa ?? "Proteção ativa"}</Text>
+        </Pressable>
         <Pressable
           onPress={acionarSOS}
           disabled={sosLoading}

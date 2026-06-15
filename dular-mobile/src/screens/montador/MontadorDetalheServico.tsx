@@ -108,7 +108,8 @@ export default function MontadorDetalheServico({ route, navigation }: Props) {
     }
   };
   const reportarProblema = () => {
-    Alert.alert("Reportar problema", "Reporte de problema será conectado ao fluxo de suporte e segurança.");
+    if (!servico) return;
+    navigation.navigate("ReportIncident", { servicoId: servico.id });
   };
   const acionarSOS = async () => {
     if (!servico) return;

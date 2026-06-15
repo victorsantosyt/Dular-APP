@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Text, View, Pressable, Alert, Image, ActivityIndicator } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { Screen } from "@/components/Screen";
+import { BackCircleButton } from "@/components/ui";
 import { Ionicons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
@@ -404,11 +405,7 @@ export default function VerificacaoDocs() {
   return (
     <Screen
       title="Verificação"
-      rightAction={
-        <Pressable onPress={voltarPerfil} hitSlop={12}>
-          <Ionicons name="chevron-forward" size={22} color={colors.ink} />
-        </Pressable>
-      }
+      rightAction={<BackCircleButton onPress={voltarPerfil} color={theme.icon} borderColor={theme.border} />}
       contentStyle={{ gap: 12 }}
     >
         {toast ? (

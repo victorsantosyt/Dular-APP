@@ -9,11 +9,15 @@ import { Alert, Linking, Pressable, StyleSheet, Text, View } from "react-native"
 import { useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
+import { BackCircleButton } from "@/components/ui";
 import { DButton } from "@/components/DButton";
+import { useAuth } from "@/stores/authStore";
 import { colors, radius, shadow, spacing, typography } from "@/theme/tokens";
 
 export default function Suporte() {
   const nav = useNavigation<any>();
+  const role = useAuth((s) => s.role ?? s.user?.role);
+  const voltarPerfil = () => nav.navigate(role === "MONTADOR" ? "MontadorPerfil" : "Perfil");
 
   const openWhats = async () => {
     const url = `https://wa.me/5565999990000?text=${encodeURIComponent("Olá! Preciso de suporte no app Dular.")}`;
@@ -25,11 +29,7 @@ export default function Suporte() {
   return (
     <Screen
       title="Suporte"
-      rightAction={
-        <Pressable onPress={() => nav.goBack()} hitSlop={12}>
-          <Ionicons name="chevron-back" size={22} color={colors.ink} />
-        </Pressable>
-      }
+      rightAction={<BackCircleButton onPress={voltarPerfil} />}
     >
 
       {/* Canais */}

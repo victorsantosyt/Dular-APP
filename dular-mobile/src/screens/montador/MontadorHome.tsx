@@ -3,7 +3,7 @@ import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
-import { AppIcon, DCard, DEmptyState, DErrorState, DLoadingState, DScreen } from "@/components/ui";
+import { AppIcon, DAvatar, DCard, DEmptyState, DErrorState, DLoadingState, DScreen } from "@/components/ui";
 import { acionarSosMontador } from "@/api/montadorApi";
 import { useMontadorServicos } from "@/hooks/useMontadorServicos";
 import { useNotificacoes } from "@/hooks/useNotificacoes";
@@ -46,6 +46,7 @@ export function MontadorHome() {
 
   const carregarResumoMontador = refetch;
   const alternarDisponibilidade = () => setOnline((current) => !current);
+  const abrirCarteira = () => navigation.navigate("Carteira", { from: "MontadorHome" });
   const abrirDetalheServico = (servicoId: string) => navigation.navigate("MontadorDetalheServico", { servicoId });
   const acionarSOS = async () => {
     const servicoId = proximoServico?.id ?? agenda[0]?.id;
@@ -76,10 +77,17 @@ export function MontadorHome() {
       backgroundColor={profileTheme.background}
       contentContainerStyle={styles.scroll}
     >
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.greeting}>Olá, {displayName}</Text>
-          <Text style={styles.subtitle}>Sua rotina profissional no Dular</Text>
+      <View style={styles.topBar}>
+        <Pressable
+          hitSlop={8}
+          onPress={() => navigation.navigate("MontadorPerfil")}
+          style={[styles.avatarRing, { borderColor: profileTheme.primary }]}
+        >
+          <DAvatar size="md" uri={user?.avatarUrl ?? undefined} initials={displayName.slice(0, 2)} online />
+        </Pressable>
+        <View style={styles.topGreeting}>
+          <Text style={styles.greeting} numberOfLines={1}>Olá, {displayName}</Text>
+          <Text style={styles.subtitle} numberOfLines={1}>Sua rotina profissional no Dular</Text>
         </View>
         <Pressable
           onPress={() => navigation.navigate("MontadorNotificacoes")}
@@ -111,9 +119,18 @@ export function MontadorHome() {
                 : "Seus ganhos aparecerão após finalizar serviços."}
             </Text>
           </View>
-          <View style={styles.walletIconWrap}>
+          <Pressable
+            onPress={abrirCarteira}
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel="Abrir carteira"
+            style={({ pressed }) => [styles.walletIconWrap, pressed && styles.pressed]}
+          >
             <AppIcon name="Wallet" size={34} color={colors.white} strokeWidth={2.1} />
-          </View>
+            <View style={styles.walletBadge}>
+              <AppIcon name="ChevronRight" size={13} color={profileTheme.primary} strokeWidth={2.6} />
+            </View>
+          </Pressable>
         </View>
         <Pressable onPress={alternarDisponibilidade} style={styles.availabilityButton}>
           <Text style={styles.availabilityText}>
@@ -178,10 +195,19 @@ const styles = StyleSheet.create({
   scroll: {
     gap: 16,
   },
-  header: {
+  topBar: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    gap: 12,
+  },
+  avatarRing: {
+    borderWidth: 2,
+    borderRadius: radius.pill,
+    padding: 2,
+  },
+  topGreeting: {
+    flex: 1,
+    minWidth: 0,
   },
   greeting: {
     color: colors.textPrimary,
@@ -268,6 +294,20 @@ const styles = StyleSheet.create({
     backgroundColor: colors.whiteAlpha20,
     borderWidth: 1,
     borderColor: colors.glassBorder,
+    position: "relative",
+  },
+  walletBadge: {
+    position: "absolute",
+    right: -3,
+    bottom: -3,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: colors.white,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: colors.white,
   },
   availabilityButton: {
     alignSelf: "flex-start",

@@ -9,6 +9,7 @@ import {
   normalizeEspecialidades,
 } from "@/lib/montadorProfile";
 import { autoVerificarMontadorSePossivel } from "@/lib/autoVerificacao";
+import { signKeysForDisplay } from "@/lib/s3Objects";
 
 export const dynamic = "force-dynamic";
 
@@ -125,6 +126,8 @@ async function buildMontadorMeResponse(userId: string) {
 
   const score = safeScoreProfile?.currentScore ?? legacySafeScore?.score ?? 500;
   const faixa = getFaixa(score);
+  // portfolioFotos é armazenado como keys do S3 — assina para exibição.
+  const portfolioFotos = await signKeysForDisplay(perfil.portfolioFotos);
   const hasDocs = Boolean(perfil.documentoFrente || perfil.documentoVerso || perfil.selfieDoc);
   const completude = calcularCompletudeMontador({
     nome: user.nome,
@@ -163,6 +166,7 @@ async function buildMontadorMeResponse(userId: string) {
     },
     perfil: {
       ...perfil,
+      portfolioFotos,
       documentosEnviados: hasDocs,
       verificacaoStatus: perfil.verificado ? "APROVADO" : hasDocs ? "PENDENTE" : "NAO_ENVIADO",
       completude,

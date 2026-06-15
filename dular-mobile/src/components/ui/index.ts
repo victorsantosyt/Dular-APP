@@ -1,4 +1,5 @@
 export { AppIcon }         from "./AppIcon";
+export { BackCircleButton } from "./BackCircleButton";
 export { DButton }         from "./DButton";
 export { DCard }           from "./DCard";
 export { DBadge }          from "./DBadge";

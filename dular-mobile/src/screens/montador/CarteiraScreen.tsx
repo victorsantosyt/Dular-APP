@@ -1,151 +1,87 @@
-/**
- * DiaristaCarteira — acompanhamento financeiro da diarista.
- *
- * Mesma estrutura da Carteira do montador (hero "Ganhos totais" + métricas +
- * histórico de serviços + nota), adaptada à fonte de dados da diarista
- * (/api/servicos/minhas). Não é carteira transacional: só monitoramento, não
- * movimenta valores nem realiza pagamentos.
- */
-
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useMemo } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
+import { useNavigation, useRoute } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 
 import { AppIcon, BackCircleButton, DEmptyState, DErrorState, DLoadingState, DScreen } from "@/components/ui";
-import { fetchServicosMinhas } from "@/api/sharedFetcher";
-import { useGenderTheme } from "@/hooks/useProfileTheme";
-import type { DiaristaTabParamList } from "@/navigation/DiaristaNavigator";
+import { useMontadorServicos } from "@/hooks/useMontadorServicos";
+import { useProfileTheme } from "@/hooks/useProfileTheme";
+import type { MontadorServico } from "@/api/montadorApi";
+import type { MontadorTabParamList } from "@/navigation/MontadorNavigator";
 import { colors, radius, shadows, spacing, typography } from "@/theme";
+import { formatMoneyFromCents, labelServico, upperStatus } from "./montadorUtils";
 
-type Navigation = BottomTabNavigationProp<DiaristaTabParamList>;
+type Navigation = BottomTabNavigationProp<MontadorTabParamList>;
 
-const MONEY_UNIT = (process.env.EXPO_PUBLIC_MONEY_UNIT || "centavos").toLowerCase();
-const brl = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+const CONCLUIDO = new Set(["FINALIZADO", "CONCLUIDO"]);
+const EM_ANDAMENTO = new Set(["ACEITO", "CONFIRMADO", "EM_ANDAMENTO", "AGUARDANDO_FINALIZACAO"]);
 
-const STATUS_CONCLUIDO = new Set(["FINALIZADO", "CONCLUIDO", "CONCLUÍDO", "PAGO", "FINALIZED", "DONE"]);
-const STATUS_A_RECEBER = new Set([
-  "ACEITA",
-  "ACEITO",
-  "CONFIRMADO",
-  "ANDAMENTO",
-  "EM_ANDAMENTO",
-  "AGENDADO",
-  "AGUARDANDO_FINALIZACAO",
-]);
-
-type ServicoCarteira = {
-  id: string;
-  titulo: string;
-  cliente: string;
-  dataISO: string;
-  valor: number;
-  status: string;
-};
-
-function toNumber(v: any) {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : 0;
+/** Valor monetário de um serviço (em centavos): preço final fechado ou estimado. */
+function valorServico(servico: MontadorServico) {
+  return servico.precoFinal ?? servico.valorEstimado ?? 0;
 }
 
-function normalizeMoney(v: any) {
-  const n = toNumber(v);
-  if (MONEY_UNIT === "centavos") return n / 100;
-  if (MONEY_UNIT === "reais") return n;
-  if (n >= 1000 && Number.isInteger(n)) return n / 100;
-  return n;
-}
-
-function getValor(s: any) {
-  return normalizeMoney(s?.valorTotal ?? s?.valor ?? s?.precoFinal ?? s?.preco ?? s?.price ?? 0);
-}
-
-function getDataISO(s: any) {
-  return s?.finishedAt ?? s?.finalizadoEm ?? s?.updatedAt ?? s?.data ?? s?.createdAt ?? new Date().toISOString();
-}
-
-function tituloServico(s: any) {
-  const tipo = String(s?.tipo ?? s?.tipoServico ?? "Serviço").replace(/_/g, " ").toLowerCase();
-  return tipo.charAt(0).toUpperCase() + tipo.slice(1);
-}
-
-function isInCurrentMonth(iso: string) {
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return false;
+function isCurrentMonth(data?: string | Date | null) {
+  if (!data) return false;
+  const date = new Date(data);
+  if (Number.isNaN(date.getTime())) return false;
   const now = new Date();
-  return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+  return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
 }
 
-function formatDataServico(iso: string) {
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return "Data a combinar";
-  return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" });
+function formatDataServico(data?: string | Date | null) {
+  if (!data) return "Data a combinar";
+  const date = new Date(data);
+  if (Number.isNaN(date.getTime())) return "Data a combinar";
+  return date.toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+function dataMs(data?: string | Date | null) {
+  if (!data) return 0;
+  const date = new Date(data);
+  return Number.isNaN(date.getTime()) ? 0 : date.getTime();
 }
 
 type Badge = { label: string; color: string; soft: string };
 
-function statusBadge(status: string): Badge {
-  const s = status.toUpperCase();
-  if (STATUS_CONCLUIDO.has(s)) return { label: "Concluído", color: colors.success, soft: colors.successSoft };
-  if (s === "EM_ANDAMENTO" || s === "ANDAMENTO")
-    return { label: "Em andamento", color: colors.warning, soft: colors.warningSoft };
+function statusBadge(status: unknown): Badge {
+  const s = upperStatus(status);
+  if (CONCLUIDO.has(s)) return { label: "Concluído", color: colors.success, soft: colors.successSoft };
+  if (s === "EM_ANDAMENTO") return { label: "Em andamento", color: colors.warning, soft: colors.warningSoft };
   if (s === "AGUARDANDO_FINALIZACAO")
     return { label: "Aguardando", color: colors.warning, soft: colors.warningSoft };
   return { label: "Agendado", color: colors.textSecondary, soft: colors.background };
 }
 
-export default function DiaristaCarteira() {
+/**
+ * CarteiraScreen — acompanhamento financeiro do montador.
+ *
+ * Não é uma carteira transacional: não movimenta valores nem guarda saldo. É só
+ * uma tela de monitoramento — consolida o histórico de serviços e os ganhos
+ * (totais, do mês, ticket médio e a receber) calculados a partir dos serviços
+ * retornados por useMontadorServicos. Acessível pela home (ícone da carteira) e
+ * pelo perfil (linha "Carteira/Ganhos").
+ */
+export default function CarteiraScreen() {
   const navigation = useNavigation<Navigation>();
   const route = useRoute();
-  const theme = useGenderTheme("DIARISTA");
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [servicos, setServicos] = useState<ServicoCarteira[]>([]);
+  const theme = useProfileTheme("MONTADOR");
+  const { servicos, loading, error, refetch, refreshing } = useMontadorServicos();
 
-  const from = (route.params as { from?: keyof DiaristaTabParamList } | undefined)?.from;
-  const voltar = () => navigation.navigate((from ?? "Home") as never);
-
-  const load = useCallback(async (isRefresh = false) => {
-    try {
-      setError(null);
-      isRefresh ? setRefreshing(true) : setLoading(true);
-
-      const data = await fetchServicosMinhas();
-      const lista = Array.isArray(data?.servicos) ? data.servicos : Array.isArray(data) ? data : [];
-
-      const mapped: ServicoCarteira[] = (lista as any[])
-        .map((s): ServicoCarteira => ({
-          id: String(s?.id ?? Math.random()),
-          titulo: tituloServico(s),
-          cliente: s?.cliente?.nome ?? s?.clienteNome ?? "Cliente",
-          dataISO: getDataISO(s),
-          valor: getValor(s),
-          status: String(s?.status ?? "").toUpperCase(),
-        }))
-        .sort((a, b) => +new Date(b.dataISO) - +new Date(a.dataISO));
-
-      setServicos(mapped);
-    } catch (e: any) {
-      setError(e?.message ?? "Falha ao carregar dados.");
-    } finally {
-      isRefresh ? setRefreshing(false) : setLoading(false);
-    }
-  }, []);
-
-  useFocusEffect(useCallback(() => { void load(false); }, [load]));
+  const from = (route.params as { from?: keyof MontadorTabParamList } | undefined)?.from;
+  const voltar = () => navigation.navigate((from ?? "MontadorPerfil") as never);
 
   const resumo = useMemo(() => {
-    const concluidos = servicos.filter((s) => STATUS_CONCLUIDO.has(s.status));
-    const pendentesReceber = servicos.filter((s) => STATUS_A_RECEBER.has(s.status));
-    const ganhosTotais = concluidos.reduce((sum, s) => sum + s.valor, 0);
-    const ganhosMes = concluidos.filter((s) => isInCurrentMonth(s.dataISO)).reduce((sum, s) => sum + s.valor, 0);
-    const ticketMedio = concluidos.length ? ganhosTotais / concluidos.length : 0;
-    const aReceber = pendentesReceber.reduce((sum, s) => sum + s.valor, 0);
-    const historico = [...concluidos, ...pendentesReceber].sort(
-      (a, b) => +new Date(b.dataISO) - +new Date(a.dataISO),
-    );
+    const concluidos = servicos.filter((s) => CONCLUIDO.has(upperStatus(s.status)));
+    const pendentesReceber = servicos.filter((s) => EM_ANDAMENTO.has(upperStatus(s.status)));
+    const ganhosTotais = concluidos.reduce((sum, s) => sum + valorServico(s), 0);
+    const ganhosMes = concluidos
+      .filter((s) => isCurrentMonth(s.data))
+      .reduce((sum, s) => sum + valorServico(s), 0);
+    const ticketMedio = concluidos.length ? Math.round(ganhosTotais / concluidos.length) : 0;
+    const aReceber = pendentesReceber.reduce((sum, s) => sum + valorServico(s), 0);
+    const historico = [...concluidos, ...pendentesReceber].sort((a, b) => dataMs(b.data) - dataMs(a.data));
     return { concluidos, ganhosTotais, ganhosMes, ticketMedio, aReceber, historico };
   }, [servicos]);
 
@@ -164,7 +100,7 @@ export default function DiaristaCarteira() {
       backgroundColor={theme.background}
       contentContainerStyle={styles.scroll}
       refreshing={refreshing}
-      onRefresh={() => load(true)}
+      onRefresh={refetch}
       refreshTintColor={theme.primary}
     >
       <View style={styles.header}>
@@ -175,7 +111,7 @@ export default function DiaristaCarteira() {
       {loading ? (
         <DLoadingState text="Carregando carteira" color={theme.primary} />
       ) : error ? (
-        <DErrorState message={error} onRetry={() => load(false)} />
+        <DErrorState message={error} onRetry={refetch} />
       ) : (
         <>
           <LinearGradient
@@ -187,7 +123,7 @@ export default function DiaristaCarteira() {
             <View style={styles.heroRow}>
               <View style={styles.heroText}>
                 <Text style={styles.heroKicker}>Ganhos totais</Text>
-                <Text style={styles.heroValue}>{brl(resumo.ganhosTotais)}</Text>
+                <Text style={styles.heroValue}>{formatMoneyFromCents(resumo.ganhosTotais)}</Text>
                 <Text style={styles.heroSub}>
                   {resumo.concluidos.length > 0
                     ? `${resumo.concluidos.length} serviço(s) concluído(s) no Dular.`
@@ -201,9 +137,9 @@ export default function DiaristaCarteira() {
           </LinearGradient>
 
           <View style={styles.metricsGrid}>
-            {metric("Este mês", brl(resumo.ganhosMes))}
-            {metric("Ticket médio", brl(resumo.ticketMedio))}
-            {metric("A receber", brl(resumo.aReceber), "Serviços em andamento")}
+            {metric("Este mês", formatMoneyFromCents(resumo.ganhosMes))}
+            {metric("Ticket médio", formatMoneyFromCents(resumo.ticketMedio))}
+            {metric("A receber", formatMoneyFromCents(resumo.aReceber), "Serviços em andamento")}
             {metric("Concluídos", String(resumo.concluidos.length), "Total de serviços")}
           </View>
 
@@ -223,18 +159,20 @@ export default function DiaristaCarteira() {
                       ]}
                     >
                       <View style={[styles.histIcon, { backgroundColor: theme.primarySoft }]}>
-                        <AppIcon name="BrushCleaning" size={16} color={theme.primary} />
+                        <AppIcon name="Wrench" size={16} color={theme.primary} />
                       </View>
                       <View style={styles.histText}>
                         <Text style={styles.histTitle} numberOfLines={1}>
-                          {servico.titulo}
+                          {labelServico(servico)}
                         </Text>
                         <Text style={styles.histSub} numberOfLines={1}>
-                          {servico.cliente} · {formatDataServico(servico.dataISO)}
+                          {servico.empregador?.nome
+                            ? `${servico.empregador.nome} · ${formatDataServico(servico.data)}`
+                            : formatDataServico(servico.data)}
                         </Text>
                       </View>
                       <View style={styles.histRight}>
-                        <Text style={styles.histValue}>{brl(servico.valor)}</Text>
+                        <Text style={styles.histValue}>{formatMoneyFromCents(valorServico(servico))}</Text>
                         <View style={[styles.histBadge, { backgroundColor: badge.soft }]}>
                           <Text style={[styles.histBadgeText, { color: badge.color }]}>{badge.label}</Text>
                         </View>

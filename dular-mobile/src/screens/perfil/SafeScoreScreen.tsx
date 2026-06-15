@@ -4,6 +4,7 @@ import { useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 
 import { Screen } from "@/components/Screen";
+import { BackCircleButton } from "@/components/ui";
 import { useAuth } from "@/stores/authStore";
 import { useProfileTheme } from "@/hooks/useProfileTheme";
 import { useSosStore } from "@/stores/sosStore";
@@ -70,11 +71,7 @@ export default function SafeScoreScreen() {
   return (
     <Screen
       title="SafeScore"
-      rightAction={
-        <Pressable onPress={voltarPerfil} hitSlop={12}>
-          <Ionicons name="chevron-forward" size={22} color={colors.ink} />
-        </Pressable>
-      }
+      rightAction={<BackCircleButton onPress={voltarPerfil} color={theme.icon} borderColor={theme.border} />}
       contentStyle={{ gap: 14 }}
     >
       {loading ? (

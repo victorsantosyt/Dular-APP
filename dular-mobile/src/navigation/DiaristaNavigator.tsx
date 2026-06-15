@@ -30,7 +30,7 @@ export type DiaristaTabParamList = {
   DiaristaDetalhe: { servicoId: string };
   Paywall: { mensagem?: string };
   Seguranca: { servicoId: string; enderecoServico?: string };
-  Carteira: undefined;
+  Carteira: { from?: keyof DiaristaTabParamList } | undefined;
   VerificacaoDocs: undefined;
   SafeScore: undefined;
   SosFlow: undefined;

@@ -3,13 +3,11 @@ import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import { AppIcon, DEmptyState, DLoadingState, DScreen, type AppIconName } from "@/components/ui";
-import { useMontadorServicos } from "@/hooks/useMontadorServicos";
 import { useNotificacoes } from "@/hooks/useNotificacoes";
 import type { Notificacao } from "@/api/notificacoesApi";
 import { useProfileTheme } from "@/hooks/useProfileTheme";
 import type { MontadorTabParamList } from "@/navigation/MontadorNavigator";
 import { colors, radius, shadows, typography } from "@/theme";
-import { labelServico, localResumo } from "./montadorUtils";
 
 type Navigation = BottomTabNavigationProp<MontadorTabParamList>;
 type NotificationTab = "todas" | "nao_lidas" | "lidas";
@@ -78,36 +76,6 @@ function fromRemote(n: Notificacao): MontadorNotification {
     chatRoomId: n.chatRoomId ?? undefined,
   };
 }
-
-const STATIC_NOTIFICATIONS: Omit<MontadorNotification, "unread">[] = [
-  {
-    id: "sistema-melhorias",
-    title: "Melhorias no sistema",
-    text: "Melhorias para deixar sua experiência mais rápida.",
-    time: "Hoje",
-    icon: "Sparkles",
-    badge: "Novidade",
-    tone: "primary",
-  },
-  {
-    id: "seguranca-perfil",
-    title: "Segurança do perfil",
-    text: "Atualize documentos para receber mais oportunidades.",
-    time: "Ontem",
-    icon: "ShieldCheck",
-    badge: "Segurança",
-    tone: "security",
-  },
-  {
-    id: "suporte-dular",
-    title: "Suporte Dular",
-    text: "Ajuda para serviços, agenda e pagamentos.",
-    time: "Ontem",
-    icon: "MessageCircle",
-    badge: "Informativo",
-    tone: "support",
-  },
-];
 
 function tonePalette(tone: NotificationTone, profileTheme: ReturnType<typeof useProfileTheme>) {
   if (tone === "urgent") return { accent: colors.danger, soft: colors.dangerSoft };
@@ -205,44 +173,20 @@ function NotificationCard({
 export function MontadorNotificacoes() {
   const navigation = useNavigation<Navigation>();
   const profileTheme = useProfileTheme("MONTADOR");
-  const { pendentes, loading: loadingServicos } = useMontadorServicos();
   const {
     notificacoes,
-    loading: loadingRemote,
+    loading,
     marcarComoLida,
     marcarTodasComoLidas,
   } = useNotificacoes();
   const [activeTab, setActiveTab] = useState<NotificationTab>("todas");
-  const [readIds, setReadIds] = useState<Set<string>>(new Set());
 
-  const remoteItems = useMemo(() => notificacoes.map(fromRemote), [notificacoes]);
+  // Fonte única: notificações reais do backend (GET /api/notificacoes).
+  const notifications = useMemo<MontadorNotification[]>(
+    () => notificacoes.map(fromRemote),
+    [notificacoes],
+  );
 
-  const notifications = useMemo<MontadorNotification[]>(() => {
-    const solicitacoes = pendentes.map((servico) => ({
-      id: `solicitacao-${servico.id}`,
-      title: "Nova solicitação recebida",
-      text: `Pedido de ${labelServico(servico)} em ${localResumo(servico)}. Toque para revisar.`,
-      time: "Agora",
-      icon: "BriefcaseBusiness" as AppIconName,
-      badge: "Solicitação",
-      tone: "primary" as NotificationTone,
-      unread: true,
-      servicoId: servico.id,
-    }));
-
-    const staticItems = STATIC_NOTIFICATIONS.map((item) => ({
-      ...item,
-      unread: false,
-    }));
-
-    const combined = [...remoteItems, ...solicitacoes, ...staticItems];
-    return combined.map((item) => ({
-      ...item,
-      unread: item.unread && !readIds.has(item.id),
-    }));
-  }, [pendentes, readIds, remoteItems]);
-
-  const loading = loadingRemote || loadingServicos;
   const unreadCount = notifications.filter((item) => item.unread).length;
   const filtered = useMemo(() => {
     if (activeTab === "nao_lidas") return notifications.filter((item) => item.unread);
@@ -251,12 +195,10 @@ export function MontadorNotificacoes() {
   }, [activeTab, notifications]);
 
   const markAllAsRead = () => {
-    setReadIds(new Set(notifications.map((item) => item.id)));
     void marcarTodasComoLidas();
   };
 
   const openNotification = (item: MontadorNotification) => {
-    setReadIds((current) => new Set(current).add(item.id));
     if (item.remoteId) {
       void marcarComoLida(item.remoteId);
     }

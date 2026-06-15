@@ -1,21 +1,20 @@
 import React from "react";
-import { Text, View, Pressable } from "react-native";
+import { Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { Screen } from "@/components/Screen";
-import { Ionicons } from "@expo/vector-icons";
+import { BackCircleButton } from "@/components/ui";
+import { useAuth } from "@/stores/authStore";
 import { colors } from "@/theme/tokens";
 
 export default function Termos() {
   const nav = useNavigation<any>();
+  const role = useAuth((s) => s.role ?? s.user?.role);
+  const voltarPerfil = () => nav.navigate(role === "MONTADOR" ? "MontadorPerfil" : "Perfil");
 
   return (
     <Screen
       title="Termos de uso"
-      rightAction={
-        <Pressable onPress={() => nav.goBack()} hitSlop={12}>
-          <Ionicons name="chevron-back" size={22} color={colors.ink} />
-        </Pressable>
-      }
+      rightAction={<BackCircleButton onPress={voltarPerfil} />}
     >
         <View
           style={{

@@ -24,6 +24,8 @@ import Privacidade from "@/screens/perfil/Privacidade";
 import ReportIncident from "@/screens/perfil/ReportIncident";
 import Termos from "@/screens/perfil/Termos";
 import VerificacaoDocs from "@/screens/perfil/VerificacaoDocs";
+import SosFlowScreen from "@/screens/perfil/SosFlowScreen";
+import SafeScoreScreen from "@/screens/perfil/SafeScoreScreen";
 import { useAuth } from "@/stores/authStore";
 import type { ServiceCategory, TipoProfissional } from "@/screens/empregador/service-flow/ServiceFlowContext";
 
@@ -58,6 +60,8 @@ export type EmpregadorTabParamList = {
   VerificacaoDocs: undefined;
   AlterarSenha: undefined;
   ReportIncident: undefined;
+  SosFlow: undefined;
+  SafeScore: undefined;
   Termos: undefined;
   Privacidade: undefined;
   Favoritos: undefined;
@@ -104,6 +108,8 @@ export function EmpregadorNavigator() {
       <Tab.Screen name="VerificacaoDocs" component={VerificacaoDocs} />
       <Tab.Screen name="AlterarSenha" component={AlterarSenha} />
       <Tab.Screen name="ReportIncident" component={ReportIncident} />
+      <Tab.Screen name="SosFlow" component={SosFlowScreen} />
+      <Tab.Screen name="SafeScore" component={SafeScoreScreen} />
       <Tab.Screen name="Termos" component={Termos} />
       <Tab.Screen name="Privacidade" component={Privacidade} />
       <Tab.Screen name="Favoritos" component={FavoritosEmpregadorScreen} />

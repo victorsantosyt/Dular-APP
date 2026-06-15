@@ -16,7 +16,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { api } from "@/lib/api";
 import { apiMsg } from "@/utils/apiMsg";
 import { useAuth } from "@/stores/authStore";
-import { AppIcon, type AppIconName } from "@/components/ui";
+import { AppIcon, BackCircleButton, type AppIconName } from "@/components/ui";
 import { PaperPlane3DIcon, SOSIcon } from "@/assets/icons";
 import { colors, radius, shadow, spacing, typography } from "@/theme/tokens";
 
@@ -136,6 +136,8 @@ export default function ReportIncident({ route }: any) {
   const nav = useNavigation<any>();
   const user = useAuth((s) => s.user);
   const role = useAuth((s) => s.role ?? s.user?.role);
+  // Estas telas são abas: goBack cairia na Home. Volta direto ao perfil do papel.
+  const voltarPerfil = () => nav.navigate(role === "MONTADOR" ? "MontadorPerfil" : "Perfil");
 
   const serviceId = route?.params?.serviceId ?? route?.params?.servicoId ?? "";
   const initialReportedUserId = route?.params?.reportedUserId ?? "";
@@ -238,7 +240,7 @@ export default function ReportIncident({ route }: any) {
         anonimo,
       });
       Alert.alert("Denúncia enviada", "Nossa equipe vai analisar o caso.", [
-        { text: "OK", onPress: () => nav.goBack() },
+        { text: "OK", onPress: voltarPerfil },
       ]);
     } catch (e: any) {
       setToast(apiMsg(e, "Falha ao registrar denúncia."));
@@ -250,11 +252,9 @@ export default function ReportIncident({ route }: any) {
   return (
     <SafeAreaView style={s.safe} edges={["top", "left", "right"]}>
       <View style={s.header}>
-        <Pressable onPress={() => nav.goBack()} hitSlop={10}>
-          <AppIcon name="ArrowLeft" size={26} color={colors.foreground} />
-        </Pressable>
+        <View style={{ width: 42 }} />
         <Text style={s.headerTitle}>Relatar incidente</Text>
-        <View style={{ width: 26 }} />
+        <BackCircleButton onPress={voltarPerfil} />
       </View>
 
       <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>

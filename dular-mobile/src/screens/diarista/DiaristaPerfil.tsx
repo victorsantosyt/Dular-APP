@@ -1406,9 +1406,7 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                   title="Reportar incidente"
                   subtitle="Botão SOS"
                   danger
-                  onPress={() =>
-                    (navigation as any).navigate(PERFIL_STACK_ROUTES.REPORT_INCIDENT)
-                  }
+                  onPress={() => navigation.navigate("SosFlow")}
                 />
                 <ProfileRow
                   accentColor={theme.primary}

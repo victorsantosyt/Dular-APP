@@ -9,14 +9,18 @@ import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
+import { BackCircleButton } from "@/components/ui";
 import { DInput } from "@/components/DInput";
 import { DButton } from "@/components/DButton";
+import { useAuth } from "@/stores/authStore";
 import { changePassword } from "@/api/perfilApi";
 import { apiMsg } from "@/utils/apiMsg";
 import { colors, radius, shadow, spacing, typography } from "@/theme/tokens";
 
 export default function AlterarSenha() {
   const nav = useNavigation<any>();
+  const role = useAuth((s) => s.role ?? s.user?.role);
+  const voltarPerfil = () => nav.navigate(role === "MONTADOR" ? "MontadorPerfil" : "Perfil");
   const [atual,   setAtual]   = useState("");
   const [nova,    setNova]    = useState("");
   const [confirm, setConfirm] = useState("");
@@ -33,7 +37,7 @@ export default function AlterarSenha() {
       setLoading(true);
       await changePassword({ senhaAtual: atual, novaSenha: nova });
       Alert.alert("Senha", "Senha atualizada com sucesso.");
-      nav.goBack();
+      voltarPerfil();
     } catch (e: any) {
       Alert.alert("Erro", apiMsg(e, "Falha ao atualizar senha."));
     } finally {
@@ -44,11 +48,7 @@ export default function AlterarSenha() {
   return (
     <Screen
       title="Alterar senha"
-      rightAction={
-        <Pressable onPress={() => nav.goBack()} hitSlop={12}>
-          <Ionicons name="chevron-back" size={22} color={colors.ink} />
-        </Pressable>
-      }
+      rightAction={<BackCircleButton onPress={voltarPerfil} />}
     >
       <View style={s.card}>
         <DInput

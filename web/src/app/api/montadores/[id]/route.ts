@@ -5,6 +5,7 @@ import {
   calcularCompletudeMontador,
   normalizeEspecialidades,
 } from "@/lib/montadorProfile";
+import { signKeysForDisplay } from "@/lib/s3Objects";
 
 export const dynamic = "force-dynamic";
 
@@ -74,6 +75,7 @@ export async function GET(_req: Request, { params }: Params) {
     });
     const score = montador.user.safeScoreProfile?.currentScore ?? montador.user.safeScore?.score ?? 500;
     const faixa = getFaixa(score);
+    const portfolioFotos = await signKeysForDisplay(montador.portfolioFotos);
     const publicUser = {
       id: montador.user.id,
       nome: montador.user.nome,
@@ -86,6 +88,7 @@ export async function GET(_req: Request, { params }: Params) {
       ok: true,
       montador: {
         ...montador,
+        portfolioFotos,
         user: publicUser,
         especialidades,
         profileCompleto: completude.completo,

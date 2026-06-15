@@ -136,6 +136,8 @@ export default function ReportIncident({ route }: any) {
   const nav = useNavigation<any>();
   const user = useAuth((s) => s.user);
   const role = useAuth((s) => s.role ?? s.user?.role);
+  // Estas telas são abas: goBack cairia na Home. Volta direto ao perfil do papel.
+  const voltarPerfil = () => nav.navigate(role === "MONTADOR" ? "MontadorPerfil" : "Perfil");
 
   const serviceId = route?.params?.serviceId ?? route?.params?.servicoId ?? "";
   const initialReportedUserId = route?.params?.reportedUserId ?? "";
@@ -238,7 +240,7 @@ export default function ReportIncident({ route }: any) {
         anonimo,
       });
       Alert.alert("Denúncia enviada", "Nossa equipe vai analisar o caso.", [
-        { text: "OK", onPress: () => nav.goBack() },
+        { text: "OK", onPress: voltarPerfil },
       ]);
     } catch (e: any) {
       setToast(apiMsg(e, "Falha ao registrar denúncia."));
@@ -250,11 +252,11 @@ export default function ReportIncident({ route }: any) {
   return (
     <SafeAreaView style={s.safe} edges={["top", "left", "right"]}>
       <View style={s.header}>
-        <Pressable onPress={() => nav.goBack()} hitSlop={10}>
-          <AppIcon name="ArrowLeft" size={26} color={colors.foreground} />
-        </Pressable>
-        <Text style={s.headerTitle}>Relatar incidente</Text>
         <View style={{ width: 26 }} />
+        <Text style={s.headerTitle}>Relatar incidente</Text>
+        <Pressable onPress={voltarPerfil} hitSlop={10}>
+          <AppIcon name="ChevronRight" size={26} color={colors.foreground} />
+        </Pressable>
       </View>
 
       <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>

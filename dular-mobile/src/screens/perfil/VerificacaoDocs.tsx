@@ -9,6 +9,7 @@ import { apiMsg } from "@/utils/apiMsg";
 import { api } from "@/lib/api";
 import { getMe, type VerificacaoStatus } from "@/api/perfilApi";
 import { useAuth } from "@/stores/authStore";
+import { useProfileTheme } from "@/hooks/useProfileTheme";
 import { colors } from "@/theme/tokens";
 
 type FileField = "docFrente" | "docVerso";
@@ -63,6 +64,8 @@ export default function VerificacaoDocs() {
   const nav = useNavigation<any>();
   const currentUser = useAuth((s) => s.user);
   const setUser = useAuth((s) => s.setUser);
+  // Mesma fonte de cor por gênero usada no resto do perfil (role + user.genero).
+  const theme = useProfileTheme(currentUser?.role);
   const [docFrente, setDocFrente] = useState<PickedFile | null>(null);
   const [docVerso, setDocVerso] = useState<PickedFile | null>(null);
   const [state, setState] = useState<UploadState>("idle");
@@ -125,9 +128,10 @@ export default function VerificacaoDocs() {
       setState("selecionando");
       const res = await ImagePicker.launchCameraAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [3, 4],
-        quality: 0.8,
+        // Sem allowsEditing/aspect: o crop forçado cortava o RG (documento é
+        // paisagem). Capturamos a imagem inteira; o usuário enquadra na câmera.
+        allowsEditing: false,
+        quality: 0.85,
       });
       if (res.canceled) {
         setState("idle");
@@ -158,9 +162,9 @@ export default function VerificacaoDocs() {
       setState("selecionando");
       const res = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [3, 4],
-        quality: 0.8,
+        // Sem allowsEditing/aspect: evita recorte que cortava o documento.
+        allowsEditing: false,
+        quality: 0.85,
       });
       if (res.canceled) {
         setState("idle");
@@ -333,7 +337,7 @@ export default function VerificacaoDocs() {
       <View
         style={{
           borderWidth: 1,
-          borderColor: colors.stroke,
+          borderColor: theme.border,
           borderRadius: 14,
           padding: 12,
           backgroundColor: "rgba(255,255,255,0.92)",
@@ -343,14 +347,18 @@ export default function VerificacaoDocs() {
       >
         {file ? (
           <View style={{ gap: 8 }}>
-            <Image source={{ uri: file.uri }} style={{ width: "100%", height: 160, borderRadius: 12 }} />
+            <Image
+              source={{ uri: file.uri }}
+              resizeMode="contain"
+              style={{ width: "100%", height: 200, borderRadius: 12, backgroundColor: theme.backgroundSoft }}
+            />
             <Text numberOfLines={1} style={{ color: colors.sub, fontSize: 12, fontWeight: "700" }}>{file.name}</Text>
           </View>
         ) : (
-          <View style={{ alignItems: "center", gap: 6 }}>
-            <Ionicons name="cloud-upload-outline" size={26} color={colors.teal} />
+          <View style={{ alignItems: "center", gap: 6, paddingVertical: 8 }}>
+            <Ionicons name="cloud-upload-outline" size={26} color={theme.primary} />
             <Text style={{ color: colors.ink, fontWeight: "700" }}>{label}</Text>
-            <Text style={{ color: colors.sub, fontSize: 12 }}>Tire uma foto ou anexe uma imagem JPG/PNG</Text>
+            <Text style={{ color: colors.sub, fontSize: 12, textAlign: "center" }}>Tire uma foto ou anexe uma imagem JPG/PNG do documento inteiro</Text>
           </View>
         )}
         <View style={{ flexDirection: "row", gap: 10 }}>
@@ -361,7 +369,7 @@ export default function VerificacaoDocs() {
               flex: 1,
               minHeight: 44,
               borderRadius: 12,
-              backgroundColor: colors.teal,
+              backgroundColor: theme.primary,
               alignItems: "center",
               justifyContent: "center",
               flexDirection: "row",
@@ -380,7 +388,7 @@ export default function VerificacaoDocs() {
               minHeight: 44,
               borderRadius: 12,
               borderWidth: 1,
-              borderColor: colors.stroke,
+              borderColor: theme.border,
               backgroundColor: colors.white,
               alignItems: "center",
               justifyContent: "center",
@@ -389,8 +397,8 @@ export default function VerificacaoDocs() {
               opacity: locked || saving || selecting ? 0.7 : 1,
             }}
           >
-            <Ionicons name="attach-outline" size={18} color={colors.teal} />
-            <Text numberOfLines={1} style={{ color: colors.ink, fontWeight: "800", flexShrink: 1 }}>Anexar imagem</Text>
+            <Ionicons name="attach-outline" size={18} color={theme.primary} />
+            <Text numberOfLines={1} style={{ color: theme.textAccent, fontWeight: "800", flexShrink: 1 }}>{file ? "Trocar imagem" : "Anexar imagem"}</Text>
           </Pressable>
         </View>
       </View>
@@ -413,47 +421,72 @@ export default function VerificacaoDocs() {
           </View>
         ) : null}
 
-        {locked ? (
-          <View style={{ padding: 12, borderRadius: 12, backgroundColor: colors.lightBlue }}>
-            <Text style={{ color: colors.infoTextDark, fontWeight: "700" }}>
-              {verificacao === "APROVADO" ? "Verificação aprovada." : "Documentos enviados. Análise pendente."}
+        {verificacao === "APROVADO" ? (
+          // Estado APROVADO: tela de status com escudo + selo de verificado.
+          <View style={{ alignItems: "center", gap: 14, paddingTop: 28 }}>
+            <View style={{ width: 124, height: 124, borderRadius: 62, backgroundColor: theme.backgroundSoft, alignItems: "center", justifyContent: "center" }}>
+              <Ionicons name="shield-checkmark" size={70} color={theme.primary} />
+            </View>
+            <Text style={{ fontSize: 20, fontWeight: "800", color: colors.ink, textAlign: "center" }}>Verificação aprovada</Text>
+            <Text style={{ color: colors.sub, textAlign: "center", paddingHorizontal: 16 }}>
+              Seu perfil está verificado. O selo de verificado aparece no seu perfil e você já pode usar a plataforma normalmente.
             </Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: theme.backgroundSoft, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999 }}>
+              <Ionicons name="checkmark-circle" size={18} color={theme.primary} />
+              <Text style={{ color: theme.textAccent, fontWeight: "800" }}>Perfil verificado</Text>
+            </View>
           </View>
-        ) : null}
-
-        <Text style={{ fontSize: 15, fontWeight: "700", color: colors.ink }}>Envie seus documentos</Text>
-        <Text style={{ color: colors.sub }}>
-          {currentUser?.role === "EMPREGADOR"
-            ? "RG/CNH frente e verso. Necessário para solicitar serviços e manter a plataforma segura."
-            : currentUser?.role === "MONTADOR"
-              ? "RG/CNH frente e verso. Necessário para receber serviços e manter a plataforma segura."
-              : "RG/CNH frente e verso. Usamos isso para manter a comunidade segura."}
-        </Text>
-
-        {renderPick("Documento (frente)", docFrente, "docFrente")}
-        {renderPick("Documento (verso)", docVerso, "docVerso")}
-
-        <Pressable
-          onPress={enviar}
-          disabled={locked || saving || selecting}
-          style={{
-            marginTop: 4,
-            // Ação importante (verificação): cor de alerta âmbar, não teal/azul.
-            backgroundColor: colors.warning,
-            borderRadius: 14,
-            padding: 14,
-            alignItems: "center",
-            opacity: locked || saving || selecting ? 0.7 : 1,
-          }}
-        >
-          {saving || selecting ? (
-            <ActivityIndicator color={colors.white} />
-          ) : (
-            <Text style={{ color: colors.white, fontWeight: "700" }}>
-              {state === "sucesso" ? "Documentos enviados" : "Enviar documentos"}
+        ) : locked ? (
+          // Estado AGUARDANDO: documentos enviados, em análise.
+          <View style={{ alignItems: "center", gap: 14, paddingTop: 28 }}>
+            <View style={{ width: 124, height: 124, borderRadius: 62, backgroundColor: theme.backgroundSoft, alignItems: "center", justifyContent: "center" }}>
+              <Ionicons name="time-outline" size={66} color={theme.primary} />
+            </View>
+            <Text style={{ fontSize: 20, fontWeight: "800", color: colors.ink, textAlign: "center" }}>Documentação enviada</Text>
+            <Text style={{ color: colors.sub, textAlign: "center", paddingHorizontal: 16 }}>
+              Recebemos seus documentos e eles estão em análise. Avisaremos assim que a verificação for concluída.
             </Text>
-          )}
-        </Pressable>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: theme.backgroundSoft, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999 }}>
+              <Ionicons name="hourglass-outline" size={16} color={theme.primary} />
+              <Text style={{ color: theme.textAccent, fontWeight: "800" }}>Aguardando aprovação</Text>
+            </View>
+          </View>
+        ) : (
+          // Estado INICIAL: envio dos documentos.
+          <>
+            <Text style={{ fontSize: 15, fontWeight: "700", color: colors.ink }}>Envie seus documentos</Text>
+            <Text style={{ color: colors.sub }}>
+              {currentUser?.role === "EMPREGADOR"
+                ? "RG/CNH frente e verso. Necessário para solicitar serviços e manter a plataforma segura."
+                : currentUser?.role === "MONTADOR"
+                  ? "RG/CNH frente e verso. Necessário para receber serviços e manter a plataforma segura."
+                  : "RG/CNH frente e verso. Usamos isso para manter a comunidade segura."}
+            </Text>
+
+            {renderPick("Documento (frente)", docFrente, "docFrente")}
+            {renderPick("Documento (verso)", docVerso, "docVerso")}
+
+            <Pressable
+              onPress={enviar}
+              disabled={saving || selecting}
+              style={{
+                marginTop: 4,
+                // Segue a cor do perfil (gênero/role), como o resto das telas.
+                backgroundColor: theme.primary,
+                borderRadius: 14,
+                padding: 14,
+                alignItems: "center",
+                opacity: saving || selecting ? 0.7 : 1,
+              }}
+            >
+              {saving || selecting ? (
+                <ActivityIndicator color={colors.white} />
+              ) : (
+                <Text style={{ color: colors.white, fontWeight: "700" }}>Enviar documentos</Text>
+              )}
+            </Pressable>
+          </>
+        )}
     </Screen>
   );
 }

@@ -12,6 +12,7 @@ import { useNavigation } from "@react-navigation/native";
 import { Screen } from "@/components/Screen";
 import { BackCircleButton } from "@/components/ui";
 import { useAuth } from "@/stores/authStore";
+import { useProfileTheme } from "@/hooks/useProfileTheme";
 import { colors } from "@/theme/tokens";
 
 const ATUALIZADO_EM = "16 de junho de 2026";
@@ -82,10 +83,15 @@ const SECOES: { titulo: string; paragrafos: string[] }[] = [
 export default function Privacidade() {
   const nav = useNavigation<any>();
   const role = useAuth((s) => s.role ?? s.user?.role);
+  const theme = useProfileTheme(role);
   const voltarPerfil = () => nav.navigate(role === "MONTADOR" ? "MontadorPerfil" : "Perfil");
 
   return (
-    <Screen title="Privacidade" rightAction={<BackCircleButton onPress={voltarPerfil} />} contentStyle={{ gap: 12 }}>
+    <Screen
+      title="Privacidade"
+      rightAction={<BackCircleButton onPress={voltarPerfil} color={theme.icon} borderColor={theme.border} />}
+      contentStyle={{ gap: 12 }}
+    >
       <View style={card}>
         <Text style={{ color: colors.ink, fontSize: 14, fontWeight: "700" }}>Política de Privacidade</Text>
         <Text style={{ color: colors.sub, fontSize: 12, marginTop: 4 }}>

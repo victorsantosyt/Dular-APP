@@ -64,11 +64,6 @@ export async function updateMe(payload: {
   return res.data?.user ?? res.data;
 }
 
-export async function changePassword(payload: { senhaAtual: string; novaSenha: string }) {
-  const res = await api.put("/api/me", payload);
-  return res.data;
-}
-
 /**
  * FASE 3 — grava o gênero da conta (backend é a fonte de verdade).
  * O backend faz backfill atômico: só grava quando ainda não há gênero (set once).

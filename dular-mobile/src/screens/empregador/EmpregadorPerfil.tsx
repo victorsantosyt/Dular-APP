@@ -405,7 +405,7 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
   };
 
   const openWhatsApp = async () => {
-    const url = `https://wa.me/5565996203033?text=${encodeURIComponent("Olá! Preciso de suporte no app Dular.")}`;
+    const url = `https://wa.me/5566996293033?text=${encodeURIComponent("Olá! Preciso de suporte no app Dular.")}`;
     const canOpen = await Linking.canOpenURL(url);
     if (!canOpen) {
       Alert.alert("WhatsApp", "Não foi possível abrir o WhatsApp.");
@@ -712,12 +712,6 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
               </ProfileSection>
 
               <ProfileSection title="Segurança">
-                <ProfileRow
-                  icon="Lock"
-                  title="Alterar senha"
-                  subtitle="Segurança da conta"
-                  onPress={() => navigation.navigate("AlterarSenha")}
-                />
                 <ProfileRow
                   icon="ShieldCheck"
                   title="SafeScore"

@@ -6,9 +6,10 @@
  */
 
 import { useEffect, useState } from "react";
-import { Alert, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import * as Clipboard from "expo-clipboard";
 
 import { api } from "@/lib/api";
 import { fetchServicosMinhas, fetchUserScore } from "@/api/sharedFetcher";
@@ -231,7 +232,17 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
 
         {/* ── Título + status ── */}
         <View style={s.titleRow}>
-          <Text style={s.title}>Serviço #{svc.id.slice(0, 6).toUpperCase()}</Text>
+          <Pressable
+            onPress={async () => {
+              await Clipboard.setStringAsync(`#${svc.id.slice(0, 6).toUpperCase()}`);
+              Alert.alert("Copiado", "Número do serviço copiado.");
+            }}
+            hitSlop={8}
+            style={{ flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 1 }}
+          >
+            <Text style={s.title}>Serviço #{svc.id.slice(0, 6).toUpperCase()}</Text>
+            <Ionicons name="copy-outline" size={16} color={colors.sub} />
+          </Pressable>
           <DularBadge text={statusLabel(svc.status)} variant={statusVariant(svc.status)} />
         </View>
 

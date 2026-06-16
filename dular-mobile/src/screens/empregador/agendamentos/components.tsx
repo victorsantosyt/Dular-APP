@@ -25,6 +25,8 @@ export type AgendamentoItem = {
   valor: string;
   observacao?: string | null;
   avatarUrl?: string;
+  /** Há uma proposta de reagendamento do profissional aguardando decisão. */
+  reagendamentoPendente?: boolean;
 };
 
 export const CATEGORIAS: Array<{ label: string; value: CategoriaFiltro; icon: AppIconName }> = [
@@ -187,6 +189,15 @@ export function AppointmentCard({ item, onDetails }: { item: AgendamentoItem; on
             <AppIcon name={item.categoriaIcon} size={12} color={colors.primary} strokeWidth={2.2} />
             <Text allowFontScaling={false} style={s.categoryPillText} numberOfLines={1}>{item.categoria}</Text>
           </View>
+
+          {item.reagendamentoPendente ? (
+            <View style={[s.categoryPill, { backgroundColor: colors.warningSoft }]}>
+              <AppIcon name="Clock" size={12} color={colors.warning} strokeWidth={2.2} />
+              <Text allowFontScaling={false} style={[s.categoryPillText, { color: colors.warning }]} numberOfLines={1}>
+                Reagendamento pendente
+              </Text>
+            </View>
+          ) : null}
 
           <View style={s.metaStack}>
             <View style={s.inlineRow}>

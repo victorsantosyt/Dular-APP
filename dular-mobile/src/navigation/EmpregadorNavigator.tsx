@@ -19,7 +19,6 @@ import ProfissionaisDestaqueScreen from "@/screens/empregador/ProfissionaisDesta
 import { ChatAbertoScreen } from "@/screens/shared/ChatAbertoScreen";
 import type { ChatAbertoParams } from "@/screens/shared/ChatAbertoScreen";
 import PaywallScreen from "@/screens/PaywallScreen";
-import AlterarSenha from "@/screens/perfil/AlterarSenha";
 import Privacidade from "@/screens/perfil/Privacidade";
 import ReportIncident from "@/screens/perfil/ReportIncident";
 import Termos from "@/screens/perfil/Termos";
@@ -58,7 +57,6 @@ export type EmpregadorTabParamList = {
   EmpregadorDetalhe: { servicoId: string };
   Paywall: { mensagem?: string };
   VerificacaoDocs: undefined;
-  AlterarSenha: undefined;
   ReportIncident: undefined;
   SosFlow: undefined;
   SafeScore: undefined;
@@ -106,7 +104,6 @@ export function EmpregadorNavigator() {
       <Tab.Screen name="EmpregadorDetalhe" component={DetalheServicoScreen} />
       <Tab.Screen name="Paywall" component={PaywallScreen} />
       <Tab.Screen name="VerificacaoDocs" component={VerificacaoDocs} />
-      <Tab.Screen name="AlterarSenha" component={AlterarSenha} />
       <Tab.Screen name="ReportIncident" component={ReportIncident} />
       <Tab.Screen name="SosFlow" component={SosFlowScreen} />
       <Tab.Screen name="SafeScore" component={SafeScoreScreen} />

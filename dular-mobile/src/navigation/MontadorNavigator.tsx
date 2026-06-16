@@ -18,7 +18,6 @@ import ReportIncident from "@/screens/perfil/ReportIncident";
 import Suporte from "@/screens/perfil/Suporte";
 import Termos from "@/screens/perfil/Termos";
 import Privacidade from "@/screens/perfil/Privacidade";
-import AlterarSenha from "@/screens/perfil/AlterarSenha";
 import { useMontadorServicos } from "@/hooks/useMontadorServicos";
 
 export type MontadorTabParamList = {
@@ -39,7 +38,6 @@ export type MontadorTabParamList = {
   Suporte: undefined;
   Termos: undefined;
   Privacidade: undefined;
-  AlterarSenha: undefined;
 };
 
 const Tab = createBottomTabNavigator<MontadorTabParamList>();
@@ -82,7 +80,6 @@ export function MontadorNavigator() {
       <Tab.Screen name="Suporte" component={Suporte} />
       <Tab.Screen name="Termos" component={Termos} />
       <Tab.Screen name="Privacidade" component={Privacidade} />
-      <Tab.Screen name="AlterarSenha" component={AlterarSenha} />
     </Tab.Navigator>
   );
 }

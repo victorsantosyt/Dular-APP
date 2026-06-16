@@ -4,6 +4,7 @@ import { DBottomTabBar } from "@/navigation/DBottomTabBar";
 import { DiaristaHomeScreen } from "@/screens/diarista/DiaristaHomeScreen";
 import { AgendamentosDiaristaScreen } from "@/screens/diarista/AgendamentosDiaristaScreen";
 import { MensagensDiaristaScreen } from "@/screens/diarista/MensagensDiaristaScreen";
+import DiaristaNotificacoes from "@/screens/diarista/DiaristaNotificacoes";
 import DiaristaPerfil from "@/screens/diarista/DiaristaPerfil";
 import DiaristaDetalhe from "@/screens/diarista/DiaristaDetalhe";
 import { ChatAbertoScreen } from "@/screens/shared/ChatAbertoScreen";
@@ -23,6 +24,7 @@ export type DiaristaTabParamList = {
   Agendamentos: undefined;
   Novo: undefined;
   Mensagens: undefined;
+  Notificacoes: undefined;
   ChatAberto: ChatAbertoParams;
   Perfil: undefined;
   ProfissionalPerfil: { id: string };
@@ -67,6 +69,7 @@ export function DiaristaNavigator() {
       <Tab.Screen name="Agendamentos" component={AgendamentosDiaristaScreen} />
       <Tab.Screen name="Novo" component={AgendamentosDiaristaScreen} />
       <Tab.Screen name="Mensagens" component={MensagensDiaristaScreen} />
+      <Tab.Screen name="Notificacoes" component={DiaristaNotificacoes} />
       <Tab.Screen name="ChatAberto" component={ChatAbertoScreen} />
       <Tab.Screen name="Perfil" component={PerfilScreen} />
       <Tab.Screen name="ProfissionalPerfil" component={ProfissionalPerfilScreen} />

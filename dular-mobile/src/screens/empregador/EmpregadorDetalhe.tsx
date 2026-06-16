@@ -18,6 +18,7 @@ import {
   aprovarServicoConcluido,
   cancelarServicoEmpregador,
   confirmarFinalizacaoEmpregador,
+  decidirReagendamento,
 } from "@/api/empregadorApi";
 import { DButton } from "@/components/DButton";
 import { DularBadge } from "@/components/DularBadge";
@@ -29,6 +30,15 @@ import { colors, radius, shadow, spacing, typography } from "@/theme/tokens";
 
 const formatDate = (v: string | number | Date) => new Date(v).toLocaleDateString("pt-BR");
 const statusUp = (s: any) => String(s ?? "").toUpperCase();
+
+function fmtReagendamento(svc: Servico) {
+  const d = svc.reagendamentoData ? new Date(svc.reagendamentoData) : null;
+  const dataLabel =
+    d && !Number.isNaN(d.getTime()) ? d.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }) : "—";
+  const t = statusUp(svc.reagendamentoTurno);
+  const turnoLabel = t === "MANHA" ? "Manhã" : t === "TARDE" ? "Tarde" : "";
+  return `${dataLabel}${turnoLabel ? " · " + turnoLabel : ""}`;
+}
 const FINAL = ["CONFIRMADO", "FINALIZADO", "FINALIZADO_CLIENTE", "PAGO", "AVALIADO"];
 const POLL_MS = 5000;
 
@@ -71,6 +81,7 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
   const [avaliacaoVisible, setAvaliacaoVisible] = useState(false);
   const [motivoVisible, setMotivoVisible] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [decidindoReag, setDecidindoReag] = useState(false);
   const busyRef = useRef(false);
 
   const fetchAtual = useCallback(async (silent = true) => {
@@ -159,6 +170,35 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
   const chatLiberado = useMemo(
     () => ["ACEITO", "INICIADO", "EM_ANDAMENTO"].includes(statusRaw),
     [statusRaw]
+  );
+
+  const onDecidirReagendamento = useCallback(
+    async (aceitar: boolean) => {
+      if (decidindoReag || !svc) return;
+      setDecidindoReag(true);
+      try {
+        await decidirReagendamento(svc.id, aceitar);
+        setSvc((cur) => {
+          if (!cur) return cur;
+          const limpo = {
+            reagendamentoData: null,
+            reagendamentoTurno: null,
+            reagendamentoPor: null,
+            reagendamentoEm: null,
+          };
+          return aceitar
+            ? { ...cur, data: cur.reagendamentoData ?? cur.data, turno: (cur.reagendamentoTurno ?? cur.turno) as any, ...limpo }
+            : { ...cur, ...limpo };
+        });
+        setToast(aceitar ? "Reagendamento confirmado." : "Reagendamento recusado.");
+        void fetchAtual(true);
+      } catch (e: any) {
+        setToast(e?.response?.data?.error ?? "Falha ao responder o reagendamento.");
+      } finally {
+        setDecidindoReag(false);
+      }
+    },
+    [decidindoReag, svc, fetchAtual],
   );
 
   const onConfirmar = useCallback(async () => {
@@ -325,6 +365,34 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
             <Text style={[s.infoBarText, { color: colors.danger }]}>
               {statusRaw === "CANCELADO" ? "Serviço cancelado." : "Serviço recusado."}
             </Text>
+          </View>
+        ) : null}
+
+        {/* Proposta de reagendamento (pendente) */}
+        {svc.reagendamentoData && !isStatusEncerrado(statusRaw) ? (
+          <View style={s.card}>
+            <View style={s.infoRow}>
+              <Ionicons name="calendar-outline" size={16} color={colors.warning} />
+              <Text style={[s.infoText, { fontWeight: "700", color: colors.ink }]}>Proposta de reagendamento</Text>
+            </View>
+            <Text style={[s.infoText, { marginTop: 4 }]}>
+              O profissional propôs uma nova data: {fmtReagendamento(svc)}
+            </Text>
+            <View style={{ flexDirection: "row", gap: 10, marginTop: 12 }}>
+              <View style={{ flex: 1 }}>
+                <DButton
+                  title={decidindoReag ? "..." : "Recusar"}
+                  variant="outline"
+                  onPress={() => onDecidirReagendamento(false)}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <DButton
+                  title={decidindoReag ? "..." : "Confirmar"}
+                  onPress={() => onDecidirReagendamento(true)}
+                />
+              </View>
+            </View>
           </View>
         ) : null}
 

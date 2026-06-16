@@ -6,10 +6,9 @@ import * as ImagePicker from "expo-image-picker";
 
 import { Screen } from "@/components/Screen";
 import { BackCircleButton } from "@/components/ui";
-import { acionarSos } from "@/api/segurancaApi";
+import { acionarSos, protocoloFromId } from "@/api/segurancaApi";
 import { useAuth } from "@/stores/authStore";
 import { useProfileTheme } from "@/hooks/useProfileTheme";
-import { useSosStore } from "@/stores/sosStore";
 import { colors } from "@/theme/tokens";
 
 /**
@@ -58,7 +57,6 @@ export default function SosFlowScreen() {
   const currentUser = useAuth((s) => s.user);
   const theme = useProfileTheme(currentUser?.role);
 
-  const setLastSos = useSosStore((s) => s.setLastSos);
   const voltarPerfil = () => nav.navigate(currentUser?.role === "MONTADOR" ? "MontadorPerfil" : "Perfil");
   const [step, setStep] = useState<Step>("tipo");
   const [tipoId, setTipoId] = useState<string | null>(null);
@@ -121,17 +119,9 @@ export default function SosFlowScreen() {
       .join(" — ")
       .slice(0, 500);
     try {
-      await acionarSos({ mensagem });
-      const novoProtocolo = gerarProtocolo();
-      setProtocolo(novoProtocolo);
+      const res = await acionarSos({ mensagem, tipo: tipo?.label, prioridade: prioridadeInfo.label });
+      setProtocolo(res?.id ? protocoloFromId(res.id) : gerarProtocolo());
       enviadoEm.current = agora;
-      setLastSos({
-        protocolo: novoProtocolo,
-        tipoLabel: tipo?.label ?? "Incidente",
-        prioridade: prioridadeInfo.label,
-        status: "EM_ANALISE",
-        criadoEm: agora.toISOString(),
-      });
       setStep("sucesso");
     } catch {
       Alert.alert(

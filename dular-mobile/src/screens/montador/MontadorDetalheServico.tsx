@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import * as Clipboard from "expo-clipboard";
 import type { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
 import { useFocusEffect } from "@react-navigation/native";
 import { AppIcon, DEmptyState, DErrorState, DLoadingState, DScreen } from "@/components/ui";
@@ -65,6 +66,11 @@ export default function MontadorDetalheServico({ route, navigation }: Props) {
   const fazerCheckIn = async () => {
     if (!servico || checkInLoading || checkInRealizado) return;
     await registrarCheckIn(servico.id);
+  };
+  const copiarNumeroServico = async () => {
+    if (!servico) return;
+    await Clipboard.setStringAsync(`#${servico.id.slice(0, 6).toUpperCase()}`);
+    Alert.alert("Copiado", "Número do serviço copiado.");
   };
   const iniciarServico = async () => {
     if (!servico) return;
@@ -153,6 +159,10 @@ export default function MontadorDetalheServico({ route, navigation }: Props) {
             <View style={styles.heroText}>
               <Text style={styles.serviceTitle}>{labelServico(servico)}</Text>
               <Text style={styles.serviceSub}>{statusLabel(servico.status)}</Text>
+              <Pressable onPress={copiarNumeroServico} hitSlop={8} style={styles.numeroRow}>
+                <Text style={styles.numeroText}>Serviço #{servico.id.slice(0, 6).toUpperCase()}</Text>
+                <AppIcon name="Copy" size={13} color={colors.textMuted} />
+              </Pressable>
             </View>
           </View>
 
@@ -346,6 +356,17 @@ const styles = StyleSheet.create({
     ...typography.bodySm,
     color: colors.textSecondary,
     marginTop: 2,
+  },
+  numeroRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 6,
+  },
+  numeroText: {
+    ...typography.caption,
+    color: colors.textMuted,
+    fontWeight: "700",
   },
   card: {
     borderRadius: radius.xl,

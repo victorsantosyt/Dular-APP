@@ -23,7 +23,7 @@ import { colors, radius, shadow } from "@/theme/tokens";
 const SUPORTE_WHATSAPP = "5566996293033";
 
 const INSTRUCOES = [
-  "Tenha em mãos o número do serviço (aparece no detalhe) para agilizar o atendimento.",
+  "Toque no número do serviço (no topo do detalhe) para copiá-lo e cole na conversa com o suporte — agiliza muito o atendimento.",
   "Descreva o que aconteceu e, se possível, anexe um print ou foto.",
   "Em situação de risco ou emergência, use o botão SOS na tela de segurança.",
   "Para registrar uma denúncia formal, use 'Reportar incidente' no seu perfil.",
@@ -47,8 +47,8 @@ const FAQ = [
     a: "Envie frente e verso de um documento (RG/CNH) em 'Documentos'. Após a aprovação, seu perfil fica verificado e visível na busca.",
   },
   {
-    q: "O que é o SafeScore?",
-    a: "É a sua reputação e nível de confiança na plataforma, calculado a partir dos serviços, da verificação e do histórico de segurança.",
+    q: "O que é o SafeScore e por que ele importa?",
+    a: "O SafeScore é o índice de confiança e segurança da sua conta no Dular — é a principal camada de proteção para empregadores e profissionais. Ele combina a verificação de documentos, o histórico de serviços, as avaliações e os registros de segurança (SOS, check-in e denúncias) para indicar o quanto cada pessoa é confiável. Um SafeScore mais alto aumenta sua visibilidade na busca e a confiança da outra parte; já condutas graves ou denúncias confirmadas podem reduzi-lo e até restringir o uso do app. Por isso, manter seu perfil verificado e um bom histórico é o que mantém todas as interações mais seguras.",
   },
   {
     q: "Como avalio após o serviço?",

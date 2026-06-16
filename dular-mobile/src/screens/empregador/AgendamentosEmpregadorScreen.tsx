@@ -37,6 +37,7 @@ type ServicoEmpregador = {
   categoria?: string | null;
   data?: string | null;
   turno?: string | null;
+  reagendamentoData?: string | null;
   cidade?: string | null;
   uf?: string | null;
   bairro?: string | null;
@@ -127,6 +128,7 @@ function mapServicoToAgendamento(servico: ServicoEmpregador): AgendamentoItem {
     valor: formatMoney(servico.precoFinal),
     observacao: servico.observacoes,
     avatarUrl: profissional?.avatarUrl ?? undefined,
+    reagendamentoPendente: !!servico.reagendamentoData,
   };
 }
 

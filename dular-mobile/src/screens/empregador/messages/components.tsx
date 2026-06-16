@@ -24,24 +24,32 @@ export type ConversationItem = {
 type MessagesTabsProps = {
   activeTab: MessagesTab;
   onChange: (tab: MessagesTab) => void;
+  /** Cor de destaque (identidade de gênero). Default: empregador (roxo). */
+  accent?: string;
+  border?: string;
 };
 
-export function MessagesTabs({ activeTab, onChange }: MessagesTabsProps) {
+export function MessagesTabs({
+  activeTab,
+  onChange,
+  accent = colors.primary,
+  border = colors.lavenderDivider,
+}: MessagesTabsProps) {
   return (
-    <View style={s.tabsWrap}>
-      <TabPill label="Conversas" active={activeTab === "conversas"} onPress={() => onChange("conversas")} />
-      <TabPill label="Arquivadas" active={activeTab === "arquivadas"} onPress={() => onChange("arquivadas")} />
+    <View style={[s.tabsWrap, { borderColor: border }]}>
+      <TabPill label="Conversas" active={activeTab === "conversas"} accent={accent} onPress={() => onChange("conversas")} />
+      <TabPill label="Arquivadas" active={activeTab === "arquivadas"} accent={accent} onPress={() => onChange("arquivadas")} />
     </View>
   );
 }
 
-function TabPill({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+function TabPill({ label, active, accent, onPress }: { label: string; active: boolean; accent: string; onPress: () => void }) {
   const icon = label === "Conversas" ? "MessageCircle" : "Archive";
 
   return (
-    <Pressable onPress={onPress} style={[s.tabPill, active && s.tabPillActive]}>
-      <AppIcon name={icon} size={17} color={active ? colors.primary : colors.textMuted} strokeWidth={2.1} />
-      <Text style={[s.tabText, active && s.tabTextActive]}>{label}</Text>
+    <Pressable onPress={onPress} style={[s.tabPill, active && s.tabPillActive, active && { borderColor: accent }]}>
+      <AppIcon name={icon} size={17} color={active ? accent : colors.textMuted} strokeWidth={2.1} />
+      <Text style={[s.tabText, active && { color: accent, fontWeight: "600" }]}>{label}</Text>
     </Pressable>
   );
 }
@@ -59,9 +67,12 @@ export function OnlineDot() {
 type ConversationCardProps = {
   item: ConversationItem;
   onPress: () => void;
+  /** Cor de destaque (identidade de gênero). Default: empregador (roxo). */
+  accent?: string;
+  soft?: string;
 };
 
-export function ConversationCard({ item, onPress }: ConversationCardProps) {
+export function ConversationCard({ item, onPress, accent = colors.primary, soft = colors.lavenderSoft }: ConversationCardProps) {
   return (
     <DCard style={s.conversationCard}>
       <View style={s.avatarWrap}>
@@ -77,9 +88,9 @@ export function ConversationCard({ item, onPress }: ConversationCardProps) {
           <VerifiedBadge />
         </View>
 
-        <View style={s.categoryPill}>
-          <AppIcon name={item.categoriaIcon} size={11} color={colors.primary} strokeWidth={2.1} />
-          <Text style={s.categoryText}>{item.categoria}</Text>
+        <View style={[s.categoryPill, { backgroundColor: soft }]}>
+          <AppIcon name={item.categoriaIcon} size={11} color={accent} strokeWidth={2.1} />
+          <Text style={[s.categoryText, { color: accent }]}>{item.categoria}</Text>
         </View>
 
         <Text style={s.location} numberOfLines={1}>
@@ -109,11 +120,15 @@ export function ConversationCard({ item, onPress }: ConversationCardProps) {
   );
 }
 
-export function EmptyArchiveState() {
+export function EmptyArchiveState({
+  accent = colors.primary,
+  soft = colors.lavenderSoft,
+  border = colors.lavenderDivider,
+}: { accent?: string; soft?: string; border?: string } = {}) {
   return (
     <View style={s.emptyWrap}>
-      <View style={s.emptyIcon}>
-        <AppIcon name="MessageCircle" size={34} color={colors.primary} strokeWidth={1.7} />
+      <View style={[s.emptyIcon, { backgroundColor: soft, borderColor: border }]}>
+        <AppIcon name="MessageCircle" size={34} color={accent} strokeWidth={1.7} />
       </View>
       <Text style={s.emptyTitle}>Nenhuma conversa arquivada</Text>
       <Text style={s.emptySubtitle}>As conversas arquivadas aparecerão aqui.</Text>

@@ -13,6 +13,7 @@ import { getMyRestrictions, type UserRestriction } from "@/api/safeScoreApi";
 import { acionarSosDiarista } from "@/api/diaristaApi";
 import { useAgendamentosDiarista, type AgendamentoDiarista, type StatusDiarista } from "@/hooks/useAgendamentosDiarista";
 import { useMensagens } from "@/hooks/useMensagens";
+import { useNotificacoes } from "@/hooks/useNotificacoes";
 
 type Navigation = BottomTabNavigationProp<DiaristaTabParamList>;
 type BadgeType = "default" | "success" | "warning" | "error" | "info" | "accent";
@@ -139,6 +140,7 @@ export function DiaristaHomeScreen() {
   const profileTheme = useGenderTheme("DIARISTA");
   const { agendamentos, loading: agendamentosLoading, error: agendamentosError, refetch } = useAgendamentosDiarista();
   const { rooms } = useMensagens();
+  const { unreadCount } = useNotificacoes();
 
   const [restrictions, setRestrictions] = useState<UserRestriction[]>([]);
   const [sosLoading, setSosLoading] = useState(false);
@@ -213,10 +215,10 @@ export function DiaristaHomeScreen() {
       <TopBar
         firstName={firstName}
         avatarUrl={user?.avatarUrl ?? undefined}
-        unreadMessages={unreadMessages}
+        unreadMessages={unreadCount}
         theme={profileTheme}
         onProfilePress={() => navigation.navigate("Perfil")}
-        onBellPress={() => navigation.navigate("Mensagens")}
+        onBellPress={() => navigation.navigate("Notificacoes")}
       />
 
       {restrictions.length > 0 && (() => {

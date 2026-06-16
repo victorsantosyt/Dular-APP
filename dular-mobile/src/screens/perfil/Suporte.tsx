@@ -3,6 +3,10 @@
  *
  * Por ora o atendimento é só por WhatsApp (volume baixo). Conforme escalar,
  * uma estrutura de suporte mais elaborada será montada.
+ *
+ * Hierarquia tipográfica: título do bloco em fonte forte (ink), corpo/respostas
+ * em fonte leve (sub), e cada pergunta do FAQ em um bloco separado — mesmo
+ * padrão dos Termos. Botões seguem a identidade de gênero do perfil.
  */
 
 import React from "react";
@@ -13,7 +17,8 @@ import { Screen } from "@/components/Screen";
 import { BackCircleButton } from "@/components/ui";
 import { DButton } from "@/components/DButton";
 import { useAuth } from "@/stores/authStore";
-import { colors, radius, shadow, typography } from "@/theme/tokens";
+import { useProfileTheme } from "@/hooks/useProfileTheme";
+import { colors, radius, shadow } from "@/theme/tokens";
 
 const SUPORTE_WHATSAPP = "5566996293033";
 
@@ -54,6 +59,7 @@ const FAQ = [
 export default function Suporte() {
   const nav = useNavigation<any>();
   const role = useAuth((s) => s.role ?? s.user?.role);
+  const theme = useProfileTheme(role);
   const voltarPerfil = () => nav.navigate(role === "MONTADOR" ? "MontadorPerfil" : "Perfil");
 
   const abrirWhats = async () => {
@@ -64,38 +70,46 @@ export default function Suporte() {
   };
 
   return (
-    <Screen title="Suporte" rightAction={<BackCircleButton onPress={voltarPerfil} />}>
+    <Screen
+      title="Suporte"
+      rightAction={<BackCircleButton onPress={voltarPerfil} color={theme.icon} borderColor={theme.border} />}
+      contentStyle={{ gap: 12 }}
+    >
       {/* Canal de atendimento */}
       <View style={s.card}>
-        <Text style={s.sectionTitle}>Fale com a gente</Text>
-        <Text style={s.sub}>
+        <Text style={s.cardTitle}>Fale com a gente</Text>
+        <Text style={s.body}>
           Nosso atendimento é pelo WhatsApp, de segunda a sexta, das 8h às 18h. Respondemos o mais
           rápido possível.
         </Text>
-        <DButton title="Abrir WhatsApp" onPress={abrirWhats} style={s.whatsBtn} />
+        <DButton
+          title="Abrir WhatsApp"
+          onPress={abrirWhats}
+          style={{ backgroundColor: theme.primary, borderColor: theme.primary, marginTop: 12 }}
+        />
       </View>
 
       {/* Como pedir ajuda */}
       <View style={s.card}>
-        <Text style={s.sectionTitle}>Como pedir ajuda</Text>
-        {INSTRUCOES.map((t) => (
-          <View key={t} style={s.bulletRow}>
-            <Ionicons name="checkmark-circle" size={16} color={colors.green} style={{ marginTop: 1 }} />
-            <Text style={s.bulletText}>{t}</Text>
-          </View>
-        ))}
+        <Text style={s.cardTitle}>Como pedir ajuda</Text>
+        <View style={s.bulletList}>
+          {INSTRUCOES.map((t) => (
+            <View key={t} style={s.bulletRow}>
+              <Ionicons name="checkmark-circle" size={16} color={theme.primary} style={{ marginTop: 1 }} />
+              <Text style={s.bulletText}>{t}</Text>
+            </View>
+          ))}
+        </View>
       </View>
 
-      {/* FAQ */}
-      <View style={s.card}>
-        <Text style={s.sectionTitle}>Perguntas frequentes</Text>
-        {FAQ.map((item) => (
-          <View key={item.q} style={s.faqItem}>
-            <Text style={s.faqQ}>{item.q}</Text>
-            <Text style={s.faqA}>{item.a}</Text>
-          </View>
-        ))}
-      </View>
+      {/* Perguntas frequentes — cada pergunta em um bloco separado */}
+      <Text style={s.groupLabel}>Perguntas frequentes</Text>
+      {FAQ.map((item) => (
+        <View key={item.q} style={s.card}>
+          <Text style={s.faqQ}>{item.q}</Text>
+          <Text style={s.faqA}>{item.a}</Text>
+        </View>
+      ))}
     </Screen>
   );
 }
@@ -107,20 +121,58 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.stroke,
     padding: 16,
-    gap: 12,
     ...shadow.card,
   },
-  sectionTitle: { ...typography.h3 },
-  sub: { ...typography.sub },
-  whatsBtn: {},
-  bulletRow: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
-  bulletText: { flex: 1, ...typography.sub, color: colors.ink },
-  faqItem: {
-    gap: 4,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.stroke,
+  // Título do bloco — fonte forte
+  cardTitle: {
+    color: colors.ink,
+    fontSize: 16,
+    fontWeight: "800",
+    letterSpacing: -0.2,
   },
-  faqQ: { fontSize: 13, fontWeight: "700", color: colors.ink },
-  faqA: { ...typography.sub, lineHeight: 18 },
+  // Corpo — fonte leve
+  body: {
+    color: colors.sub,
+    fontSize: 13,
+    lineHeight: 19,
+    marginTop: 6,
+  },
+  bulletList: {
+    gap: 10,
+    marginTop: 10,
+  },
+  bulletRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+  },
+  bulletText: {
+    flex: 1,
+    color: colors.sub,
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  // Rótulo do grupo (eyebrow) — separa visualmente a seção
+  groupLabel: {
+    color: colors.sub,
+    fontSize: 12,
+    fontWeight: "800",
+    letterSpacing: 0.6,
+    textTransform: "uppercase",
+    marginTop: 6,
+    marginBottom: -2,
+    paddingHorizontal: 2,
+  },
+  // Pergunta — fonte forte; Resposta — fonte leve
+  faqQ: {
+    color: colors.ink,
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  faqA: {
+    color: colors.sub,
+    fontSize: 13,
+    lineHeight: 19,
+    marginTop: 6,
+  },
 });

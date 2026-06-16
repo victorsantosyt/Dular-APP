@@ -1036,7 +1036,6 @@ export default function MontadorPerfil() {
       </Section>
 
       <Section title="Conta, suporte e termos" borderColor={profileTheme.border}>
-        <Row icon="Lock" title="Alterar senha" subtitle="Segurança da conta" theme={profileTheme} onPress={() => navigation.navigate("AlterarSenha")} />
         <Row icon="Shield" title="Privacidade" subtitle="Controle seus dados" theme={profileTheme} onPress={() => navigation.navigate("Privacidade")} />
         <Row icon="HelpCircle" title="Suporte" subtitle="Fale com o Dular" theme={profileTheme} onPress={() => navigation.navigate("Suporte")} />
         <Row icon="FileText" title="Termos" subtitle="Termos e políticas da plataforma" theme={profileTheme} onPress={() => navigation.navigate("Termos")} />

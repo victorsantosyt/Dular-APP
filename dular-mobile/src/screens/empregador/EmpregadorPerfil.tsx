@@ -713,12 +713,6 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
 
               <ProfileSection title="Segurança">
                 <ProfileRow
-                  icon="Lock"
-                  title="Alterar senha"
-                  subtitle="Segurança da conta"
-                  onPress={() => navigation.navigate("AlterarSenha")}
-                />
-                <ProfileRow
                   icon="ShieldCheck"
                   title="SafeScore"
                   subtitle="Reputação e acompanhamento de segurança"

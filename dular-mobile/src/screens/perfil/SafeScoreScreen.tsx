@@ -1,14 +1,14 @@
-import React, { useEffect, useState } from "react";
-import { ActivityIndicator, Pressable, Text, View } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import React, { useCallback, useEffect, useState } from "react";
+import { ActivityIndicator, Text, View } from "react-native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 
 import { Screen } from "@/components/Screen";
 import { BackCircleButton } from "@/components/ui";
 import { useAuth } from "@/stores/authStore";
 import { useProfileTheme } from "@/hooks/useProfileTheme";
-import { useSosStore } from "@/stores/sosStore";
 import { getPublicScore, type PublicScore } from "@/api/safeScoreApi";
+import { listarEventosSeguranca, protocoloFromId, type SafetyEvent } from "@/api/segurancaApi";
 import { colors } from "@/theme/tokens";
 
 /**
@@ -22,9 +22,9 @@ export default function SafeScoreScreen() {
   const nav = useNavigation<any>();
   const currentUser = useAuth((s) => s.user);
   const theme = useProfileTheme(currentUser?.role);
-  const lastSos = useSosStore((s) => s.lastSos);
   const voltarPerfil = () => nav.navigate(currentUser?.role === "MONTADOR" ? "MontadorPerfil" : "Perfil");
   const [score, setScore] = useState<PublicScore | null>(null);
+  const [lastSos, setLastSos] = useState<SafetyEvent | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -48,6 +48,24 @@ export default function SafeScoreScreen() {
       alive = false;
     };
   }, [currentUser?.id]);
+
+  // Acompanhamento de SOS: busca o último SOS real do backend ao focar a tela
+  // (assim um SOS recém-acionado no SosFlow aparece ao voltar para cá).
+  useFocusEffect(
+    useCallback(() => {
+      let alive = true;
+      listarEventosSeguranca("SOS_SILENT", 1)
+        .then((eventos) => {
+          if (alive) setLastSos(eventos[0] ?? null);
+        })
+        .catch(() => {
+          // mantém o estado atual em caso de falha de rede
+        });
+      return () => {
+        alive = false;
+      };
+    }, []),
+  );
 
   const faixa = score?.faixa ?? "Em análise";
 
@@ -120,23 +138,23 @@ export default function SafeScoreScreen() {
               }}
             >
               <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-                <Text style={{ color: theme.textAccent, fontWeight: "800", fontSize: 15 }}>{lastSos.protocolo}</Text>
+                <Text style={{ color: theme.textAccent, fontWeight: "800", fontSize: 15 }}>{protocoloFromId(lastSos.id)}</Text>
                 <View style={{ backgroundColor: colors.warningSoft, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999 }}>
                   <Text style={{ color: colors.warning, fontWeight: "800", fontSize: 12 }}>Em análise</Text>
                 </View>
               </View>
               <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
                 <Text style={{ color: colors.sub, fontSize: 12 }}>Tipo</Text>
-                <Text style={{ color: colors.ink, fontWeight: "700", fontSize: 12 }}>{lastSos.tipoLabel}</Text>
+                <Text style={{ color: colors.ink, fontWeight: "700", fontSize: 12 }}>{lastSos.meta?.tipo ?? "Incidente"}</Text>
               </View>
               <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
                 <Text style={{ color: colors.sub, fontSize: 12 }}>Prioridade</Text>
-                <Text style={{ color: colors.ink, fontWeight: "700", fontSize: 12 }}>{lastSos.prioridade}</Text>
+                <Text style={{ color: colors.ink, fontWeight: "700", fontSize: 12 }}>{lastSos.meta?.prioridade ?? "—"}</Text>
               </View>
               <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
                 <Text style={{ color: colors.sub, fontSize: 12 }}>Acionado em</Text>
                 <Text style={{ color: colors.ink, fontWeight: "700", fontSize: 12 }}>
-                  {new Date(lastSos.criadoEm).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                  {new Date(lastSos.createdAt).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}
                 </Text>
               </View>
               <Text style={{ color: colors.sub, fontSize: 12 }}>

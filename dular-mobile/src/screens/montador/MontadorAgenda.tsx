@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import { AppIcon, DEmptyState, DErrorState, DLoadingState, DScreen } from "@/components/ui";
@@ -8,6 +8,7 @@ import {
   confirmarFinalizacaoMontador,
   finalizarServicoMontador,
   iniciarServicoMontador,
+  proporReagendamento,
   type MontadorServico,
 } from "@/api/montadorApi";
 import { MotivoModal } from "@/components/MotivoModal";
@@ -48,6 +49,15 @@ function dayDiff(value?: string | Date | null) {
 
 function isDone(servico: MontadorServico) {
   return ["FINALIZADO", "CONCLUIDO"].includes(upperStatus(servico.status));
+}
+
+function fmtReagendamento(servico: MontadorServico) {
+  const d = servico.reagendamentoData ? new Date(servico.reagendamentoData) : null;
+  const dataLabel =
+    d && !Number.isNaN(d.getTime()) ? d.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }) : "—";
+  const t = upperStatus(servico.reagendamentoTurno);
+  const turnoLabel = t === "MANHA" ? "Manhã" : t === "TARDE" ? "Tarde" : "";
+  return `${dataLabel}${turnoLabel ? " · " + turnoLabel : ""}`;
 }
 
 function FilterChip({
@@ -109,6 +119,7 @@ function AgendaCard({
   const canFinish = !encerrado && status === "EM_ANDAMENTO";
   const aguardandoOutra = status === "AGUARDANDO_FINALIZACAO";
   const isCanceladoOuRecusado = status === "CANCELADO" || status === "RECUSADO";
+  const reagendamentoPendente = !!servico.reagendamentoData;
 
   return (
     <View style={styles.card}>
@@ -139,6 +150,15 @@ function AgendaCard({
           <AppIcon name="Hourglass" size={15} color={colors.warning} />
           <Text style={[styles.infoText, { color: colors.warning }]}>
             Aguardando confirmação da outra parte.
+          </Text>
+        </View>
+      ) : null}
+
+      {reagendamentoPendente ? (
+        <View style={styles.infoRow}>
+          <AppIcon name="Clock" size={15} color={colors.warning} />
+          <Text style={[styles.infoText, { color: colors.warning }]}>
+            Reagendamento proposto p/ {fmtReagendamento(servico)} — aguardando o empregador.
           </Text>
         </View>
       ) : null}
@@ -179,9 +199,11 @@ function AgendaCard({
         ) : null}
         {!encerrado && !aguardandoOutra ? (
           <>
-            <Pressable onPress={onReagendar} style={styles.ghostButton}>
-              <Text style={styles.ghostText}>Reagendar</Text>
-            </Pressable>
+            {!reagendamentoPendente ? (
+              <Pressable onPress={onReagendar} style={styles.ghostButton}>
+                <Text style={styles.ghostText}>Reagendar</Text>
+              </Pressable>
+            ) : null}
             <Pressable onPress={onCancelar} style={styles.ghostButton}>
               <Text style={[styles.ghostText, { color: colors.danger }]}>Cancelar</Text>
             </Pressable>
@@ -268,8 +290,40 @@ export default function MontadorAgenda() {
       setActionLoading(null);
     }
   };
-  const reagendarServico = () => {
-    Alert.alert("Reagendamento", "Reagendamento será conectado quando o endpoint estiver disponível.");
+  const [reagTarget, setReagTarget] = useState<MontadorServico | null>(null);
+  const [reagData, setReagData] = useState<Date | null>(null);
+  const [reagTurno, setReagTurno] = useState<"MANHA" | "TARDE">("MANHA");
+  const [reagSaving, setReagSaving] = useState(false);
+
+  const proximosDias = useMemo(() => {
+    const base = new Date();
+    base.setHours(0, 0, 0, 0);
+    return Array.from({ length: 14 }, (_, i) => {
+      const d = new Date(base);
+      d.setDate(base.getDate() + i + 1);
+      return d;
+    });
+  }, []);
+
+  const abrirReagendar = (servico: MontadorServico) => {
+    setReagTarget(servico);
+    setReagData(null);
+    setReagTurno("MANHA");
+  };
+
+  const confirmarReagendamento = async () => {
+    if (!reagTarget || !reagData || reagSaving) return;
+    try {
+      setReagSaving(true);
+      await proporReagendamento(reagTarget.id, reagData.toISOString(), reagTurno);
+      setReagTarget(null);
+      reload();
+      Alert.alert("Proposta enviada", "O empregador vai confirmar ou recusar a nova data.");
+    } catch {
+      Alert.alert("Erro", "Não foi possível enviar a proposta de reagendamento.");
+    } finally {
+      setReagSaving(false);
+    }
   };
 
   return (
@@ -326,7 +380,7 @@ export default function MontadorAgenda() {
               onFinalizar={() => finalizarServico(item.id)}
               onConfirmarFinalizacao={() => confirmarFinalizacao(item.id)}
               onCancelar={() => cancelarServico(item.id)}
-              onReagendar={reagendarServico}
+              onReagendar={() => abrirReagendar(item)}
             />
           ))}
         </View>
@@ -338,6 +392,74 @@ export default function MontadorAgenda() {
         onClose={() => setCancelTargetId(null)}
         onConfirm={confirmarCancelamento}
       />
+
+      <Modal visible={!!reagTarget} transparent animationType="fade" onRequestClose={() => setReagTarget(null)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Reagendar serviço</Text>
+            <Text style={styles.modalSub}>Escolha a nova data e o turno. O empregador precisa confirmar.</Text>
+
+            <Text style={styles.modalLabel}>Nova data</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dayRow}>
+              {proximosDias.map((d) => {
+                const selected = reagData?.toDateString() === d.toDateString();
+                return (
+                  <Pressable
+                    key={d.toISOString()}
+                    onPress={() => setReagData(d)}
+                    style={[
+                      styles.dayChip,
+                      selected
+                        ? { backgroundColor: profileTheme.primary, borderColor: profileTheme.primary }
+                        : { borderColor: profileTheme.border },
+                    ]}
+                  >
+                    <Text style={[styles.dayChipText, selected && { color: colors.white }]}>
+                      {d.toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit", month: "short" })}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+
+            <Text style={styles.modalLabel}>Turno</Text>
+            <View style={styles.turnoRow}>
+              {(["MANHA", "TARDE"] as const).map((t) => {
+                const selected = reagTurno === t;
+                return (
+                  <Pressable
+                    key={t}
+                    onPress={() => setReagTurno(t)}
+                    style={[
+                      styles.turnoChip,
+                      selected
+                        ? { backgroundColor: profileTheme.primary, borderColor: profileTheme.primary }
+                        : { borderColor: profileTheme.border },
+                    ]}
+                  >
+                    <Text style={[styles.turnoChipText, selected && { color: colors.white }]}>
+                      {t === "MANHA" ? "Manhã" : "Tarde"}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <View style={styles.modalActions}>
+              <Pressable onPress={() => setReagTarget(null)} style={[styles.modalBtn, styles.modalBtnGhost]}>
+                <Text style={styles.modalBtnGhostText}>Cancelar</Text>
+              </Pressable>
+              <Pressable
+                onPress={confirmarReagendamento}
+                disabled={!reagData || reagSaving}
+                style={[styles.modalBtn, { backgroundColor: profileTheme.primary }, (!reagData || reagSaving) && { opacity: 0.6 }]}
+              >
+                <Text style={styles.modalBtnText}>{reagSaving ? "Enviando…" : "Propor"}</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </DScreen>
   );
 }
@@ -458,5 +580,94 @@ const styles = StyleSheet.create({
     ...typography.caption,
     color: colors.textSecondary,
     fontWeight: "700",
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: "center",
+    paddingHorizontal: 20,
+    backgroundColor: colors.overlay,
+  },
+  modalCard: {
+    borderRadius: radius.xl,
+    backgroundColor: colors.surface,
+    padding: 18,
+    gap: 12,
+    ...shadows.floating,
+  },
+  modalTitle: {
+    color: colors.textPrimary,
+    fontSize: 18,
+    lineHeight: 23,
+    fontWeight: "700",
+  },
+  modalSub: {
+    ...typography.bodySm,
+    color: colors.textSecondary,
+  },
+  modalLabel: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    fontWeight: "800",
+    marginTop: 4,
+  },
+  dayRow: {
+    gap: 8,
+    paddingVertical: 2,
+  },
+  dayChip: {
+    borderRadius: radius.md,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: colors.surface,
+  },
+  dayChipText: {
+    ...typography.caption,
+    color: colors.textPrimary,
+    fontWeight: "700",
+  },
+  turnoRow: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  turnoChip: {
+    flex: 1,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    paddingVertical: 10,
+    alignItems: "center",
+    backgroundColor: colors.surface,
+  },
+  turnoChipText: {
+    ...typography.caption,
+    color: colors.textPrimary,
+    fontWeight: "700",
+  },
+  modalActions: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 6,
+  },
+  modalBtn: {
+    flex: 1,
+    borderRadius: radius.pill,
+    paddingVertical: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalBtnGhost: {
+    backgroundColor: colors.background,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  modalBtnGhostText: {
+    ...typography.bodySmMedium,
+    color: colors.textSecondary,
+    fontWeight: "800",
+  },
+  modalBtnText: {
+    ...typography.bodySmMedium,
+    color: colors.white,
+    fontWeight: "800",
   },
 });

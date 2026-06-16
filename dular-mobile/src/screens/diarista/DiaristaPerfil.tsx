@@ -1424,14 +1424,6 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                 <ProfileRow
                   accentColor={theme.primary}
                   accentSoft={theme.primarySoft}
-                  icon="Lock"
-                  title="Alterar senha"
-                  subtitle="Segurança da conta"
-                  onPress={() => (navigation as any).navigate(PERFIL_STACK_ROUTES.ALTERAR_SENHA)}
-                />
-                <ProfileRow
-                  accentColor={theme.primary}
-                  accentSoft={theme.primarySoft}
                   icon="MessageCircle"
                   title="Suporte no WhatsApp"
                   subtitle="Fale com a equipe"

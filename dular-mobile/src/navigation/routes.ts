@@ -31,7 +31,6 @@ export const PERFIL_STACK_ROUTES = {
   EDIT_BAIRROS: "EditBairros",
   EDIT_DISPONIBILIDADE: "EditDisponibilidade",
   EDIT_PRECOS: "EditPrecos",
-  ALTERAR_SENHA: "AlterarSenha",
   SUPORTE: "Suporte",
   TERMOS: "Termos",
   PRIVACIDADE: "Privacidade",

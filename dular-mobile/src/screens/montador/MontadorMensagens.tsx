@@ -1,5 +1,5 @@
-import { useCallback, useState } from "react";
-import { FlatList, RefreshControl, StyleSheet, Text, View } from "react-native";
+import { useCallback, useMemo, useState } from "react";
+import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
@@ -8,21 +8,29 @@ import { ConversaCard, ConversaCardSkeleton } from "@/components/ui/ConversaCard
 import { useMensagens } from "@/hooks/useMensagens";
 import type { ChatRoom } from "@/hooks/useMensagens";
 import { useProfileTheme } from "@/hooks/useProfileTheme";
-import { colors, spacing, typography } from "@/theme/tokens";
+import { colors, radius, spacing, typography } from "@/theme/tokens";
 import type { MontadorTabParamList } from "@/navigation/MontadorNavigator";
 
 type Navigation = BottomTabNavigationProp<MontadorTabParamList>;
+type Tab = "conversas" | "arquivadas";
 
 const SKELETON_COUNT = 5;
 
-function EmptyState({ accentColor, softBg }: { accentColor: string; softBg: string }) {
+function EmptyState({ tab, accentColor, softBg }: { tab: Tab; accentColor: string; softBg: string }) {
+  const arquivadas = tab === "arquivadas";
   return (
     <View style={styles.emptyWrap}>
       <View style={[styles.emptyIconWrap, { backgroundColor: softBg }]}>
-        <AppIcon name="MessageCircle" size={40} color={accentColor} strokeWidth={1.5} />
+        <AppIcon name={arquivadas ? "Archive" : "MessageCircle"} size={40} color={accentColor} strokeWidth={1.5} />
       </View>
-      <Text style={styles.emptyTitle}>Nenhuma conversa ainda</Text>
-      <Text style={styles.emptySubtitle}>Seus chats com clientes aparecem aqui</Text>
+      <Text style={styles.emptyTitle}>
+        {arquivadas ? "Nenhuma conversa arquivada" : "Nenhuma conversa ainda"}
+      </Text>
+      <Text style={styles.emptySubtitle}>
+        {arquivadas
+          ? "Conversas de serviços concluídos aparecem aqui."
+          : "Seus chats com clientes aparecem aqui"}
+      </Text>
     </View>
   );
 }
@@ -42,6 +50,12 @@ export function MontadorMensagens() {
   const theme = useProfileTheme("MONTADOR");
   const { rooms, loading, refetch } = useMensagens();
   const [refreshing, setRefreshing] = useState(false);
+  const [tab, setTab] = useState<Tab>("conversas");
+
+  const visiveis = useMemo(
+    () => rooms.filter((r) => (tab === "arquivadas" ? r.arquivada : !r.arquivada)),
+    [rooms, tab],
+  );
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
@@ -63,11 +77,39 @@ export function MontadorMensagens() {
           <Text style={styles.title}>Mensagens</Text>
         </View>
 
+        <View style={styles.tabs}>
+          {(["conversas", "arquivadas"] as const).map((t) => {
+            const active = tab === t;
+            return (
+              <Pressable
+                key={t}
+                onPress={() => setTab(t)}
+                style={[
+                  styles.tabPill,
+                  active
+                    ? { backgroundColor: theme.primary, borderColor: theme.primary }
+                    : { borderColor: theme.border },
+                ]}
+              >
+                <AppIcon
+                  name={t === "conversas" ? "MessageCircle" : "Archive"}
+                  size={15}
+                  color={active ? colors.white : theme.primary}
+                  strokeWidth={2.2}
+                />
+                <Text style={[styles.tabText, { color: active ? colors.white : colors.textSecondary }]}>
+                  {t === "conversas" ? "Conversas" : "Arquivadas"}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
         {loading ? (
           <SkeletonList />
         ) : (
           <FlatList
-            data={rooms}
+            data={visiveis}
             keyExtractor={(item) => item.id}
             renderItem={renderItem}
             showsVerticalScrollIndicator={false}
@@ -80,7 +122,7 @@ export function MontadorMensagens() {
                 colors={[theme.primary]}
               />
             }
-            ListEmptyComponent={<EmptyState accentColor={theme.primary} softBg={theme.primarySoft} />}
+            ListEmptyComponent={<EmptyState tab={tab} accentColor={theme.primary} softBg={theme.primarySoft} />}
           />
         )}
       </View>
@@ -101,13 +143,33 @@ const styles = StyleSheet.create({
   header: {
     paddingHorizontal: spacing.screenPadding,
     paddingTop: 10,
-    paddingBottom: 14,
+    paddingBottom: 12,
   },
   title: {
     color: colors.textPrimary,
     ...typography.h1,
     fontWeight: "700",
     letterSpacing: 0,
+  },
+  tabs: {
+    flexDirection: "row",
+    gap: 8,
+    paddingHorizontal: spacing.screenPadding,
+    paddingBottom: 12,
+  },
+  tabPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    backgroundColor: colors.surface,
+  },
+  tabText: {
+    ...typography.caption,
+    fontWeight: "700",
   },
   listContent: {
     flexGrow: 1,

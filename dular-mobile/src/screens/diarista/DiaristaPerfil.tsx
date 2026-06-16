@@ -1049,7 +1049,7 @@ export default function DiaristaPerfil({ onLogout }: Props) {
 
   // ── Misc ─────────────────────────────────────────────────────────────────
   const openWhats = async () => {
-    const url = `https://wa.me/5565999990000?text=${encodeURIComponent("Olá! Preciso de suporte no app Dular.")}`;
+    const url = `https://wa.me/5566996293033?text=${encodeURIComponent("Olá! Preciso de suporte no app Dular.")}`;
     const ok = await Linking.canOpenURL(url);
     if (!ok) {
       Alert.alert("WhatsApp", "Não foi possível abrir o WhatsApp.");

@@ -401,16 +401,6 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
     }
   };
 
-  const openWhatsApp = async () => {
-    const url = `https://wa.me/5566996293033?text=${encodeURIComponent("Olá! Preciso de suporte no app Dular.")}`;
-    const canOpen = await Linking.canOpenURL(url);
-    if (!canOpen) {
-      Alert.alert("WhatsApp", "Não foi possível abrir o WhatsApp.");
-      return;
-    }
-    await Linking.openURL(url);
-  };
-
   const handleLogout = () => {
     Alert.alert("Sair", "Encerrar sessão da conta?", [
       { text: "Cancelar", style: "cancel" },
@@ -657,19 +647,19 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
               ) : null}
 
               <ProfileSection title="Dados da conta">
-                <DCard style={s.infoCard}>
-                  <InfoLine icon="Phone" label="Telefone" value={telefoneText} styles={s} colors={colors} />
-                  <InfoLine icon="UserRound" label="Gênero" value={generoText} styles={s} colors={colors} />
-                  <InfoLine icon="FileText" label="Email" value={emailText} styles={s} colors={colors} />
-                  <InfoLine icon="User" label="Perfil" value={roleText} styles={s} colors={colors} />
-                  <InfoLine icon="Calendar" label="Criado em" value={createdAtText} styles={s} colors={colors} isLast />
-                </DCard>
+                <ProfileRow
+                  icon="UserRound"
+                  title="Ver dados da conta"
+                  subtitle="Foto, nome completo e telefone"
+                  onPress={() => navigation.navigate("DadosConta")}
+                  isLast
+                />
               </ProfileSection>
 
               <ProfileSection title="Conta">
                 <ProfileRow
                   icon="FileText"
-                  title="Documentos"
+                  title="Documentos e verificação"
                   subtitle={
                     verificationStatus === "APROVADO" || verificationStatus === "VERIFICADO"
                       ? "Verificado"
@@ -680,14 +670,8 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
                   onPress={() => navigation.navigate("VerificacaoDocs")}
                 />
                 <ProfileRow
-                  icon="ShieldCheck"
-                  title="Verificação de perfil"
-                  subtitle={verificationText(verificationStatus)}
-                  onPress={() => navigation.navigate("VerificacaoDocs")}
-                />
-                <ProfileRow
                   icon="User"
-                  title="Nome, telefone e foto"
+                  title="Nome e telefone"
                   subtitle="Edite suas informações pessoais"
                   onPress={openModal}
                 />
@@ -723,10 +707,10 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
                   onPress={() => navigation.navigate("SosFlow")}
                 />
                 <ProfileRow
-                  icon="MessageCircle"
-                  title="Suporte no WhatsApp"
-                  subtitle="Fale com a equipe"
-                  onPress={openWhatsApp}
+                  icon="HelpCircle"
+                  title="Suporte"
+                  subtitle="Fale com o Dular"
+                  onPress={() => navigation.navigate("Suporte")}
                   isLast
                 />
               </ProfileSection>

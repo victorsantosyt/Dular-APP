@@ -16,6 +16,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { api } from "@/lib/api";
 import { apiMsg } from "@/utils/apiMsg";
 import { useAuth } from "@/stores/authStore";
+import { useProfileTheme } from "@/hooks/useProfileTheme";
 import { AppIcon, BackCircleButton, type AppIconName } from "@/components/ui";
 import { PaperPlane3DIcon, SOSIcon } from "@/assets/icons";
 import { colors, radius, shadow, spacing, typography } from "@/theme/tokens";
@@ -136,6 +137,9 @@ export default function ReportIncident({ route }: any) {
   const nav = useNavigation<any>();
   const user = useAuth((s) => s.user);
   const role = useAuth((s) => s.role ?? s.user?.role);
+  // Acento por gênero (rosa/verde/roxo). O vermelho permanece como identidade
+  // de emergência/denúncia; o acento liga a tela ao perfil do usuário.
+  const theme = useProfileTheme(role);
   // Estas telas são abas: goBack cairia na Home. Volta direto ao perfil do papel.
   const voltarPerfil = () => nav.navigate(role === "MONTADOR" ? "MontadorPerfil" : "Perfil");
 
@@ -254,7 +258,7 @@ export default function ReportIncident({ route }: any) {
       <View style={s.header}>
         <View style={{ width: 42 }} />
         <Text style={s.headerTitle}>Relatar incidente</Text>
-        <BackCircleButton onPress={voltarPerfil} />
+        <BackCircleButton onPress={voltarPerfil} color={theme.icon} borderColor={theme.border} />
       </View>
 
       <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
@@ -273,7 +277,7 @@ export default function ReportIncident({ route }: any) {
 
         {resolvingUser ? (
           <View style={s.infoBox}>
-            <ActivityIndicator color={colors.primary} />
+            <ActivityIndicator color={theme.primary} />
             <Text style={s.infoText}>Carregando dados do serviço...</Text>
           </View>
         ) : resolveError ? (
@@ -291,7 +295,7 @@ export default function ReportIncident({ route }: any) {
                 <Image source={{ uri: user.avatarUrl }} style={s.avatar} />
               ) : (
                 <View style={s.avatarFallbackMuted}>
-                  <Text style={s.avatarMutedText}>{initials(user?.nome ?? "")}</Text>
+                  <Text style={[s.avatarMutedText, { color: theme.primary }]}>{initials(user?.nome ?? "")}</Text>
                 </View>
               )}
               <View style={{ flex: 1 }}>
@@ -424,7 +428,7 @@ export default function ReportIncident({ route }: any) {
               onPress={() => setAnonimo((v) => !v)}
               style={({ pressed }) => [s.checkRow, pressed && s.pressed]}
             >
-              <View style={[s.checkbox, anonimo && s.checkboxActive]}>
+              <View style={[s.checkbox, anonimo && { backgroundColor: theme.primary, borderColor: theme.primary }]}>
                 {anonimo ? <AppIcon name="CheckCircle" size={14} color={colors.white} /> : null}
               </View>
               <Text style={s.checkText}>Desejo que meu nome seja mantido em sigilo</Text>
@@ -747,10 +751,6 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: colors.card,
-  },
-  checkboxActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
   },
   checkText: {
     flex: 1,

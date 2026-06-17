@@ -6,15 +6,17 @@ type Props = {
   action?: string;
   onAction?: () => void;
   style?: ViewStyle;
+  /** Cor do link de ação (identidade por gênero). Padrão: colors.primary. */
+  actionColor?: string;
 };
 
-export function DSectionHeader({ title, action, onAction, style }: Props) {
+export function DSectionHeader({ title, action, onAction, style, actionColor }: Props) {
   return (
     <View style={[s.row, style]}>
       <Text style={s.title}>{title}</Text>
       {action ? (
         <Pressable onPress={onAction} hitSlop={8}>
-          <Text style={s.action}>{action}</Text>
+          <Text style={[s.action, actionColor ? { color: actionColor } : null]}>{action}</Text>
         </Pressable>
       ) : null}
     </View>

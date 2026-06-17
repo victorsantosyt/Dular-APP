@@ -1,22 +1,23 @@
 import React, { useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Alert, Image, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
-import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 
 import { Screen } from "@/components/Screen";
-import { BackCircleButton } from "@/components/ui";
+import { AppIcon, BackCircleButton, type AppIconName } from "@/components/ui";
+import { SOSIcon } from "@/assets/icons";
 import { acionarSos, protocoloFromId } from "@/api/segurancaApi";
 import { useAuth } from "@/stores/authStore";
 import { useProfileTheme } from "@/hooks/useProfileTheme";
-import { colors } from "@/theme/tokens";
+import type { ProfileTheme } from "@/theme/profileTheme";
+import { colors, radius, shadow, typography } from "@/theme/tokens";
 
 /**
  * SosFlowScreen — fluxo SOS (Etapa 2).
  *
  * Passos: tipo -> relato (+ provas) -> revisão -> enviando -> sucesso (protocolo).
- * Dados locais/mock por enquanto (protocolo gerado no app). A denúncia formal
- * continua na tela ReportIncident, acessível pelo link "Fazer denúncia".
+ * A cor de acento segue o gênero do usuário (rosa/verde/roxo); o vermelho é
+ * reservado à identidade de emergência (SOS) e à prioridade crítica.
  */
 
 const RELATO_MAX = 1000;
@@ -24,15 +25,15 @@ const DANGER = colors.danger;
 
 type Step = "tipo" | "relato" | "revisao" | "enviando" | "sucesso";
 
-type IncidentType = { id: string; label: string; icon: keyof typeof Ionicons.glyphMap; hint: string };
+type IncidentType = { id: string; label: string; icon: AppIconName; hint: string };
 
 const TIPOS: IncidentType[] = [
-  { id: "comportamento", label: "Comportamento inadequado", icon: "sad-outline", hint: "Ofensas, grosseria, ameaças" },
-  { id: "agressao", label: "Agressão física ou verbal", icon: "warning-outline", hint: "Violência, intimidação, assédio" },
-  { id: "danos", label: "Danos materiais", icon: "hammer-outline", hint: "Quebra de objetos, furtos" },
-  { id: "pagamento", label: "Problemas com pagamento", icon: "card-outline", hint: "Não pagamento, cancelamento" },
-  { id: "risco", label: "Situação de risco", icon: "alert-circle-outline", hint: "Ambiente inseguro, perigo" },
-  { id: "outro", label: "Outro tipo", icon: "ellipsis-horizontal", hint: "Outros incidentes" },
+  { id: "comportamento", label: "Comportamento inadequado", icon: "MessageCircle", hint: "Ofensas, grosseria, ameaças" },
+  { id: "agressao", label: "Agressão física ou verbal", icon: "AlertTriangle", hint: "Violência, intimidação, assédio" },
+  { id: "danos", label: "Danos materiais", icon: "Home", hint: "Quebra de objetos, furtos" },
+  { id: "pagamento", label: "Problemas com pagamento", icon: "Wallet", hint: "Não pagamento, cancelamento" },
+  { id: "risco", label: "Situação de risco", icon: "Shield", hint: "Ambiente inseguro, perigo" },
+  { id: "outro", label: "Outro tipo", icon: "FileText", hint: "Outros incidentes" },
 ];
 
 type Prioridade = "BAIXA" | "MEDIA" | "ALTA" | "CRITICA";
@@ -56,6 +57,7 @@ export default function SosFlowScreen() {
   const nav = useNavigation<any>();
   const currentUser = useAuth((s) => s.user);
   const theme = useProfileTheme(currentUser?.role);
+  const st = useMemo(() => makeStyles(theme), [theme]);
 
   const voltarPerfil = () => nav.navigate(currentUser?.role === "MONTADOR" ? "MontadorPerfil" : "Perfil");
   const [step, setStep] = useState<Step>("tipo");
@@ -136,8 +138,7 @@ export default function SosFlowScreen() {
     ? `${enviadoEm.current.toLocaleDateString("pt-BR")} • ${enviadoEm.current.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`
     : "";
 
-  const title =
-    step === "sucesso" ? "SOS" : step === "enviando" ? "SOS" : step === "revisao" ? "Revisão" : "SOS";
+  const title = step === "revisao" ? "Revisão" : "SOS";
 
   return (
     <Screen
@@ -145,43 +146,37 @@ export default function SosFlowScreen() {
       rightAction={<BackCircleButton onPress={voltarPerfil} color={theme.icon} borderColor={theme.border} />}
       contentStyle={{ gap: 14 }}
     >
-      {/* ───────────────── TIPO (ANTES) ───────────────── */}
+      {/* ───────────────── TIPO ───────────────── */}
       {step === "tipo" ? (
         <>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-            <View style={{ flex: 1, gap: 2 }}>
-              <Text style={{ fontSize: 18, fontWeight: "800", color: colors.ink }}>Precisando de ajuda?</Text>
-              <Text style={{ color: DANGER, fontWeight: "700" }}>Estamos aqui para você.</Text>
-              <Text style={{ color: colors.sub, fontSize: 12 }}>
+          <View style={st.introRow}>
+            <View style={st.introText}>
+              <Text style={st.h1}>Precisando de ajuda?</Text>
+              <Text style={st.dangerText}>Estamos aqui para você.</Text>
+              <Text style={st.muted}>
                 Relate o que aconteceu. Nossa equipe vai analisar com prioridade.
               </Text>
             </View>
-            <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: DANGER, alignItems: "center", justifyContent: "center" }}>
-              <Text style={{ color: colors.white, fontWeight: "900", fontSize: 18 }}>SOS</Text>
+            <View style={st.sosBadge}>
+              <SOSIcon size={40} />
             </View>
           </View>
 
-          <Text style={{ fontWeight: "800", color: colors.ink, marginTop: 4 }}>O que aconteceu?</Text>
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
+          <Text style={st.label}>O que aconteceu?</Text>
+          <View style={st.typeGrid}>
             {tipos.map((t) => {
               const active = tipoId === t.id;
               return (
                 <Pressable
                   key={t.id}
                   onPress={() => setTipoId(t.id)}
-                  style={{
-                    width: "47%",
-                    borderWidth: 1.5,
-                    borderColor: active ? theme.primary : theme.border,
-                    backgroundColor: active ? theme.backgroundSoft : "rgba(255,255,255,0.92)",
-                    borderRadius: 14,
-                    padding: 12,
-                    gap: 6,
-                  }}
+                  style={[st.typeCard, active && st.typeCardActive]}
                 >
-                  <Ionicons name={t.icon} size={22} color={active ? theme.primary : colors.sub} />
-                  <Text style={{ fontWeight: "800", color: colors.ink, fontSize: 13 }}>{t.label}</Text>
-                  <Text style={{ color: colors.sub, fontSize: 11 }}>{t.hint}</Text>
+                  <View style={[st.typeIcon, active && st.typeIconActive]}>
+                    <AppIcon name={t.icon} size={20} color={active ? colors.white : theme.primary} strokeWidth={2.2} />
+                  </View>
+                  <Text style={st.typeLabel}>{t.label}</Text>
+                  <Text style={st.typeHint}>{t.hint}</Text>
                 </Pressable>
               );
             })}
@@ -190,23 +185,20 @@ export default function SosFlowScreen() {
           <Pressable
             onPress={() => setStep("relato")}
             disabled={!tipoId}
-            style={{ marginTop: 8, backgroundColor: theme.primary, borderRadius: 14, padding: 14, alignItems: "center", opacity: tipoId ? 1 : 0.6 }}
+            style={[st.primaryBtn, !tipoId && st.disabled]}
           >
-            <Text style={{ color: colors.white, fontWeight: "800" }}>Relatar incidente</Text>
+            <Text style={st.primaryBtnText}>Relatar incidente</Text>
           </Pressable>
-          <Pressable
-            onPress={() => nav.navigate("ReportIncident")}
-            style={{ borderWidth: 1, borderColor: theme.border, borderRadius: 14, padding: 14, alignItems: "center" }}
-          >
-            <Text style={{ color: theme.textAccent, fontWeight: "800" }}>Fazer denúncia formal</Text>
+          <Pressable onPress={() => nav.navigate("ReportIncident")} style={st.secondaryBtn}>
+            <Text style={st.secondaryBtnText}>Fazer denúncia formal</Text>
           </Pressable>
         </>
       ) : null}
 
-      {/* ───────────────── RELATO (DURANTE) ───────────────── */}
+      {/* ───────────────── RELATO ───────────────── */}
       {step === "relato" ? (
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 14, paddingBottom: 8 }}>
-          <Text style={{ fontWeight: "800", color: colors.ink }}>Relate o ocorrido</Text>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={st.stepScroll}>
+          <Text style={st.label}>Relate o ocorrido</Text>
           <TextInput
             value={relato}
             onChangeText={(v) => setRelato(v.slice(0, RELATO_MAX))}
@@ -214,163 +206,326 @@ export default function SosFlowScreen() {
             placeholderTextColor={colors.textMuted}
             multiline
             textAlignVertical="top"
-            style={{ minHeight: 130, borderWidth: 1, borderColor: theme.border, borderRadius: 12, padding: 12, color: colors.ink, backgroundColor: "rgba(255,255,255,0.92)" }}
+            style={st.input}
           />
-          <Text style={{ alignSelf: "flex-end", color: colors.sub, fontSize: 12 }}>{relato.length}/{RELATO_MAX}</Text>
+          <Text style={st.counter}>{relato.length}/{RELATO_MAX}</Text>
 
-          <Text style={{ fontWeight: "800", color: colors.ink }}>Prioridade</Text>
-          <View style={{ flexDirection: "row", gap: 8 }}>
+          <Text style={st.label}>Prioridade</Text>
+          <View style={st.prioRow}>
             {PRIORIDADES.map((p) => {
               const active = prioridade === p.value;
               return (
                 <Pressable
                   key={p.value}
                   onPress={() => setPrioridade(p.value)}
-                  style={{ flex: 1, borderWidth: 1.5, borderColor: active ? p.color : theme.border, backgroundColor: active ? p.color : "rgba(255,255,255,0.92)", borderRadius: 12, paddingVertical: 10, alignItems: "center" }}
+                  style={[
+                    st.prioChip,
+                    { borderColor: active ? p.color : theme.border, backgroundColor: active ? p.color : colors.card },
+                  ]}
                 >
-                  <Text style={{ color: active ? colors.white : colors.ink, fontWeight: "800", fontSize: 12 }}>{p.label}</Text>
+                  <Text style={[st.prioChipText, { color: active ? colors.white : colors.ink }]}>{p.label}</Text>
                 </Pressable>
               );
             })}
           </View>
 
-          <Text style={{ fontWeight: "800", color: colors.ink }}>Envie provas (opcional)</Text>
-          <Text style={{ color: colors.sub, fontSize: 12 }}>Tire uma foto na hora pela câmera ou anexe da galeria. Máx. 10 arquivos.</Text>
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+          <Text style={st.label}>Envie provas (opcional)</Text>
+          <Text style={st.muted}>Tire uma foto na hora pela câmera ou anexe da galeria. Máx. 10 arquivos.</Text>
+          <View style={st.provasRow}>
             {provas.map((uri, i) => (
-              <View key={`${uri}-${i}`} style={{ width: 72, height: 72, borderRadius: 10, overflow: "hidden", backgroundColor: theme.backgroundSoft }}>
-                <Image source={{ uri }} style={{ width: "100%", height: "100%" }} />
+              <View key={`${uri}-${i}`} style={st.provaThumb}>
+                <Image source={{ uri }} style={st.provaImg} />
               </View>
             ))}
             {provas.length < 10 ? (
-              <Pressable
-                onPress={addProva}
-                style={{ width: 72, height: 72, borderRadius: 10, borderWidth: 1, borderColor: theme.border, alignItems: "center", justifyContent: "center", gap: 2 }}
-              >
-                <Ionicons name="add" size={22} color={theme.primary} />
-                <Text style={{ color: theme.textAccent, fontSize: 10, fontWeight: "700" }}>Adicionar</Text>
+              <Pressable onPress={addProva} style={st.addProva}>
+                <AppIcon name="Plus" size={22} color={theme.primary} strokeWidth={2.3} />
+                <Text style={st.addProvaText}>Adicionar</Text>
               </Pressable>
             ) : null}
           </View>
 
-          <View style={{ flexDirection: "row", gap: 10, marginTop: 6 }}>
-            <Pressable onPress={() => setStep("tipo")} style={{ flex: 1, borderWidth: 1, borderColor: theme.border, borderRadius: 14, padding: 14, alignItems: "center" }}>
-              <Text style={{ color: theme.textAccent, fontWeight: "800" }}>Voltar</Text>
+          <View style={st.navRow}>
+            <Pressable onPress={() => setStep("tipo")} style={[st.secondaryBtn, st.flex1]}>
+              <Text style={st.secondaryBtnText}>Voltar</Text>
             </Pressable>
             <Pressable
               onPress={() => setStep("revisao")}
               disabled={relato.trim().length < 10}
-              style={{ flex: 1, backgroundColor: theme.primary, borderRadius: 14, padding: 14, alignItems: "center", opacity: relato.trim().length < 10 ? 0.6 : 1 }}
+              style={[st.primaryBtn, st.flex1, relato.trim().length < 10 && st.disabled]}
             >
-              <Text style={{ color: colors.white, fontWeight: "800" }}>Revisar</Text>
+              <Text style={st.primaryBtnText}>Revisar</Text>
             </Pressable>
           </View>
         </ScrollView>
       ) : null}
 
-      {/* ───────────────── REVISÃO (DURANTE) ───────────────── */}
+      {/* ───────────────── REVISÃO ───────────────── */}
       {step === "revisao" ? (
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 14, paddingBottom: 8 }}>
-          <Text style={{ fontWeight: "800", color: colors.ink, fontSize: 16 }}>Revise suas informações</Text>
-          <Text style={{ color: colors.sub, fontSize: 12 }}>Confira os detalhes antes de enviar.</Text>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={st.stepScroll}>
+          <Text style={st.h2}>Revise suas informações</Text>
+          <Text style={st.muted}>Confira os detalhes antes de enviar.</Text>
 
-          <View style={{ borderWidth: 1, borderColor: theme.border, borderRadius: 12, padding: 14, gap: 4, backgroundColor: theme.backgroundSoft }}>
-            <Text style={{ color: colors.sub, fontSize: 12, fontWeight: "700" }}>Tipo de incidente</Text>
-            <Text style={{ color: colors.ink, fontWeight: "700" }}>{tipo?.label ?? "—"}</Text>
+          <View style={st.reviewCard}>
+            <Text style={st.reviewLabel}>Tipo de incidente</Text>
+            <Text style={st.reviewValue}>{tipo?.label ?? "—"}</Text>
           </View>
-          <View style={{ borderWidth: 1, borderColor: theme.border, borderRadius: 12, padding: 14, gap: 4, backgroundColor: theme.backgroundSoft }}>
-            <Text style={{ color: colors.sub, fontSize: 12, fontWeight: "700" }}>Prioridade</Text>
-            <Text style={{ color: prioridadeInfo.color, fontWeight: "800" }}>{prioridadeInfo.label}</Text>
+          <View style={st.reviewCard}>
+            <Text style={st.reviewLabel}>Prioridade</Text>
+            <Text style={[st.reviewValue, { color: prioridadeInfo.color }]}>{prioridadeInfo.label}</Text>
           </View>
-          <View style={{ borderWidth: 1, borderColor: theme.border, borderRadius: 12, padding: 14, gap: 4, backgroundColor: theme.backgroundSoft }}>
-            <Text style={{ color: colors.sub, fontSize: 12, fontWeight: "700" }}>Relato</Text>
-            <Text style={{ color: colors.ink }}>{relato.trim()}</Text>
+          <View style={st.reviewCard}>
+            <Text style={st.reviewLabel}>Relato</Text>
+            <Text style={st.reviewValue}>{relato.trim()}</Text>
           </View>
-          <View style={{ borderWidth: 1, borderColor: theme.border, borderRadius: 12, padding: 14, gap: 4, backgroundColor: theme.backgroundSoft }}>
-            <Text style={{ color: colors.sub, fontSize: 12, fontWeight: "700" }}>Provas</Text>
-            <Text style={{ color: colors.ink, fontWeight: "700" }}>{provas.length} arquivo(s) anexado(s)</Text>
+          <View style={st.reviewCard}>
+            <Text style={st.reviewLabel}>Provas</Text>
+            <Text style={st.reviewValue}>{provas.length} arquivo(s) anexado(s)</Text>
           </View>
 
-          <View style={{ flexDirection: "row", gap: 10, marginTop: 6 }}>
-            <Pressable onPress={() => setStep("relato")} style={{ flex: 1, borderWidth: 1, borderColor: theme.border, borderRadius: 14, padding: 14, alignItems: "center" }}>
-              <Text style={{ color: theme.textAccent, fontWeight: "800" }}>Editar</Text>
+          <View style={st.navRow}>
+            <Pressable onPress={() => setStep("relato")} style={[st.secondaryBtn, st.flex1]}>
+              <Text style={st.secondaryBtnText}>Editar</Text>
             </Pressable>
-            <Pressable onPress={enviar} style={{ flex: 1, backgroundColor: theme.primary, borderRadius: 14, padding: 14, alignItems: "center" }}>
-              <Text style={{ color: colors.white, fontWeight: "800" }}>Enviar agora</Text>
+            <Pressable onPress={enviar} style={[st.primaryBtn, st.flex1]}>
+              <Text style={st.primaryBtnText}>Enviar agora</Text>
             </Pressable>
           </View>
         </ScrollView>
       ) : null}
 
-      {/* ───────────────── ENVIANDO (DEPOIS) ───────────────── */}
+      {/* ───────────────── ENVIANDO ───────────────── */}
       {step === "enviando" ? (
-        <View style={{ alignItems: "center", gap: 16, paddingTop: 60 }}>
-          <View style={{ width: 110, height: 110, borderRadius: 55, backgroundColor: theme.backgroundSoft, alignItems: "center", justifyContent: "center" }}>
-            <Ionicons name="paper-plane-outline" size={52} color={theme.primary} />
+        <View style={st.centerBlock}>
+          <View style={st.circleSoft}>
+            <ActivityIndicator size="large" color={theme.primary} />
           </View>
-          <Text style={{ fontSize: 18, fontWeight: "800", color: colors.ink }}>Enviando seu relato…</Text>
-          <Text style={{ color: colors.sub, textAlign: "center", paddingHorizontal: 24 }}>
+          <Text style={st.h2}>Enviando seu relato…</Text>
+          <Text style={st.centerMuted}>
             Aguarde enquanto enviamos suas informações para nossa equipe de segurança.
           </Text>
-          <ActivityIndicator color={theme.primary} />
         </View>
       ) : null}
 
-      {/* ───────────────── SUCESSO (DEPOIS) ───────────────── */}
+      {/* ───────────────── SUCESSO ───────────────── */}
       {step === "sucesso" ? (
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 14, paddingBottom: 8 }}>
-          <View style={{ alignItems: "center", gap: 10, paddingTop: 8 }}>
-            <View style={{ width: 96, height: 96, borderRadius: 48, backgroundColor: colors.successSoft, alignItems: "center", justifyContent: "center" }}>
-              <Ionicons name="checkmark-circle" size={56} color={colors.success} />
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={st.stepScroll}>
+          <View style={st.successHero}>
+            <View style={st.successCircle}>
+              <AppIcon name="CheckCircle" size={54} color={colors.success} strokeWidth={2.1} />
             </View>
-            <Text style={{ fontSize: 19, fontWeight: "800", color: colors.ink, textAlign: "center" }}>Relato enviado com sucesso!</Text>
-            <Text style={{ color: colors.sub, textAlign: "center", paddingHorizontal: 16 }}>
+            <Text style={st.successTitle}>Relato enviado com sucesso!</Text>
+            <Text style={st.centerMuted}>
               Sua solicitação foi recebida e está sendo analisada com prioridade.
             </Text>
           </View>
 
-          <View style={{ borderWidth: 1, borderColor: theme.border, borderRadius: 14, padding: 16, gap: 10, backgroundColor: theme.backgroundSoft }}>
-            <View style={{ gap: 2 }}>
-              <Text style={{ color: colors.sub, fontSize: 12, fontWeight: "700" }}>Número do protocolo</Text>
-              <Text style={{ color: theme.textAccent, fontWeight: "800", fontSize: 16 }}>{protocolo}</Text>
+          <View style={st.protocoloCard}>
+            <View style={st.protocoloHead}>
+              <Text style={st.reviewLabel}>Número do protocolo</Text>
+              <Text style={st.protocoloValue}>{protocolo}</Text>
             </View>
-            <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-              <Text style={{ color: colors.sub, fontSize: 12 }}>Data e hora</Text>
-              <Text style={{ color: colors.ink, fontWeight: "700", fontSize: 12 }}>{dataHora}</Text>
+            <View style={st.kvRow}>
+              <Text style={st.kvLabel}>Data e hora</Text>
+              <Text style={st.kvValue}>{dataHora}</Text>
             </View>
-            <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-              <Text style={{ color: colors.sub, fontSize: 12 }}>Tipo de incidente</Text>
-              <Text style={{ color: colors.ink, fontWeight: "700", fontSize: 12 }}>{tipo?.label}</Text>
+            <View style={st.kvRow}>
+              <Text style={st.kvLabel}>Tipo de incidente</Text>
+              <Text style={st.kvValue}>{tipo?.label}</Text>
             </View>
-            <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-              <Text style={{ color: colors.sub, fontSize: 12 }}>Prioridade</Text>
-              <Text style={{ color: prioridadeInfo.color, fontWeight: "800", fontSize: 12 }}>{prioridadeInfo.label}</Text>
+            <View style={st.kvRow}>
+              <Text style={st.kvLabel}>Prioridade</Text>
+              <Text style={[st.kvValue, { color: prioridadeInfo.color }]}>{prioridadeInfo.label}</Text>
             </View>
-            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-              <Text style={{ color: colors.sub, fontSize: 12 }}>Status</Text>
-              <View style={{ backgroundColor: colors.warningSoft, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999 }}>
-                <Text style={{ color: colors.warning, fontWeight: "800", fontSize: 12 }}>Em análise</Text>
+            <View style={[st.kvRow, { alignItems: "center" }]}>
+              <Text style={st.kvLabel}>Status</Text>
+              <View style={st.statusBadge}>
+                <Text style={st.statusBadgeText}>Em análise</Text>
               </View>
             </View>
           </View>
 
-          <Text style={{ fontWeight: "800", color: colors.ink }}>O que acontece agora?</Text>
+          <Text style={st.label}>O que acontece agora?</Text>
           {[
             "Nossa equipe já foi notificada",
             "Você receberá atualizações sobre o andamento",
             "Entraremos em contato caso precisemos de mais informações",
           ].map((t) => (
-            <View key={t} style={{ flexDirection: "row", gap: 8, alignItems: "flex-start" }}>
-              <Ionicons name="checkmark-circle-outline" size={16} color={theme.primary} style={{ marginTop: 1 }} />
-              <Text style={{ color: colors.sub, flex: 1, fontSize: 13 }}>{t}</Text>
+            <View key={t} style={st.checkRow}>
+              <AppIcon name="CheckCircle" size={16} color={theme.primary} strokeWidth={2.3} />
+              <Text style={st.checkText}>{t}</Text>
             </View>
           ))}
 
-          <Pressable onPress={voltarPerfil} style={{ marginTop: 6, backgroundColor: theme.primary, borderRadius: 14, padding: 14, alignItems: "center" }}>
-            <Text style={{ color: colors.white, fontWeight: "800" }}>Entendi</Text>
+          <Pressable onPress={voltarPerfil} style={[st.primaryBtn, { marginTop: 6 }]}>
+            <Text style={st.primaryBtnText}>Entendi</Text>
           </Pressable>
         </ScrollView>
       ) : null}
     </Screen>
   );
+}
+
+function makeStyles(theme: ProfileTheme) {
+  return StyleSheet.create({
+    stepScroll: { gap: 14, paddingBottom: 8 },
+    flex1: { flex: 1 },
+
+    introRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+    introText: { flex: 1, gap: 3 },
+    h1: { fontSize: 19, fontWeight: "800", color: colors.ink },
+    h2: { fontSize: 16, fontWeight: "800", color: colors.ink },
+    dangerText: { color: DANGER, ...typography.bodySm, fontWeight: "700" },
+    muted: { color: colors.sub, fontSize: 12, fontWeight: "500" },
+    label: { fontSize: 15, fontWeight: "800", color: colors.ink, marginTop: 4 },
+
+    sosBadge: {
+      width: 68,
+      height: 68,
+      borderRadius: 34,
+      backgroundColor: colors.dangerSoft,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+
+    typeGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+    typeCard: {
+      width: "47.5%",
+      borderWidth: 1.5,
+      borderColor: theme.border,
+      backgroundColor: colors.card,
+      borderRadius: radius.lg,
+      padding: 12,
+      gap: 8,
+    },
+    typeCardActive: { borderColor: theme.primary, backgroundColor: theme.backgroundSoft },
+    typeIcon: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: theme.primarySoft,
+    },
+    typeIconActive: { backgroundColor: theme.primary },
+    typeLabel: { fontWeight: "800", color: colors.ink, fontSize: 13 },
+    typeHint: { color: colors.sub, fontSize: 11, fontWeight: "500" },
+
+    primaryBtn: {
+      backgroundColor: theme.primary,
+      borderRadius: radius.lg,
+      padding: 14,
+      alignItems: "center",
+      ...shadow.card,
+    },
+    primaryBtnText: { color: colors.white, ...typography.bodySm, fontWeight: "800" },
+    secondaryBtn: {
+      borderWidth: 1,
+      borderColor: theme.border,
+      borderRadius: radius.lg,
+      padding: 14,
+      alignItems: "center",
+      backgroundColor: colors.card,
+    },
+    secondaryBtnText: { color: theme.textAccent, ...typography.bodySm, fontWeight: "800" },
+    disabled: { opacity: 0.55 },
+
+    input: {
+      minHeight: 130,
+      borderWidth: 1,
+      borderColor: theme.border,
+      borderRadius: radius.md,
+      padding: 12,
+      color: colors.ink,
+      backgroundColor: colors.card,
+      ...typography.bodySm,
+    },
+    counter: { alignSelf: "flex-end", color: colors.sub, fontSize: 12, fontWeight: "500" },
+
+    prioRow: { flexDirection: "row", gap: 8 },
+    prioChip: {
+      flex: 1,
+      borderWidth: 1.5,
+      borderRadius: radius.md,
+      paddingVertical: 10,
+      alignItems: "center",
+    },
+    prioChipText: { fontWeight: "800", fontSize: 12 },
+
+    provasRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+    provaThumb: { width: 72, height: 72, borderRadius: 12, overflow: "hidden", backgroundColor: theme.backgroundSoft },
+    provaImg: { width: "100%", height: "100%" },
+    addProva: {
+      width: 72,
+      height: 72,
+      borderRadius: 12,
+      borderWidth: 1.5,
+      borderColor: theme.border,
+      borderStyle: "dashed",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 2,
+      backgroundColor: theme.primarySoft,
+    },
+    addProvaText: { color: theme.textAccent, fontSize: 10, fontWeight: "700" },
+
+    navRow: { flexDirection: "row", gap: 10, marginTop: 6 },
+
+    reviewCard: {
+      borderWidth: 1,
+      borderColor: theme.border,
+      borderRadius: radius.lg,
+      padding: 14,
+      gap: 4,
+      backgroundColor: theme.backgroundSoft,
+    },
+    reviewLabel: { color: colors.sub, fontSize: 12, fontWeight: "700" },
+    reviewValue: { color: colors.ink, ...typography.bodySm, fontWeight: "700" },
+
+    centerBlock: { alignItems: "center", gap: 16, paddingTop: 60 },
+    centerMuted: { color: colors.sub, textAlign: "center", paddingHorizontal: 24, ...typography.bodySm, fontWeight: "500" },
+    circleSoft: {
+      width: 116,
+      height: 116,
+      borderRadius: 58,
+      backgroundColor: theme.backgroundSoft,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+
+    successHero: { alignItems: "center", gap: 10, paddingTop: 8 },
+    successCircle: {
+      width: 100,
+      height: 100,
+      borderRadius: 50,
+      backgroundColor: colors.successSoft,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    successTitle: { fontSize: 19, fontWeight: "800", color: colors.ink, textAlign: "center", marginTop: 2 },
+
+    protocoloCard: {
+      borderWidth: 1,
+      borderColor: theme.border,
+      borderRadius: radius.lg,
+      padding: 16,
+      gap: 10,
+      backgroundColor: theme.backgroundSoft,
+    },
+    protocoloHead: { gap: 2 },
+    protocoloValue: { color: theme.textAccent, fontWeight: "800", fontSize: 16 },
+    kvRow: { flexDirection: "row", justifyContent: "space-between" },
+    kvLabel: { color: colors.sub, fontSize: 12, fontWeight: "500" },
+    kvValue: { color: colors.ink, fontWeight: "700", fontSize: 12 },
+    statusBadge: {
+      backgroundColor: colors.warningSoft,
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: radius.pill,
+    },
+    statusBadgeText: { color: colors.warning, fontWeight: "800", fontSize: 12 },
+
+    checkRow: { flexDirection: "row", gap: 8, alignItems: "flex-start" },
+    checkText: { color: colors.sub, flex: 1, fontSize: 13, fontWeight: "500" },
+  });
 }

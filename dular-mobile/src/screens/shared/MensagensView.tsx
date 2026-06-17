@@ -84,7 +84,7 @@ export function MensagensView({ theme, infoTitle, infoText, onOpenChat }: Props)
       <View style={s.root}>
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.scroll}>
           <View style={s.header}>
-            <Text style={[s.title, { color: theme.textAccent }]}>Mensagens</Text>
+            <Text style={s.title}>Mensagens</Text>
           </View>
 
           <MessagesTabs activeTab={activeTab} onChange={setActiveTab} accent={theme.primary} border={theme.border} />
@@ -155,6 +155,7 @@ const s = StyleSheet.create({
     gap: spacing.md,
   },
   title: {
+    color: colors.textPrimary,
     ...typography.h1,
     fontWeight: "700",
     letterSpacing: 0,

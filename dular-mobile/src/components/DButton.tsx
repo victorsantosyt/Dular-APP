@@ -31,6 +31,12 @@ type Props = PressableProps & {
   loading?: boolean;
   variant?: DButtonVariant;
   style?: StyleProp<ViewStyle>;
+  /**
+   * Cor de acento opcional (identidade por gênero: rosa/verde teal). Quando
+   * informada, sobrescreve o `colors.primary` base — usada pelos perfis sem
+   * alterar o padrão das demais telas.
+   */
+  tint?: string;
 };
 
 export function DButton({
@@ -40,9 +46,20 @@ export function DButton({
   loading,
   variant = "primary",
   style,
+  tint,
   ...rest
 }: Props) {
   const isDisabled = disabled || loading;
+
+  // Overrides de cor por gênero (não mexem nos estilos estáticos base).
+  const tintContainer: ViewStyle | undefined = tint
+    ? variant === "primary"
+      ? { backgroundColor: tint, borderColor: tint }
+      : variant === "outline"
+        ? { borderColor: tint }
+        : undefined
+    : undefined;
+  const tintLabel = tint && variant !== "primary" ? { color: tint } : undefined;
 
   return (
     <Pressable
@@ -51,6 +68,7 @@ export function DButton({
       style={({ pressed }) => [
         styles.base,
         styles[variant],
+        tintContainer,
         isDisabled && styles.disabled,
         pressed && !isDisabled && styles.pressed,
         style,
@@ -59,7 +77,7 @@ export function DButton({
     >
       {loading ? (
         <ActivityIndicator
-          color={variant === "primary" ? colors.textOnPrimary : colors.primary}
+          color={variant === "primary" ? colors.textOnPrimary : tint ?? colors.primary}
           size="small"
         />
       ) : (
@@ -70,6 +88,7 @@ export function DButton({
             variant === "secondary" && styles.labelSecondary,
             variant === "outline"  && styles.labelOutline,
             variant === "ghost"    && styles.labelGhost,
+            tintLabel,
             isDisabled             && styles.labelDisabled,
           ]}
         >

@@ -16,6 +16,10 @@ export interface AgendamentoDiarista {
   preco: string;
   status: StatusDiarista;
   avatarUrl?: string;
+  /** Tipo bruto do serviço (FAXINA | BABA | COZINHEIRA | PASSA_ROUPA). */
+  tipo: string;
+  /** Categoria/subtipo bruto (ex.: FAXINA_LEVE, BABA_NOTURNA) ou null. */
+  categoria: string | null;
 }
 
 interface ServicosResponse {
@@ -52,7 +56,9 @@ function mapServico(raw: any): AgendamentoDiarista {
     hora: formatHora(raw.turno),
     preco: raw.precoFinal != null ? String(raw.precoFinal) : "--",
     status: STATUS_DIARISTA_MAP[baseStatus] ?? "pendente",
-    avatarUrl: undefined,
+    avatarUrl: raw.cliente?.avatarUrl ?? undefined,
+    tipo: raw.tipo ?? "",
+    categoria: raw.categoria ?? null,
   };
 }
 

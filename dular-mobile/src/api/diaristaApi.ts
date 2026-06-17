@@ -64,6 +64,20 @@ export type DiaristaProfileMe = {
   cobraDeslocamento: boolean;
   valorACombinar: boolean;
   observacaoPreco: string | null;
+  // Avaliações recebidas (paridade com o montador). Opcional por robustez.
+  avaliacoes?: {
+    media: number;
+    total: number;
+    itens: Array<{
+      id: string;
+      notaGeral: number;
+      pontualidade: number;
+      qualidade: number;
+      comunicacao: number;
+      comentario: string | null;
+      createdAt: string;
+    }>;
+  };
 };
 
 export async function getDiaristaPerfilMe(): Promise<DiaristaProfileMe | null> {

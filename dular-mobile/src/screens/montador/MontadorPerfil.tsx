@@ -37,7 +37,6 @@ import { useMontadorServicos } from "@/hooks/useMontadorServicos";
 import { useCurrentRegion, type CurrentRegion } from "@/hooks/useCurrentRegion";
 import { useProfileTheme } from "@/hooks/useProfileTheme";
 import { useAuth } from "@/stores/authStore";
-import { useThemeStore } from "@/stores/useThemeStore";
 import { requestLocationWithAddress } from "@/lib/location";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { colors, radius, shadows, spacing, typography } from "@/theme";
@@ -356,8 +355,6 @@ export default function MontadorPerfil() {
   const authUser = useAuth((state) => state.user);
   const setUser = useAuth((state) => state.setUser);
   const clearSession = useAuth((state) => state.clearSession);
-  const themeMode = useThemeStore((state) => state.mode);
-  const toggleTheme = useThemeStore((state) => state.toggleTheme);
   const { agenda } = useMontadorServicos();
   const currentRegion = useCurrentRegion();
 
@@ -1032,7 +1029,6 @@ export default function MontadorPerfil() {
 
       <Section title="Preferências" borderColor={profileTheme.border}>
         <ToggleRow icon="MapPin" title="Geolocalização" subtitle="Melhorar sugestões e área perto de você" theme={profileTheme} value={geoEnabled} onValueChange={handleGeoToggle} />
-        <ToggleRow icon="Sparkles" title="Modo escuro" subtitle="Tema escuro do app" theme={profileTheme} value={themeMode === "dark"} onValueChange={toggleTheme} />
       </Section>
 
       <Section title="Conta, suporte e termos" borderColor={profileTheme.border}>

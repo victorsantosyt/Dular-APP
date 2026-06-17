@@ -76,7 +76,6 @@ function TabItem({
   centerGradient?: readonly [string, string];
 }) {
   const colors = useDularColors();
-  const isDark = useThemeStore((state) => state.mode === "dark");
   const s = useMemo(() => makeStyles(colors), [colors]);
 
   const pillAnim = useRef(new Animated.Value(isActive && !isCenter ? 1 : 0)).current;
@@ -98,13 +97,11 @@ function TabItem({
   const mutedColor = inactiveColor ?? colors.textMuted;
   const iconColor  = isActive ? selectedColor : mutedColor;
   const labelColor = isActive ? selectedColor : mutedColor;
-  const pillBg = pillAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [
-      isDark ? "rgba(124,92,255,0)" : "rgba(123,78,219,0)",
-      isDark ? "rgba(124,92,255,0.18)" : activeSoft ?? "rgba(243,236,255,1)",
-    ],
-  });
+  // Fundo do pill: cor FIXA do gênero, só a OPACIDADE é animada. Antes
+  // interpolávamos a cor a partir de um roxo transparente, o que fazia a
+  // transição "piscar roxo" em qualquer perfil (a interpolação RGB passava
+  // pelo roxo base). Animar opacidade de uma cor única elimina o flash.
+  const pillBgColor = activeSoft ?? colors.lavenderSoft;
 
   if (isCenter) {
     const grad = centerGradient ?? gradients.button;
@@ -129,7 +126,11 @@ function TabItem({
 
   return (
     <Pressable onPress={onPress} onPressIn={onPressIn} onPressOut={onPressOut} style={s.item}>
-      <Animated.View style={[s.iconPill, { backgroundColor: pillBg }]}>
+      <View style={s.iconPill}>
+        <Animated.View
+          pointerEvents="none"
+          style={[StyleSheet.absoluteFill, s.iconPillBg, { backgroundColor: pillBgColor, opacity: pillAnim }]}
+        />
         <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
           <AppIcon
             name={item.icon}
@@ -143,7 +144,7 @@ function TabItem({
             <Text style={s.badgeText}>{badge > 9 ? "9+" : badge}</Text>
           </View>
         ) : null}
-      </Animated.View>
+      </View>
       <Text style={[s.label, { color: labelColor, fontWeight: isActive ? "700" : "500" }]} numberOfLines={1}>
         {item.label}
       </Text>
@@ -225,6 +226,9 @@ function makeStyles(colors: ThemeColors) {
     iconPill: {
       width: 44, height: 36, borderRadius: radius.lg,
       alignItems: "center", justifyContent: "center", position: "relative",
+    },
+    iconPillBg: {
+      borderRadius: radius.lg,
     },
     label: {
       fontSize: 11, lineHeight: 14, textAlign: "center", width: "100%",

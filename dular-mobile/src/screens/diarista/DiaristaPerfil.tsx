@@ -22,7 +22,6 @@ import {
   ImageSourcePropType,
   Keyboard,
   KeyboardAvoidingView,
-  Linking,
   Modal,
   Pressable,
   ScrollView,
@@ -69,13 +68,11 @@ import {
 import { apiMsg } from "@/utils/apiMsg";
 import { useAuth } from "@/stores/authStore";
 import { AppIcon, DButton, DCard } from "@/components/ui";
-import { PERFIL_STACK_ROUTES } from "@/navigation/routes";
 import type { DiaristaTabParamList } from "@/navigation/DiaristaNavigator";
 import { radius, shadows, spacing, typography } from "@/theme";
 import { useDularColors } from "@/hooks/useDularColors";
 import { useGenderTheme } from "@/hooks/useProfileTheme";
 import type { ProfileTheme } from "@/theme/profileTheme";
-import { useThemeStore } from "@/stores/useThemeStore";
 import { platformSelect } from "@/utils/platform";
 import {
   ProfileHeroCard,
@@ -173,7 +170,8 @@ type ModalType =
   | "area"
   | "precos"
   | "habilidades"
-  | "disponibilidade";
+  | "disponibilidade"
+  | "avaliacoes";
 
 // ── Helpers de UI ────────────────────────────────────────────────────────────
 
@@ -186,6 +184,34 @@ function formatMemberSince(value?: string | null) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "—";
   return date.toLocaleDateString("pt-BR");
+}
+
+function formatReviewDate(value?: string | null) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+function StarRow({
+  value,
+  color,
+  emptyColor,
+  size = 14,
+}: {
+  value: number;
+  color: string;
+  emptyColor: string;
+  size?: number;
+}) {
+  const filled = Math.round(value);
+  return (
+    <View style={{ flexDirection: "row", gap: 2 }}>
+      {[1, 2, 3, 4, 5].map((i) => (
+        <AppIcon key={i} name="Star" size={size} color={i <= filled ? color : emptyColor} strokeWidth={2} />
+      ))}
+    </View>
+  );
 }
 
 function verificacaoSubtitle(status: VerificacaoStatus) {
@@ -206,6 +232,16 @@ function toCents(value: string): number | null {
 function centsToInput(cents: number | null | undefined) {
   if (cents == null || !Number.isFinite(cents) || cents <= 0) return "";
   return (cents / 100).toFixed(2).replace(".", ",");
+}
+
+/**
+ * precoLeve/Medio/Pesada são armazenados em CENTAVOS (Int). Para exibir como
+ * moeda, converte para reais (÷100) antes de formatar — senão R$100 viraria
+ * "R$ 10.000,00".
+ */
+function centsToBRL(cents: number | null | undefined): string | null {
+  if (cents == null || !Number.isFinite(cents) || cents <= 0) return null;
+  return formatCurrencyBRL(cents / 100);
 }
 
 /**
@@ -251,8 +287,6 @@ export default function DiaristaPerfil({ onLogout }: Props) {
   const colors = useDularColors();
   const theme = useGenderTheme("DIARISTA");
   const insets = useSafeAreaInsets();
-  const themeMode = useThemeStore((state) => state.mode);
-  const toggleTheme = useThemeStore((state) => state.toggleTheme);
   const s = useMemo(() => makeStyles(colors, theme), [colors, theme]);
   const setUser = useAuth((state) => state.setUser);
   const user = useAuth((state) => state.user);
@@ -549,8 +583,8 @@ export default function DiaristaPerfil({ onLogout }: Props) {
 
   const precosResumo = useMemo(() => {
     if (profile?.valorACombinar) return "Valor a combinar";
-    const leve = formatCurrencyBRL(profile?.precoLeve ?? null);
-    const pesada = formatCurrencyBRL(profile?.precoPesada ?? null);
+    const leve = centsToBRL(profile?.precoLeve ?? null);
+    const pesada = centsToBRL(profile?.precoPesada ?? null);
     if (!leve && !pesada) return "Configure seus preços";
     return [leve && `Leve ${leve}`, pesada && `Pesada ${pesada}`].filter(Boolean).join(" • ");
   }, [profile?.valorACombinar, profile?.precoLeve, profile?.precoPesada]);
@@ -1047,17 +1081,6 @@ export default function DiaristaPerfil({ onLogout }: Props) {
     }
   };
 
-  // ── Misc ─────────────────────────────────────────────────────────────────
-  const openWhats = async () => {
-    const url = `https://wa.me/5566996293033?text=${encodeURIComponent("Olá! Preciso de suporte no app Dular.")}`;
-    const ok = await Linking.canOpenURL(url);
-    if (!ok) {
-      Alert.alert("WhatsApp", "Não foi possível abrir o WhatsApp.");
-      return;
-    }
-    await Linking.openURL(url);
-  };
-
   // Preenche cidade/UF/bairro do formulário Área usando a localização atual
   // do dispositivo. Não bloqueia a tela: loading só no botão.
   const usarLocalizacaoAtual = async () => {
@@ -1188,7 +1211,7 @@ export default function DiaristaPerfil({ onLogout }: Props) {
             <DCard style={s.errorCard}>
               <Text style={s.errorTitle}>Não foi possível carregar.</Text>
               <Text style={s.errorText}>{error}</Text>
-              <DButton label="Tentar novamente" variant="secondary" onPress={() => { void loadMe(); }} />
+              <DButton flat tint={theme.primary} tintDark={theme.primaryDark} label="Tentar novamente" variant="secondary" onPress={() => { void loadMe(); }} />
             </DCard>
           ) : (
             <>
@@ -1294,7 +1317,7 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                   ) : null}
                   <Text style={s.statusHint}>{statusCopy.text}</Text>
                   {verificacao !== "APROVADO" ? (
-                    <DButton
+                    <DButton flat tint={theme.primary} tintDark={theme.primaryDark}
                       label={verificationCtaLabel}
                       variant="warning"
                       size="md"
@@ -1369,6 +1392,26 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                   title="Dias e turnos"
                   subtitle={disponibilidadeResumo}
                   onPress={() => openModal("disponibilidade")}
+                />
+                <ProfileRow
+                  accentColor={theme.primary}
+                  accentSoft={theme.primarySoft}
+                  icon="Star"
+                  title="Avaliações"
+                  subtitle={
+                    profile?.avaliacoes?.total
+                      ? `${profile.avaliacoes.total} avaliação(ões)`
+                      : "Sem avaliações ainda"
+                  }
+                  onPress={() => openModal("avaliacoes")}
+                />
+                <ProfileRow
+                  accentColor={theme.primary}
+                  accentSoft={theme.primarySoft}
+                  icon="CreditCard"
+                  title="Carteira / Ganhos"
+                  subtitle="Histórico e ganhos dos serviços"
+                  onPress={() => navigation.navigate("Carteira", { from: "Perfil" })}
                   isLast
                 />
               </ProfileSection>
@@ -1414,7 +1457,7 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                   icon="Shield"
                   title="Privacidade"
                   subtitle="Controle seus dados"
-                  onPress={() => (navigation as any).navigate(PERFIL_STACK_ROUTES.PRIVACIDADE)}
+                  onPress={() => navigation.navigate("Privacidade")}
                   isLast
                 />
               </ProfileSection>
@@ -1424,10 +1467,10 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                 <ProfileRow
                   accentColor={theme.primary}
                   accentSoft={theme.primarySoft}
-                  icon="MessageCircle"
-                  title="Suporte no WhatsApp"
-                  subtitle="Fale com a equipe"
-                  onPress={openWhats}
+                  icon="HelpCircle"
+                  title="Suporte"
+                  subtitle="Fale com o Dular"
+                  onPress={() => navigation.navigate("Suporte")}
                 />
                 <ProfileRow
                   accentColor={theme.primary}
@@ -1435,7 +1478,7 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                   icon="FileText"
                   title="Termos de uso"
                   subtitle="Leia as regras da plataforma"
-                  onPress={() => (navigation as any).navigate(PERFIL_STACK_ROUTES.TERMOS)}
+                  onPress={() => navigation.navigate("Termos")}
                 />
                 <ProfileSwitchRow
                   accentColor={theme.primary}
@@ -1446,16 +1489,6 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                   subtitle="Melhorar sugestões perto de você"
                   value={geoEnabled}
                   onValueChange={handleGeoToggle}
-                />
-                <ProfileSwitchRow
-                  accentColor={theme.primary}
-                  accentSoft={theme.primarySoft}
-                  accentLight={theme.primaryLight}
-                  icon="Sparkles"
-                  title="Dark mode"
-                  subtitle="Tema escuro do app"
-                  value={themeMode === "dark"}
-                  onValueChange={toggleTheme}
                   isLast
                 />
               </ProfileSection>
@@ -1551,7 +1584,7 @@ export default function DiaristaPerfil({ onLogout }: Props) {
 
               {formError ? <Text style={s.errorText}>{formError}</Text> : null}
 
-              <DButton
+              <DButton flat tint={theme.primary} tintDark={theme.primaryDark}
                 label={saving ? "Salvando…" : "Salvar dados"}
                 onPress={salvarDados}
                 loading={saving}
@@ -1617,8 +1650,8 @@ export default function DiaristaPerfil({ onLogout }: Props) {
             {formError ? <Text style={s.errorText}>{formError}</Text> : null}
 
             <View style={s.modalActions}>
-              <DButton label="Cancelar" onPress={closeModal} variant="secondary" disabled={saving} style={{ flex: 1 }} />
-              <DButton
+              <DButton flat tint={theme.primary} tintDark={theme.primaryDark} label="Cancelar" onPress={closeModal} variant="secondary" disabled={saving} style={{ flex: 1 }} />
+              <DButton flat tint={theme.primary} tintDark={theme.primaryDark}
                 label={saving ? "Salvando…" : "Salvar"}
                 onPress={salvarServicos}
                 loading={saving}
@@ -1744,7 +1777,7 @@ export default function DiaristaPerfil({ onLogout }: Props) {
 
               {formError ? <Text style={s.errorText}>{formError}</Text> : null}
 
-              <DButton
+              <DButton flat tint={theme.primary} tintDark={theme.primaryDark}
                 label={saving ? "Salvando…" : "Salvar área"}
                 onPress={salvarArea}
                 loading={saving}
@@ -1908,7 +1941,7 @@ export default function DiaristaPerfil({ onLogout }: Props) {
 
               {formError ? <Text style={s.errorText}>{formError}</Text> : null}
 
-              <DButton
+              <DButton flat tint={theme.primary} tintDark={theme.primaryDark}
                 label={saving ? "Salvando…" : "Salvar preços"}
                 onPress={salvarPrecos}
                 loading={saving}
@@ -1962,8 +1995,8 @@ export default function DiaristaPerfil({ onLogout }: Props) {
             {formError ? <Text style={s.errorText}>{formError}</Text> : null}
 
             <View style={s.modalActions}>
-              <DButton label="Cancelar" onPress={closeModal} variant="secondary" disabled={saving} style={{ flex: 1 }} />
-              <DButton
+              <DButton flat tint={theme.primary} tintDark={theme.primaryDark} label="Cancelar" onPress={closeModal} variant="secondary" disabled={saving} style={{ flex: 1 }} />
+              <DButton flat tint={theme.primary} tintDark={theme.primaryDark}
                 label={saving ? "Salvando…" : "Salvar"}
                 onPress={salvarHabilidades}
                 loading={saving}
@@ -2030,20 +2063,66 @@ export default function DiaristaPerfil({ onLogout }: Props) {
             {formError ? <Text style={s.errorText}>{formError}</Text> : null}
 
             <View style={s.modalActions}>
-              <DButton
+              <DButton flat tint={theme.primary} tintDark={theme.primaryDark}
                 label="Cancelar"
                 onPress={closeModal}
                 variant="secondary"
                 disabled={saving}
                 style={{ flex: 1 }}
               />
-              <DButton
+              <DButton flat tint={theme.primary} tintDark={theme.primaryDark}
                 label={saving ? "Salvando…" : "Salvar"}
                 onPress={salvarDisponibilidade}
                 loading={saving}
                 style={{ flex: 1 }}
               />
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal Avaliações (read-only) — paridade com o montador */}
+      <Modal visible={modal === "avaliacoes"} animationType="fade" transparent onRequestClose={closeModal}>
+        <View style={s.floatOverlay}>
+          <View style={s.floatCardTall}>
+            <View style={s.modalHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={s.modalTitle}>Avaliações</Text>
+                <Text style={s.modalSubtitle}>O que os clientes disseram sobre os seus serviços.</Text>
+              </View>
+              <Pressable onPress={closeModal} hitSlop={12}>
+                <AppIcon name="XCircle" size={23} color={colors.textSecondary} />
+              </Pressable>
+            </View>
+
+            {profile?.avaliacoes?.itens?.length ? (
+              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
+                <View style={s.ratingSummary}>
+                  <Text style={s.ratingScore}>{(profile.avaliacoes.media ?? 0).toFixed(1)}</Text>
+                  <View style={{ gap: 4 }}>
+                    <StarRow value={profile.avaliacoes.media ?? 0} size={16} color={theme.primary} emptyColor={theme.border} />
+                    <Text style={s.ratingSummaryText}>{profile.avaliacoes.total} avaliação(ões)</Text>
+                  </View>
+                </View>
+                {profile.avaliacoes.itens.map((item) => (
+                  <View key={item.id} style={s.reviewCard}>
+                    <View style={s.reviewHeader}>
+                      <StarRow value={item.notaGeral} color={theme.primary} emptyColor={theme.border} />
+                      <Text style={s.reviewDate}>{formatReviewDate(item.createdAt)}</Text>
+                    </View>
+                    {item.comentario ? <Text style={s.reviewComment}>{item.comentario}</Text> : null}
+                  </View>
+                ))}
+              </ScrollView>
+            ) : (
+              <View style={s.reviewEmpty}>
+                <AppIcon name="Star" size={26} color={theme.primary} />
+                <Text style={s.reviewEmptyTitle}>Sem avaliações ainda</Text>
+                <Text style={s.reviewEmptyText}>
+                  Você ainda não recebeu avaliações. Conclua serviços para começar a recebê-las.
+                </Text>
+              </View>
+            )}
           </View>
         </View>
       </Modal>
@@ -2481,6 +2560,72 @@ function makeStyles(colors: ThemeColors, theme: ProfileTheme) {
     },
     chipTextOn: {
       color: colors.white,
+    },
+
+    // Avaliações (read-only)
+    ratingSummary: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 14,
+      borderRadius: radius.lg,
+      borderWidth: 1,
+      borderColor: theme.border,
+      padding: 14,
+      backgroundColor: theme.primarySoft,
+    },
+    ratingScore: {
+      ...typography.h2,
+      fontWeight: "800",
+      color: theme.primary,
+    },
+    ratingSummaryText: {
+      color: colors.textSecondary,
+      ...typography.caption,
+      fontWeight: "600",
+    },
+    starRow: {
+      flexDirection: "row",
+      gap: 2,
+    },
+    reviewCard: {
+      borderRadius: radius.lg,
+      borderWidth: 1,
+      borderColor: theme.border,
+      padding: 14,
+      gap: 8,
+      backgroundColor: colors.background,
+    },
+    reviewHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+    },
+    reviewDate: {
+      color: colors.textMuted,
+      ...typography.caption,
+      fontWeight: "500",
+    },
+    reviewComment: {
+      color: colors.textPrimary,
+      ...typography.bodySm,
+      fontWeight: "500",
+    },
+    reviewEmpty: {
+      alignItems: "center",
+      gap: 8,
+      paddingVertical: 28,
+      paddingHorizontal: 12,
+    },
+    reviewEmptyTitle: {
+      color: colors.textPrimary,
+      ...typography.bodyMedium,
+      fontWeight: "700",
+    },
+    reviewEmptyText: {
+      color: colors.textSecondary,
+      ...typography.bodySm,
+      fontWeight: "500",
+      textAlign: "center",
     },
   });
 }

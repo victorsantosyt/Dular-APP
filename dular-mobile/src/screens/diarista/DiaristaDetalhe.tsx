@@ -5,7 +5,7 @@
  * Lógica de ações (aceitar/iniciar/concluir) preservada.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -23,10 +23,12 @@ import { DButton } from "@/components/DButton";
 import { DularBadge } from "@/components/DularBadge";
 import { MotivoModal } from "@/components/MotivoModal";
 import { SafeScoreBadge } from "@/components/SafeScoreBadge";
+import { useSeguranca } from "@/hooks/useSeguranca";
 import { formatPrice } from "@/utils/formatPrice";
 import { isStatusEncerrado } from "@/utils/servicoStatus";
 
 // ── Tokens ──────────────────────────────────────────────────────────────────
+import { useGenderTheme } from "@/hooks/useProfileTheme";
 import { colors, radius, shadow, spacing, typography } from "@/theme/tokens";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -61,6 +63,7 @@ function getServicoEndereco(servico: Servico | null | undefined) {
 // ── Componente ────────────────────────────────────────────────────────────────
 
 export default function DiaristaDetalhe({ route, navigation }: any) {
+  const theme = useGenderTheme("DIARISTA");
   const params = route.params as any;
   const [svc, setSvc] = useState<Servico | null>(params.servico ?? null);
   const [loadingInit, setLoadingInit] = useState(!params.servico);
@@ -75,6 +78,16 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
     totalServicos: number;
     verificado: boolean;
   } | null>(null);
+
+  // Check-in real de segurança (mesmo hook do montador): POST /api/seguranca/checkin.
+  const { checkInRealizado, checkInLoading, fazerCheckIn } = useSeguranca();
+  const checkinAlertRef = useRef(false);
+  useEffect(() => {
+    if (checkInRealizado && !checkinAlertRef.current) {
+      checkinAlertRef.current = true;
+      Alert.alert("Check-in realizado", "Seu check-in de segurança foi registrado.");
+    }
+  }, [checkInRealizado]);
 
   async function reloadFromList() {
     try {
@@ -304,12 +317,12 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
         <View style={s.ctaBlock}>
           {svc.status === "SOLICITADO" && (
             <>
-              <DButton
+              <DButton tint={theme.primary}
                 title="Aceitar serviço"
                 loading={loading}
                 onPress={aceitarServico}
               />
-              <DButton
+              <DButton tint={theme.primary}
                 title="Recusar serviço"
                 variant="outline"
                 onPress={recusarServico}
@@ -317,7 +330,7 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
             </>
           )}
           {["ACEITO", "INICIADO", "EM_ANDAMENTO"].includes(svc.status.toUpperCase()) && (
-            <DButton
+            <DButton tint={theme.primary}
               title="Abrir chat"
               variant="outline"
               onPress={() => navigation.navigate("ChatAberto", {
@@ -327,14 +340,37 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
               })}
             />
           )}
+          {["ACEITO", "INICIADO", "EM_ANDAMENTO"].includes(svc.status.toUpperCase()) &&
+            !isStatusEncerrado(svc.status) && (
+            <>
+              <DButton tint={theme.primary}
+                title={
+                  checkInLoading
+                    ? "Registrando check-in…"
+                    : checkInRealizado
+                      ? "Check-in realizado"
+                      : "Fazer check-in"
+                }
+                variant="outline"
+                loading={checkInLoading}
+                disabled={checkInRealizado}
+                onPress={() => { void fazerCheckIn(svc.id); }}
+              />
+              <DButton tint={theme.primary}
+                title="Reportar problema"
+                variant="outline"
+                onPress={() => navigation.navigate("ReportIncident", { servicoId: svc.id })}
+              />
+            </>
+          )}
           {svc.status === "ACEITO" && !isStatusEncerrado(svc.status) && (
             <>
-              <DButton
+              <DButton tint={theme.primary}
                 title="Iniciar serviço"
                 loading={loading}
                 onPress={() => { void action("iniciar"); }}
               />
-              <DButton
+              <DButton tint={theme.primary}
                 title="Cancelar serviço"
                 variant="outline"
                 onPress={() => setCancelOpen(true)}
@@ -342,7 +378,7 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
             </>
           )}
           {["INICIADO", "EM_ANDAMENTO"].includes(svc.status.toUpperCase()) && !isStatusEncerrado(svc.status) && (
-            <DButton
+            <DButton tint={theme.primary}
               title="Confirmar finalização"
               loading={loading}
               onPress={() => { void confirmarFinalizacao(); }}
@@ -410,10 +446,12 @@ function InfoRow({
   label: string;
   children: React.ReactNode;
 }) {
+  // Acento decorativo segue o gênero do usuário (rosa/verde teal), não verde fixo.
+  const theme = useGenderTheme("DIARISTA");
   return (
     <View style={ir.row}>
-      <View style={ir.iconWrap}>
-        <Ionicons name={icon} size={16} color={colors.green} />
+      <View style={[ir.iconWrap, { backgroundColor: theme.primarySoft }]}>
+        <Ionicons name={icon} size={16} color={theme.primary} />
       </View>
       <View style={{ flex: 1 }}>
         <Text style={ir.label}>{label}</Text>

@@ -30,14 +30,10 @@ export async function GET() {
           { categoria: "COZINHEIRA_EVENTO", label: "Cozinheira para evento" },
         ],
       },
-      {
-        tipo: "PASSA_ROUPA",
-        label: "Passa roupa",
-        categorias: [
-          { categoria: "PASSA_ROUPA_BASICO", label: "Passa roupa básico" },
-          { categoria: "PASSA_ROUPA_COMPLETO", label: "Passa roupa completo" },
-        ],
-      },
+      // PASSA_ROUPA removido do catálogo: não é ofertável pela diarista
+      // (ServicoOferecido = DIARISTA/BABA/COZINHEIRA) nem contratável pelo
+      // empregador (sem nicho de preço). Os apps mantêm exibição defensiva
+      // de serviços PASSA_ROUPA legados/seed, mas não o oferecem como opção.
     ],
   });
 }

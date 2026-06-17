@@ -3,7 +3,6 @@ import { Alert, SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-n
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { AppIcon } from "@/components/ui/AppIcon";
-import { DButton } from "@/components/ui/DButton";
 import { DCard } from "@/components/ui/DCard";
 import { DInput } from "@/components/ui/DInput";
 import type { EmpregadorServiceFlowStackParamList } from "@/navigation/EmpregadorServiceFlowNavigator";
@@ -40,6 +39,18 @@ export function EnderecoServicoScreen() {
   const cidadeUfLabel = temLocalizacao
     ? `${draft.cidade} - ${draft.uf.toUpperCase()}`
     : "Localização não definida";
+
+  const continuar = () => {
+    if (!temLocalizacao) {
+      Alert.alert("Localização necessária", "Defina sua cidade/UF no perfil ou na busca antes de continuar.");
+      return;
+    }
+    if (!draft.rua.trim() || !draft.numero.trim()) {
+      Alert.alert("Endereço incompleto", "Informe ao menos a rua e o número do endereço do serviço.");
+      return;
+    }
+    navigation.navigate("ObservacoesServico");
+  };
 
   return (
     <SafeAreaView style={flowStyles.screen}>
@@ -118,15 +129,10 @@ export function EnderecoServicoScreen() {
           </View>
         </DCard>
 
-        <DButton
-          label="Adicionar novo endereço"
-          variant="secondary"
-          onPress={() => Alert.alert("Em breve", "Cadastro de novos endereços será conectado em uma próxima etapa.")}
-        />
       </ScrollView>
 
       <SafeAreaView style={flowStyles.footer}>
-        <FlowPrimaryButton label="Continuar" theme={flowTheme} onPress={() => navigation.navigate("ObservacoesServico")} />
+        <FlowPrimaryButton label="Continuar" theme={flowTheme} onPress={continuar} />
       </SafeAreaView>
     </SafeAreaView>
   );

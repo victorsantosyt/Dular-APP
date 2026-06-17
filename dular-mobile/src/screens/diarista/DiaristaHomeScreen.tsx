@@ -10,7 +10,7 @@ import { useGenderTheme } from "@/hooks/useProfileTheme";
 import type { ProfileTheme } from "@/theme/profileTheme";
 import type { DiaristaTabParamList } from "@/navigation/DiaristaNavigator";
 import { getMyRestrictions, type UserRestriction } from "@/api/safeScoreApi";
-import { acionarSosDiarista } from "@/api/diaristaApi";
+import { acionarSosDiarista, getDiaristaPerfilMe, patchDiaristaPerfil } from "@/api/diaristaApi";
 import { useAgendamentosDiarista, type AgendamentoDiarista, type StatusDiarista } from "@/hooks/useAgendamentosDiarista";
 import { useMensagens } from "@/hooks/useMensagens";
 import { useNotificacoes } from "@/hooks/useNotificacoes";
@@ -144,6 +144,8 @@ export function DiaristaHomeScreen() {
 
   const [restrictions, setRestrictions] = useState<UserRestriction[]>([]);
   const [sosLoading, setSosLoading] = useState(false);
+  const [online, setOnline] = useState(true);
+  const [onlineSaving, setOnlineSaving] = useState(false);
   const nextAgendamento = agendamentos[0];
   const unreadMessages = useMemo(
     () => rooms.reduce((total, room) => total + Math.max(0, Number(room.naoLidas) || 0), 0),
@@ -170,6 +172,35 @@ export function DiaristaHomeScreen() {
   useEffect(() => {
     loadRestrictions();
   }, [loadRestrictions]);
+
+  // Disponibilidade ("ativo") — carrega do perfil e permite alternar na home,
+  // espelhando o toggle rápido da home do montador.
+  useEffect(() => {
+    let alive = true;
+    getDiaristaPerfilMe()
+      .then((p) => {
+        if (alive && typeof p?.ativo === "boolean") setOnline(p.ativo);
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const alternarDisponibilidade = useCallback(async () => {
+    if (onlineSaving) return;
+    const next = !online;
+    setOnline(next); // otimista
+    setOnlineSaving(true);
+    try {
+      await patchDiaristaPerfil({ ativo: next });
+    } catch {
+      setOnline(!next); // reverte
+      Alert.alert("Disponibilidade", "Não foi possível atualizar sua disponibilidade agora.");
+    } finally {
+      setOnlineSaving(false);
+    }
+  }, [online, onlineSaving]);
 
   const handleRefresh = useCallback(() => {
     refetch();
@@ -265,8 +296,10 @@ export function DiaristaHomeScreen() {
             </View>
           </Pressable>
         </View>
-        <Pressable onPress={abrirCarteira} style={styles.verCarteiraBtn}>
-          <Text style={styles.verCarteiraText}>Ver carteira</Text>
+        <Pressable onPress={alternarDisponibilidade} disabled={onlineSaving} style={styles.availabilityButton}>
+          <Text style={styles.availabilityText}>
+            {onlineSaving ? "Salvando…" : online ? "Online · Ficar indisponível" : "Indisponível · Ficar online"}
+          </Text>
         </Pressable>
       </LinearGradient>
 
@@ -300,6 +333,7 @@ export function DiaristaHomeScreen() {
         <DSectionHeader
           title="Agendamentos de hoje"
           action="Ver todos"
+          actionColor={profileTheme.primary}
           onAction={() => navigation.navigate("Agendamentos")}
         />
         <View style={styles.divider} />
@@ -341,22 +375,6 @@ export function DiaristaHomeScreen() {
         </View>
       </View>
 
-      {/* ── Dica de hoje ── */}
-      <DCard style={styles.tipCard}>
-        <View style={[styles.tipIconBox, { backgroundColor: profileTheme.primarySoft }]}>
-          <AppIcon name="ShieldCheck" size={22} color={profileTheme.primary} />
-        </View>
-        <View style={styles.tipText}>
-          <Text style={styles.tipTitle}>Dica de hoje</Text>
-          <Text style={styles.tipSubtitle}>
-            Mantenha seu perfil sempre atualizado para receber mais agendamentos!
-          </Text>
-        </View>
-        <View style={[styles.cleaningTipBox, { backgroundColor: profileTheme.primarySoft }]}>
-          <AppIcon name="Sparkles" size={26} color={profileTheme.primary} strokeWidth={2.1} />
-        </View>
-      </DCard>
-
       {/* ── Meu desempenho ── */}
       <View style={styles.performanceSection}>
         <DSectionHeader title="Meu desempenho" style={styles.sectionHeaderRow} />
@@ -380,6 +398,22 @@ export function DiaristaHomeScreen() {
           </View>
         </View>
       </View>
+
+      {/* ── Dica de hoje ── */}
+      <DCard style={styles.tipCard}>
+        <View style={[styles.tipIconBox, { backgroundColor: profileTheme.primarySoft }]}>
+          <AppIcon name="ShieldCheck" size={22} color={profileTheme.primary} />
+        </View>
+        <View style={styles.tipText}>
+          <Text style={styles.tipTitle}>Dica de hoje</Text>
+          <Text style={styles.tipSubtitle}>
+            Mantenha seu perfil sempre atualizado para receber mais agendamentos!
+          </Text>
+        </View>
+        <View style={[styles.cleaningTipBox, { backgroundColor: profileTheme.primarySoft }]}>
+          <AppIcon name="Sparkles" size={26} color={profileTheme.primary} strokeWidth={2.1} />
+        </View>
+      </DCard>
     </DScreen>
   );
 }
@@ -504,7 +538,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: colors.white,
   },
-  verCarteiraBtn: {
+  availabilityButton: {
     alignSelf: "flex-start",
     borderRadius: radius.pill,
     paddingHorizontal: 14,
@@ -514,7 +548,7 @@ const styles = StyleSheet.create({
     borderColor: colors.glassBorder,
     marginTop: 14,
   },
-  verCarteiraText: {
+  availabilityText: {
     ...typography.caption,
     color: colors.white,
     fontWeight: "700",

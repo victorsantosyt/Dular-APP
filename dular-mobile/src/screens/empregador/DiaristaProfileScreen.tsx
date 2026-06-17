@@ -54,8 +54,9 @@ function precoLinhaLabel(
 ) {
   // Diarista — três intensidades agregadas como "A partir de R$X (leve), R$Y (pesada)"
   if (tipo === "DIARISTA") {
-    const leveFmt = formatCurrencyBRL(precos.leve);
-    const pesadaFmt = formatCurrencyBRL(precos.pesada);
+    // precoLeve/Pesada são armazenados em CENTAVOS (Int) → ÷100 para exibir.
+    const leveFmt = precos.leve != null ? formatCurrencyBRL(precos.leve / 100) : null;
+    const pesadaFmt = precos.pesada != null ? formatCurrencyBRL(precos.pesada / 100) : null;
     if (leveFmt && pesadaFmt) {
       return `A partir de ${leveFmt} (leve), ${pesadaFmt} (pesada)`;
     }

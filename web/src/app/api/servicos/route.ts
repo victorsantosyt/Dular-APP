@@ -401,11 +401,11 @@ export async function POST(req: Request) {
     // GAP-D3: `precoFinal` precisa refletir o nicho real do serviço.
     // Antes, sempre usava `precoLeve`, o que quebrava BABA e COZINHEIRA.
     //
-    // Convenção de unidades: TODOS os campos de preço estão em centavos.
-    // - precoLeve/Medio/Pesada são Int (centavos) por definição do schema.
-    // - precoBabaHora/precoCozinheiraBase são Decimal(10,2) mas o seed E2E
-    //   e o restante do app já gravam valores em centavos (ex.: 5000 = R$ 50,00).
-    //   Por segurança aplicamos Math.round(Number(...)) para coagir Decimal→Int.
+    // `precoFinal` é SEMPRE em CENTAVOS (Int) — é assim que o app exibe
+    // (formatPrice divide por 100). Convenção de origem dos campos:
+    // - precoLeve/Medio/Pesada: Int em CENTAVOS (schema) → usar direto.
+    // - precoBabaHora/precoCozinheiraBase: Decimal(10,2) em REAIS (o app grava
+    //   "35.00" = R$ 35,00) → multiplicar por 100 para virar centavos.
     //
     // Quando `valorACombinar=true`, registramos 0 como sentinela "a combinar"
     // (preço negociado externamente — mesma convenção usada para Montador).
@@ -421,9 +421,9 @@ export async function POST(req: Request) {
         precoFinal = prof.precoLeve;
       }
     } else if (tipo === "BABA") {
-      precoFinal = Math.round(Number(prof.precoBabaHora ?? 0));
+      precoFinal = Math.round(Number(prof.precoBabaHora ?? 0) * 100);
     } else if (tipo === "COZINHEIRA") {
-      precoFinal = Math.round(Number(prof.precoCozinheiraBase ?? 0));
+      precoFinal = Math.round(Number(prof.precoCozinheiraBase ?? 0) * 100);
     } else {
       // PASSA_ROUPA e outros: fallback ao precoLeve (comportamento legado).
       precoFinal = prof.precoLeve;

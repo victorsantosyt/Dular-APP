@@ -141,7 +141,10 @@ function SuggestedProfCard({
       <View style={s.profPriceCol}>
         <View style={s.profPriceGroup}>
           <Text allowFontScaling={false} style={s.profPriceLabel}>A partir de</Text>
-          <Text allowFontScaling={false} style={s.profPrice}>R$ {prof.preco}</Text>
+          {/* prof.preco vem em CENTAVOS (precoLeve Int) → ÷100 para exibir. */}
+          <Text allowFontScaling={false} style={s.profPrice}>
+            R$ {((prof.preco ?? 0) / 100).toFixed(2).replace(".", ",")}
+          </Text>
         </View>
         <Pressable
           style={({ pressed }) => [s.profViewBtn, pressed && { opacity: 0.75 }]}

@@ -1,9 +1,8 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Text, View, Pressable, Alert, Image, ActivityIndicator } from "react-native";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ActivityIndicator, Alert, Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { Screen } from "@/components/Screen";
-import { BackCircleButton } from "@/components/ui";
-import { Ionicons } from "@expo/vector-icons";
+import { AppIcon, BackCircleButton, type AppIconName } from "@/components/ui";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 import { apiMsg } from "@/utils/apiMsg";
@@ -11,7 +10,8 @@ import { api } from "@/lib/api";
 import { getMe, type VerificacaoStatus } from "@/api/perfilApi";
 import { useAuth } from "@/stores/authStore";
 import { useProfileTheme } from "@/hooks/useProfileTheme";
-import { colors } from "@/theme/tokens";
+import type { ProfileTheme } from "@/theme/profileTheme";
+import { colors, radius, shadow, typography } from "@/theme/tokens";
 
 type FileField = "docFrente" | "docVerso";
 type UploadState = "idle" | "selecionando" | "enviando" | "sucesso" | "erro";
@@ -67,6 +67,7 @@ export default function VerificacaoDocs() {
   const setUser = useAuth((s) => s.setUser);
   // Mesma fonte de cor por gênero usada no resto do perfil (role + user.genero).
   const theme = useProfileTheme(currentUser?.role);
+  const st = useMemo(() => makeStyles(theme), [theme]);
   // Volta direto para o perfil do papel (estas telas são abas: goBack cairia na Home).
   const voltarPerfil = () => nav.navigate(currentUser?.role === "MONTADOR" ? "MontadorPerfil" : "Perfil");
   const [docFrente, setDocFrente] = useState<PickedFile | null>(null);
@@ -330,72 +331,39 @@ export default function VerificacaoDocs() {
   };
 
   const renderPick = (label: string, file: PickedFile | null, field: FileField) => {
+    const disabled = locked || saving || selecting;
     return (
-      <View
-        style={{
-          borderWidth: 1,
-          borderColor: theme.border,
-          borderRadius: 14,
-          padding: 12,
-          backgroundColor: "rgba(255,255,255,0.92)",
-          opacity: locked ? 0.6 : 1,
-          gap: 12,
-        }}
-      >
+      <View style={[st.pickCard, locked && st.pickCardLocked]}>
         {file ? (
           <View style={{ gap: 8 }}>
-            <Image
-              source={{ uri: file.uri }}
-              resizeMode="contain"
-              style={{ width: "100%", height: 200, borderRadius: 12, backgroundColor: theme.backgroundSoft }}
-            />
-            <Text numberOfLines={1} style={{ color: colors.sub, fontSize: 12, fontWeight: "700" }}>{file.name}</Text>
+            <Image source={{ uri: file.uri }} resizeMode="contain" style={st.pickPreview} />
+            <Text numberOfLines={1} style={st.pickFileName}>{file.name}</Text>
           </View>
         ) : (
-          <View style={{ alignItems: "center", gap: 6, paddingVertical: 8 }}>
-            <Ionicons name="cloud-upload-outline" size={26} color={theme.primary} />
-            <Text style={{ color: colors.ink, fontWeight: "700" }}>{label}</Text>
-            <Text style={{ color: colors.sub, fontSize: 12, textAlign: "center" }}>Tire uma foto ou anexe uma imagem JPG/PNG do documento inteiro</Text>
+          <View style={st.pickPlaceholder}>
+            <View style={st.pickPlaceholderIcon}>
+              <AppIcon name="FileText" size={24} color={theme.primary} strokeWidth={2.1} />
+            </View>
+            <Text style={st.pickLabel}>{label}</Text>
+            <Text style={st.pickHint}>Tire uma foto ou anexe uma imagem JPG/PNG do documento inteiro</Text>
           </View>
         )}
-        <View style={{ flexDirection: "row", gap: 10 }}>
+        <View style={st.pickActions}>
           <Pressable
             onPress={() => pickFromCamera(field)}
-            disabled={locked || saving || selecting}
-            style={{
-              flex: 1,
-              minHeight: 44,
-              borderRadius: 12,
-              backgroundColor: theme.primary,
-              alignItems: "center",
-              justifyContent: "center",
-              flexDirection: "row",
-              gap: 6,
-              opacity: locked || saving || selecting ? 0.7 : 1,
-            }}
+            disabled={disabled}
+            style={[st.pickBtnPrimary, disabled && st.dimmed]}
           >
-            <Ionicons name="camera-outline" size={18} color={colors.white} />
-            <Text numberOfLines={1} style={{ color: colors.white, fontWeight: "800", flexShrink: 1 }}>Tirar foto</Text>
+            <AppIcon name="Camera" size={18} color={colors.white} strokeWidth={2.2} />
+            <Text numberOfLines={1} style={st.pickBtnPrimaryText}>Tirar foto</Text>
           </Pressable>
           <Pressable
             onPress={() => attach(field)}
-            disabled={locked || saving || selecting}
-            style={{
-              flex: 1,
-              minHeight: 44,
-              borderRadius: 12,
-              borderWidth: 1,
-              borderColor: theme.border,
-              backgroundColor: colors.white,
-              alignItems: "center",
-              justifyContent: "center",
-              flexDirection: "row",
-              gap: 6,
-              opacity: locked || saving || selecting ? 0.7 : 1,
-            }}
+            disabled={disabled}
+            style={[st.pickBtnSecondary, disabled && st.dimmed]}
           >
-            <Ionicons name="attach-outline" size={18} color={theme.primary} />
-            <Text numberOfLines={1} style={{ color: theme.textAccent, fontWeight: "800", flexShrink: 1 }}>{file ? "Trocar imagem" : "Anexar imagem"}</Text>
+            <AppIcon name="Image" size={18} color={theme.primary} strokeWidth={2.2} />
+            <Text numberOfLines={1} style={st.pickBtnSecondaryText}>{file ? "Trocar imagem" : "Anexar imagem"}</Text>
           </Pressable>
         </View>
       </View>
@@ -409,46 +377,46 @@ export default function VerificacaoDocs() {
       contentStyle={{ gap: 12 }}
     >
         {toast ? (
-          <View style={{ padding: 12, borderRadius: 12, backgroundColor: colors.ink }}>
-            <Text style={{ color: colors.white, fontWeight: "700" }}>{toast}</Text>
+          <View style={st.toast}>
+            <Text style={st.toastText}>{toast}</Text>
           </View>
         ) : null}
 
         {verificacao === "APROVADO" ? (
           // Estado APROVADO: tela de status com escudo + selo de verificado.
-          <View style={{ alignItems: "center", gap: 14, paddingTop: 28 }}>
-            <View style={{ width: 124, height: 124, borderRadius: 62, backgroundColor: theme.backgroundSoft, alignItems: "center", justifyContent: "center" }}>
-              <Ionicons name="shield-checkmark" size={70} color={theme.primary} />
+          <View style={st.statusBlock}>
+            <View style={st.statusCircle}>
+              <AppIcon name="ShieldCheck" size={64} color={theme.primary} strokeWidth={2} />
             </View>
-            <Text style={{ fontSize: 20, fontWeight: "800", color: colors.ink, textAlign: "center" }}>Verificação aprovada</Text>
-            <Text style={{ color: colors.sub, textAlign: "center", paddingHorizontal: 16 }}>
+            <Text style={st.statusTitle}>Verificação aprovada</Text>
+            <Text style={st.statusText}>
               Seu perfil está verificado. O selo de verificado aparece no seu perfil e você já pode usar a plataforma normalmente.
             </Text>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: theme.backgroundSoft, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999 }}>
-              <Ionicons name="checkmark-circle" size={18} color={theme.primary} />
-              <Text style={{ color: theme.textAccent, fontWeight: "800" }}>Perfil verificado</Text>
+            <View style={st.statusPill}>
+              <AppIcon name="CheckCircle" size={16} color={theme.primary} strokeWidth={2.3} />
+              <Text style={st.statusPillText}>Perfil verificado</Text>
             </View>
           </View>
         ) : locked ? (
           // Estado AGUARDANDO: documentos enviados, em análise.
-          <View style={{ alignItems: "center", gap: 14, paddingTop: 28 }}>
-            <View style={{ width: 124, height: 124, borderRadius: 62, backgroundColor: theme.backgroundSoft, alignItems: "center", justifyContent: "center" }}>
-              <Ionicons name="time-outline" size={66} color={theme.primary} />
+          <View style={st.statusBlock}>
+            <View style={st.statusCircle}>
+              <AppIcon name="Clock" size={60} color={theme.primary} strokeWidth={2} />
             </View>
-            <Text style={{ fontSize: 20, fontWeight: "800", color: colors.ink, textAlign: "center" }}>Documentação enviada</Text>
-            <Text style={{ color: colors.sub, textAlign: "center", paddingHorizontal: 16 }}>
+            <Text style={st.statusTitle}>Documentação enviada</Text>
+            <Text style={st.statusText}>
               Recebemos seus documentos e eles estão em análise. Avisaremos assim que a verificação for concluída.
             </Text>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: theme.backgroundSoft, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999 }}>
-              <Ionicons name="hourglass-outline" size={16} color={theme.primary} />
-              <Text style={{ color: theme.textAccent, fontWeight: "800" }}>Aguardando aprovação</Text>
+            <View style={st.statusPill}>
+              <AppIcon name="Hourglass" size={15} color={theme.primary} strokeWidth={2.3} />
+              <Text style={st.statusPillText}>Aguardando aprovação</Text>
             </View>
           </View>
         ) : (
           // Estado INICIAL: envio dos documentos.
           <>
-            <Text style={{ fontSize: 15, fontWeight: "700", color: colors.ink }}>Envie seus documentos</Text>
-            <Text style={{ color: colors.sub }}>
+            <Text style={st.introTitle}>Envie seus documentos</Text>
+            <Text style={st.introText}>
               {currentUser?.role === "EMPREGADOR"
                 ? "RG/CNH frente e verso. Necessário para solicitar serviços e manter a plataforma segura."
                 : currentUser?.role === "MONTADOR"
@@ -459,27 +427,111 @@ export default function VerificacaoDocs() {
             {renderPick("Documento (frente)", docFrente, "docFrente")}
             {renderPick("Documento (verso)", docVerso, "docVerso")}
 
-            <Pressable
-              onPress={enviar}
-              disabled={saving || selecting}
-              style={{
-                marginTop: 4,
-                // Segue a cor do perfil (gênero/role), como o resto das telas.
-                backgroundColor: theme.primary,
-                borderRadius: 14,
-                padding: 14,
-                alignItems: "center",
-                opacity: saving || selecting ? 0.7 : 1,
-              }}
-            >
+            <Pressable onPress={enviar} disabled={saving || selecting} style={[st.submitBtn, (saving || selecting) && st.dimmed]}>
               {saving || selecting ? (
                 <ActivityIndicator color={colors.white} />
               ) : (
-                <Text style={{ color: colors.white, fontWeight: "700" }}>Enviar documentos</Text>
+                <Text style={st.submitBtnText}>Enviar documentos</Text>
               )}
             </Pressable>
           </>
         )}
     </Screen>
   );
+}
+
+function makeStyles(theme: ProfileTheme) {
+  return StyleSheet.create({
+    dimmed: { opacity: 0.65 },
+
+    toast: { padding: 12, borderRadius: radius.md, backgroundColor: colors.ink },
+    toastText: { color: colors.white, ...typography.bodySm, fontWeight: "700" },
+
+    introTitle: { fontSize: 16, fontWeight: "800", color: colors.ink },
+    introText: { color: colors.sub, ...typography.bodySm, fontWeight: "500" },
+
+    // Cartão de upload (frente/verso)
+    pickCard: {
+      borderWidth: 1,
+      borderColor: theme.border,
+      borderRadius: radius.lg,
+      padding: 12,
+      backgroundColor: colors.card,
+      gap: 12,
+    },
+    pickCardLocked: { opacity: 0.6 },
+    pickPreview: { width: "100%", height: 200, borderRadius: radius.md, backgroundColor: theme.backgroundSoft },
+    pickFileName: { color: colors.sub, fontSize: 12, fontWeight: "700" },
+    pickPlaceholder: { alignItems: "center", gap: 6, paddingVertical: 10 },
+    pickPlaceholderIcon: {
+      width: 48,
+      height: 48,
+      borderRadius: 24,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: theme.primarySoft,
+      marginBottom: 2,
+    },
+    pickLabel: { color: colors.ink, ...typography.bodySm, fontWeight: "800" },
+    pickHint: { color: colors.sub, fontSize: 12, fontWeight: "500", textAlign: "center", paddingHorizontal: 8 },
+
+    pickActions: { flexDirection: "row", gap: 10 },
+    pickBtnPrimary: {
+      flex: 1,
+      minHeight: 46,
+      borderRadius: radius.md,
+      backgroundColor: theme.primary,
+      alignItems: "center",
+      justifyContent: "center",
+      flexDirection: "row",
+      gap: 6,
+    },
+    pickBtnPrimaryText: { color: colors.white, flexShrink: 1, ...typography.bodySm, fontWeight: "800" },
+    pickBtnSecondary: {
+      flex: 1,
+      minHeight: 46,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      borderColor: theme.border,
+      backgroundColor: colors.card,
+      alignItems: "center",
+      justifyContent: "center",
+      flexDirection: "row",
+      gap: 6,
+    },
+    pickBtnSecondaryText: { color: theme.textAccent, flexShrink: 1, ...typography.bodySm, fontWeight: "800" },
+
+    submitBtn: {
+      marginTop: 4,
+      backgroundColor: theme.primary,
+      borderRadius: radius.lg,
+      padding: 14,
+      alignItems: "center",
+      ...shadow.card,
+    },
+    submitBtnText: { color: colors.white, ...typography.bodySm, fontWeight: "800" },
+
+    // Estados de status (aprovado / aguardando)
+    statusBlock: { alignItems: "center", gap: 14, paddingTop: 28 },
+    statusCircle: {
+      width: 124,
+      height: 124,
+      borderRadius: 62,
+      backgroundColor: theme.backgroundSoft,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    statusTitle: { fontSize: 20, fontWeight: "800", color: colors.ink, textAlign: "center" },
+    statusText: { color: colors.sub, textAlign: "center", paddingHorizontal: 16, ...typography.bodySm, fontWeight: "500" },
+    statusPill: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      backgroundColor: theme.backgroundSoft,
+      paddingHorizontal: 14,
+      paddingVertical: 8,
+      borderRadius: radius.pill,
+    },
+    statusPillText: { color: theme.textAccent, ...typography.bodySm, fontWeight: "800" },
+  });
 }

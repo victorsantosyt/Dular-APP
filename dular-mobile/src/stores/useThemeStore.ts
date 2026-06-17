@@ -10,17 +10,23 @@ type ThemeState = {
   setTheme: (mode: ThemeMode) => void;
 };
 
+// Dark mode DESATIVADO por hora: o app fica sempre em "light". toggleTheme e
+// setTheme são no-ops que mantêm light, e onRehydrateStorage coage qualquer
+// valor persistido antigo (ex.: "dark") de volta para light. Para reativar,
+// basta restaurar as implementações originais abaixo.
 export const useThemeStore = create<ThemeState>()(
   persist(
     (set) => ({
       mode: "light",
-      toggleTheme: () =>
-        set((state) => ({ mode: state.mode === "light" ? "dark" : "light" })),
-      setTheme: (mode) => set({ mode }),
+      toggleTheme: () => set({ mode: "light" }),
+      setTheme: () => set({ mode: "light" }),
     }),
     {
       name: "dular-theme",
       storage: createJSONStorage(() => AsyncStorage),
+      onRehydrateStorage: () => (state) => {
+        if (state && state.mode !== "light") state.mode = "light";
+      },
     }
   )
 );

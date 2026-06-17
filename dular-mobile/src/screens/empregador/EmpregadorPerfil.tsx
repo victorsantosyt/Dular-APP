@@ -31,7 +31,6 @@ import type { EmpregadorTabParamList } from "@/navigation/EmpregadorNavigator";
 import { useAuth } from "@/stores/authStore";
 import { radius, shadows, spacing } from "@/theme";
 import { useDularColors } from "@/hooks/useDularColors";
-import { useThemeStore } from "@/stores/useThemeStore";
 import { platformSelect } from "@/utils/platform";
 import {
   ProfileHeroCard,
@@ -199,8 +198,6 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
   const navigation = useNavigation<Navigation>();
   const colors = useDularColors();
   const insets = useSafeAreaInsets();
-  const themeMode = useThemeStore((state) => state.mode);
-  const toggleTheme = useThemeStore((state) => state.toggleTheme);
   const s = useMemo(() => makeStyles(colors), [colors]);
   const setUser = useAuth((state) => state.setUser);
   const user = useAuth((state) => state.user);
@@ -753,13 +750,6 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
                   subtitle={geoSaving ? "Atualizando localização..." : "Melhorar sugestões perto de você"}
                   value={geoEnabled}
                   onValueChange={handleGeoToggle}
-                />
-                <ProfileSwitchRow
-                  icon="Sparkles"
-                  title="Dark mode"
-                  subtitle="Tema escuro do app"
-                  value={themeMode === "dark"}
-                  onValueChange={toggleTheme}
                   isLast
                 />
               </ProfileSection>

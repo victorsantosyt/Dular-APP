@@ -3,6 +3,7 @@ import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { DBottomTabBar } from "@/navigation/DBottomTabBar";
 import { DiaristaHomeScreen } from "@/screens/diarista/DiaristaHomeScreen";
 import { AgendamentosDiaristaScreen } from "@/screens/diarista/AgendamentosDiaristaScreen";
+import { ServicosDiaristaScreen } from "@/screens/diarista/ServicosDiaristaScreen";
 import { MensagensDiaristaScreen } from "@/screens/diarista/MensagensDiaristaScreen";
 import DiaristaNotificacoes from "@/screens/diarista/DiaristaNotificacoes";
 import DiaristaPerfil from "@/screens/diarista/DiaristaPerfil";
@@ -17,6 +18,8 @@ import SafeScoreScreen from "@/screens/perfil/SafeScoreScreen";
 import SosFlowScreen from "@/screens/perfil/SosFlowScreen";
 import ReportIncident from "@/screens/perfil/ReportIncident";
 import Suporte from "@/screens/perfil/Suporte";
+import Termos from "@/screens/perfil/Termos";
+import Privacidade from "@/screens/perfil/Privacidade";
 import { useAuth } from "@/stores/authStore";
 
 export type DiaristaTabParamList = {
@@ -38,6 +41,8 @@ export type DiaristaTabParamList = {
   SosFlow: undefined;
   ReportIncident: undefined;
   Suporte: undefined;
+  Termos: undefined;
+  Privacidade: undefined;
 };
 
 const Tab = createBottomTabNavigator<DiaristaTabParamList>();
@@ -67,7 +72,7 @@ export function DiaristaNavigator() {
     >
       <Tab.Screen name="Home" component={DiaristaHomeScreen} />
       <Tab.Screen name="Agendamentos" component={AgendamentosDiaristaScreen} />
-      <Tab.Screen name="Novo" component={AgendamentosDiaristaScreen} />
+      <Tab.Screen name="Novo" component={ServicosDiaristaScreen} />
       <Tab.Screen name="Mensagens" component={MensagensDiaristaScreen} />
       <Tab.Screen name="Notificacoes" component={DiaristaNotificacoes} />
       <Tab.Screen name="ChatAberto" component={ChatAbertoScreen} />
@@ -83,6 +88,8 @@ export function DiaristaNavigator() {
       <Tab.Screen name="SosFlow" component={SosFlowScreen} />
       <Tab.Screen name="ReportIncident" component={ReportIncident} />
       <Tab.Screen name="Suporte" component={Suporte} />
+      <Tab.Screen name="Termos" component={Termos} />
+      <Tab.Screen name="Privacidade" component={Privacidade} />
     </Tab.Navigator>
   );
 }

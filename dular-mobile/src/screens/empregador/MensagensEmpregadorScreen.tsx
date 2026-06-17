@@ -166,9 +166,9 @@ const s = StyleSheet.create({
     gap: 4,
   },
   title: {
-    color: colors.primaryDark,
+    color: colors.textPrimary,
     ...typography.h1,
-    
+
     fontWeight: "700",
     letterSpacing: 0,
   },

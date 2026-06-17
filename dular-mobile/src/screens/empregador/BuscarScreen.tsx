@@ -111,8 +111,8 @@ const CATEGORIAS: CategoriaCardItem[] = [
     icon: "BrushCleaning",
     title: "Diarista",
     subtitle: "Limpeza e\norganização",
-    bg: "#E7F7EF",
-    iconColor: "#19A86A",
+    bg: "#FFF1F5",
+    iconColor: "#F7658B",
     imageSource: require("../../../assets/images/empregador_buscar/buscar_card_diarista_logo.png"),
     imageStyle: { width: 110, height: 90, right: -25, bottom: -8 },
   },
@@ -615,7 +615,7 @@ const s = StyleSheet.create({
   title: {
     ...typography.h1,
     fontWeight: "700",
-    color: colors.primaryDark,
+    color: colors.textPrimary,
     letterSpacing: 0,
   },
   subtitle: {

@@ -364,13 +364,17 @@ export default function EmpregadorHome() {
             />
           }
         >
-          {/* ── Header: greeting centered, bell absolutely right ── */}
+          {/* ── Header: avatar + saudação + sino (padrão Diarista/Montador) ── */}
           <View style={s.header}>
-            <View style={s.headerCenter}>
-              <Text allowFontScaling={false} style={s.greeting}>
+            <Pressable hitSlop={8} onPress={() => navigation.navigate("Perfil")} style={s.avatarRing}>
+              <DAvatar size="md" uri={user?.avatarUrl ?? undefined} initials={firstName.slice(0, 2)} online />
+            </Pressable>
+
+            <View style={s.headerGreeting}>
+              <Text allowFontScaling={false} style={s.greeting} numberOfLines={1}>
                 Olá, {firstName}! 👋
               </Text>
-              <Text allowFontScaling={false} style={s.greetingSub}>
+              <Text allowFontScaling={false} style={s.greetingSub} numberOfLines={1}>
                 O que vamos cuidar hoje?
               </Text>
             </View>
@@ -380,7 +384,7 @@ export default function EmpregadorHome() {
               style={s.notifBtn}
               onPress={() => navigation.navigate("Notificacoes")}
             >
-              <AppIcon name="Bell" size={20} color={colors.textSecondary} strokeWidth={2} />
+              <AppIcon name="Bell" size={20} color={EMPREGADOR_THEME.icon} strokeWidth={2.2} />
               {unreadMessages > 0 && (
                 <View style={s.notifBadge}>
                   <Text allowFontScaling={false} style={s.notifBadgeText}>
@@ -436,7 +440,12 @@ export default function EmpregadorHome() {
 
           {/* ── Categorias de profissional ── */}
           <View style={s.section}>
-            <DSectionHeader title="Quem você precisa hoje?" />
+            <DSectionHeader
+              title="Quem você precisa hoje?"
+              action="Ver todos"
+              actionColor={EMPREGADOR_THEME.primary}
+              onAction={() => navigation.navigate("CategoriasTodas")}
+            />
             <View style={s.catGrid}>
               <CategoriaCard
                 icon="WashingMachine"
@@ -537,18 +546,22 @@ const s = StyleSheet.create({
   header: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
+    gap: spacing.md,
     paddingHorizontal: spacing.screenPadding,
     paddingTop: 10,
     paddingBottom: spacing.sm,
   },
-  headerCenter: {
-    alignItems: "center",
+  avatarRing: {
+    borderWidth: 2,
+    borderColor: EMPREGADOR_THEME.primary,
+    borderRadius: 999,
+    padding: 2,
+  },
+  headerGreeting: {
+    flex: 1,
     gap: 2,
   },
   notifBtn: {
-    position: "absolute",
-    right: spacing.screenPadding,
     width: 40,
     height: 40,
     borderRadius: 20,
@@ -556,8 +569,7 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: colors.border,
-    marginBottom: 6,
+    borderColor: EMPREGADOR_THEME.border,
     ...shadows.soft,
   },
   notifBadge: {
@@ -582,13 +594,10 @@ const s = StyleSheet.create({
     fontWeight: "700",
     color: colors.textPrimary,
     letterSpacing: -0.3,
-    textAlign: "right",
   },
   greetingSub: {
     ...typography.bodySm,
     color: colors.textMuted,
-    
-    textAlign: "right",
   },
 
   // ── Hero card

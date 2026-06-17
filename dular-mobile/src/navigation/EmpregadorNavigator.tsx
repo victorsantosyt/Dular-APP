@@ -13,6 +13,9 @@ import EmpregadorPerfil from "@/screens/empregador/EmpregadorPerfil";
 import EmpregadorDetalhe from "@/screens/empregador/EmpregadorDetalhe";
 import FavoritosEmpregadorScreen from "@/screens/empregador/FavoritosEmpregadorScreen";
 import HistoricoEmpregadorScreen from "@/screens/empregador/HistoricoEmpregadorScreen";
+import { CategoriasTodasScreen } from "@/screens/empregador/CategoriasTodasScreen";
+import { DadosContaScreen } from "@/screens/empregador/DadosContaScreen";
+import Suporte from "@/screens/perfil/Suporte";
 import ProfissionaisSugeridosScreen from "@/screens/empregador/ProfissionaisSugeridosScreen";
 import AcoesRapidasEmpregadorScreen from "@/screens/empregador/AcoesRapidasEmpregadorScreen";
 import ProfissionaisDestaqueScreen from "@/screens/empregador/ProfissionaisDestaqueScreen";
@@ -67,6 +70,9 @@ export type EmpregadorTabParamList = {
   ProfissionaisSugeridos: undefined;
   AcoesRapidas: undefined;
   ProfissionaisDestaque: undefined;
+  CategoriasTodas: undefined;
+  DadosConta: undefined;
+  Suporte: undefined;
 };
 
 const Tab = createBottomTabNavigator<EmpregadorTabParamList>();
@@ -111,6 +117,9 @@ export function EmpregadorNavigator() {
       <Tab.Screen name="Privacidade" component={Privacidade} />
       <Tab.Screen name="Favoritos" component={FavoritosEmpregadorScreen} />
       <Tab.Screen name="Historico" component={HistoricoEmpregadorScreen} />
+      <Tab.Screen name="CategoriasTodas" component={CategoriasTodasScreen} />
+      <Tab.Screen name="DadosConta" component={DadosContaScreen} />
+      <Tab.Screen name="Suporte" component={Suporte} />
       <Tab.Screen name="ProfissionaisSugeridos" component={ProfissionaisSugeridosScreen} />
       <Tab.Screen name="AcoesRapidas" component={AcoesRapidasEmpregadorScreen} />
       <Tab.Screen name="ProfissionaisDestaque" component={ProfissionaisDestaqueScreen} />

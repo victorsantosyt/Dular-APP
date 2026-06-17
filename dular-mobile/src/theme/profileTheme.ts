@@ -114,12 +114,13 @@ export function getProfileTheme(
   const role = typeof input === "object" && input !== null ? input.role : input;
   const genero = typeof input === "object" && input !== null ? input.genero : generoArg;
 
+  // EMPREGADOR é SEMPRE roxo — a UI do empregador não é tematizada por gênero.
+  // Precede o gênero para que um empregador com genero definido (ex.: MASCULINO)
+  // não herde verde/rosa nas telas compartilhadas (Documentos, SafeScore, etc.).
+  if (role === "EMPREGADOR") return EMPREGADOR_THEME;
+
   if (genero === "FEMININO") return FEMININO_THEME;
   if (genero === "MASCULINO") return MASCULINO_THEME;
-
-  // Sem inferência de gênero por role: apenas EMPREGADOR tem paleta própria;
-  // qualquer outro role sem gênero cai no tema neutro.
-  if (role === "EMPREGADOR") return EMPREGADOR_THEME;
 
   return NEUTRAL_THEME;
 }

@@ -155,11 +155,28 @@ export function DiaristaProfileScreen() {
       );
       return;
     }
+
+    // Deriva o rótulo de preço estimado a partir do primeiro serviço oferecido
+    // (ou do categoriaInicial) para exibir na tela de confirmação — sem hardcode.
+    let precoEstimadoLabel: string | undefined;
+    if (diarista) {
+      const tipoParaPreco: ServicoOferecido =
+        diarista.servicosOferecidos?.[0] ??
+        (categoriaInicial?.toUpperCase() as ServicoOferecido | undefined) ??
+        "DIARISTA";
+      const label = precoLinhaLabel(tipoParaPreco, diarista.precos, {
+        precoBabaHora: diarista.precoBabaHora,
+        precoCozinheiraBase: diarista.precoCozinheiraBase,
+      });
+      precoEstimadoLabel = label;
+    }
+
     navigation.navigate("SolicitarServico", {
       categoriaInicial,
       tipoInicial: "DIARISTA",
       profissionalId: diaristaId,
       profissionalNome: nome,
+      precoEstimadoLabel,
     });
   };
 
@@ -236,7 +253,17 @@ export function DiaristaProfileScreen() {
     valorACombinar,
     observacaoPreco,
     perfilCompleto,
+    avaliacoes,
   } = diarista;
+
+  // Formata data de avaliação de forma legível
+  function formatAvaliacaoData(isoDate: string): string {
+    try {
+      return new Date(isoDate).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" });
+    } catch {
+      return "";
+    }
+  }
 
   const cidadeUfText = cidade && uf ? `${cidade} • ${uf}` : null;
   const bairrosText = bairros?.length ? bairros.map((b) => b.nome).join(", ") : null;
@@ -358,6 +385,29 @@ export function DiaristaProfileScreen() {
             <AppIcon name="Clock" size={16} color={colors.textSecondary} strokeWidth={2.2} />
             <Text style={s.credText}>{tempoLabel(tempoPlataforma)} na plataforma</Text>
           </View>
+        </View>
+
+        {/* Avaliações recebidas */}
+        <View style={s.card}>
+          <Text style={s.sectionTitle}>Avaliações</Text>
+          {avaliacoes.length === 0 ? (
+            <Text style={s.bioText}>Sem avaliações ainda.</Text>
+          ) : (
+            avaliacoes.slice(0, 5).map((av) => (
+              <View key={av.id} style={s.avaliacaoItem}>
+                <View style={s.avaliacaoHeader}>
+                  <View style={s.avaliacaoNota}>
+                    <AppIcon name="Star" size={12} color={colors.warning} strokeWidth={2.5} />
+                    <Text style={s.avaliacaoNotaText}>{av.notaGeral.toFixed(1)}</Text>
+                  </View>
+                  <Text style={s.avaliacaoData}>{formatAvaliacaoData(av.createdAt)}</Text>
+                </View>
+                {av.comentario ? (
+                  <Text style={s.avaliacaoComentario}>{av.comentario}</Text>
+                ) : null}
+              </View>
+            ))
+          )}
         </View>
 
         {/* Segurança */}
@@ -693,5 +743,39 @@ const s = StyleSheet.create({
     color: colors.textSecondary,
     textAlign: "center",
     marginBottom: spacing.sm,
+  },
+
+  // Avaliações
+  avaliacaoItem: {
+    gap: 4,
+    paddingVertical: 6,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
+  },
+  avaliacaoHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  avaliacaoNota: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+  },
+  avaliacaoNotaText: {
+    color: colors.warning,
+    ...typography.caption,
+    fontWeight: "700",
+  },
+  avaliacaoData: {
+    color: colors.textMuted,
+    ...typography.caption,
+    fontWeight: "500",
+  },
+  avaliacaoComentario: {
+    color: colors.textSecondary,
+    ...typography.caption,
+    fontWeight: "500",
+    lineHeight: 17,
   },
 });

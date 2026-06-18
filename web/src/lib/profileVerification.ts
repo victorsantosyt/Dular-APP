@@ -75,21 +75,32 @@ export async function getDiaristaVerificationStatus(
   return "PENDENTE";
 }
 
-/** Montador: usa MontadorPerfil.verificado + documentoFrente/Verso/selfieDoc. */
+/** Montador: usa MontadorPerfil.verificado + DocumentVerification KYC. */
 export async function getMontadorVerificationStatus(
   userId: string,
 ): Promise<VerificationStatus> {
-  const profile = await prisma.montadorPerfil.findUnique({
-    where: { userId },
-    select: {
-      verificado: true,
-      documentoFrente: true,
-      documentoVerso: true,
-      selfieDoc: true,
-    },
-  });
+  const [profile, ultimaDoc] = await Promise.all([
+    prisma.montadorPerfil.findUnique({
+      where: { userId },
+      select: {
+        verificado: true,
+        documentoFrente: true,
+        documentoVerso: true,
+        selfieDoc: true,
+      },
+    }),
+    // Lê a última DocumentVerification do tipo MONTADOR_KYC para detectar
+    // reprovação de admin (/api/admin/verificacoes/reprove seta status=REJECTED).
+    prisma.documentVerification.findFirst({
+      where: { userId, docType: "MONTADOR_KYC" },
+      orderBy: { updatedAt: "desc" },
+      select: { status: true },
+    }),
+  ]);
   if (!profile) return "NAO_ENVIADO";
   if (profile.verificado) return "VERIFICADO";
+  // Reprovação de admin: não permite re-submissão automática.
+  if (ultimaDoc?.status === "REJECTED") return "REPROVADO";
   const algumDoc = Boolean(
     profile.documentoFrente || profile.documentoVerso || profile.selfieDoc,
   );

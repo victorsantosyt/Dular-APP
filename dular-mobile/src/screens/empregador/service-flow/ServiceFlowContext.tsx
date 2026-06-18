@@ -33,6 +33,10 @@ export type ServiceDraft = {
   especialidadeId?: string;
   especialidadeLabel?: string;
   categoriaBackend?: string;
+  /** Rótulo de preço estimado vindo do perfil público do profissional.
+   *  Ex.: "a partir de R$ 80,00 (leve)" ou "A combinar". Nunca um número
+   *  fixo hardcoded — se ausente, exibe "A combinar". */
+  precoEstimadoLabel?: string;
   dataISO: string;
   horario: string;
   /** Endereço do atendimento. cidade/uf/bairro são pré-preenchidos a partir
@@ -101,6 +105,9 @@ type Props = {
   initialTipo?: ServiceFlowTipo;
   initialProfissionalId?: string;
   initialProfissionalNome?: string;
+  /** Rótulo de preço já formatado vindo do perfil público — repassado direto
+   *  ao draft inicial sem transformação. */
+  initialPrecoEstimadoLabel?: string;
 };
 
 export function ServiceFlowProvider({
@@ -109,6 +116,7 @@ export function ServiceFlowProvider({
   initialTipo,
   initialProfissionalId,
   initialProfissionalNome,
+  initialPrecoEstimadoLabel,
 }: Props) {
   const [draft, setDraft] = useState<ServiceDraft>(() => {
     if (!initialCategoria && !initialTipo && !initialProfissionalId) return INITIAL_DRAFT;
@@ -126,6 +134,7 @@ export function ServiceFlowProvider({
       tipoProfissional: tipo,
       ...(initialProfissionalId ? { profissionalId: initialProfissionalId } : {}),
       ...(initialProfissionalNome ? { profissionalNome: initialProfissionalNome } : {}),
+      ...(initialPrecoEstimadoLabel ? { precoEstimadoLabel: initialPrecoEstimadoLabel } : {}),
     };
   });
 

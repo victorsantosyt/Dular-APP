@@ -279,13 +279,13 @@ export function LoginScreen() {
           onPress={handleBack}
           hitSlop={12}
           accessibilityRole="button"
-          accessibilityLabel="Voltar para escolha de gênero"
+          accessibilityLabel="Voltar para escolha de perfil"
           style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}
         >
           <AppIcon name="ArrowLeft" size={20} color={colors.primary} strokeWidth={2.5} />
         </Pressable>
         <View style={styles.headerCenter}>
-          <PageDots total={3} active={2} />
+          <PageDots total={2} active={1} />
         </View>
         <View style={styles.headerSpacer} />
       </View>

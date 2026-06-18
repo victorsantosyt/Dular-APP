@@ -81,6 +81,7 @@ import {
   ProfileSwitchRow,
 } from "../empregador/profile/components";
 import type { ServicoOferecido } from "@/types/diarista";
+import { OFERTAS_DIARISTA } from "@/constants/categorias";
 
 type Props = { onLogout: () => void };
 type Navigation = BottomTabNavigationProp<DiaristaTabParamList>;
@@ -137,16 +138,8 @@ function statusCardCopy(
 }
 
 // ── Constantes domínio ───────────────────────────────────────────────────────
-const SERVICOS_OPTIONS: Array<{
-  id: ServicoOferecido;
-  title: string;
-  subtitle: string;
-  icon: React.ComponentProps<typeof AppIcon>["name"];
-}> = [
-  { id: "DIARISTA", title: "Diarista", subtitle: "Limpeza e organização", icon: "BrushCleaning" },
-  { id: "BABA", title: "Babá", subtitle: "Cuidados com crianças", icon: "Baby" },
-  { id: "COZINHEIRA", title: "Cozinheira", subtitle: "Preparo de refeições", icon: "ChefHat" },
-];
+// Opções de "O que você oferece" vêm da FONTE ÚNICA de categorias.
+const SERVICOS_OPTIONS = OFERTAS_DIARISTA;
 
 const DIAS_SEMANA: Array<{ idx: number; label: string }> = [
   { idx: 0, label: "Dom" },
@@ -334,7 +327,7 @@ export default function DiaristaPerfil({ onLogout }: Props) {
   const [localizacaoLoading, setLocalizacaoLoading] = useState(false);
 
   // Formulários
-  const [dadosForm, setDadosForm] = useState({ nome: "", telefone: "", bio: "" });
+  const [dadosForm, setDadosForm] = useState({ nome: "", telefone: "", bio: "", anosExperiencia: "" });
   const [servicosDraft, setServicosDraft] = useState<ServicoOferecido[]>([]);
   const [areaForm, setAreaForm] = useState({
     cidade: "",
@@ -633,6 +626,8 @@ export default function DiaristaPerfil({ onLogout }: Props) {
             nome: profile?.user?.nome ?? me?.nome ?? user?.nome ?? "",
             telefone: profile?.user?.telefone ?? me?.telefone ?? user?.telefone ?? "",
             bio: profile?.bio ?? "",
+            anosExperiencia:
+              profile?.anosExperiencia != null ? String(profile.anosExperiencia) : "",
           });
           break;
         case "servicos":
@@ -757,24 +752,34 @@ export default function DiaristaPerfil({ onLogout }: Props) {
     }
   };
 
-  // ── Salvar: dados pessoais (nome/telefone/bio) ───────────────────────────
+  // ── Salvar: dados pessoais (nome/telefone/bio) + anos de experiência ──────
   const salvarDados = async () => {
     const nomeTrim = dadosForm.nome.trim();
     if (nomeTrim.length < 2) {
       setFormError("Informe seu nome completo.");
       return;
     }
+    const anosTrim = dadosForm.anosExperiencia.trim();
+    const anosExperiencia = anosTrim ? Number(anosTrim) : null;
+    if (anosExperiencia != null && (!Number.isInteger(anosExperiencia) || anosExperiencia < 0)) {
+      setFormError("Informe anos de experiência válidos.");
+      return;
+    }
     try {
       setSaving(true);
       setFormError(null);
-      // PATCH mínimo: só nome/telefone/bio em /api/me
+      // Nome/telefone/bio são do User → /api/me. Anos de experiência é do perfil
+      // da diarista → /api/diarista/me (mesma estrutura dos dados do montador).
       await updatePerfilBase({
         nome: nomeTrim,
         telefone: dadosForm.telefone.trim(),
         bio: dadosForm.bio.trim(),
       });
+      await patchDiaristaPerfil({ anosExperiencia });
       if (!mountedRef.current) return;
-      setProfile((prev) => (prev ? { ...prev, bio: dadosForm.bio.trim() || null } : prev));
+      setProfile((prev) =>
+        prev ? { ...prev, bio: dadosForm.bio.trim() || null, anosExperiencia } : prev,
+      );
       setUser((cur) =>
         cur
           ? {
@@ -1347,9 +1352,13 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                   icon="User"
                   title="Nome, telefone e apresentação"
                   subtitle={
-                    profile?.bio
-                      ? profile.bio.slice(0, 80) + (profile.bio.length > 80 ? "…" : "")
-                      : "Complete sua apresentação"
+                    profile?.anosExperiencia != null && profile.anosExperiencia > 0
+                      ? `${profile.anosExperiencia} ${profile.anosExperiencia === 1 ? "ano" : "anos"} de experiência${
+                          profile?.bio ? " · " + profile.bio.slice(0, 50) + (profile.bio.length > 50 ? "…" : "") : ""
+                        }`
+                      : profile?.bio
+                        ? profile.bio.slice(0, 80) + (profile.bio.length > 80 ? "…" : "")
+                        : "Complete sua apresentação"
                   }
                   onPress={() => openModal("dados")}
                 />
@@ -1581,6 +1590,18 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                 textAlignVertical="top"
               />
               <Text style={s.charCount}>{dadosForm.bio.length}/300</Text>
+
+              <Text style={s.modalLabel}>Anos de experiência</Text>
+              <TextInput
+                value={dadosForm.anosExperiencia}
+                onChangeText={(v) =>
+                  setDadosForm((cur) => ({ ...cur, anosExperiencia: v.replace(/[^0-9]/g, "").slice(0, 2) }))
+                }
+                placeholder="Ex.: 5"
+                placeholderTextColor={colors.textMuted}
+                style={s.modalInput}
+                keyboardType="number-pad"
+              />
 
               {formError ? <Text style={s.errorText}>{formError}</Text> : null}
 

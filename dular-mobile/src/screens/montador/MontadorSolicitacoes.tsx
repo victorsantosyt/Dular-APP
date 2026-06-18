@@ -18,6 +18,7 @@ import {
   canOpenChat,
   formatDateTime,
   formatMoneyFromCents,
+  formatValorServico,
   labelServico,
   labelSubcategoria,
   localResumo,
@@ -137,7 +138,7 @@ function SolicitacaoCard({
         <Text style={styles.infoLabel}>Serviço</Text>
         <Text style={styles.infoValue}>{labelServico(servico)}</Text>
         <Text style={styles.infoLabel}>Valor estimado</Text>
-        <Text style={styles.infoValue}>{formatMoneyFromCents(servico.valorEstimado ?? servico.precoFinal)}</Text>
+        <Text style={styles.infoValue}>{formatValorServico(servico.valorEstimado ?? servico.precoFinal)}</Text>
       </View>
 
       {servico.observacoes ? (

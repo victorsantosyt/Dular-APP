@@ -26,6 +26,10 @@ const SERVICO_LABELS: Record<ServicoOferecido, string> = {
   DIARISTA: "Diarista",
   BABA: "Babá",
   COZINHEIRA: "Cozinheira",
+  FAXINEIRA: "Faxineira",
+  PASSADEIRA: "Passadeira",
+  LAVADEIRA: "Lavadeira",
+  CUIDADORA: "Cuidadora",
 };
 
 type ServicoAtivoDiarista = {

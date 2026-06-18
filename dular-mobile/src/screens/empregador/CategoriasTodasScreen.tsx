@@ -3,47 +3,24 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
-import { AppIcon, type AppIconName, BackCircleButton } from "@/components/ui";
+import { AppIcon, BackCircleButton } from "@/components/ui";
 import { colors, radius, shadows, spacing, typography } from "@/theme";
 import { getProfileTheme } from "@/theme/profileTheme";
+import { CATEGORIAS } from "@/constants/categorias";
 import type { EmpregadorTabParamList } from "@/navigation/EmpregadorNavigator";
 
 /**
- * CategoriasTodasScreen — tela do "Ver todos" da seção "Quem você precisa hoje?".
- * Lista todas as categorias de profissionais. As contratáveis abrem a busca;
- * as demais aparecem como "Em breve". Identidade visual do empregador (roxo).
+ * CategoriasTodasScreen — "Ver todos" da seção "Quem você precisa hoje?".
+ * Lista TODAS as categorias do ecossistema (fonte única), cada uma abrindo a
+ * busca correspondente. Identidade visual do empregador (roxo) no chrome.
  */
 
 type Navigation = BottomTabNavigationProp<EmpregadorTabParamList>;
-type BuscarKey = "baba" | "cozinheira" | "diarista" | "montador";
 
 const THEME = getProfileTheme({ role: "EMPREGADOR" });
 
-type Categoria = {
-  key: string;
-  label: string;
-  icon: AppIconName;
-  /** Quando definido, a categoria é contratável e abre a busca. */
-  buscar?: BuscarKey;
-};
-
-const CATEGORIAS: Categoria[] = [
-  { key: "diarista", label: "Diarista", icon: "BrushCleaning", buscar: "diarista" },
-  { key: "baba", label: "Babá", icon: "Baby", buscar: "baba" },
-  { key: "cozinheira", label: "Cozinheira", icon: "ChefHat", buscar: "cozinheira" },
-  { key: "montador", label: "Montador", icon: "Wrench", buscar: "montador" },
-  { key: "faxineira", label: "Faxineira", icon: "Sparkles" },
-  { key: "passadeira", label: "Passadeira de roupa", icon: "Shirt" },
-  { key: "lavadeira", label: "Lavadeira de roupa", icon: "WashingMachine" },
-  { key: "cuidadora", label: "Cuidadora", icon: "Heart" },
-];
-
 export function CategoriasTodasScreen() {
   const navigation = useNavigation<Navigation>();
-
-  const abrir = (c: Categoria) => {
-    if (c.buscar) navigation.navigate("Buscar", { categoriaInicial: c.buscar });
-  };
 
   return (
     <SafeAreaView style={s.safe} edges={["top", "left", "right"]}>
@@ -53,41 +30,22 @@ export function CategoriasTodasScreen() {
       </View>
 
       <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
-        <Text style={s.intro}>
-          Todas as categorias de profissionais. As disponíveis abrem a busca; as demais chegam em breve.
-        </Text>
+        <Text style={s.intro}>Todas as categorias de profissionais disponíveis. Toque para buscar.</Text>
 
         <View style={s.grid}>
-          {CATEGORIAS.map((c) => {
-            const disponivel = !!c.buscar;
-            return (
-              <Pressable
-                key={c.key}
-                onPress={() => abrir(c)}
-                disabled={!disponivel}
-                style={({ pressed }) => [s.card, !disponivel && s.cardSoon, pressed && disponivel && s.pressed]}
-              >
-                <View style={[s.iconWrap, !disponivel && s.iconWrapSoon]}>
-                  <AppIcon
-                    name={c.icon}
-                    size={24}
-                    color={disponivel ? THEME.primary : colors.textMuted}
-                    strokeWidth={2.1}
-                  />
-                </View>
-                <Text style={s.cardLabel} numberOfLines={2}>{c.label}</Text>
-                {disponivel ? (
-                  <View style={s.tagOk}>
-                    <Text style={s.tagOkText}>Disponível</Text>
-                  </View>
-                ) : (
-                  <View style={s.tagSoon}>
-                    <Text style={s.tagSoonText}>Em breve</Text>
-                  </View>
-                )}
-              </Pressable>
-            );
-          })}
+          {CATEGORIAS.map((c) => (
+            <Pressable
+              key={c.key}
+              onPress={() => navigation.navigate("Buscar", { categoriaInicial: c.key })}
+              style={({ pressed }) => [s.card, pressed && s.pressed]}
+            >
+              <View style={[s.iconWrap, { backgroundColor: c.bg }]}>
+                <AppIcon name={c.icon} size={24} color={c.fg} strokeWidth={2.1} />
+              </View>
+              <Text style={s.cardLabel} numberOfLines={1}>{c.label}</Text>
+              <Text style={s.cardSub} numberOfLines={2}>{c.subtitle}</Text>
+            </Pressable>
+          ))}
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -119,10 +77,9 @@ const s = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 12,
     alignItems: "center",
-    gap: 8,
+    gap: 6,
     ...shadows.soft,
   },
-  cardSoon: { opacity: 0.7, backgroundColor: colors.background },
   pressed: { opacity: 0.85 },
   iconWrap: {
     width: 48,
@@ -130,22 +87,8 @@ const s = StyleSheet.create({
     borderRadius: 24,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: THEME.primarySoft,
+    marginBottom: 2,
   },
-  iconWrapSoon: { backgroundColor: colors.skeletonBg },
-  cardLabel: { ...typography.bodySm, fontWeight: "700", color: colors.textPrimary, textAlign: "center" },
-  tagOk: {
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderRadius: radius.pill,
-    backgroundColor: THEME.primarySoft,
-  },
-  tagOkText: { ...typography.caption, fontWeight: "700", color: THEME.textAccent },
-  tagSoon: {
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderRadius: radius.pill,
-    backgroundColor: colors.skeletonBg,
-  },
-  tagSoonText: { ...typography.caption, fontWeight: "700", color: colors.textMuted },
+  cardLabel: { ...typography.bodySm, fontWeight: "800", color: colors.textPrimary, textAlign: "center" },
+  cardSub: { ...typography.caption, color: colors.textSecondary, fontWeight: "500", textAlign: "center" },
 });

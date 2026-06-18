@@ -3,6 +3,7 @@ import { StyleSheet, View } from "react-native";
 import * as ExpoSplashScreen from "expo-splash-screen";
 import OnboardingNavigator from "@/navigation/OnboardingNavigator";
 import { GeneroGateScreen } from "@/screens/onboarding/GeneroGateScreen";
+import { NichosGateScreen } from "@/screens/onboarding/NichosGateScreen";
 import EmpregadorNavigator from "@/navigation/EmpregadorNavigator";
 import DiaristaNavigator from "@/navigation/DiaristaNavigator";
 import MontadorNavigator from "@/navigation/MontadorNavigator";
@@ -40,6 +41,17 @@ function AuthenticatedFlow({ role, onboardingSeen }: { role: string | null; onbo
     );
   }
   if (normalizedRole === "diarista") {
+    // Gate de serviços oferecidos (pós-login, mesmo padrão do gênero): a
+    // profissional de casa que ainda não escolheu nenhum serviço define agora —
+    // grava no backend (fonte de verdade) e o gate some. Garante que o perfil
+    // já nasça com os serviços certos, evitando pedidos fora do que ela faz.
+    if (user && (user.servicosOferecidos?.length ?? 0) === 0) {
+      return (
+        <ThemeScope forceLight>
+          <NichosGateScreen />
+        </ThemeScope>
+      );
+    }
     return (
       <PushNotificationsGate>
         <DiaristaNavigator />

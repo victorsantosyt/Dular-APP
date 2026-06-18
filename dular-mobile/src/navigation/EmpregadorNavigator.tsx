@@ -33,7 +33,19 @@ import type { ServiceCategory, TipoProfissional } from "@/screens/empregador/ser
 
 export type EmpregadorTabParamList = {
   Home: undefined;
-  Buscar: undefined | { categoriaInicial?: "baba" | "cozinheira" | "diarista" | "montador" };
+  Buscar:
+    | undefined
+    | {
+        categoriaInicial?:
+          | "baba"
+          | "cozinheira"
+          | "diarista"
+          | "montador"
+          | "faxineira"
+          | "cuidadora"
+          | "passadeira"
+          | "lavadeira";
+      };
   Agendamentos: undefined;
   /** Pode receber pré-seleção da Home / Busca / perfil público. Sem params,
    *  abre o flow no estado inicial. */

@@ -9,7 +9,17 @@ import {
 import { getGuardianStatusForUser } from "@/lib/safeScoreGuardian";
 
 function parseServico(value: string | null): ServicoOferecido | null {
-  if (value === "DIARISTA" || value === "BABA" || value === "COZINHEIRA") return value;
+  if (
+    value === "DIARISTA" ||
+    value === "BABA" ||
+    value === "COZINHEIRA" ||
+    value === "FAXINEIRA" ||
+    value === "PASSADEIRA" ||
+    value === "LAVADEIRA" ||
+    value === "CUIDADORA"
+  ) {
+    return value;
+  }
   return null;
 }
 

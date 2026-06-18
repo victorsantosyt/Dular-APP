@@ -127,9 +127,12 @@ function especialidadeLabel(id: string) {
   return ESPECIALIDADE_LABELS[id as MontadorEspecialidadeId] ?? id;
 }
 
-function centsToInput(value?: number | null) {
-  if (typeof value !== "number" || !Number.isFinite(value)) return "";
-  return (value / 100).toFixed(2).replace(".", ",");
+function centsToInput(value?: number | string | null) {
+  // Decimal do backend chega como string no JSON ("12000"); coage p/ número,
+  // senão o campo de preço fica vazio ao reabrir a tela.
+  const cents = typeof value === "string" ? (value.trim() ? Number(value) : NaN) : value;
+  if (typeof cents !== "number" || !Number.isFinite(cents)) return "";
+  return (cents / 100).toFixed(2).replace(".", ",");
 }
 
 function inputToCents(value: string) {
@@ -816,22 +819,27 @@ export default function MontadorPerfil() {
   };
 
   const savePrecos = () => {
-    const precoBase = inputToCents(precosForm.precoBase);
-    const taxaMinima = inputToCents(precosForm.taxaMinima);
-    if (Number.isNaN(precoBase) || Number.isNaN(taxaMinima)) {
+    const usaCombinar = precosForm.valorACombinar;
+    // "Valor a combinar" e preço fixo são mutuamente exclusivos: ao combinar,
+    // não persistimos preço base/taxa (evita salvar os dois e a UI voltar a
+    // mostrar "Valor a combinar" mesmo com preço preenchido).
+    const precoBase = usaCombinar ? null : inputToCents(precosForm.precoBase);
+    const taxaMinima = usaCombinar ? null : inputToCents(precosForm.taxaMinima);
+    if (!usaCombinar && (Number.isNaN(precoBase) || Number.isNaN(taxaMinima))) {
       setFormError("Informe valores válidos.");
       return;
     }
-    if (!precosForm.valorACombinar && !precoBase && !taxaMinima) {
+    if (!usaCombinar && !precoBase && !taxaMinima) {
       setFormError("Informe um preço base, taxa mínima ou marque valor a combinar.");
       return;
     }
     void saveProfile({
-      valorACombinar: precosForm.valorACombinar,
+      valorACombinar: usaCombinar,
       precoBase,
       taxaMinima,
       cobraDeslocamento: precosForm.cobraDeslocamento,
-      observacaoPreco: precosForm.observacaoPreco || null,
+      // Observação de preço acompanha o deslocamento; sem ele, não é persistida.
+      observacaoPreco: precosForm.cobraDeslocamento ? precosForm.observacaoPreco.trim() || null : null,
     }, "Preços salvos.");
   };
 
@@ -1169,18 +1177,48 @@ export default function MontadorPerfil() {
               <Text style={styles.switchTitle}>Valor a combinar</Text>
               <Text style={styles.switchSubtitle}>Use quando o preço depender da avaliação do serviço</Text>
             </View>
-            <Switch value={precosForm.valorACombinar} onValueChange={(valorACombinar) => setPrecosForm((prev) => ({ ...prev, valorACombinar }))} trackColor={{ false: colors.border, true: profileTheme.primarySoft }} thumbColor={precosForm.valorACombinar ? profileTheme.primary : colors.textMuted} />
+            <Switch
+              value={precosForm.valorACombinar}
+              onValueChange={(valorACombinar) =>
+                // Mutuamente exclusivo com preço fixo: ao combinar, limpa os preços.
+                setPrecosForm((prev) => ({
+                  ...prev,
+                  valorACombinar,
+                  ...(valorACombinar ? { precoBase: "", taxaMinima: "" } : {}),
+                }))
+              }
+              trackColor={{ false: colors.border, true: profileTheme.primarySoft }}
+              thumbColor={precosForm.valorACombinar ? profileTheme.primary : colors.textMuted}
+            />
           </View>
-          <Field label="Preço base em R$" value={precosForm.precoBase} onChangeText={(precoBase) => setPrecosForm((prev) => ({ ...prev, precoBase }))} keyboardType="decimal-pad" placeholder="Ex.: 120,00" />
-          <Field label="Taxa mínima em R$" value={precosForm.taxaMinima} onChangeText={(taxaMinima) => setPrecosForm((prev) => ({ ...prev, taxaMinima }))} keyboardType="decimal-pad" placeholder="Ex.: 80,00" />
+          {!precosForm.valorACombinar ? (
+            <>
+              <Field label="Preço base em R$" value={precosForm.precoBase} onChangeText={(precoBase) => setPrecosForm((prev) => ({ ...prev, precoBase }))} keyboardType="decimal-pad" placeholder="Ex.: 120,00" />
+              <Field label="Taxa mínima em R$" value={precosForm.taxaMinima} onChangeText={(taxaMinima) => setPrecosForm((prev) => ({ ...prev, taxaMinima }))} keyboardType="decimal-pad" placeholder="Ex.: 80,00" />
+            </>
+          ) : null}
           <View style={styles.switchRow}>
             <View style={styles.switchText}>
               <Text style={styles.switchTitle}>Cobra deslocamento</Text>
               <Text style={styles.switchSubtitle}>Informe detalhes na observação de preço</Text>
             </View>
-            <Switch value={precosForm.cobraDeslocamento} onValueChange={(cobraDeslocamento) => setPrecosForm((prev) => ({ ...prev, cobraDeslocamento }))} trackColor={{ false: colors.border, true: profileTheme.primarySoft }} thumbColor={precosForm.cobraDeslocamento ? profileTheme.primary : colors.textMuted} />
+            <Switch
+              value={precosForm.cobraDeslocamento}
+              onValueChange={(cobraDeslocamento) =>
+                // Observação de preço só faz sentido com deslocamento; ao desligar, limpa.
+                setPrecosForm((prev) => ({
+                  ...prev,
+                  cobraDeslocamento,
+                  ...(cobraDeslocamento ? {} : { observacaoPreco: "" }),
+                }))
+              }
+              trackColor={{ false: colors.border, true: profileTheme.primarySoft }}
+              thumbColor={precosForm.cobraDeslocamento ? profileTheme.primary : colors.textMuted}
+            />
           </View>
-          <Field label="Observação de preço" value={precosForm.observacaoPreco} onChangeText={(observacaoPreco) => setPrecosForm((prev) => ({ ...prev, observacaoPreco }))} multiline placeholder="Ex.: Valor pode variar conforme tamanho do móvel e local." />
+          {precosForm.cobraDeslocamento ? (
+            <Field label="Observação de preço" value={precosForm.observacaoPreco} onChangeText={(observacaoPreco) => setPrecosForm((prev) => ({ ...prev, observacaoPreco }))} multiline placeholder="Ex.: Valor pode variar conforme tamanho do móvel e local." />
+          ) : null}
           {formError ? <Text style={styles.errorText}>{formError}</Text> : null}
           <ModalActions saving={saving} theme={profileTheme} onCancel={() => setModal(null)} onSave={savePrecos} />
         </ScrollView>

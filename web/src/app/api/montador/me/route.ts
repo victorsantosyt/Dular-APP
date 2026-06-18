@@ -10,6 +10,7 @@ import {
 } from "@/lib/montadorProfile";
 import { autoVerificarMontadorSePossivel } from "@/lib/autoVerificacao";
 import { signKeysForDisplay } from "@/lib/s3Objects";
+import { getMontadorVerificationStatus } from "@/lib/profileVerification";
 
 export const dynamic = "force-dynamic";
 
@@ -98,31 +99,36 @@ async function buildMontadorMeResponse(userId: string) {
     },
   });
 
-  const [safeScoreProfile, legacySafeScore, avaliacoes, totalAvaliacoes] = await Promise.all([
-    prisma.safeScoreProfile.findUnique({
-      where: { userId },
-      select: { currentScore: true, tier: true },
-    }),
-    prisma.safeScore.findUnique({
-      where: { userId },
-      select: { score: true },
-    }),
-    prisma.avaliacao.findMany({
-      where: { montadorId: userId },
-      orderBy: { createdAt: "desc" },
-      take: 5,
-      select: {
-        id: true,
-        notaGeral: true,
-        pontualidade: true,
-        qualidade: true,
-        comunicacao: true,
-        comentario: true,
-        createdAt: true,
-      },
-    }),
-    prisma.avaliacao.count({ where: { montadorId: userId } }),
-  ]);
+  const [safeScoreProfile, legacySafeScore, avaliacoes, totalAvaliacoes, verificacaoStatus] =
+    await Promise.all([
+      prisma.safeScoreProfile.findUnique({
+        where: { userId },
+        select: { currentScore: true, tier: true },
+      }),
+      prisma.safeScore.findUnique({
+        where: { userId },
+        select: { score: true },
+      }),
+      prisma.avaliacao.findMany({
+        where: { montadorId: userId },
+        orderBy: { createdAt: "desc" },
+        take: 5,
+        select: {
+          id: true,
+          notaGeral: true,
+          pontualidade: true,
+          qualidade: true,
+          comunicacao: true,
+          comentario: true,
+          createdAt: true,
+        },
+      }),
+      prisma.avaliacao.count({ where: { montadorId: userId } }),
+      // Usa getMontadorVerificationStatus para detectar REPROVADO via
+      // DocumentVerification (P1-11): reprovado por admin não fica preso em
+      // PENDENTE quando docs estão presentes.
+      getMontadorVerificationStatus(userId),
+    ]);
 
   const score = safeScoreProfile?.currentScore ?? legacySafeScore?.score ?? 500;
   const faixa = getFaixa(score);
@@ -149,8 +155,16 @@ async function buildMontadorMeResponse(userId: string) {
       avatarUrl: perfil.fotoPerfil ?? user.avatarUrl ?? null,
       verificado: perfil.verificado,
       docEnviado: hasDocs,
+      // verificacaoStatus derivado de getMontadorVerificationStatus (P1-11):
+      // detecta REPROVADO via DocumentVerification além de APROVADO/PENDENTE/NAO_ENVIADO.
       verificacao: {
-        status: perfil.verificado ? "APROVADO" : hasDocs ? "PENDENTE" : "NAO_ENVIADO",
+        status: verificacaoStatus === "VERIFICADO"
+          ? "APROVADO"
+          : verificacaoStatus === "REPROVADO"
+            ? "REPROVADO"
+            : hasDocs
+              ? "PENDENTE"
+              : "NAO_ENVIADO",
       },
       notaMedia: perfil.rating,
       totalServicos: perfil.totalServicos,
@@ -168,7 +182,14 @@ async function buildMontadorMeResponse(userId: string) {
       ...perfil,
       portfolioFotos,
       documentosEnviados: hasDocs,
-      verificacaoStatus: perfil.verificado ? "APROVADO" : hasDocs ? "PENDENTE" : "NAO_ENVIADO",
+      // Mesmo mapeamento do user.verificacao acima — fonte única (P1-11).
+      verificacaoStatus: verificacaoStatus === "VERIFICADO"
+        ? "APROVADO"
+        : verificacaoStatus === "REPROVADO"
+          ? "REPROVADO"
+          : hasDocs
+            ? "PENDENTE"
+            : "NAO_ENVIADO",
       completude,
       safeScore: {
         score,

@@ -51,9 +51,12 @@ const HOME_EMPREGADOR_LOGO = require("../../../assets/images/home_empregador/hom
 type ProfData = {
   id: string;
   nome: string;
-  anos: number;
-  bairro: string;
-  disponibilidade: string;
+  /** Undefined quando o dado real não vier da API — campo omitido na UI. */
+  anos?: number;
+  /** Undefined quando o dado real não vier da API — campo omitido na UI. */
+  bairro?: string;
+  /** Undefined quando o dado real não vier da API — campo omitido na UI. */
+  disponibilidade?: string;
   nota: number;
   preco: number;
   online: boolean;
@@ -63,9 +66,10 @@ function diaristaToProf(item: DiaristaItem): ProfData {
   return {
     id: item.user.id,
     nome: item.user.nome,
-    anos: 3,
-    bairro: "Próxima de você",
-    disponibilidade: "Disponível",
+    // Campos opcionais: só exibe se vier da API. Nunca hardcoda valores fictícios.
+    anos: typeof (item as any).anosExperiencia === "number" ? (item as any).anosExperiencia : undefined,
+    bairro: (item as any).bairro ?? (item as any).cidade ?? undefined,
+    disponibilidade: undefined, // sem sinal real de disponibilidade na API → omite
     nota: item.notaMedia,
     preco: item.precoLeve,
     online: item.verificacao === "VERIFICADO",
@@ -127,20 +131,29 @@ function SuggestedProfCard({
         <Text allowFontScaling={false} style={s.profName} numberOfLines={1}>
           {prof.nome}
         </Text>
-        <Text allowFontScaling={false} style={s.profYears}>
-          {prof.anos} anos de experiência
-        </Text>
-        <View style={s.profLocRow}>
-          <AppIcon name="MapPin" size={11} color={colors.textMuted} strokeWidth={2} />
-          <Text allowFontScaling={false} style={s.profLoc} numberOfLines={1}>
-            {prof.bairro}
+        {/* Exibe anos de experiência somente se vier da API */}
+        {prof.anos !== undefined ? (
+          <Text allowFontScaling={false} style={s.profYears}>
+            {prof.anos} {prof.anos === 1 ? "ano" : "anos"} de experiência
           </Text>
-        </View>
-        <View style={s.availPill}>
-          <Text allowFontScaling={false} style={s.availText}>
-            {prof.disponibilidade}
-          </Text>
-        </View>
+        ) : null}
+        {/* Exibe localização somente se vier da API */}
+        {prof.bairro ? (
+          <View style={s.profLocRow}>
+            <AppIcon name="MapPin" size={11} color={colors.textMuted} strokeWidth={2} />
+            <Text allowFontScaling={false} style={s.profLoc} numberOfLines={1}>
+              {prof.bairro}
+            </Text>
+          </View>
+        ) : null}
+        {/* Exibe disponibilidade somente se houver sinal real */}
+        {prof.disponibilidade ? (
+          <View style={s.availPill}>
+            <Text allowFontScaling={false} style={s.availText}>
+              {prof.disponibilidade}
+            </Text>
+          </View>
+        ) : null}
       </View>
 
       {/* Price + Ver perfil button */}

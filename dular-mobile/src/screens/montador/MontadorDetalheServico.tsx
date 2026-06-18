@@ -21,7 +21,7 @@ import { colors, radius, shadows, spacing, typography } from "@/theme";
 import {
   canOpenChat,
   formatDateTime,
-  formatMoneyFromCents,
+  formatValorServico,
   labelServico,
   localResumo,
   statusLabel,
@@ -170,7 +170,7 @@ export default function MontadorDetalheServico({ route, navigation }: Props) {
             <Info label="Data e horário" value={formatDateTime(servico)} />
             <Info label="Endereço" value={localResumo(servico, true)} />
             <Info label="Empregador" value={servico.empregador?.nome ?? "Não informado"} />
-            <Info label="Valor" value={formatMoneyFromCents(servico.precoFinal ?? servico.valorEstimado)} />
+            <Info label="Valor" value={formatValorServico(servico.precoFinal ?? servico.valorEstimado)} />
             <Info label="Observações" value={servico.observacoes || "Sem observações adicionais."} />
           </View>
 

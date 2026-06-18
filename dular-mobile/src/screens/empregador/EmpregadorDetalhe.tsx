@@ -168,8 +168,11 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
       setAvaliacaoVisible(true);
     }
   }, [podeAvaliar]);
+  // Chat disponível desde o aceite até a finalização completa.
+  // FINALIZADO/CANCELADO encerram o chat; AGUARDANDO_FINALIZACAO e CONCLUIDO
+  // ainda precisam de comunicação entre as partes.
   const chatLiberado = useMemo(
-    () => ["ACEITO", "INICIADO", "EM_ANDAMENTO"].includes(statusRaw),
+    () => ["ACEITO", "INICIADO", "EM_ANDAMENTO", "AGUARDANDO_FINALIZACAO", "CONCLUIDO", "CONCLUÍDO"].includes(statusRaw),
     [statusRaw]
   );
 

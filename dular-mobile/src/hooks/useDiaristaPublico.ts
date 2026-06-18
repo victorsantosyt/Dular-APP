@@ -53,6 +53,13 @@ export interface DiaristaPublico {
   /** Perfil completo (todos os campos mínimos preenchidos) */
   perfilCompleto: boolean;
   motivos: string[];
+  /** Avaliações recebidas. Lista vazia se o endpoint ainda não retornar o campo. */
+  avaliacoes: Array<{
+    id: string;
+    notaGeral: number;
+    comentario: string | null;
+    createdAt: string;
+  }>;
 }
 
 export interface UseDiaristaPublicoReturn {
@@ -105,6 +112,17 @@ interface DiaristaPerfilResponse {
     cobraDeslocamento?: boolean;
     valorACombinar?: boolean;
     observacaoPreco?: string | null;
+    /** P1-10: avaliações recebidas — defensivo, pode não vir ainda. */
+    avaliacoes?: {
+      media: number;
+      total: number;
+      itens: Array<{
+        id: string;
+        notaGeral: number;
+        comentario: string | null;
+        createdAt: string;
+      }>;
+    };
   };
 }
 
@@ -226,6 +244,8 @@ export function useDiaristaPublico(diaristaId: string): UseDiaristaPublicoReturn
           observacaoPreco: perfil?.observacaoPreco ?? null,
           perfilCompleto: completude.completo,
           motivos: completude.motivos,
+          // P1-10: defensivo — lista vazia se o endpoint ainda não retornar o campo.
+          avaliacoes: perfil?.avaliacoes?.itens ?? [],
         });
       } catch {
         if (!cancelled) {

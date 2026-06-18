@@ -33,6 +33,7 @@ type SolicitarServicoRouteParams = {
   tipoInicial?: TipoProfissional;
   profissionalId?: string;
   profissionalNome?: string;
+  precoEstimadoLabel?: string;
 };
 
 export function EmpregadorServiceFlowNavigator() {
@@ -54,6 +55,7 @@ export function EmpregadorServiceFlowNavigator() {
       initialTipo={params?.tipoInicial}
       initialProfissionalId={params?.profissionalId}
       initialProfissionalNome={params?.profissionalNome}
+      initialPrecoEstimadoLabel={params?.precoEstimadoLabel}
     >
       <Stack.Navigator
         initialRouteName="EscolherServico"

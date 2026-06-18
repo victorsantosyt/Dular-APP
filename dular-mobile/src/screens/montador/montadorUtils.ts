@@ -76,6 +76,17 @@ export function localResumo(servico: MontadorServico, full = false) {
   return parts.length ? parts.join(", ") : "Endereço liberado após aceite";
 }
 
+/**
+ * Formata o valor monetário de um serviço do montador.
+ * Retorna "A orçar" quando o valor não existe ou é zero — nunca exibe "R$ 0,00".
+ * Centralizado aqui para evitar divergência entre telas.
+ */
+export function formatValorServico(valor?: number | string | null): string {
+  const cents = typeof valor === "string" ? (valor.trim() ? Number(valor) : NaN) : valor;
+  if (typeof cents !== "number" || !Number.isFinite(cents) || cents <= 0) return "A orçar";
+  return (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
 export function statusLabel(statusValue: unknown) {
   const status = upperStatus(statusValue);
   if (status === "SOLICITADO" || status === "PENDENTE") return "Pendente";

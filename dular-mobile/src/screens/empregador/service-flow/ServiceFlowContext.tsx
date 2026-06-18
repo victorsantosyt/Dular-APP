@@ -1,7 +1,15 @@
 import React, { createContext, ReactNode, useContext, useMemo, useState } from "react";
 import type { ServiceFlowTipo } from "@/theme/serviceFlowTheme";
 
-export type ServiceCategory = "baba" | "cozinheira" | "diarista" | "montador";
+export type ServiceCategory =
+  | "baba"
+  | "cozinheira"
+  | "diarista"
+  | "montador"
+  | "faxineira"
+  | "cuidadora"
+  | "passadeira"
+  | "lavadeira";
 
 /**
  * Tipo do profissional alvo da contratação. Derivado da categoria escolhida —
@@ -77,6 +85,10 @@ export const SERVICE_LABELS: Record<ServiceCategory, string> = {
   cozinheira: "Cozinheira",
   diarista: "Diarista",
   montador: "Montador",
+  faxineira: "Faxineira",
+  cuidadora: "Cuidadora",
+  passadeira: "Passadeira",
+  lavadeira: "Lavadeira",
 };
 
 const ServiceFlowContext = createContext<ServiceFlowContextValue | null>(null);

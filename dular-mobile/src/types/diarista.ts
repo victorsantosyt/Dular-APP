@@ -1,4 +1,11 @@
-export type ServicoOferecido = "DIARISTA" | "BABA" | "COZINHEIRA";
+export type ServicoOferecido =
+  | "DIARISTA"
+  | "BABA"
+  | "COZINHEIRA"
+  | "FAXINEIRA"
+  | "PASSADEIRA"
+  | "LAVADEIRA"
+  | "CUIDADORA";
 
 export type DiaristaItem = {
   id: string; // diaristaProfile.id

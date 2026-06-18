@@ -151,6 +151,10 @@ export async function POST(req: Request) {
         "MONTADOR_PINTURA",
         "MONTADOR_CARPINTARIA",
       ],
+      // Nichos novos sem subcategorias (serviço único, categoria nula).
+      FAXINEIRA: [],
+      LAVADEIRA: [],
+      CUIDADORA: [],
     };
     if (categoria && !CAT_BY_TIPO[tipo]?.includes(categoria)) {
       return NextResponse.json({ ok: false, error: "Categoria inválida para este tipo." }, { status: 400 });
@@ -409,8 +413,11 @@ export async function POST(req: Request) {
     //
     // Quando `valorACombinar=true`, registramos 0 como sentinela "a combinar"
     // (preço negociado externamente — mesma convenção usada para Montador).
+    // Nichos sem preço dedicado (Faxineira/Passadeira/Lavadeira/Cuidadora) são
+    // sempre "a combinar": precoFinal = 0 e sem exigência de preço configurado.
+    const tipoACombinar = ["FAXINEIRA", "PASSA_ROUPA", "LAVADEIRA", "CUIDADORA"].includes(tipo);
     let precoFinal = 0;
-    if (prof.valorACombinar) {
+    if (prof.valorACombinar || tipoACombinar) {
       precoFinal = 0;
     } else if (tipo === "FAXINA") {
       if (categoria === "FAXINA_PESADA") {
@@ -425,11 +432,10 @@ export async function POST(req: Request) {
     } else if (tipo === "COZINHEIRA") {
       precoFinal = Math.round(Number(prof.precoCozinheiraBase ?? 0) * 100);
     } else {
-      // PASSA_ROUPA e outros: fallback ao precoLeve (comportamento legado).
       precoFinal = prof.precoLeve;
     }
 
-    if (!prof.valorACombinar && (!precoFinal || precoFinal <= 0)) {
+    if (!prof.valorACombinar && !tipoACombinar && (!precoFinal || precoFinal <= 0)) {
       return NextResponse.json(
         { ok: false, error: "Profissional sem preço configurado para este serviço." },
         { status: 400 },

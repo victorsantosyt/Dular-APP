@@ -84,7 +84,7 @@ function StepIndicator({ onBack }: { onBack: () => void }) {
         </TouchableOpacity>
       </View>
 
-      <PageDots total={3} active={0} />
+      <PageDots total={2} active={0} />
 
       <View style={styles.headerSide} />
     </View>
@@ -187,15 +187,9 @@ export function RoleSelectScreen() {
     const mapped: Role = role === "empregador" ? "EMPREGADOR" : role === "profissional_casa" ? "DIARISTA" : "MONTADOR";
     const auth = useAuthStore.getState();
     auth.setSelectedRole(mapped);
-    if (role === "profissional_casa") {
-      if (auth.servicosOferecidos.length === 0) {
-        void auth.setServicosOferecidos(["DIARISTA"]);
-      }
-      navigation.navigate("NichosSelect");
-      return;
-    }
-    // FASE 3 — sem etapa de gênero pré-login; o gênero é coletado pós-login
-    // (GeneroGate) quando user.genero == null. Segue direto ao Login.
+    // FASE 3 — gênero é coletado pós-login (GeneroGate). Os serviços oferecidos da
+    // profissional de casa também são coletados pós-login (NichosGate), gravando
+    // direto no backend. Todos os perfis seguem direto ao Login.
     navigation.navigate("Login");
   };
 

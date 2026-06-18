@@ -17,6 +17,12 @@ import { api } from "@/lib/api";
 import type { BuscarDiaristasResponse, DiaristaItem } from "@/types/diarista";
 import type { ServicoTipo, ServicoCategoria } from "@/types/servico";
 import { getCatalogoServicos, type CatalogoTipo } from "@/api/catalogoApi";
+import { CATEGORIAS } from "@/constants/categorias";
+
+// Categorias em destaque na home (subconjunto da fonte única); demais em "Ver todos".
+const CATEGORIAS_HOME = CATEGORIAS.filter((c) =>
+  ["diarista", "montador", "baba", "cozinheira"].includes(c.key),
+);
 import { PILOT_MODE, PILOT } from "@/config/pilotConfig";
 import { useGeoDefaults } from "@/hooks/useGeoDefaults";
 import { useMensagens } from "@/hooks/useMensagens";
@@ -447,26 +453,14 @@ export default function EmpregadorHome() {
               onAction={() => navigation.navigate("CategoriasTodas")}
             />
             <View style={s.catGrid}>
-              <CategoriaCard
-                icon="WashingMachine"
-                title="Diarista"
-                onPress={() => navigation.navigate("Buscar", { categoriaInicial: "diarista" })}
-              />
-              <CategoriaCard
-                icon="Wrench"
-                title="Montador"
-                onPress={() => navigation.navigate("Buscar", { categoriaInicial: "montador" })}
-              />
-              <CategoriaCard
-                icon="Baby"
-                title="Babá"
-                onPress={() => navigation.navigate("Buscar", { categoriaInicial: "baba" })}
-              />
-              <CategoriaCard
-                icon="ChefHat"
-                title="Cozinheira"
-                onPress={() => navigation.navigate("Buscar", { categoriaInicial: "cozinheira" })}
-              />
+              {CATEGORIAS_HOME.map((c) => (
+                <CategoriaCard
+                  key={c.key}
+                  icon={c.icon}
+                  title={c.label}
+                  onPress={() => navigation.navigate("Buscar", { categoriaInicial: c.key })}
+                />
+              ))}
             </View>
           </View>
 

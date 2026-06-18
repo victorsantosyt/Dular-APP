@@ -263,10 +263,6 @@ model DiaristaProfile {
   fotoUrl     String?
   docUrl      String?
   bio         String?
-  // Coluna já existente no banco (migration 20260508000000); declarada aqui para
-  // alinhar o schema e impedir que `prisma migrate` a derrube por drift. A fonte
-  // de verdade do gênero é User.genero; esta permanece como espelho histórico.
-  genero      Genero?
 
   precoLeve   Int
   precoMedio  Int @default(0)

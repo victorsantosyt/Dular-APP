@@ -33,11 +33,28 @@ export async function GET(req: Request, { params }: Params) {
     const otherUserId =
       auth.userId === servico.clientId ? profissionalUserId : servico.clientId;
 
+    // P0-6: enderecoCompleto só exposto para participante em status ativo pós-aceite.
+    // Espelha a regra de /api/servicos/minhas/route.ts (canSeeAddress).
+    // Profissional também vê em SOLICITADO (precisa saber onde ir se aceitar).
+    const isProfissional = auth.role === "DIARISTA" || auth.role === "MONTADOR";
+    const canSeeAddress =
+      servico.status === "ACEITO" ||
+      servico.status === "EM_ANDAMENTO" ||
+      servico.status === "AGUARDANDO_FINALIZACAO" ||
+      servico.status === "CONCLUIDO" ||
+      servico.status === "CONFIRMADO" ||
+      servico.status === "FINALIZADO" ||
+      (isProfissional && servico.status === "SOLICITADO") ||
+      auth.role === "ADMIN";
+
+    const endereco = canSeeAddress ? servico.enderecoCompleto : null;
+
     return NextResponse.json({
       ok: true,
       servico: {
         ...servico,
-        endereco: servico.enderecoCompleto,
+        enderecoCompleto: endereco,
+        endereco,
       },
       otherUserId,
     });

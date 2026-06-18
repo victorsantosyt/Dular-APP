@@ -75,6 +75,19 @@ function categoryInfo(servico: ServicoEmpregador) {
   if (tipo === "COZINHEIRA") {
     return { label: "Cozinheira", key: "cozinheira" as const, icon: "ChefHat" as const };
   }
+  // Nichos novos da profissional de casa — filtram sob "Diarista", rótulo/ícone próprios.
+  if (tipo === "FAXINEIRA") {
+    return { label: "Faxineira", key: "diarista" as const, icon: "Sparkles" as const };
+  }
+  if (tipo === "PASSA_ROUPA") {
+    return { label: "Passadeira", key: "diarista" as const, icon: "Shirt" as const };
+  }
+  if (tipo === "LAVADEIRA") {
+    return { label: "Lavadeira", key: "diarista" as const, icon: "WashingMachine" as const };
+  }
+  if (tipo === "CUIDADORA") {
+    return { label: "Cuidadora", key: "diarista" as const, icon: "Heart" as const };
+  }
   return { label: "Diarista", key: "diarista" as const, icon: "BrushCleaning" as const };
 }
 

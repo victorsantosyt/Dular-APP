@@ -107,6 +107,9 @@ enum ServicoTipo {
   COZINHEIRA
   PASSA_ROUPA
   MONTADOR
+  FAXINEIRA
+  LAVADEIRA
+  CUIDADORA
 }
 
 enum ServicoCategoria {

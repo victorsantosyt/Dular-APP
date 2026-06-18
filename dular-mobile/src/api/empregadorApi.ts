@@ -6,6 +6,10 @@ const CATEGORIA_TO_TIPO: Record<ServiceCategory, string | null> = {
   baba: "BABA",
   cozinheira: "COZINHEIRA",
   montador: "MONTADOR",
+  faxineira: "FAXINEIRA",
+  cuidadora: "CUIDADORA",
+  passadeira: "PASSA_ROUPA",
+  lavadeira: "LAVADEIRA",
 };
 
 function horarioParaTurno(horario: string): "MANHA" | "TARDE" {

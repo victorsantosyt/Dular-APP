@@ -25,6 +25,7 @@ import { LocationPermissionCard } from "@/components/location/LocationPermission
 import { colors, radius, shadows, spacing, typography } from "@/theme";
 import type { EmpregadorTabParamList } from "@/navigation/EmpregadorNavigator";
 import { useBuscar, type ApiDiarista } from "@/hooks/useBuscar";
+import { CATEGORIAS as CATEGORIAS_FONTE, CATEGORIAS_DIARISTA, type CategoriaKey } from "@/constants/categorias";
 import { useFavoritos } from "@/hooks/useFavoritos";
 import { salvarLocalizacaoAtual } from "@/api/localizacaoApi";
 import { useAuth } from "@/stores/authStore";
@@ -34,8 +35,6 @@ import { MONTADOR_ESPECIALIDADES as MONTADOR_ESPECIALIDADES_PUBLICAS, type Monta
 type Navigation = BottomTabNavigationProp<EmpregadorTabParamList>;
 type BuscarRoute = RouteProp<EmpregadorTabParamList, "Buscar">;
 
-type CategoriaKey = "baba" | "cozinheira" | "diarista" | "montador";
-
 type CategoriaCardItem = {
   key: CategoriaKey;
   icon: AppIconName;
@@ -43,7 +42,7 @@ type CategoriaCardItem = {
   subtitle: string;
   bg: string;
   iconColor: string;
-  imageSource: ImageSourcePropType;
+  imageSource?: ImageSourcePropType;
   imageStyle?: {
     width: number;
     height: number;
@@ -79,54 +78,62 @@ const MONTADOR_LABELS = Object.fromEntries(
   MONTADOR_ESPECIALIDADES_PUBLICAS.map((item) => [item.id, item.label]),
 ) as Record<string, string>;
 
-const DIARISTA_CATEGORY_META: Record<Exclude<CategoriaKey, "montador">, { label: string; icon: AppIconName }> = {
-  diarista: { label: "Diarista", icon: "BrushCleaning" },
-  baba: { label: "Babá", icon: "Baby" },
-  cozinheira: { label: "Cozinheira", icon: "ChefHat" },
+// Derivado da FONTE ÚNICA: rótulo/ícone de cada categoria da diarista.
+const DIARISTA_CATEGORY_META = Object.fromEntries(
+  CATEGORIAS_DIARISTA.map((c) => [c.key, { label: c.label, icon: c.icon }]),
+) as Record<Exclude<CategoriaKey, "montador">, { label: string; icon: AppIconName }>;
+
+// Logos dedicados (assets) por categoria — específicos desta tela.
+const CATEGORIA_LOGOS: Partial<
+  Record<CategoriaKey, { source: ImageSourcePropType; style: CategoriaCardItem["imageStyle"] }>
+> = {
+  baba: {
+    source: require("../../../assets/images/empregador_buscar/buscar_card_baba_logo.png"),
+    style: { width: 115, height: 78, right: -25, bottom: -2 },
+  },
+  cozinheira: {
+    source: require("../../../assets/images/empregador_buscar/buscar_card_cozinheira_logo.png"),
+    style: { width: 78, height: 78, right: -5, bottom: -2 },
+  },
+  diarista: {
+    source: require("../../../assets/images/empregador_buscar/buscar_card_diarista_logo.png"),
+    style: { width: 100, height: 90, right: -22, bottom: -10 },
+  },
+  montador: {
+    source: require("../../../assets/images/empregador_buscar/buscar_card_montador_logo.png"),
+    style: { width: 105, height: 75, right: -20, bottom: -2 },
+  },
+  // Logos retrato (≈392×638): mantêm a proporção para ancorar no canto inferior.
+  faxineira: {
+    source: require("../../../assets/images/empregador_buscar/buscar_card_faxineira_logo.png"),
+    style: { width: 65, height: 80, right: -6, bottom: -9 },
+  },
+  passadeira: {
+    source: require("../../../assets/images/empregador_buscar/buscar_card_passadeira_logo.png"),
+    style: { width: 64, height: 80, right: -4, bottom: -2 },
+  },
+  // Logos quadrados (500×500).
+  cuidadora: {
+    source: require("../../../assets/images/empregador_buscar/buscar_card_cuidadora_logo.png"),
+    style: { width: 80, height: 80, right: -6, bottom: -2 },
+  },
+  lavadeira: {
+    source: require("../../../assets/images/empregador_buscar/buscar_card_lavadeira_logo.png"),
+    style: { width: 80, height: 80, right: -6, bottom: -2 },
+  },
 };
 
-const CATEGORIAS: CategoriaCardItem[] = [
-  {
-    key: "baba",
-    icon: "Baby",
-    title: "Babá",
-    subtitle: "Cuidados com\ncrianças",
-    bg: "#F2ECFF",
-    iconColor: colors.primary,
-    imageSource: require("../../../assets/images/empregador_buscar/buscar_card_baba_logo.png"),
-    imageStyle: { width: 115, height: 78, right: -25, bottom: -2 },
-  },
-  {
-    key: "cozinheira",
-    icon: "ChefHat",
-    title: "Cozinheira",
-    subtitle: "Preparo de\nrefeições",
-    bg: "#FFF0E2",
-    iconColor: "#F47A1F",
-    imageSource: require("../../../assets/images/empregador_buscar/buscar_card_cozinheira_logo.png"),
-    imageStyle: { width: 78, height: 78, right: -5, bottom: -2 },
-  },
-  {
-    key: "diarista",
-    icon: "BrushCleaning",
-    title: "Diarista",
-    subtitle: "Limpeza e\norganização",
-    bg: "#FFF1F5",
-    iconColor: "#F7658B",
-    imageSource: require("../../../assets/images/empregador_buscar/buscar_card_diarista_logo.png"),
-    imageStyle: { width: 110, height: 90, right: -25, bottom: -8 },
-  },
-  {
-    key: "montador",
-    icon: "Wrench",
-    title: "Montador",
-    subtitle: "Montagem e\nreparos",
-    bg: colors.tealSoft,
-    iconColor: colors.tealDark,
-    imageSource: require("../../../assets/images/empregador_buscar/buscar_card_montador_logo.png"),
-    imageStyle: { width: 105, height: 75, right: -20, bottom: -2 },
-  },
-];
+// Cards de categoria derivados da FONTE ÚNICA + logo opcional por categoria.
+const CATEGORIAS: CategoriaCardItem[] = CATEGORIAS_FONTE.map((c) => ({
+  key: c.key,
+  icon: c.icon,
+  title: c.label,
+  subtitle: c.subtitle,
+  bg: c.bg,
+  iconColor: c.fg,
+  imageSource: CATEGORIA_LOGOS[c.key]?.source,
+  imageStyle: CATEGORIA_LOGOS[c.key]?.style,
+}));
 
 function mapApiToProf(d: ApiDiarista, bairro: string, cidade: string, categoria: Exclude<CategoriaKey, "montador"> = "diarista"): Profissional {
   const meta = DIARISTA_CATEGORY_META[categoria];
@@ -199,7 +206,9 @@ function CategoryCard({
       <AppIcon name={item.icon} size={20} color={item.iconColor} strokeWidth={2} />
       <Text style={s.catTitle}>{item.title}</Text>
       <Text style={s.catSubtitle}>{item.subtitle}</Text>
-      <Image source={item.imageSource} resizeMode="contain" style={[s.catImage, item.imageStyle]} />
+      {item.imageSource ? (
+        <Image source={item.imageSource} resizeMode="contain" style={[s.catImage, item.imageStyle]} />
+      ) : null}
     </Pressable>
   );
 }

@@ -353,9 +353,50 @@ export async function POST(req: Request) {
       }
     }
 
-    const bairroDb = await prisma.bairro.findUnique({
+    // P0-2: busca normalizada (remove acentos, lowercase, espaços extras,
+    // sufixos entre parênteses) para tolerar grafias equivalentes — espelha
+    // a função normalize() de /api/diaristas/buscar/route.ts.
+    function normalizarBairro(value: string): string {
+      return String(value ?? "")
+        .normalize("NFD")
+        .replace(/[̀-ͯ]/g, "")
+        .replace(/\([^)]*\)/g, "")
+        .replace(/\s+/g, " ")
+        .trim()
+        .toLowerCase();
+    }
+
+    const bairroNorm = normalizarBairro(bairro);
+    const cidadeNorm = normalizarBairro(cidade);
+    const ufNorm = normalizarBairro(uf);
+
+    // Primeiro tenta match exato (mais rápido, usa índice único).
+    let bairroDb = await prisma.bairro.findUnique({
       where: { nome_cidade_uf: { nome: bairro, cidade, uf } },
     });
+
+    // Se não encontrou, tenta match normalizado via findFirst (varredura
+    // filtrada por cidade/uf — o índice @@index([cidade, uf]) ainda reduz).
+    if (!bairroDb) {
+      const candidatos = await prisma.bairro.findMany({
+        where: { cidade, uf },
+        select: { id: true, nome: true, cidade: true, uf: true },
+      });
+      // Tenta também candidatos de cidade/uf normalizado se não achou com exato.
+      const todosNorm = candidatos.length === 0
+        ? await prisma.bairro.findMany({
+            select: { id: true, nome: true, cidade: true, uf: true },
+          })
+        : candidatos;
+
+      bairroDb = todosNorm.find(
+        (b) =>
+          normalizarBairro(b.nome) === bairroNorm &&
+          normalizarBairro(b.cidade) === cidadeNorm &&
+          normalizarBairro(b.uf) === ufNorm,
+      ) ?? null;
+    }
+
     if (!bairroDb) {
       return NextResponse.json({ ok: false, error: "Bairro não cadastrado." }, { status: 400 });
     }
@@ -383,6 +424,28 @@ export async function POST(req: Request) {
         { ok: false, error: `Esta profissional não oferece ${nicho.toLowerCase()}.` },
         { status: 400 },
       );
+    }
+
+    // P1-7: validar disponibilidade (Disponibilidade.diaSemana + turno).
+    // Só bloqueia se a diarista tiver ao menos um registro ativo cadastrado.
+    // Sem registros = "disponível sempre" (compatibilidade com perfis antigos).
+    const disponibilidades = await prisma.disponibilidade.findMany({
+      where: { diaristaId: prof.id, ativo: true },
+      select: { diaSemana: true, turno: true },
+    });
+    if (disponibilidades.length > 0) {
+      // diaSemana: 0=Domingo, 1=Segunda ... 6=Sábado (padrão JS getDay()).
+      const diaSemanaRequisitado = data.getDay();
+      const turnoRequisitado = turno; // "MANHA" | "TARDE"
+      const atende = disponibilidades.some(
+        (d) => d.diaSemana === diaSemanaRequisitado && d.turno === turnoRequisitado,
+      );
+      if (!atende) {
+        return NextResponse.json(
+          { ok: false, error: "Profissional não atende nesse dia/turno." },
+          { status: 400 },
+        );
+      }
     }
 
     const activeBetweenDiarista = await findActiveServiceBetween(

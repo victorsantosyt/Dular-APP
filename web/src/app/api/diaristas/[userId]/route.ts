@@ -96,6 +96,22 @@ export async function GET(_req: Request, { params }: Params) {
       );
     }
 
+    // P1-10: busca avaliações recentes para expor no perfil público.
+    const [avaliacoesItens, totalAvaliacoes] = await Promise.all([
+      prisma.avaliacao.findMany({
+        where: { diaristaId: diarista.userId },
+        orderBy: { createdAt: "desc" },
+        take: 5,
+        select: {
+          id: true,
+          notaGeral: true,
+          comentario: true,
+          createdAt: true,
+        },
+      }),
+      prisma.avaliacao.count({ where: { diaristaId: diarista.userId } }),
+    ]);
+
     const avatarUrl = diarista.fotoUrl ?? diarista.user.avatarUrl ?? null;
     const bairros = diarista.bairros.map((db) => ({
       nome: db.bairro.nome,
@@ -163,6 +179,17 @@ export async function GET(_req: Request, { params }: Params) {
           : null,
         perfilCompleto: completude.completo,
         motivosIncompleto: completude.motivos,
+        // P1-10: avaliações recebidas — contrato esperado pelo mobile.
+        avaliacoes: {
+          media: diarista.notaMedia,
+          total: totalAvaliacoes,
+          itens: avaliacoesItens.map((a) => ({
+            id: a.id,
+            notaGeral: a.notaGeral,
+            comentario: a.comentario,
+            createdAt: a.createdAt.toISOString(),
+          })),
+        },
       },
     });
   } catch (err: unknown) {

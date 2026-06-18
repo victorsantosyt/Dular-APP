@@ -10,7 +10,7 @@ import type { MontadorTabParamList } from "@/navigation/MontadorNavigator";
 import { colors, radius, shadows, spacing, typography } from "@/theme";
 import {
   formatDateTime,
-  formatMoneyFromCents,
+  formatValorServico,
   isSolicitacaoPendente,
   labelServico,
   labelSubcategoria,
@@ -110,7 +110,7 @@ export default function MontadorDetalheSolicitacao({ route, navigation }: Props)
             <Info label="Data e horário" value={formatDateTime(servico)} />
             <Info label="Bairro/endereço" value={localResumo(servico)} />
             <Info label="Empregador" value={servico.empregador?.nome ?? "Não informado"} />
-            <Info label="Valor estimado" value={formatMoneyFromCents(servico.valorEstimado ?? servico.precoFinal)} />
+            <Info label="Valor estimado" value={formatValorServico(servico.valorEstimado ?? servico.precoFinal)} />
             <Info label="SafeScore" value={score?.faixa ?? "Não disponível"} />
           </View>
 

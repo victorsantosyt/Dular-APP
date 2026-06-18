@@ -329,7 +329,9 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
               />
             </>
           )}
-          {["ACEITO", "INICIADO", "EM_ANDAMENTO"].includes(svc.status.toUpperCase()) && (
+          {/* Chat disponível do aceite até AGUARDANDO_FINALIZACAO/CONCLUIDO —
+               só encerra em FINALIZADO/CANCELADO/RECUSADO. */}
+          {["ACEITO", "INICIADO", "EM_ANDAMENTO", "AGUARDANDO_FINALIZACAO", "CONCLUIDO", "CONCLUÍDO"].includes(svc.status.toUpperCase()) && (
             <DButton tint={theme.primary}
               title="Abrir chat"
               variant="outline"

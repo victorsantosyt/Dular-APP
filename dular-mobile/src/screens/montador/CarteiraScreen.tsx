@@ -10,7 +10,7 @@ import { useProfileTheme } from "@/hooks/useProfileTheme";
 import type { MontadorServico } from "@/api/montadorApi";
 import type { MontadorTabParamList } from "@/navigation/MontadorNavigator";
 import { colors, radius, shadows, spacing, typography } from "@/theme";
-import { formatMoneyFromCents, labelServico, upperStatus } from "./montadorUtils";
+import { formatMoneyFromCents, formatValorServico, labelServico, upperStatus } from "./montadorUtils";
 
 type Navigation = BottomTabNavigationProp<MontadorTabParamList>;
 
@@ -172,7 +172,8 @@ export default function CarteiraScreen() {
                         </Text>
                       </View>
                       <View style={styles.histRight}>
-                        <Text style={styles.histValue}>{formatMoneyFromCents(valorServico(servico))}</Text>
+                        {/* Usa formatValorServico para nunca exibir "R$ 0,00" no histórico. */}
+                        <Text style={styles.histValue}>{formatValorServico(valorServico(servico) || null)}</Text>
                         <View style={[styles.histBadge, { backgroundColor: badge.soft }]}>
                           <Text style={[styles.histBadgeText, { color: badge.color }]}>{badge.label}</Text>
                         </View>

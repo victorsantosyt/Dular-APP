@@ -28,6 +28,22 @@ export function ConfirmarSolicitacaoScreen() {
   const flowTheme = getServiceFlowTheme(draft.tipo);
   const isMontador = draft.tipo === "MONTADOR";
 
+  // Nichos sem preço fixo — valor sempre "a combinar".
+  const CATEGORIAS_A_COMBINAR = new Set(["faxineira", "cuidadora", "passadeira", "lavadeira"]);
+
+  // Rótulo de preço exibido na tela de confirmação.
+  // Prioridade: 1) precoEstimadoLabel do draft (vindo do perfil público)
+  //             2) fallback por categoria
+  // Nunca exibe número fixo hardcoded.
+  function resolvePrecoLabel(): string {
+    if (isMontador) return "A orçar";
+    if (CATEGORIAS_A_COMBINAR.has(draft.categoria)) return "A combinar";
+    if (draft.precoEstimadoLabel) return draft.precoEstimadoLabel;
+    // Preço não disponível por nenhum motivo — omite com "A combinar"
+    return "A combinar";
+  }
+  const precoLabel = resolvePrecoLabel();
+
   const empregadorVerificado = useAuth(
     (state) =>
       state.user?.verificacao?.status === "APROVADO" ||
@@ -165,7 +181,7 @@ export function ConfirmarSolicitacaoScreen() {
         <DCard style={[s.priceCard, { backgroundColor: flowTheme.primarySoft }]}>
           <View>
             <Text style={s.priceLabel}>Valor estimado</Text>
-            <Text style={[s.priceValue, { color: flowTheme.textAccent }]}>{isMontador ? "A orçar" : "R$ 160,00"}</Text>
+            <Text style={[s.priceValue, { color: flowTheme.textAccent }]}>{precoLabel}</Text>
           </View>
           <Text style={s.priceHint}>Pagamento após confirmação</Text>
         </DCard>

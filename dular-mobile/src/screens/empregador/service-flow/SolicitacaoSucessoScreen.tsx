@@ -1,6 +1,6 @@
 import React from "react";
 import { SafeAreaView, StyleSheet, Text, View } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { DButton } from "@/components/ui/DButton";
@@ -13,11 +13,24 @@ import { FlowPrimaryButton, flowStyles, SuccessBadge } from "./components";
 import { getServiceFlowTheme } from "@/theme/serviceFlowTheme";
 
 type Navigation = NativeStackNavigationProp<EmpregadorServiceFlowStackParamList, "SolicitacaoSucesso">;
+type RouteParams = RouteProp<EmpregadorServiceFlowStackParamList, "SolicitacaoSucesso">;
+
+/** Deriva um protocolo legível a partir do servicoId real.
+ *  Ex.: servicoId = "abc123..." → "#DL-ABC123" */
+function derivarProtocolo(servicoId: string): string {
+  const sufixo = servicoId.replace(/-/g, "").slice(0, 8).toUpperCase();
+  return `#DL-${sufixo}`;
+}
 
 export function SolicitacaoSucessoScreen() {
   const navigation = useNavigation<Navigation>();
+  const route = useRoute<RouteParams>();
   const { draft, resetDraft } = useServiceFlow();
   const flowTheme = getServiceFlowTheme(draft.tipo);
+
+  // servicoId vem do param da rota (passado por ConfirmarSolicitacaoScreen após
+  // criação bem-sucedida). Se ausente (navegação direta em dev), omite o bloco.
+  const servicoId = route.params?.servicoId;
 
   const goHome = () => {
     resetDraft();
@@ -42,13 +55,15 @@ export function SolicitacaoSucessoScreen() {
           </Text>
         </View>
 
-        <DCard style={s.protocolCard}>
-          <Text style={s.protocolLabel}>Protocolo</Text>
-          <Text style={s.protocolValue}>#SD250514-8K7D</Text>
-          <View style={[s.statusPill, { backgroundColor: flowTheme.primarySoft }]}>
-            <Text style={[s.statusText, { color: flowTheme.primary }]}>Enviado há 1 min</Text>
-          </View>
-        </DCard>
+        {servicoId ? (
+          <DCard style={s.protocolCard}>
+            <Text style={s.protocolLabel}>Protocolo</Text>
+            <Text style={s.protocolValue}>{derivarProtocolo(servicoId)}</Text>
+            <View style={[s.statusPill, { backgroundColor: flowTheme.primarySoft }]}>
+              <Text style={[s.statusText, { color: flowTheme.primary }]}>Enviado agora</Text>
+            </View>
+          </DCard>
+        ) : null}
       </View>
 
       <SafeAreaView style={flowStyles.footer}>

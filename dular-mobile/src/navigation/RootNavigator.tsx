@@ -4,6 +4,7 @@ import * as ExpoSplashScreen from "expo-splash-screen";
 import OnboardingNavigator from "@/navigation/OnboardingNavigator";
 import { GeneroGateScreen } from "@/screens/onboarding/GeneroGateScreen";
 import { NichosGateScreen } from "@/screens/onboarding/NichosGateScreen";
+import { MontadorEspecialidadesGateScreen } from "@/screens/onboarding/MontadorEspecialidadesGateScreen";
 import EmpregadorNavigator from "@/navigation/EmpregadorNavigator";
 import DiaristaNavigator from "@/navigation/DiaristaNavigator";
 import MontadorNavigator from "@/navigation/MontadorNavigator";
@@ -59,6 +60,16 @@ function AuthenticatedFlow({ role, onboardingSeen }: { role: string | null; onbo
     );
   }
   if (normalizedRole === "montador") {
+    // Gate de especialidades (pós-login, mesmo padrão da diarista): o montador
+    // que ainda não escolheu nenhuma especialidade define agora — grava no
+    // backend e o gate some. Aparece só uma vez (conta nova).
+    if (user && (user.especialidades?.length ?? 0) === 0) {
+      return (
+        <ThemeScope forceLight>
+          <MontadorEspecialidadesGateScreen />
+        </ThemeScope>
+      );
+    }
     return (
       <PushNotificationsGate>
         <MontadorNavigator />

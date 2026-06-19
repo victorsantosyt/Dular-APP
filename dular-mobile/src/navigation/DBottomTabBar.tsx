@@ -1,7 +1,6 @@
 import React, { useCallback } from "react";
 import { StyleSheet, View } from "react-native";
 import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
-import { CommonActions } from "@react-navigation/native";
 import { DBottomNav } from "@/components/ui";
 import type { NavTab } from "@/components/ui/DBottomNav";
 import { useAuth } from "@/stores/authStore";
@@ -20,7 +19,10 @@ const ROUTE_BY_TAB: Record<Variant, Record<NavTab, string>> = {
   empregador: {
     home: "Home",
     search: "Buscar",
-    new: "SolicitarServico",
+    // O botão central abre "Solicitações" (lista de agendamentos do empregador).
+    // O flow de contratação (SolicitarServico) continua registrado e é acessado
+    // pelos botões "Contratar" dos perfis — só não é mais entry-point da barra.
+    new: "Agendamentos",
     messages: "Mensagens",
     profile: "Perfil",
   },
@@ -77,17 +79,6 @@ export function DBottomTabBar({ state, navigation, variant, messagesBadge, reque
     (tab: NavTab) => {
       const target = ROUTE_BY_TAB[variant][tab];
       if (!target) return;
-
-      if (variant === "empregador" && target === "SolicitarServico") {
-        navigation.dispatch(
-          CommonActions.navigate({
-            name: target,
-            params: undefined,
-            merge: false,
-          }),
-        );
-        return;
-      }
 
       navigation.navigate(target as never);
     },

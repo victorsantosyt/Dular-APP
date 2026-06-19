@@ -151,7 +151,9 @@ function mapApiToProf(d: ApiDiarista, bairro: string, cidade: string, categoria:
     distancia: "",
     online: false,
     verificado: d.verificacao === "VERIFICADO",
-    avatarUrl: d.fotoUrl,
+    // O avatar pode estar no perfil (fotoUrl) OU no User (avatarUrl, onde o upload
+    // de /api/me/avatar grava). Sem o fallback, a foto da diarista não aparecia.
+    avatarUrl: d.fotoUrl ?? d.user?.avatarUrl ?? null,
   };
 }
 

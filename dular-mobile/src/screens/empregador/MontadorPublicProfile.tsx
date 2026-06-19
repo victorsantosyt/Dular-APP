@@ -25,7 +25,7 @@ import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import { api } from "@/lib/api";
 import { AppIcon, DAvatar, DButton } from "@/components/ui";
 import { useDularColors } from "@/hooks/useDularColors";
-import { getProfileTheme, type Genero } from "@/theme/profileTheme";
+import { getProfileTheme } from "@/theme/profileTheme";
 import { radius, shadows, spacing, typography } from "@/theme";
 import type { EmpregadorTabParamList } from "@/navigation/EmpregadorNavigator";
 import { MONTADOR_ESPECIALIDADES, type MontadorItem } from "@/types/montador";
@@ -115,11 +115,9 @@ export default function MontadorPublicProfile() {
   };
 
   const nome = montador?.user.nome ?? nomeParam ?? "Montador";
-  const genero: Genero = (montador?.user.genero ?? null) as Genero;
-  const theme = useMemo(
-    () => getProfileTheme({ role: "MONTADOR", genero }),
-    [genero],
-  );
+  // A UI do empregador é SEMPRE roxo lavanda — o perfil público que o empregador
+  // vê NÃO é tematizado pela cor (gênero/role) do profissional.
+  const theme = useMemo(() => getProfileTheme({ role: "EMPREGADOR" }), []);
 
   const especialidades = montador?.especialidades ?? especialidadesParam ?? [];
   const totalServicos = montador?.totalServicos ?? 0;

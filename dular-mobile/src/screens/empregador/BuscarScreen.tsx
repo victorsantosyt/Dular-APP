@@ -17,15 +17,18 @@ import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import {
   AppIcon,
   type AppIconName,
-  DAvatar,
   DButton,
   DSkeletonCard,
+  ProfissionalCard,
+  formatValorDiarista,
+  formatValorMontador,
+  type ProfissionalCardData,
 } from "@/components/ui";
 import { LocationPermissionCard } from "@/components/location/LocationPermissionCard";
 import { colors, radius, shadows, spacing, typography } from "@/theme";
 import type { EmpregadorTabParamList } from "@/navigation/EmpregadorNavigator";
 import { useBuscar, type ApiDiarista } from "@/hooks/useBuscar";
-import { CATEGORIAS as CATEGORIAS_FONTE, CATEGORIAS_DIARISTA, type CategoriaKey } from "@/constants/categorias";
+import { CATEGORIAS as CATEGORIAS_FONTE, CATEGORIAS_DIARISTA, CATEGORIA_BY_KEY, type CategoriaKey } from "@/constants/categorias";
 import { useFavoritos } from "@/hooks/useFavoritos";
 import { salvarLocalizacaoAtual } from "@/api/localizacaoApi";
 import { useAuth } from "@/stores/authStore";
@@ -72,6 +75,13 @@ type Profissional = {
   estado?: string | null;
   rating?: number;
   precoLabel?: string;
+  // Campos derivados para o card único (ProfissionalCard).
+  categoriaColor?: string;
+  categoriaBg?: string;
+  valorLabel?: string;
+  notaNum?: number;
+  cidadeLabel?: string | null;
+  bairroLabel?: string | null;
 };
 
 const MONTADOR_LABELS = Object.fromEntries(
@@ -137,6 +147,7 @@ const CATEGORIAS: CategoriaCardItem[] = CATEGORIAS_FONTE.map((c) => ({
 
 function mapApiToProf(d: ApiDiarista, bairro: string, cidade: string, categoria: Exclude<CategoriaKey, "montador"> = "diarista"): Profissional {
   const meta = DIARISTA_CATEGORY_META[categoria];
+  const cat = CATEGORIA_BY_KEY[categoria];
   return {
     id: d.userId,
     userId: d.userId,
@@ -154,6 +165,13 @@ function mapApiToProf(d: ApiDiarista, bairro: string, cidade: string, categoria:
     // O avatar pode estar no perfil (fotoUrl) OU no User (avatarUrl, onde o upload
     // de /api/me/avatar grava). Sem o fallback, a foto da diarista não aparecia.
     avatarUrl: d.fotoUrl ?? d.user?.avatarUrl ?? null,
+    // Card único:
+    categoriaColor: cat?.fg,
+    categoriaBg: cat?.bg,
+    valorLabel: formatValorDiarista(d.precoLeve),
+    notaNum: d.notaMedia,
+    cidadeLabel: cidade || null,
+    bairroLabel: bairro || null,
   };
 }
 
@@ -183,6 +201,13 @@ function mapMontadorToProf(m: MontadorItem): Profissional {
     estado: m.estado,
     rating: m.rating,
     precoLabel: m.precoLabel,
+    // Card único:
+    categoriaColor: CATEGORIA_BY_KEY.montador.fg,
+    categoriaBg: CATEGORIA_BY_KEY.montador.bg,
+    valorLabel: formatValorMontador(m),
+    notaNum: m.rating,
+    cidadeLabel: m.cidade ?? null,
+    bairroLabel: m.bairros?.[0] ?? null,
   };
 }
 
@@ -215,14 +240,6 @@ function CategoryCard({
   );
 }
 
-function ProfileButton({ onPress }: { onPress: () => void }) {
-  return (
-    <Pressable onPress={onPress} style={({ pressed }) => [s.profileButton, pressed && { opacity: 0.8 }]}>
-      <Text style={s.profileButtonText}>Ver perfil</Text>
-    </Pressable>
-  );
-}
-
 function ProfCard({
   prof,
   favorito,
@@ -233,76 +250,51 @@ function ProfCard({
   onToggleFavorito: () => void;
 }) {
   const navigation = useNavigation<Navigation>();
-  const initials = prof.nome.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
+
+  const data: ProfissionalCardData = {
+    id: prof.id,
+    userId: prof.userId,
+    tipo: prof.tipo,
+    nome: prof.nome,
+    categoria: prof.categoria,
+    categoriaIcon: prof.categoriaIcon,
+    categoriaColor: prof.categoriaColor,
+    categoriaBg: prof.categoriaBg,
+    avatarUrl: prof.avatarUrl,
+    cidade: prof.cidadeLabel,
+    bairro: prof.bairroLabel,
+    valorLabel: prof.valorLabel,
+    nota: prof.notaNum,
+  };
+
+  const handleOpen = () => {
+    if (prof.tipo === "MONTADOR") {
+      navigation.navigate("MontadorPublicProfile", {
+        montadorId: prof.id,
+        montadorUserId: prof.userId,
+        nome: prof.nome,
+        rating: prof.rating,
+        especialidades: prof.especialidades,
+        cidade: prof.cidade,
+        estado: prof.estado,
+        avatarUrl: prof.avatarUrl,
+      });
+      return;
+    }
+    navigation.navigate("DiaristaProfile", {
+      diaristaId: prof.userId,
+      nome: prof.nome,
+      categoriaInicial: prof.categoriaKey === "montador" ? "diarista" : prof.categoriaKey,
+    });
+  };
 
   return (
-    <View style={s.profCard}>
-      <View style={s.avatarWrap}>
-        <DAvatar size="md" uri={prof.avatarUrl ?? undefined} initials={initials} />
-        {prof.online ? <View style={s.onlineDot} /> : null}
-      </View>
-
-      <View style={s.profCenter}>
-        <View style={s.profNameRow}>
-          <Text style={s.profName} numberOfLines={1}>{prof.nome}</Text>
-          {prof.verificado ? <AppIcon name="Diamond" size={13} color={colors.success} strokeWidth={2.4} /> : null}
-        </View>
-
-        <View style={s.catBadge}>
-          <AppIcon name={prof.categoriaIcon} size={9} color={colors.primary} strokeWidth={2} />
-          <Text style={s.catBadgeText}>{prof.categoria}</Text>
-        </View>
-
-        <Text style={s.locationText} numberOfLines={1}>{prof.localizacao}</Text>
-
-        <View style={s.ratingRow}>
-          <AppIcon name="Star" size={12} color={colors.warning} strokeWidth={2.3} />
-          <Text style={s.ratingText}>{prof.nota}</Text>
-          <Text style={s.metaSep}>•</Text>
-          <Text style={s.metaText}>{prof.experiencia}</Text>
-        </View>
-      </View>
-
-      <View style={s.profRight}>
-        <Pressable
-          onPress={onToggleFavorito}
-          hitSlop={8}
-          accessibilityRole="button"
-          accessibilityLabel={favorito ? "Remover dos favoritos" : "Adicionar aos favoritos"}
-          style={({ pressed }) => [s.favBtn, pressed && { opacity: 0.7 }]}
-        >
-          <AppIcon
-            name="Heart"
-            size={18}
-            color={favorito ? colors.danger : colors.textMuted}
-            strokeWidth={favorito ? 2.6 : 2.2}
-          />
-        </Pressable>
-        {prof.distancia ? <Text style={s.distText}>{prof.distancia}</Text> : null}
-        <ProfileButton
-          onPress={() => {
-            if (prof.tipo === "MONTADOR") {
-              navigation.navigate("MontadorPublicProfile", {
-                montadorId: prof.id,
-                montadorUserId: prof.userId,
-                nome: prof.nome,
-                rating: prof.rating,
-                especialidades: prof.especialidades,
-                cidade: prof.cidade,
-                estado: prof.estado,
-                avatarUrl: prof.avatarUrl,
-              });
-              return;
-            }
-            navigation.navigate("DiaristaProfile", {
-              diaristaId: prof.userId,
-              nome: prof.nome,
-              categoriaInicial: prof.categoriaKey === "montador" ? "diarista" : prof.categoriaKey,
-            });
-          }}
-        />
-      </View>
-    </View>
+    <ProfissionalCard
+      data={data}
+      favorito={favorito}
+      onToggleFavorito={onToggleFavorito}
+      onPress={handleOpen}
+    />
   );
 }
 

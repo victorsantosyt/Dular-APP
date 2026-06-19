@@ -202,7 +202,11 @@ export default function MontadorDetalheServico({ route, navigation }: Props) {
                 onPress={iniciarServico}
               />
             ) : null}
-            {!encerrado && status === "EM_ANDAMENTO" ? (
+            {/* Confirmar finalização vale para EM_ANDAMENTO (1ª confirmação) e para
+                AGUARDANDO_FINALIZACAO (quando a outra parte já confirmou — sem este
+                caso o montador ficava sem botão e o serviço travava). O backend é
+                idempotente: reconfirmar pelo mesmo papel não tem efeito. */}
+            {!encerrado && ["EM_ANDAMENTO", "AGUARDANDO_FINALIZACAO"].includes(status) ? (
               <ActionButton
                 label={actionLoading === "finalizar" ? "Finalizando" : "Confirmar finalização"}
                 icon="CheckCircle"
@@ -215,7 +219,8 @@ export default function MontadorDetalheServico({ route, navigation }: Props) {
               <View style={[styles.statusInfo, { backgroundColor: colors.warningSoft }]}>
                 <AppIcon name="Hourglass" size={16} color={colors.warning} />
                 <Text style={[styles.statusInfoText, { color: colors.warning }]}>
-                  Aguardando confirmação da outra parte.
+                  Confirme a finalização para concluir o serviço. Se você já confirmou,
+                  aguarde a outra parte.
                 </Text>
               </View>
             ) : null}

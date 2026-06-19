@@ -81,6 +81,28 @@ function diaristaItemToCard(item: DiaristaItem, cidade: string, bairro: string):
   };
 }
 
+// ── Proximidade (M5) ──────────────────────────────────────────────────────────
+// Ordena os "Profissionais sugeridos" pela distância até a localização atual do
+// empregador, usando os coords já existentes da profissional (sem alterar a
+// ordenação global do endpoint). Sem coords → vai para o fim.
+function haversineKm(aLat: number, aLng: number, bLat: number, bLng: number): number {
+  const R = 6371;
+  const dLat = ((bLat - aLat) * Math.PI) / 180;
+  const dLng = ((bLng - aLng) * Math.PI) / 180;
+  const lat1 = (aLat * Math.PI) / 180;
+  const lat2 = (bLat * Math.PI) / 180;
+  const h =
+    Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
+function distanciaKm(item: DiaristaItem, origin: { lat: number; lng: number }): number {
+  const lat = item.latitude;
+  const lng = item.longitude;
+  if (typeof lat !== "number" || typeof lng !== "number") return Number.POSITIVE_INFINITY;
+  return haversineKm(origin.lat, origin.lng, lat, lng);
+}
+
 // ─── Quick Action Card ────────────────────────────────────────────────────────
 
 type QuickAction = { icon: AppIconName; label: string; onPress: () => void };
@@ -296,9 +318,14 @@ export default function EmpregadorHome() {
   }, [geo.loading]);
 
   const profissionals: ProfissionalCardData[] = useMemo(() => {
-    if (diaristas.length > 0) return diaristas.slice(0, 5).map((d) => diaristaItemToCard(d, cidade, bairro));
-    return [];
-  }, [diaristas, cidade, bairro]);
+    if (diaristas.length === 0) return [];
+    // M5: ordena por proximidade quando temos a localização atual do empregador;
+    // sem coords, mantém a ordem que o backend devolveu.
+    const ordered = coords
+      ? [...diaristas].sort((a, b) => distanciaKm(a, coords) - distanciaKm(b, coords))
+      : diaristas;
+    return ordered.slice(0, 5).map((d) => diaristaItemToCard(d, cidade, bairro));
+  }, [diaristas, cidade, bairro, coords]);
 
   const handleToggleFavorito = async (item: ProfissionalCardData) => {
     try {

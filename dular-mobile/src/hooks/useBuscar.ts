@@ -16,6 +16,9 @@ export interface ApiDiarista {
   precoPesada: number;
   notaMedia: number;
   totalServicos: number;
+  // Coords da profissional — usados só na ordenação por proximidade (M5).
+  latitude?: number | null;
+  longitude?: number | null;
   user: {
     id: string;
     nome: string;

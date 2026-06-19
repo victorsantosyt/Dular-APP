@@ -237,9 +237,14 @@ export async function POST(req: Request) {
         );
       }
 
-      // Montador não tem precificação pré-cadastrada: usa 0 como sentinela
-      // "a orçar". O preço final é fechado após aceite/orçamento (fora do
-      // escopo deste fluxo — ver GAP T-07: orçamento de Montador).
+      // Opção A: propaga o preço base do perfil do montador para o serviço.
+      // `precoBase` é armazenado em CENTAVOS (Decimal) — mesmo contrato usado em
+      // /api/montadores/buscar. Quando o montador opera "a combinar"
+      // (valorACombinar=true) ou não definiu preço, mantém 0 como sentinela
+      // "a orçar" (preço fechado pós-aceite — GAP T-07).
+      const precoFinalMontador = montadorPerfil.valorACombinar
+        ? 0
+        : Math.max(0, Math.round(Number(montadorPerfil.precoBase ?? 0)));
       const servico = await prisma.servico.create({
         data: {
           status: "SOLICITADO",
@@ -255,7 +260,7 @@ export async function POST(req: Request) {
           temPet: false,
           quartos3Mais: false,
           banheiros2Mais: false,
-          precoFinal: 0,
+          precoFinal: precoFinalMontador,
           clientId: auth.userId,
           montadorId: profissionalId,
         },

@@ -7,7 +7,14 @@ import {
 } from "@/api/montadorApi";
 
 const PENDING_STATUS = new Set(["PENDENTE", "SOLICITADO"]);
-const AGENDA_STATUS = new Set(["ACEITO", "CONFIRMADO", "EM_ANDAMENTO", "FINALIZADO", "CONCLUIDO"]);
+const AGENDA_STATUS = new Set([
+  "ACEITO",
+  "CONFIRMADO",
+  "EM_ANDAMENTO",
+  "AGUARDANDO_FINALIZACAO",
+  "FINALIZADO",
+  "CONCLUIDO",
+]);
 
 function upper(value: unknown) {
   return String(value ?? "").toUpperCase();
@@ -64,6 +71,12 @@ export function useMontadorServicos() {
     [servicos],
   );
 
+  // Callbacks estáveis: sem isso, cada render cria um novo reload/refetch e a
+  // tela de detalhe (useFocusEffect com dep [reload]) re-dispara o efeito a cada
+  // render → loop de GET /api/servicos/minhas.
+  const refetch = useCallback(() => load("refresh"), [load]);
+  const reload = useCallback(() => load("initial"), [load]);
+
   return {
     servicos,
     pendentes,
@@ -72,7 +85,7 @@ export function useMontadorServicos() {
     loading,
     refreshing,
     error,
-    refetch: () => load("refresh"),
-    reload: () => load("initial"),
+    refetch,
+    reload,
   };
 }

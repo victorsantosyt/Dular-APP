@@ -11,12 +11,12 @@ export function isSolicitacaoPendente(servico: MontadorServico) {
 
 export function isServicoNaAgenda(servico: MontadorServico) {
   const status = upperStatus(servico.status);
-  return ["ACEITO", "CONFIRMADO", "EM_ANDAMENTO", "FINALIZADO", "CONCLUIDO"].includes(status);
+  return ["ACEITO", "CONFIRMADO", "EM_ANDAMENTO", "AGUARDANDO_FINALIZACAO", "FINALIZADO", "CONCLUIDO"].includes(status);
 }
 
 export function canOpenChat(servico: MontadorServico) {
   const status = upperStatus(servico.status);
-  return ["ACEITO", "CONFIRMADO", "EM_ANDAMENTO", "FINALIZADO", "CONCLUIDO"].includes(status);
+  return ["ACEITO", "CONFIRMADO", "EM_ANDAMENTO", "AGUARDANDO_FINALIZACAO", "FINALIZADO", "CONCLUIDO"].includes(status);
 }
 
 export function firstName(value?: string | null, fallback = "Montador") {

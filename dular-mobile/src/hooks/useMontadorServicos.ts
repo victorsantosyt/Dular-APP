@@ -7,7 +7,14 @@ import {
 } from "@/api/montadorApi";
 
 const PENDING_STATUS = new Set(["PENDENTE", "SOLICITADO"]);
-const AGENDA_STATUS = new Set(["ACEITO", "CONFIRMADO", "EM_ANDAMENTO", "FINALIZADO", "CONCLUIDO"]);
+const AGENDA_STATUS = new Set([
+  "ACEITO",
+  "CONFIRMADO",
+  "EM_ANDAMENTO",
+  "AGUARDANDO_FINALIZACAO",
+  "FINALIZADO",
+  "CONCLUIDO",
+]);
 
 function upper(value: unknown) {
   return String(value ?? "").toUpperCase();

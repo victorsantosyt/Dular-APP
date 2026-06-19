@@ -13,6 +13,9 @@ export const dynamic = "force-dynamic";
 const ALLOWED_STATUSES = new Set([
   "ACEITO",
   "EM_ANDAMENTO",
+  // Sem este status, ao empregador confirmar a finalização primeiro o chat caía
+  // em 403 para ambas as partes justamente na etapa de fechar o serviço.
+  "AGUARDANDO_FINALIZACAO",
   "CONCLUIDO",
   "CONFIRMADO",
   "FINALIZADO",

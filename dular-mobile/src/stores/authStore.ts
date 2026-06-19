@@ -44,6 +44,7 @@ type User = {
   localizacaoPermitida?: boolean;
   localizacaoAtualizadaEm?: string | null;
   servicosOferecidos?: ServicoOferecido[];
+  especialidades?: string[];
   verificado?: boolean;
   docEnviado?: boolean;
   verificacao?: {

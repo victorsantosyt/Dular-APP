@@ -32,7 +32,7 @@ type Props = BottomTabScreenProps<MontadorTabParamList, "MontadorDetalheServico"
 
 export default function MontadorDetalheServico({ route, navigation }: Props) {
   const profileTheme = useProfileTheme("MONTADOR");
-  const { servicos, loading, error, reload } = useMontadorServicos();
+  const { servicos, loading, error, reload, refetch } = useMontadorServicos();
   // Check-in real (mesmo hook do diarista): POST /api/seguranca/checkin com
   // localização best-effort. Estado conduz o rótulo do botão.
   const { checkInRealizado, checkInLoading, fazerCheckIn: registrarCheckIn } = useSeguranca();
@@ -43,15 +43,16 @@ export default function MontadorDetalheServico({ route, navigation }: Props) {
   const status = upperStatus(servico?.status);
   const encerrado = isStatusEncerrado(status);
 
-  // Polling on focus para capturar a confirmação da outra parte. Sem isso, quando
-  // o Empregador confirma a finalização, o mobile do Montador continua mostrando
-  // "Aguardando confirmação da outra parte" indefinidamente (status real já é CONCLUIDO).
+  // Polling on focus para capturar a confirmação da outra parte. Usa refetch
+  // (refresh silencioso) — NÃO reload — para não acionar o DLoadingState e piscar
+  // a tela em branco a cada ciclo. A primeira carga (com spinner) vem do mount
+  // do hook; aqui só atualizamos os dados em segundo plano.
   useFocusEffect(
     useCallback(() => {
-      reload();
-      const timer = setInterval(() => reload(), 12000);
+      refetch();
+      const timer = setInterval(() => refetch(), 12000);
       return () => clearInterval(timer);
-    }, [reload]),
+    }, [refetch]),
   );
   const isCanceladoOuRecusado = status === "CANCELADO" || status === "RECUSADO";
 
@@ -77,7 +78,7 @@ export default function MontadorDetalheServico({ route, navigation }: Props) {
     try {
       setActionLoading("iniciar");
       await iniciarServicoMontador(servico.id);
-      reload();
+      refetch();
     } catch {
       Alert.alert("Erro", "Não foi possível iniciar o serviço.");
     } finally {
@@ -93,7 +94,7 @@ export default function MontadorDetalheServico({ route, navigation }: Props) {
       } catch {
         await finalizarServicoMontador(servico.id);
       }
-      reload();
+      refetch();
     } catch {
       Alert.alert("Erro", "Não foi possível finalizar o serviço.");
     } finally {
@@ -106,7 +107,7 @@ export default function MontadorDetalheServico({ route, navigation }: Props) {
       setActionLoading("cancelar");
       await cancelarServicoMontador(servico.id, motivo, observacao || undefined);
       setCancelOpen(false);
-      reload();
+      refetch();
     } catch {
       Alert.alert("Erro", "Não foi possível cancelar o serviço.");
     } finally {
@@ -175,46 +176,66 @@ export default function MontadorDetalheServico({ route, navigation }: Props) {
           </View>
 
           <View style={styles.actions}>
-            {canOpenChat(servico) ? (
+            {/* Ações em cards de 2 colunas, alinhados. */}
+            <View style={styles.actionGrid}>
+              {canOpenChat(servico) ? (
+                <ActionButton
+                  label="Abrir chat"
+                  icon="MessageCircle"
+                  accent={profileTheme.primary}
+                  soft={profileTheme.primarySoft}
+                  onPress={() => navigation.navigate("MontadorChat", { servicoId: servico.id })}
+                />
+              ) : null}
+              {!encerrado ? (
+                <ActionButton
+                  label={checkInLoading ? "Registrando…" : checkInRealizado ? "Check-in feito" : "Fazer check-in"}
+                  icon={checkInRealizado ? "CheckCircle" : "MapPin"}
+                  accent={profileTheme.primary}
+                  soft={profileTheme.primarySoft}
+                  onPress={fazerCheckIn}
+                />
+              ) : null}
+              {!encerrado && status === "ACEITO" ? (
+                <ActionButton
+                  label={actionLoading === "iniciar" ? "Iniciando…" : "Iniciar serviço"}
+                  icon="Clock"
+                  accent={profileTheme.primary}
+                  soft={profileTheme.primarySoft}
+                  onPress={iniciarServico}
+                />
+              ) : null}
+              {/* Confirmar finalização vale para EM_ANDAMENTO (1ª confirmação) e para
+                  AGUARDANDO_FINALIZACAO (quando a outra parte já confirmou — sem este
+                  caso o montador ficava sem botão e o serviço travava). O backend é
+                  idempotente: reconfirmar pelo mesmo papel não tem efeito. */}
+              {!encerrado && ["EM_ANDAMENTO", "AGUARDANDO_FINALIZACAO"].includes(status) ? (
+                <ActionButton
+                  label={actionLoading === "finalizar" ? "Finalizando…" : "Confirmar finalização"}
+                  icon="CheckCircle"
+                  accent={profileTheme.primary}
+                  soft={profileTheme.primarySoft}
+                  onPress={finalizarServico}
+                />
+              ) : null}
+              {!encerrado && ["ACEITO", "EM_ANDAMENTO"].includes(status) ? (
+                <ActionButton
+                  label={actionLoading === "cancelar" ? "Cancelando…" : "Cancelar serviço"}
+                  icon="XCircle"
+                  accent={colors.danger}
+                  soft={colors.dangerSoft}
+                  onPress={() => setCancelOpen(true)}
+                />
+              ) : null}
               <ActionButton
-                label="Abrir chat"
-                icon="MessageCircle"
-                accent={profileTheme.primary}
-                soft={profileTheme.primarySoft}
-                onPress={() => navigation.navigate("MontadorChat", { servicoId: servico.id })}
+                label="Reportar problema"
+                icon="AlertTriangle"
+                accent={colors.danger}
+                soft={colors.dangerSoft}
+                onPress={reportarProblema}
               />
-            ) : null}
-            {!encerrado ? (
-              <ActionButton
-                label={checkInLoading ? "Registrando check-in…" : checkInRealizado ? "Check-in realizado" : "Fazer check-in"}
-                icon={checkInRealizado ? "CheckCircle" : "MapPin"}
-                accent={profileTheme.primary}
-                soft={profileTheme.primarySoft}
-                onPress={fazerCheckIn}
-              />
-            ) : null}
-            {!encerrado && status === "ACEITO" ? (
-              <ActionButton
-                label={actionLoading === "iniciar" ? "Iniciando" : "Iniciar serviço"}
-                icon="Clock"
-                accent={profileTheme.primary}
-                soft={profileTheme.primarySoft}
-                onPress={iniciarServico}
-              />
-            ) : null}
-            {/* Confirmar finalização vale para EM_ANDAMENTO (1ª confirmação) e para
-                AGUARDANDO_FINALIZACAO (quando a outra parte já confirmou — sem este
-                caso o montador ficava sem botão e o serviço travava). O backend é
-                idempotente: reconfirmar pelo mesmo papel não tem efeito. */}
-            {!encerrado && ["EM_ANDAMENTO", "AGUARDANDO_FINALIZACAO"].includes(status) ? (
-              <ActionButton
-                label={actionLoading === "finalizar" ? "Finalizando" : "Confirmar finalização"}
-                icon="CheckCircle"
-                accent={profileTheme.primary}
-                soft={profileTheme.primarySoft}
-                onPress={finalizarServico}
-              />
-            ) : null}
+            </View>
+
             {status === "AGUARDANDO_FINALIZACAO" ? (
               <View style={[styles.statusInfo, { backgroundColor: colors.warningSoft }]}>
                 <AppIcon name="Hourglass" size={16} color={colors.warning} />
@@ -240,22 +261,7 @@ export default function MontadorDetalheServico({ route, navigation }: Props) {
                 </Text>
               </View>
             ) : null}
-            {!encerrado && ["ACEITO", "EM_ANDAMENTO"].includes(status) ? (
-              <ActionButton
-                label={actionLoading === "cancelar" ? "Cancelando" : "Cancelar serviço"}
-                icon="XCircle"
-                accent={colors.danger}
-                soft={colors.dangerSoft}
-                onPress={() => setCancelOpen(true)}
-              />
-            ) : null}
-            <ActionButton
-              label="Reportar problema"
-              icon="AlertTriangle"
-              accent={colors.danger}
-              soft={colors.dangerSoft}
-              onPress={reportarProblema}
-            />
+
             {!encerrado ? (
               <Pressable onPress={acionarSOS} disabled={actionLoading === "sos"} style={styles.sosButton}>
                 <Text style={styles.sosText}>{actionLoading === "sos" ? "Enviando SOS" : "Acionar SOS"}</Text>
@@ -299,9 +305,12 @@ function ActionButton({
   onPress: () => void;
 }) {
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [styles.actionButton, { backgroundColor: soft }, pressed && styles.pressed]}>
-      <AppIcon name={icon} size={18} color={accent} />
-      <Text style={[styles.actionText, { color: accent }]}>{label}</Text>
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [styles.actionCard, { backgroundColor: soft, borderColor: accent + "22" }, pressed && styles.pressed]}
+    >
+      <AppIcon name={icon} size={22} color={accent} />
+      <Text numberOfLines={2} style={[styles.actionCardText, { color: accent }]}>{label}</Text>
     </Pressable>
   );
 }
@@ -395,19 +404,29 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
   actions: {
-    gap: 10,
+    gap: 12,
   },
-  actionButton: {
-    minHeight: 48,
+  actionGrid: {
     flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    borderRadius: radius.lg,
-    paddingHorizontal: 12,
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    rowGap: 12,
   },
-  actionText: {
-    ...typography.bodySm,
+  actionCard: {
+    width: "48%",
+    minHeight: 92,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 16,
+    paddingHorizontal: 8,
+  },
+  actionCardText: {
+    ...typography.caption,
     fontWeight: "700",
+    textAlign: "center",
   },
   sosButton: {
     minHeight: 50,

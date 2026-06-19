@@ -176,7 +176,26 @@ export default function MontadorDetalheServico({ route, navigation }: Props) {
           </View>
 
           <View style={styles.actions}>
-            {/* Ações em cards de 2 colunas, alinhados. */}
+            {/* CTA principal em destaque: preenchido e em largura cheia quando o
+                serviço está em andamento ou aguardando a confirmação. */}
+            {!encerrado && ["EM_ANDAMENTO", "AGUARDANDO_FINALIZACAO"].includes(status) ? (
+              <Pressable
+                onPress={finalizarServico}
+                disabled={actionLoading === "finalizar"}
+                style={({ pressed }) => [
+                  styles.featuredButton,
+                  { backgroundColor: profileTheme.primary },
+                  pressed && styles.pressed,
+                ]}
+              >
+                <AppIcon name="CheckCircle" size={20} color={colors.white} />
+                <Text style={styles.featuredButtonText}>
+                  {actionLoading === "finalizar" ? "Finalizando…" : "Confirmar finalização"}
+                </Text>
+              </Pressable>
+            ) : null}
+
+            {/* Ações secundárias em cards de 2 colunas, alinhados. */}
             <View style={styles.actionGrid}>
               {canOpenChat(servico) ? (
                 <ActionButton
@@ -203,19 +222,6 @@ export default function MontadorDetalheServico({ route, navigation }: Props) {
                   accent={profileTheme.primary}
                   soft={profileTheme.primarySoft}
                   onPress={iniciarServico}
-                />
-              ) : null}
-              {/* Confirmar finalização vale para EM_ANDAMENTO (1ª confirmação) e para
-                  AGUARDANDO_FINALIZACAO (quando a outra parte já confirmou — sem este
-                  caso o montador ficava sem botão e o serviço travava). O backend é
-                  idempotente: reconfirmar pelo mesmo papel não tem efeito. */}
-              {!encerrado && ["EM_ANDAMENTO", "AGUARDANDO_FINALIZACAO"].includes(status) ? (
-                <ActionButton
-                  label={actionLoading === "finalizar" ? "Finalizando…" : "Confirmar finalização"}
-                  icon="CheckCircle"
-                  accent={profileTheme.primary}
-                  soft={profileTheme.primarySoft}
-                  onPress={finalizarServico}
                 />
               ) : null}
               {!encerrado && ["ACEITO", "EM_ANDAMENTO"].includes(status) ? (
@@ -427,6 +433,21 @@ const styles = StyleSheet.create({
     ...typography.caption,
     fontWeight: "700",
     textAlign: "center",
+  },
+  featuredButton: {
+    minHeight: 54,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    borderRadius: radius.lg,
+    paddingHorizontal: 16,
+    ...shadows.card,
+  },
+  featuredButtonText: {
+    ...typography.bodyMedium,
+    fontWeight: "800",
+    color: colors.white,
   },
   sosButton: {
     minHeight: 50,

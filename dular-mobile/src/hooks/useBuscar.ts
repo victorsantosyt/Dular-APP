@@ -20,6 +20,7 @@ export interface ApiDiarista {
     id: string;
     nome: string;
     telefone?: string | null;
+    avatarUrl?: string | null;
   };
 }
 

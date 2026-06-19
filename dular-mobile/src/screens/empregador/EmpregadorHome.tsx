@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  Alert,
   Image,
   Pressable,
   RefreshControl,
@@ -17,7 +18,7 @@ import { api } from "@/lib/api";
 import type { BuscarDiaristasResponse, DiaristaItem } from "@/types/diarista";
 import type { ServicoTipo, ServicoCategoria } from "@/types/servico";
 import { getCatalogoServicos, type CatalogoTipo } from "@/api/catalogoApi";
-import { CATEGORIAS } from "@/constants/categorias";
+import { CATEGORIAS, CATEGORIA_BY_KEY } from "@/constants/categorias";
 
 // Categorias em destaque na home (subconjunto da fonte única); demais em "Ver todos".
 const CATEGORIAS_HOME = CATEGORIAS.filter((c) =>
@@ -27,6 +28,7 @@ import { PILOT_MODE, PILOT } from "@/config/pilotConfig";
 import { useGeoDefaults } from "@/hooks/useGeoDefaults";
 import { useMensagens } from "@/hooks/useMensagens";
 import { usePaywallGuard } from "@/hooks/usePaywallGuard";
+import { useFavoritos } from "@/hooks/useFavoritos";
 import { useAuth } from "@/stores/authStore";
 import {
   AppIcon,
@@ -37,6 +39,9 @@ import {
   DSkeletonCard,
   DErrorState,
   DEmptyState,
+  ProfissionalCard,
+  formatValorDiarista,
+  type ProfissionalCardData,
 } from "@/components/ui";
 import { colors, radius, shadows, spacing, typography } from "@/theme";
 import { getProfileTheme } from "@/theme/profileTheme";
@@ -48,31 +53,31 @@ const HOME_EMPREGADOR_LOGO = require("../../../assets/images/home_empregador/hom
 
 // ─── Suggested professionals ──────────────────────────────────────────────────
 
-type ProfData = {
-  id: string;
-  nome: string;
-  /** Undefined quando o dado real não vier da API — campo omitido na UI. */
-  anos?: number;
-  /** Undefined quando o dado real não vier da API — campo omitido na UI. */
-  bairro?: string;
-  /** Undefined quando o dado real não vier da API — campo omitido na UI. */
-  disponibilidade?: string;
-  nota: number;
-  preco: number;
-  online: boolean;
-};
+const DIARISTA_CAT = CATEGORIA_BY_KEY.diarista;
 
-function diaristaToProf(item: DiaristaItem): ProfData {
+// Normaliza um item da busca para o card ÚNICO (ProfissionalCard). cidade/bairro
+// vêm da região buscada quando o item não carrega os próprios.
+function diaristaItemToCard(item: DiaristaItem, cidade: string, bairro: string): ProfissionalCardData {
+  const extra = item as DiaristaItem & {
+    fotoUrl?: string | null;
+    cidade?: string | null;
+    bairro?: string | null;
+    user: { avatarUrl?: string | null };
+  };
   return {
     id: item.user.id,
+    userId: item.user.id,
+    tipo: "DIARISTA",
     nome: item.user.nome,
-    // Campos opcionais: só exibe se vier da API. Nunca hardcoda valores fictícios.
-    anos: typeof (item as any).anosExperiencia === "number" ? (item as any).anosExperiencia : undefined,
-    bairro: (item as any).bairro ?? (item as any).cidade ?? undefined,
-    disponibilidade: undefined, // sem sinal real de disponibilidade na API → omite
+    categoria: DIARISTA_CAT.label,
+    categoriaIcon: DIARISTA_CAT.icon,
+    categoriaColor: DIARISTA_CAT.fg,
+    categoriaBg: DIARISTA_CAT.bg,
+    avatarUrl: extra.fotoUrl ?? extra.user?.avatarUrl ?? null,
+    cidade: extra.cidade ?? cidade ?? null,
+    bairro: extra.bairro ?? bairro ?? null,
+    valorLabel: formatValorDiarista(item.precoLeve),
     nota: item.notaMedia,
-    preco: item.precoLeve,
-    online: item.verificacao === "VERIFICADO",
   };
 }
 
@@ -94,87 +99,7 @@ function QuickActionCard({ icon, label, onPress }: QuickAction) {
   );
 }
 
-// ─── Professional Card ────────────────────────────────────────────────────────
-
-function SuggestedProfCard({
-  prof,
-  onPress,
-}: {
-  prof: ProfData;
-  onPress: () => void;
-}) {
-  const initials = prof.nome
-    .split(" ")
-    .map((w) => w[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
-
-  return (
-    <View style={s.profCard}>
-      {/* Avatar + online dot + rating pill */}
-      <View style={s.profAvatarCol}>
-        <View style={s.profAvatarWrap}>
-          <DAvatar size="lg" initials={initials} />
-          {prof.online && <View style={s.onlineDot} />}
-        </View>
-        <View style={s.ratingPill}>
-          <Text style={s.ratingPillStar}>★</Text>
-          <Text allowFontScaling={false} style={s.ratingPillText}>
-            {prof.nota.toFixed(1)}
-          </Text>
-        </View>
-      </View>
-
-      {/* Name / experience / location / availability */}
-      <View style={s.profInfo}>
-        <Text allowFontScaling={false} style={s.profName} numberOfLines={1}>
-          {prof.nome}
-        </Text>
-        {/* Exibe anos de experiência somente se vier da API */}
-        {prof.anos !== undefined ? (
-          <Text allowFontScaling={false} style={s.profYears}>
-            {prof.anos} {prof.anos === 1 ? "ano" : "anos"} de experiência
-          </Text>
-        ) : null}
-        {/* Exibe localização somente se vier da API */}
-        {prof.bairro ? (
-          <View style={s.profLocRow}>
-            <AppIcon name="MapPin" size={11} color={colors.textMuted} strokeWidth={2} />
-            <Text allowFontScaling={false} style={s.profLoc} numberOfLines={1}>
-              {prof.bairro}
-            </Text>
-          </View>
-        ) : null}
-        {/* Exibe disponibilidade somente se houver sinal real */}
-        {prof.disponibilidade ? (
-          <View style={s.availPill}>
-            <Text allowFontScaling={false} style={s.availText}>
-              {prof.disponibilidade}
-            </Text>
-          </View>
-        ) : null}
-      </View>
-
-      {/* Price + Ver perfil button */}
-      <View style={s.profPriceCol}>
-        <View style={s.profPriceGroup}>
-          <Text allowFontScaling={false} style={s.profPriceLabel}>A partir de</Text>
-          {/* prof.preco vem em CENTAVOS (precoLeve Int) → ÷100 para exibir. */}
-          <Text allowFontScaling={false} style={s.profPrice}>
-            R$ {((prof.preco ?? 0) / 100).toFixed(2).replace(".", ",")}
-          </Text>
-        </View>
-        <Pressable
-          style={({ pressed }) => [s.profViewBtn, pressed && { opacity: 0.75 }]}
-          onPress={onPress}
-        >
-          <Text allowFontScaling={false} style={s.profViewText}>Ver perfil</Text>
-        </Pressable>
-      </View>
-    </View>
-  );
-}
+// Card de profissional unificado: ver components/ui/ProfissionalCard.
 
 // ─── Categoria Card (grid "Quem você precisa hoje?") ─────────────────────────
 
@@ -240,6 +165,7 @@ export default function EmpregadorHome() {
   const geo = useGeoDefaults();
   const { verificar } = usePaywallGuard();
   const { rooms } = useMensagens();
+  const { isFavorito, toggle: toggleFavorito } = useFavoritos();
 
   const firstName = useMemo(() => {
     const nome = (user?.nome || "").trim();
@@ -369,10 +295,18 @@ export default function EmpregadorHome() {
     handleBuscarRef.current();
   }, [geo.loading]);
 
-  const profissionals: ProfData[] = useMemo(() => {
-    if (diaristas.length > 0) return diaristas.slice(0, 5).map(diaristaToProf);
+  const profissionals: ProfissionalCardData[] = useMemo(() => {
+    if (diaristas.length > 0) return diaristas.slice(0, 5).map((d) => diaristaItemToCard(d, cidade, bairro));
     return [];
-  }, [diaristas]);
+  }, [diaristas, cidade, bairro]);
+
+  const handleToggleFavorito = async (item: ProfissionalCardData) => {
+    try {
+      await toggleFavorito(item.userId, item.tipo);
+    } catch {
+      Alert.alert("Não foi possível atualizar", "Tente novamente em instantes. Verifique sua conexão.");
+    }
+  };
 
   const quickActions: QuickAction[] = [
     { icon: "FileText",      label: "Solicitações",  onPress: () => navigation.navigate("Agendamentos") },
@@ -511,12 +445,14 @@ export default function EmpregadorHome() {
               />
             ) : (
               profissionals.map((prof) => (
-                <SuggestedProfCard
+                <ProfissionalCard
                   key={prof.id}
-                  prof={prof}
+                  data={prof}
+                  favorito={isFavorito(prof.userId, prof.tipo)}
+                  onToggleFavorito={() => handleToggleFavorito(prof)}
                   onPress={() =>
                     navigation.navigate("DiaristaProfile", {
-                      diaristaId: prof.id,
+                      diaristaId: prof.userId,
                       nome: prof.nome,
                     })
                   }

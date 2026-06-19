@@ -379,7 +379,10 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
               />
             </>
           )}
-          {["INICIADO", "EM_ANDAMENTO"].includes(svc.status.toUpperCase()) && !isStatusEncerrado(svc.status) && (
+          {/* Vale para EM_ANDAMENTO (1ª confirmação) e AGUARDANDO_FINALIZACAO
+              (quando o empregador confirmou primeiro — sem este caso a diarista
+              ficava sem botão e o serviço travava). Backend é idempotente. */}
+          {["INICIADO", "EM_ANDAMENTO", "AGUARDANDO_FINALIZACAO"].includes(svc.status.toUpperCase()) && !isStatusEncerrado(svc.status) && (
             <DButton tint={theme.primary}
               title="Confirmar finalização"
               loading={loading}
@@ -390,7 +393,7 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
             <View style={s.waitingCard}>
               <Ionicons name="hourglass-outline" size={20} color={colors.warning} />
               <Text style={s.waitingText}>
-                Aguardando confirmação da outra parte.
+                Confirme a finalização para concluir. Se já confirmou, aguarde a outra parte.
               </Text>
             </View>
           )}

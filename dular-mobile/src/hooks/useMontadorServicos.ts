@@ -71,6 +71,12 @@ export function useMontadorServicos() {
     [servicos],
   );
 
+  // Callbacks estáveis: sem isso, cada render cria um novo reload/refetch e a
+  // tela de detalhe (useFocusEffect com dep [reload]) re-dispara o efeito a cada
+  // render → loop de GET /api/servicos/minhas.
+  const refetch = useCallback(() => load("refresh"), [load]);
+  const reload = useCallback(() => load("initial"), [load]);
+
   return {
     servicos,
     pendentes,
@@ -79,7 +85,7 @@ export function useMontadorServicos() {
     loading,
     refreshing,
     error,
-    refetch: () => load("refresh"),
-    reload: () => load("initial"),
+    refetch,
+    reload,
   };
 }

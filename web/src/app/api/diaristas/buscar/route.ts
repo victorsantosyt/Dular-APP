@@ -163,6 +163,11 @@ export async function GET(req: Request) {
         servicosOferecidos: true,
         cidade: true,
         estado: true,
+        // Coords expostos só para a ordenação por proximidade na tela
+        // "Profissionais sugeridos" (M5). Colunas já existentes; sem migration
+        // e sem alterar a ordenação global do endpoint (segue por notaMedia).
+        latitude: true,
+        longitude: true,
         atendeTodaCidade: true,
         raioAtendimentoKm: true,
         precoBabaHora: true,

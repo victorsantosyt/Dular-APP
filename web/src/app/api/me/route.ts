@@ -70,6 +70,7 @@ export async function GET(req: Request) {
             fotoUrl: true,
             verificacao: true,
             docUrl: true,
+            servicosOferecidos: true,
             precoLeve: true,
             precoMedio: true,
             precoPesada: true,
@@ -91,6 +92,9 @@ export async function GET(req: Request) {
           avatarUrl: profile?.fotoUrl ?? user.avatarUrl ?? null,
           verificacao: { status: mapVerificacao(profile?.verificacao) },
           docEnviado: Boolean(profile?.docUrl),
+          // Sem isto o gate "Quais serviços você oferece" reaparecia a cada login
+          // (o app recebia servicosOferecidos vazio e reabria o gate).
+          servicosOferecidos: profile?.servicosOferecidos ?? [],
           precoLeve: profile?.precoLeve ?? null,
           precoMedio: profile?.precoMedio ?? null,
           precoPesada: profile?.precoPesada ?? null,

@@ -1,5 +1,6 @@
 import React from "react";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
+import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { DBottomTabBar } from "@/navigation/DBottomTabBar";
 import { MontadorHome } from "@/screens/montador/MontadorHome";
 import MontadorAgenda from "@/screens/montador/MontadorAgenda";
@@ -21,6 +22,8 @@ import Privacidade from "@/screens/perfil/Privacidade";
 import { useMontadorServicos } from "@/hooks/useMontadorServicos";
 
 export type MontadorTabParamList = {
+  // Container das abas reais.
+  MontadorTabs: undefined;
   MontadorHome: undefined;
   MontadorAgenda: undefined;
   MontadorSolicitacoes: undefined;
@@ -41,8 +44,10 @@ export type MontadorTabParamList = {
 };
 
 const Tab = createBottomTabNavigator<MontadorTabParamList>();
+const RootStack = createNativeStackNavigator<MontadorTabParamList>();
 
-export function MontadorNavigator() {
+// Abas reais (5). A bottom bar só existe aqui dentro.
+function MontadorTabs() {
   const { pendentes } = useMontadorServicos();
 
   return (
@@ -64,23 +69,29 @@ export function MontadorNavigator() {
       <Tab.Screen name="MontadorSolicitacoes" component={MontadorSolicitacoes} />
       <Tab.Screen name="MontadorMensagens" component={MontadorMensagens} />
       <Tab.Screen name="MontadorPerfil" component={MontadorPerfil} />
-      <Tab.Screen name="MontadorNotificacoes" component={MontadorNotificacoes} />
-      <Tab.Screen name="MontadorDetalheSolicitacao" component={MontadorDetalheSolicitacao} />
-      <Tab.Screen name="MontadorDetalheServico" component={MontadorDetalheServico} />
-      <Tab.Screen
-        name="MontadorChat"
-        component={ChatScreen}
-        options={{ tabBarStyle: { display: "none" } }}
-      />
-      <Tab.Screen name="VerificacaoDocs" component={VerificacaoDocs} />
-      <Tab.Screen name="Carteira" component={CarteiraScreen} />
-      <Tab.Screen name="SafeScore" component={SafeScoreScreen} />
-      <Tab.Screen name="SosFlow" component={SosFlowScreen} />
-      <Tab.Screen name="ReportIncident" component={ReportIncident} />
-      <Tab.Screen name="Suporte" component={Suporte} />
-      <Tab.Screen name="Termos" component={Termos} />
-      <Tab.Screen name="Privacidade" component={Privacidade} />
     </Tab.Navigator>
+  );
+}
+
+// Stack raiz: abas + telas de detalhe/sub-tela empilhadas acima (fora da bottom
+// bar). goBack() volta para a origem real (lista, notificações, solicitação…).
+export function MontadorNavigator() {
+  return (
+    <RootStack.Navigator screenOptions={{ headerShown: false }}>
+      <RootStack.Screen name="MontadorTabs" component={MontadorTabs} />
+      <RootStack.Screen name="MontadorNotificacoes" component={MontadorNotificacoes} />
+      <RootStack.Screen name="MontadorDetalheSolicitacao" component={MontadorDetalheSolicitacao} />
+      <RootStack.Screen name="MontadorDetalheServico" component={MontadorDetalheServico} />
+      <RootStack.Screen name="MontadorChat" component={ChatScreen} />
+      <RootStack.Screen name="Carteira" component={CarteiraScreen} />
+      <RootStack.Screen name="VerificacaoDocs" component={VerificacaoDocs} />
+      <RootStack.Screen name="SafeScore" component={SafeScoreScreen} />
+      <RootStack.Screen name="SosFlow" component={SosFlowScreen} />
+      <RootStack.Screen name="ReportIncident" component={ReportIncident} />
+      <RootStack.Screen name="Suporte" component={Suporte} />
+      <RootStack.Screen name="Termos" component={Termos} />
+      <RootStack.Screen name="Privacidade" component={Privacidade} />
+    </RootStack.Navigator>
   );
 }
 

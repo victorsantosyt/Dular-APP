@@ -47,15 +47,10 @@ const TAB_BY_ROUTE: Record<Variant, Record<string, NavTab>> = {
   ) as Record<string, NavTab>,
 };
 
-TAB_BY_ROUTE.montador.MontadorDetalheSolicitacao = "new";
-TAB_BY_ROUTE.montador.MontadorDetalheServico = "search";
-TAB_BY_ROUTE.montador.MontadorChat = "messages";
-
-const HIDDEN_ROUTES: Record<Variant, Set<string>> = {
-  diarista: new Set(["ChatAberto"]),
-  empregador: new Set(["SolicitarServico", "ChatAberto", "Notificacoes", "MontadorPublicProfile"]),
-  montador: new Set(["MontadorChat"]),
-};
+// A bottom bar agora vive SÓ dentro do navigator de abas (5 abas reais). Telas
+// de detalhe/perfil/notificações são telas de stack ACIMA das abas e cobrem a
+// barra naturalmente — não há mais necessidade de esconder a barra por rota
+// (o antigo HIDDEN_ROUTES foi removido junto com a migração para stack real).
 
 type Props = BottomTabBarProps & {
   variant: Variant;
@@ -65,7 +60,6 @@ type Props = BottomTabBarProps & {
 
 export function DBottomTabBar({ state, navigation, variant, messagesBadge, requestsBadge }: Props) {
   const currentRoute = state.routes[state.index]?.name;
-  const shouldHide = !!currentRoute && HIDDEN_ROUTES[variant].has(currentRoute);
   const activeTab = TAB_BY_ROUTE[variant][currentRoute] ?? null;
   const user = useAuth((auth) => auth.user);
   const role = user?.role ?? (variant === "montador" ? "MONTADOR" : variant === "diarista" ? "DIARISTA" : "EMPREGADOR");
@@ -84,8 +78,6 @@ export function DBottomTabBar({ state, navigation, variant, messagesBadge, reque
     },
     [navigation, variant]
   );
-
-  if (shouldHide) return null;
 
   return (
     <View style={styles.floating} pointerEvents="box-none">

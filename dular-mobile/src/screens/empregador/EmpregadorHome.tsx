@@ -423,6 +423,24 @@ export default function EmpregadorHome() {
               action="Ver todas"
               onAction={() => navigation.navigate("AcoesRapidas")}
             />
+            {/* SOS direto na Home (topo do bloco). Reutiliza a rota SosFlow. */}
+            <Pressable
+              onPress={() => navigation.navigate("SosFlow")}
+              style={({ pressed }) => [s.sosCard, pressed && { opacity: 0.85 }]}
+              accessibilityRole="button"
+              accessibilityLabel="SOS — acionar emergência"
+            >
+              <View style={s.sosIcon}>
+                <AppIcon name="AlertTriangle" size={22} color={colors.danger} strokeWidth={2.3} />
+              </View>
+              <View style={s.sosText}>
+                <Text allowFontScaling={false} style={s.sosTitle}>SOS / Emergência</Text>
+                <Text allowFontScaling={false} style={s.sosSub} numberOfLines={1}>
+                  Acione ajuda imediata em caso de emergência.
+                </Text>
+              </View>
+              <AppIcon name="ChevronRight" size={18} color={colors.dangerDark} strokeWidth={2.2} />
+            </Pressable>
             <View style={s.qaRow}>
               {quickActions.map((qa) => (
                 <QuickActionCard key={qa.label} {...qa} />
@@ -649,6 +667,40 @@ const s = StyleSheet.create({
   section: {
     gap: 12,
     paddingHorizontal: spacing.screenPadding,
+  },
+
+  // ── SOS (topo do bloco de Ações rápidas)
+  sosCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    backgroundColor: colors.dangerSoft,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: colors.danger,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  sosIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: colors.surface,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  sosText: {
+    flex: 1,
+    gap: 2,
+  },
+  sosTitle: {
+    ...typography.bodySmMedium,
+    fontWeight: "800",
+    color: colors.dangerDark,
+  },
+  sosSub: {
+    ...typography.caption,
+    color: colors.textSecondary,
   },
 
   // ── Quick action cards

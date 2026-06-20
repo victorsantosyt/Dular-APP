@@ -33,7 +33,7 @@ import { useFavoritos } from "@/hooks/useFavoritos";
 import { salvarLocalizacaoAtual } from "@/api/localizacaoApi";
 import { useAuth } from "@/stores/authStore";
 import { useCurrentRegion, type CurrentRegion } from "@/hooks/useCurrentRegion";
-import { MONTADOR_ESPECIALIDADES as MONTADOR_ESPECIALIDADES_PUBLICAS, type MontadorItem } from "@/types/montador";
+import type { MontadorItem } from "@/types/montador";
 
 type Navigation = BottomTabNavigationProp<EmpregadorTabParamList>;
 type BuscarRoute = RouteProp<EmpregadorTabParamList, "Buscar">;
@@ -63,18 +63,13 @@ type Profissional = {
   categoria: string;
   categoriaIcon: AppIconName;
   categoriaKey: CategoriaKey;
+  // Usado só no filtro de busca por texto — não entra no layout do card.
   localizacao: string;
-  nota: string;
-  experiencia: string;
-  distancia: string;
-  online: boolean;
-  verificado: boolean;
   avatarUrl?: string | null;
   especialidades?: string[];
   cidade?: string | null;
   estado?: string | null;
   rating?: number;
-  precoLabel?: string;
   // Campos derivados para o card único (ProfissionalCard).
   categoriaColor?: string;
   categoriaBg?: string;
@@ -84,9 +79,6 @@ type Profissional = {
   bairroLabel?: string | null;
 };
 
-const MONTADOR_LABELS = Object.fromEntries(
-  MONTADOR_ESPECIALIDADES_PUBLICAS.map((item) => [item.id, item.label]),
-) as Record<string, string>;
 
 // Derivado da FONTE ÚNICA: rótulo/ícone de cada categoria da diarista.
 const DIARISTA_CATEGORY_META = Object.fromEntries(
@@ -157,11 +149,6 @@ function mapApiToProf(d: ApiDiarista, bairro: string, cidade: string, categoria:
     categoriaIcon: meta.icon,
     categoriaKey: categoria,
     localizacao: bairro && cidade ? `${bairro}, ${cidade}` : cidade || "--",
-    nota: d.notaMedia > 0 ? d.notaMedia.toFixed(1).replace(".", ",") : "--",
-    experiencia: d.totalServicos > 0 ? `${d.totalServicos} serviços` : "Novo",
-    distancia: "",
-    online: false,
-    verificado: d.verificacao === "VERIFICADO",
     // O avatar pode estar no perfil (fotoUrl) OU no User (avatarUrl, onde o upload
     // de /api/me/avatar grava). Sem o fallback, a foto da diarista não aparecia.
     avatarUrl: d.fotoUrl ?? d.user?.avatarUrl ?? null,
@@ -177,10 +164,6 @@ function mapApiToProf(d: ApiDiarista, bairro: string, cidade: string, categoria:
 
 function mapMontadorToProf(m: MontadorItem): Profissional {
   const cidadeEstado = [m.cidade, m.estado].filter(Boolean).join(", ");
-  const principais = (m.especialidades ?? [])
-    .map((item) => MONTADOR_LABELS[item] ?? item)
-    .slice(0, 2)
-    .join(" • ");
   return {
     id: m.id,
     userId: m.userId ?? m.user.id,
@@ -190,17 +173,11 @@ function mapMontadorToProf(m: MontadorItem): Profissional {
     categoriaIcon: "Wrench",
     categoriaKey: "montador",
     localizacao: cidadeEstado || "Localização a confirmar",
-    nota: m.rating > 0 ? m.rating.toFixed(1).replace(".", ",") : "--",
-    experiencia: principais || (m.totalServicos > 0 ? `${m.totalServicos} serviços` : "Perfil profissional completo"),
-    distancia: m.precoLabel ?? (m.valorACombinar ? "A combinar" : ""),
-    online: false,
-    verificado: m.verificado,
     avatarUrl: m.fotoPerfil ?? m.user.avatarUrl,
     especialidades: m.especialidades,
     cidade: m.cidade,
     estado: m.estado,
     rating: m.rating,
-    precoLabel: m.precoLabel,
     // Card único:
     categoriaColor: CATEGORIA_BY_KEY.montador.fg,
     categoriaBg: CATEGORIA_BY_KEY.montador.bg,
@@ -240,18 +217,10 @@ function CategoryCard({
   );
 }
 
-function ProfCard({
-  prof,
-  favorito,
-  onToggleFavorito,
-}: {
-  prof: Profissional;
-  favorito: boolean;
-  onToggleFavorito: () => void;
-}) {
-  const navigation = useNavigation<Navigation>();
-
-  const data: ProfissionalCardData = {
+// Mapeia o item da busca para os dados do card ÚNICO. SEM layout próprio — toda
+// a estrutura visual vive em components/ui/ProfissionalCard.
+function profToCardData(prof: Profissional): ProfissionalCardData {
+  return {
     id: prof.id,
     userId: prof.userId,
     tipo: prof.tipo,
@@ -266,36 +235,6 @@ function ProfCard({
     valorLabel: prof.valorLabel,
     nota: prof.notaNum,
   };
-
-  const handleOpen = () => {
-    if (prof.tipo === "MONTADOR") {
-      navigation.navigate("MontadorPublicProfile", {
-        montadorId: prof.id,
-        montadorUserId: prof.userId,
-        nome: prof.nome,
-        rating: prof.rating,
-        especialidades: prof.especialidades,
-        cidade: prof.cidade,
-        estado: prof.estado,
-        avatarUrl: prof.avatarUrl,
-      });
-      return;
-    }
-    navigation.navigate("DiaristaProfile", {
-      diaristaId: prof.userId,
-      nome: prof.nome,
-      categoriaInicial: prof.categoriaKey === "montador" ? "diarista" : prof.categoriaKey,
-    });
-  };
-
-  return (
-    <ProfissionalCard
-      data={data}
-      favorito={favorito}
-      onToggleFavorito={onToggleFavorito}
-      onPress={handleOpen}
-    />
-  );
 }
 
 export function BuscarScreen() {
@@ -337,6 +276,30 @@ export function BuscarScreen() {
       }
     },
     [toggleFavorito],
+  );
+
+  const handleOpenProfile = useCallback(
+    (prof: Profissional) => {
+      if (prof.tipo === "MONTADOR") {
+        navigation.navigate("MontadorPublicProfile", {
+          montadorId: prof.id,
+          montadorUserId: prof.userId,
+          nome: prof.nome,
+          rating: prof.rating,
+          especialidades: prof.especialidades,
+          cidade: prof.cidade,
+          estado: prof.estado,
+          avatarUrl: prof.avatarUrl,
+        });
+        return;
+      }
+      navigation.navigate("DiaristaProfile", {
+        diaristaId: prof.userId,
+        nome: prof.nome,
+        categoriaInicial: prof.categoriaKey === "montador" ? "diarista" : prof.categoriaKey,
+      });
+    },
+    [navigation],
   );
 
   useEffect(() => {
@@ -573,10 +536,11 @@ export function BuscarScreen() {
                 data={filteredList}
                 keyExtractor={(item) => item.id}
                 renderItem={({ item }) => (
-                  <ProfCard
-                    prof={item}
+                  <ProfissionalCard
+                    data={profToCardData(item)}
                     favorito={isFavorito(item.userId, item.tipo)}
                     onToggleFavorito={() => handleToggleFavorito(item)}
+                    onPress={() => handleOpenProfile(item)}
                   />
                 )}
                 scrollEnabled={false}
@@ -724,125 +688,6 @@ const s = StyleSheet.create({
     position: "absolute",
     borderRadius: 0,
     zIndex: 1,
-  },
-  profCard: {
-    minHeight: 88,
-    borderRadius: 15,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: 9,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 9,
-    ...shadows.soft,
-  },
-  favBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  avatarWrap: {
-    width: 50,
-    height: 50,
-    position: "relative",
-  },
-  onlineDot: {
-    position: "absolute",
-    top: 1,
-    right: 0,
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: colors.success,
-    borderWidth: 2,
-    borderColor: colors.surface,
-  },
-  profCenter: {
-    flex: 1,
-    minWidth: 0,
-    gap: 2,
-  },
-  profNameRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  profName: {
-    flexShrink: 1,
-    color: colors.textPrimary,
-    ...typography.bodySmMedium,
-    fontWeight: "700",
-  },
-  catBadge: {
-    alignSelf: "flex-start",
-    minHeight: 18,
-    borderRadius: radius.pill,
-    backgroundColor: colors.lavender,
-    paddingHorizontal: 6,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  catBadgeText: {
-    color: colors.primary,
-    ...typography.caption,
-    fontWeight: "700",
-  },
-  locationText: {
-    color: colors.textSecondary,
-    ...typography.caption,
-    fontWeight: "500",
-  },
-  ratingRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  ratingText: {
-    color: colors.textSecondary,
-    ...typography.caption,
-    fontWeight: "600",
-  },
-  metaText: {
-    color: colors.textSecondary,
-    ...typography.caption,
-    fontWeight: "500",
-  },
-  metaSep: {
-    color: colors.textMuted,
-    ...typography.caption,
-    fontWeight: "700",
-  },
-  profRight: {
-    width: 82,
-    alignItems: "flex-end",
-    alignSelf: "stretch",
-    justifyContent: "flex-start",
-    gap: 8,
-    paddingVertical: 4,
-  },
-  distText: {
-    color: colors.textSecondary,
-    ...typography.caption,
-    fontWeight: "500",
-  },
-  profileButton: {
-    minHeight: 31,
-    minWidth: 78,
-    borderRadius: 11,
-    borderWidth: 1.3,
-    borderColor: colors.primaryLight,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.surface,
-  },
-  profileButtonText: {
-    color: colors.primary,
-    ...typography.caption,
-    fontWeight: "700",
   },
   feedbackWrap: {
     alignItems: "center",

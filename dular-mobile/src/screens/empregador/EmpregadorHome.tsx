@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  Alert,
   Image,
   Pressable,
   RefreshControl,
@@ -17,7 +18,7 @@ import { api } from "@/lib/api";
 import type { BuscarDiaristasResponse, DiaristaItem } from "@/types/diarista";
 import type { ServicoTipo, ServicoCategoria } from "@/types/servico";
 import { getCatalogoServicos, type CatalogoTipo } from "@/api/catalogoApi";
-import { CATEGORIAS } from "@/constants/categorias";
+import { CATEGORIAS, CATEGORIA_BY_KEY } from "@/constants/categorias";
 
 // Categorias em destaque na home (subconjunto da fonte única); demais em "Ver todos".
 const CATEGORIAS_HOME = CATEGORIAS.filter((c) =>
@@ -27,6 +28,7 @@ import { PILOT_MODE, PILOT } from "@/config/pilotConfig";
 import { useGeoDefaults } from "@/hooks/useGeoDefaults";
 import { useMensagens } from "@/hooks/useMensagens";
 import { usePaywallGuard } from "@/hooks/usePaywallGuard";
+import { useFavoritos } from "@/hooks/useFavoritos";
 import { useAuth } from "@/stores/authStore";
 import {
   AppIcon,
@@ -37,6 +39,9 @@ import {
   DSkeletonCard,
   DErrorState,
   DEmptyState,
+  ProfissionalCard,
+  formatValorDiarista,
+  type ProfissionalCardData,
 } from "@/components/ui";
 import { colors, radius, shadows, spacing, typography } from "@/theme";
 import { getProfileTheme } from "@/theme/profileTheme";
@@ -48,32 +53,54 @@ const HOME_EMPREGADOR_LOGO = require("../../../assets/images/home_empregador/hom
 
 // ─── Suggested professionals ──────────────────────────────────────────────────
 
-type ProfData = {
-  id: string;
-  nome: string;
-  /** Undefined quando o dado real não vier da API — campo omitido na UI. */
-  anos?: number;
-  /** Undefined quando o dado real não vier da API — campo omitido na UI. */
-  bairro?: string;
-  /** Undefined quando o dado real não vier da API — campo omitido na UI. */
-  disponibilidade?: string;
-  nota: number;
-  preco: number;
-  online: boolean;
-};
+const DIARISTA_CAT = CATEGORIA_BY_KEY.diarista;
 
-function diaristaToProf(item: DiaristaItem): ProfData {
+// Normaliza um item da busca para o card ÚNICO (ProfissionalCard). cidade/bairro
+// vêm da região buscada quando o item não carrega os próprios.
+function diaristaItemToCard(item: DiaristaItem, cidade: string, bairro: string): ProfissionalCardData {
+  const extra = item as DiaristaItem & {
+    fotoUrl?: string | null;
+    cidade?: string | null;
+    bairro?: string | null;
+    user: { avatarUrl?: string | null };
+  };
   return {
     id: item.user.id,
+    userId: item.user.id,
+    tipo: "DIARISTA",
     nome: item.user.nome,
-    // Campos opcionais: só exibe se vier da API. Nunca hardcoda valores fictícios.
-    anos: typeof (item as any).anosExperiencia === "number" ? (item as any).anosExperiencia : undefined,
-    bairro: (item as any).bairro ?? (item as any).cidade ?? undefined,
-    disponibilidade: undefined, // sem sinal real de disponibilidade na API → omite
+    categoria: DIARISTA_CAT.label,
+    categoriaIcon: DIARISTA_CAT.icon,
+    categoriaColor: DIARISTA_CAT.fg,
+    categoriaBg: DIARISTA_CAT.bg,
+    avatarUrl: extra.fotoUrl ?? extra.user?.avatarUrl ?? null,
+    cidade: extra.cidade ?? cidade ?? null,
+    bairro: extra.bairro ?? bairro ?? null,
+    valorLabel: formatValorDiarista(item.precoLeve),
     nota: item.notaMedia,
-    preco: item.precoLeve,
-    online: item.verificacao === "VERIFICADO",
   };
+}
+
+// ── Proximidade (M5) ──────────────────────────────────────────────────────────
+// Ordena os "Profissionais sugeridos" pela distância até a localização atual do
+// empregador, usando os coords já existentes da profissional (sem alterar a
+// ordenação global do endpoint). Sem coords → vai para o fim.
+function haversineKm(aLat: number, aLng: number, bLat: number, bLng: number): number {
+  const R = 6371;
+  const dLat = ((bLat - aLat) * Math.PI) / 180;
+  const dLng = ((bLng - aLng) * Math.PI) / 180;
+  const lat1 = (aLat * Math.PI) / 180;
+  const lat2 = (bLat * Math.PI) / 180;
+  const h =
+    Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
+function distanciaKm(item: DiaristaItem, origin: { lat: number; lng: number }): number {
+  const lat = item.latitude;
+  const lng = item.longitude;
+  if (typeof lat !== "number" || typeof lng !== "number") return Number.POSITIVE_INFINITY;
+  return haversineKm(origin.lat, origin.lng, lat, lng);
 }
 
 // ─── Quick Action Card ────────────────────────────────────────────────────────
@@ -94,87 +121,7 @@ function QuickActionCard({ icon, label, onPress }: QuickAction) {
   );
 }
 
-// ─── Professional Card ────────────────────────────────────────────────────────
-
-function SuggestedProfCard({
-  prof,
-  onPress,
-}: {
-  prof: ProfData;
-  onPress: () => void;
-}) {
-  const initials = prof.nome
-    .split(" ")
-    .map((w) => w[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
-
-  return (
-    <View style={s.profCard}>
-      {/* Avatar + online dot + rating pill */}
-      <View style={s.profAvatarCol}>
-        <View style={s.profAvatarWrap}>
-          <DAvatar size="lg" initials={initials} />
-          {prof.online && <View style={s.onlineDot} />}
-        </View>
-        <View style={s.ratingPill}>
-          <Text style={s.ratingPillStar}>★</Text>
-          <Text allowFontScaling={false} style={s.ratingPillText}>
-            {prof.nota.toFixed(1)}
-          </Text>
-        </View>
-      </View>
-
-      {/* Name / experience / location / availability */}
-      <View style={s.profInfo}>
-        <Text allowFontScaling={false} style={s.profName} numberOfLines={1}>
-          {prof.nome}
-        </Text>
-        {/* Exibe anos de experiência somente se vier da API */}
-        {prof.anos !== undefined ? (
-          <Text allowFontScaling={false} style={s.profYears}>
-            {prof.anos} {prof.anos === 1 ? "ano" : "anos"} de experiência
-          </Text>
-        ) : null}
-        {/* Exibe localização somente se vier da API */}
-        {prof.bairro ? (
-          <View style={s.profLocRow}>
-            <AppIcon name="MapPin" size={11} color={colors.textMuted} strokeWidth={2} />
-            <Text allowFontScaling={false} style={s.profLoc} numberOfLines={1}>
-              {prof.bairro}
-            </Text>
-          </View>
-        ) : null}
-        {/* Exibe disponibilidade somente se houver sinal real */}
-        {prof.disponibilidade ? (
-          <View style={s.availPill}>
-            <Text allowFontScaling={false} style={s.availText}>
-              {prof.disponibilidade}
-            </Text>
-          </View>
-        ) : null}
-      </View>
-
-      {/* Price + Ver perfil button */}
-      <View style={s.profPriceCol}>
-        <View style={s.profPriceGroup}>
-          <Text allowFontScaling={false} style={s.profPriceLabel}>A partir de</Text>
-          {/* prof.preco vem em CENTAVOS (precoLeve Int) → ÷100 para exibir. */}
-          <Text allowFontScaling={false} style={s.profPrice}>
-            R$ {((prof.preco ?? 0) / 100).toFixed(2).replace(".", ",")}
-          </Text>
-        </View>
-        <Pressable
-          style={({ pressed }) => [s.profViewBtn, pressed && { opacity: 0.75 }]}
-          onPress={onPress}
-        >
-          <Text allowFontScaling={false} style={s.profViewText}>Ver perfil</Text>
-        </Pressable>
-      </View>
-    </View>
-  );
-}
+// Card de profissional unificado: ver components/ui/ProfissionalCard.
 
 // ─── Categoria Card (grid "Quem você precisa hoje?") ─────────────────────────
 
@@ -240,6 +187,7 @@ export default function EmpregadorHome() {
   const geo = useGeoDefaults();
   const { verificar } = usePaywallGuard();
   const { rooms } = useMensagens();
+  const { isFavorito, toggle: toggleFavorito } = useFavoritos();
 
   const firstName = useMemo(() => {
     const nome = (user?.nome || "").trim();
@@ -369,10 +317,23 @@ export default function EmpregadorHome() {
     handleBuscarRef.current();
   }, [geo.loading]);
 
-  const profissionals: ProfData[] = useMemo(() => {
-    if (diaristas.length > 0) return diaristas.slice(0, 5).map(diaristaToProf);
-    return [];
-  }, [diaristas]);
+  const profissionals: ProfissionalCardData[] = useMemo(() => {
+    if (diaristas.length === 0) return [];
+    // M5: ordena por proximidade quando temos a localização atual do empregador;
+    // sem coords, mantém a ordem que o backend devolveu.
+    const ordered = coords
+      ? [...diaristas].sort((a, b) => distanciaKm(a, coords) - distanciaKm(b, coords))
+      : diaristas;
+    return ordered.slice(0, 5).map((d) => diaristaItemToCard(d, cidade, bairro));
+  }, [diaristas, cidade, bairro, coords]);
+
+  const handleToggleFavorito = async (item: ProfissionalCardData) => {
+    try {
+      await toggleFavorito(item.userId, item.tipo);
+    } catch {
+      Alert.alert("Não foi possível atualizar", "Tente novamente em instantes. Verifique sua conexão.");
+    }
+  };
 
   const quickActions: QuickAction[] = [
     { icon: "FileText",      label: "Solicitações",  onPress: () => navigation.navigate("Agendamentos") },
@@ -511,12 +472,14 @@ export default function EmpregadorHome() {
               />
             ) : (
               profissionals.map((prof) => (
-                <SuggestedProfCard
+                <ProfissionalCard
                   key={prof.id}
-                  prof={prof}
+                  data={prof}
+                  favorito={isFavorito(prof.userId, prof.tipo)}
+                  onToggleFavorito={() => handleToggleFavorito(prof)}
                   onPress={() =>
                     navigation.navigate("DiaristaProfile", {
-                      diaristaId: prof.id,
+                      diaristaId: prof.userId,
                       nome: prof.nome,
                     })
                   }
@@ -722,134 +685,6 @@ const s = StyleSheet.create({
     color: colors.textPrimary,
     textAlign: "center",
     
-  },
-
-  // ── Professional card
-  profCard: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    backgroundColor: colors.surface,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: 12,
-    gap: 10,
-    ...shadows.card,
-  },
-  // Avatar column (left)
-  profAvatarCol: {
-    alignItems: "center",
-    gap: 6,
-  },
-  profAvatarWrap: {
-    position: "relative",
-  },
-  onlineDot: {
-    position: "absolute",
-    top: 0,
-    right: 0,
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: colors.success,
-    borderWidth: 2,
-    borderColor: colors.white,
-  },
-  ratingPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 2,
-    backgroundColor: colors.notification,
-    borderRadius: radius.pill,
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-  },
-  ratingPillStar: {
-    ...typography.caption,
-    color: colors.white,
-    
-  },
-  ratingPillText: {
-    ...typography.caption,
-    fontWeight: "700",
-    color: colors.white,
-    
-  },
-  // Info column (middle)
-  profInfo: {
-    flex: 1,
-    gap: 3,
-  },
-  profName: {
-    ...typography.bodySmMedium,
-    fontWeight: "700",
-    color: colors.textPrimary,
-    
-  },
-  profYears: {
-    ...typography.caption,
-    color: colors.textMuted,
-    
-    
-  },
-  profLocRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 3,
-    marginTop: 2,
-  },
-  profLoc: {
-    ...typography.caption,
-    color: colors.textMuted,
-    flex: 1,
-    
-  },
-  availPill: {
-    alignSelf: "flex-start",
-    backgroundColor: "#F3F4F6",
-    borderRadius: radius.pill,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 3,
-    marginTop: 4,
-  },
-  availText: {
-    ...typography.caption,
-    
-    color: colors.textSecondary,
-    
-  },
-  // Price + button column (right)
-  profPriceCol: {
-    alignItems: "flex-end",
-    justifyContent: "space-between",
-    alignSelf: "stretch",
-  },
-  profPriceGroup: {
-    alignItems: "flex-end",
-    gap: 1,
-  },
-  profPriceLabel: {
-    ...typography.caption,
-    color: colors.textMuted,
-    
-  },
-  profPrice: {
-    ...typography.bodyMedium,
-    fontWeight: "700",
-    color: colors.textPrimary,
-    
-  },
-  profViewBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: radius.pill,
-    backgroundColor: colors.primary,
-    alignItems: "center",
-  },
-  profViewText: {
-    ...typography.caption,
-    fontWeight: "700",
-    color: colors.white,
   },
 
   // ── Bottom banner

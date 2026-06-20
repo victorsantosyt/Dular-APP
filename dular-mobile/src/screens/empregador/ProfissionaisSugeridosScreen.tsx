@@ -1,175 +1,81 @@
 /**
- * ProfissionaisSugeridosScreen
+ * ProfissionaisSugeridosScreen ("Ver todos" da seção da Home)
  *
- * Versão expandida do bloco "Profissionais sugeridos" da Home.
- * Reusa o mesmo hook (`useBuscar`) com cidade/UF/bairro salvos do usuário.
- *
- * Sem mocks: se faltar localização ou se não houver resultados reais → empty state.
+ * Reusa o hook `useBuscar` com cidade/UF/bairro salvos do usuário e renderiza
+ * o card ÚNICO compartilhado `ProfissionalCard`. Sem mocks: sem localização ou
+ * sem resultados reais → empty state.
  */
 import { useEffect, useMemo, useState } from "react";
-import {
-  FlatList,
-  Pressable,
-  RefreshControl,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { Alert, FlatList, RefreshControl, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 
 import {
-  AppIcon,
-  type AppIconName,
-  DAvatar,
   DEmptyState,
   DErrorState,
   DScreenHeader,
   DSkeletonCard,
+  ProfissionalCard,
+  formatValorDiarista,
+  formatValorMontador,
+  type ProfissionalCardData,
 } from "@/components/ui";
-import { colors, radius, shadows, spacing, typography } from "@/theme";
+import { colors, spacing } from "@/theme";
+import { CATEGORIA_BY_KEY } from "@/constants/categorias";
 import { useAuth } from "@/stores/authStore";
+import { useFavoritos } from "@/hooks/useFavoritos";
 import { useBuscar, type ApiDiarista } from "@/hooks/useBuscar";
-import {
-  MONTADOR_ESPECIALIDADES as MONTADOR_LABELS_PUBLICOS,
-  type MontadorItem,
-} from "@/types/montador";
+import type { MontadorItem } from "@/types/montador";
 import type { EmpregadorTabParamList } from "@/navigation/EmpregadorNavigator";
 
 type Navigation = BottomTabNavigationProp<EmpregadorTabParamList>;
 
-const MONTADOR_LABELS = Object.fromEntries(
-  MONTADOR_LABELS_PUBLICOS.map((item) => [item.id, item.label]),
-) as Record<string, string>;
+const DIARISTA_CAT = CATEGORIA_BY_KEY.diarista;
+const MONTADOR_CAT = CATEGORIA_BY_KEY.montador;
 
-type SugeridoItem = {
-  id: string;
-  userId: string;
-  tipo: "DIARISTA" | "MONTADOR";
-  nome: string;
-  categoriaLabel: string;
-  categoriaIcon: AppIconName;
-  localizacao: string;
-  nota: string;
-  experienciaLabel: string;
-  verificado: boolean;
-  avatarUrl?: string | null;
-  // dados extras pra navegação tipada do Montador
+// Card data + campos extras usados só na navegação para o perfil público.
+type ListItem = ProfissionalCardData & {
   especialidades?: string[];
-  cidade?: string | null;
   estado?: string | null;
-  rating?: number;
 };
 
-function diaristaToItem(d: ApiDiarista, cidade: string, bairro: string): SugeridoItem {
-  const local = bairro && cidade ? `${bairro}, ${cidade}` : cidade || "--";
+function diaristaToItem(d: ApiDiarista, cidade: string, bairro: string): ListItem {
   return {
     id: d.userId,
     userId: d.userId,
     tipo: "DIARISTA",
     nome: d.user?.nome ?? "Profissional",
-    categoriaLabel: "Diarista",
-    categoriaIcon: "BrushCleaning",
-    localizacao: local,
-    nota: d.notaMedia > 0 ? d.notaMedia.toFixed(1).replace(".", ",") : "--",
-    experienciaLabel:
-      d.totalServicos > 0 ? `${d.totalServicos} serviços` : "Novo",
-    verificado: d.verificacao === "VERIFICADO",
-    avatarUrl: d.fotoUrl,
+    categoria: DIARISTA_CAT.label,
+    categoriaIcon: DIARISTA_CAT.icon,
+    categoriaColor: DIARISTA_CAT.fg,
+    categoriaBg: DIARISTA_CAT.bg,
+    avatarUrl: d.fotoUrl ?? d.user?.avatarUrl ?? null,
+    cidade: cidade || null,
+    bairro: bairro || null,
+    valorLabel: formatValorDiarista(d.precoLeve),
+    nota: d.notaMedia,
   };
 }
 
-function montadorToItem(m: MontadorItem): SugeridoItem {
-  const cidadeEstado = [m.cidade, m.estado].filter(Boolean).join(", ");
-  const principais = (m.especialidades ?? [])
-    .map((item) => MONTADOR_LABELS[item] ?? item)
-    .slice(0, 2)
-    .join(" • ");
+function montadorToItem(m: MontadorItem): ListItem {
   return {
     id: m.id,
     userId: m.userId ?? m.user.id,
     tipo: "MONTADOR",
     nome: m.user.nome ?? "Montador",
-    categoriaLabel: "Montador",
-    categoriaIcon: "Wrench",
-    localizacao: cidadeEstado || "Localização a confirmar",
-    nota: m.rating > 0 ? m.rating.toFixed(1).replace(".", ",") : "--",
-    experienciaLabel:
-      principais ||
-      (m.totalServicos > 0
-        ? `${m.totalServicos} serviços`
-        : "Perfil profissional completo"),
-    verificado: m.verificado,
+    categoria: MONTADOR_CAT.label,
+    categoriaIcon: MONTADOR_CAT.icon,
+    categoriaColor: MONTADOR_CAT.fg,
+    categoriaBg: MONTADOR_CAT.bg,
     avatarUrl: m.fotoPerfil ?? m.user.avatarUrl,
+    cidade: m.cidade ?? null,
+    bairro: m.bairros?.[0] ?? null,
+    valorLabel: formatValorMontador(m),
+    nota: m.rating,
     especialidades: m.especialidades,
-    cidade: m.cidade,
     estado: m.estado,
-    rating: m.rating,
   };
-}
-
-function SugeridoCard({
-  item,
-  onPress,
-}: {
-  item: SugeridoItem;
-  onPress: () => void;
-}) {
-  const initials = item.nome
-    .split(" ")
-    .map((part) => part[0])
-    .filter(Boolean)
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
-
-  return (
-    <View style={s.card}>
-      <DAvatar size="md" uri={item.avatarUrl ?? undefined} initials={initials} />
-      <View style={s.cardCenter}>
-        <View style={s.cardNameRow}>
-          <Text style={s.cardName} numberOfLines={1}>
-            {item.nome}
-          </Text>
-          {item.verificado ? (
-            <AppIcon name="Diamond" size={13} color={colors.success} strokeWidth={2.4} />
-          ) : null}
-        </View>
-
-        <View style={s.catBadge}>
-          <AppIcon
-            name={item.categoriaIcon}
-            size={10}
-            color={colors.primary}
-            strokeWidth={2}
-          />
-          <Text style={s.catBadgeText}>{item.categoriaLabel}</Text>
-        </View>
-
-        <View style={s.metaRow}>
-          <AppIcon name="MapPin" size={11} color={colors.textMuted} strokeWidth={2} />
-          <Text style={s.metaText} numberOfLines={1}>
-            {item.localizacao}
-          </Text>
-        </View>
-
-        <View style={s.metaRow}>
-          <AppIcon name="Star" size={11} color={colors.warning} strokeWidth={2.3} />
-          <Text style={s.metaText}>{item.nota}</Text>
-          <Text style={s.metaSep}>•</Text>
-          <Text style={s.metaText}>{item.experienciaLabel}</Text>
-        </View>
-      </View>
-
-      <Pressable
-        onPress={onPress}
-        style={({ pressed }) => [s.profileBtn, pressed && { opacity: 0.78 }]}
-      >
-        <Text style={s.profileBtnText}>Ver perfil</Text>
-      </Pressable>
-    </View>
-  );
 }
 
 export function ProfissionaisSugeridosScreen() {
@@ -180,6 +86,7 @@ export function ProfissionaisSugeridosScreen() {
   const bairro = (user?.bairroAtual ?? "").trim();
 
   const { profissionais, montadores, loading, error, buscar } = useBuscar();
+  const { isFavorito, toggle: toggleFavorito } = useFavoritos();
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
@@ -188,7 +95,7 @@ export function ProfissionaisSugeridosScreen() {
     }
   }, [buscar, cidade, uf, bairro]);
 
-  const items: SugeridoItem[] = useMemo(() => {
+  const items: ListItem[] = useMemo(() => {
     if (!cidade || !uf) return [];
     return [
       ...profissionais.map((p) => diaristaToItem(p, cidade, bairro)),
@@ -206,13 +113,21 @@ export function ProfissionaisSugeridosScreen() {
     }
   };
 
-  const handleOpen = (item: SugeridoItem) => {
+  const handleToggleFavorito = async (item: ListItem) => {
+    try {
+      await toggleFavorito(item.userId, item.tipo);
+    } catch {
+      Alert.alert("Não foi possível atualizar", "Tente novamente em instantes. Verifique sua conexão.");
+    }
+  };
+
+  const handleOpen = (item: ListItem) => {
     if (item.tipo === "MONTADOR") {
       navigation.navigate("MontadorPublicProfile", {
         montadorId: item.id,
         montadorUserId: item.userId,
         nome: item.nome,
-        rating: item.rating,
+        rating: item.nota,
         especialidades: item.especialidades,
         cidade: item.cidade,
         estado: item.estado,
@@ -249,10 +164,7 @@ export function ProfissionaisSugeridosScreen() {
   } else if (error) {
     content = (
       <View style={s.contentPadding}>
-        <DErrorState
-          message={error}
-          onRetry={() => buscar({ cidade, uf, bairro })}
-        />
+        <DErrorState message={error} onRetry={() => buscar({ cidade, uf, bairro })} />
       </View>
     );
   } else if (items.length === 0) {
@@ -271,16 +183,17 @@ export function ProfissionaisSugeridosScreen() {
         data={items}
         keyExtractor={(item) => `${item.tipo}-${item.id}`}
         renderItem={({ item }) => (
-          <SugeridoCard item={item} onPress={() => handleOpen(item)} />
+          <ProfissionalCard
+            data={item}
+            favorito={isFavorito(item.userId, item.tipo)}
+            onToggleFavorito={() => handleToggleFavorito(item)}
+            onPress={() => handleOpen(item)}
+          />
         )}
         ItemSeparatorComponent={() => <View style={{ height: spacing.sm }} />}
         contentContainerStyle={s.listContent}
         refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={handleRefresh}
-            tintColor={colors.primary}
-          />
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.primary} />
         }
       />
     );
@@ -288,10 +201,7 @@ export function ProfissionaisSugeridosScreen() {
 
   return (
     <SafeAreaView style={s.safe} edges={["top", "left", "right"]}>
-      <DScreenHeader
-        title="Profissionais sugeridos"
-        onBack={() => navigation.goBack()}
-      />
+      <DScreenHeader title="Profissionais sugeridos" onBack={() => navigation.goBack()} />
       <View style={s.root}>{content}</View>
     </SafeAreaView>
   );
@@ -315,75 +225,5 @@ const s = StyleSheet.create({
     paddingHorizontal: spacing.screenPadding,
     paddingTop: spacing.md,
     paddingBottom: 120,
-  },
-  card: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: spacing.sm + 2,
-    gap: 10,
-    ...shadows.soft,
-  },
-  cardCenter: {
-    flex: 1,
-    minWidth: 0,
-    gap: 3,
-  },
-  cardNameRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  cardName: {
-    flexShrink: 1,
-    color: colors.textPrimary,
-    ...typography.bodySmMedium,
-    fontWeight: "700",
-  },
-  catBadge: {
-    alignSelf: "flex-start",
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    backgroundColor: colors.lavender,
-    borderRadius: radius.pill,
-  },
-  catBadgeText: {
-    ...typography.caption,
-    fontWeight: "700",
-    color: colors.primary,
-  },
-  metaRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  metaText: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    flexShrink: 1,
-  },
-  metaSep: {
-    ...typography.caption,
-    color: colors.textMuted,
-    fontWeight: "700",
-  },
-  profileBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: radius.pill,
-    borderWidth: 1.3,
-    borderColor: colors.primaryLight,
-    backgroundColor: colors.surface,
-  },
-  profileBtnText: {
-    ...typography.caption,
-    color: colors.primary,
-    fontWeight: "700",
   },
 });

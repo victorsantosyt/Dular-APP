@@ -183,12 +183,18 @@ function CategoriaCard({
   title,
   onPress,
   disabled,
+  color,
+  bg,
 }: {
   icon: AppIconName;
   title: string;
   onPress?: () => void;
   /** Mostra a tag "Em breve" e desabilita o toque. */
   disabled?: boolean;
+  /** Cor oficial da categoria (Design System) — aplicada ao ícone. */
+  color?: string;
+  /** Fundo suave oficial da categoria — aplicado ao wrap do ícone. */
+  bg?: string;
 }) {
   return (
     <Pressable
@@ -200,11 +206,17 @@ function CategoriaCard({
         !disabled && pressed && { opacity: 0.85 },
       ]}
     >
-      <View style={[s.catIconWrap, disabled && s.catIconWrapDisabled]}>
+      <View
+        style={[
+          s.catIconWrap,
+          !disabled && bg ? { backgroundColor: bg } : null,
+          disabled && s.catIconWrapDisabled,
+        ]}
+      >
         <AppIcon
           name={icon}
           size={24}
-          color={disabled ? colors.textMuted : colors.primary}
+          color={disabled ? colors.textMuted : color ?? colors.primary}
           strokeWidth={2.1}
         />
       </View>
@@ -471,6 +483,8 @@ export default function EmpregadorHome() {
                   key={c.key}
                   icon={c.icon}
                   title={c.label}
+                  color={c.fg}
+                  bg={c.bg}
                   onPress={() => navigation.navigate("Buscar", { categoriaInicial: c.key })}
                 />
               ))}

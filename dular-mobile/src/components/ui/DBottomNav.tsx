@@ -29,11 +29,11 @@ type Item = {
 };
 
 const EMPREGADOR_ITEMS: Item[] = [
-  { id: "home",     label: "Início",    icon: "Home"          },
-  { id: "search",   label: "Buscar",    icon: "Search"        },
-  { id: "new",      label: "Solicitar", icon: "BriefcaseBusiness" },
-  { id: "messages", label: "Mensagens", icon: "MessageCircle" },
-  { id: "profile",  label: "Perfil",    icon: "User"          },
+  { id: "home",     label: "Início",       icon: "Home"          },
+  { id: "search",   label: "Buscar",       icon: "Search"        },
+  { id: "new",      label: "Solicitações", icon: "BriefcaseBusiness" },
+  { id: "messages", label: "Mensagens",    icon: "MessageCircle" },
+  { id: "profile",  label: "Perfil",       icon: "User"          },
 ];
 
 const DIARISTA_ITEMS: Item[] = [

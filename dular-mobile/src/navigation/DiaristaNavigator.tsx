@@ -1,5 +1,6 @@
 import React from "react";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
+import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { DBottomTabBar } from "@/navigation/DBottomTabBar";
 import { DiaristaHomeScreen } from "@/screens/diarista/DiaristaHomeScreen";
 import { AgendamentosDiaristaScreen } from "@/screens/diarista/AgendamentosDiaristaScreen";
@@ -23,6 +24,8 @@ import Privacidade from "@/screens/perfil/Privacidade";
 import { useAuth } from "@/stores/authStore";
 
 export type DiaristaTabParamList = {
+  // Container das abas reais (Home/Agendamentos/Novo/Mensagens/Perfil).
+  DiaristaTabs: undefined;
   Home: undefined;
   Agendamentos: undefined;
   Novo: undefined;
@@ -46,6 +49,7 @@ export type DiaristaTabParamList = {
 };
 
 const Tab = createBottomTabNavigator<DiaristaTabParamList>();
+const RootStack = createNativeStackNavigator<DiaristaTabParamList>();
 
 function PerfilScreen() {
   const clearSession = useAuth((state) => state.clearSession);
@@ -61,7 +65,8 @@ function DetalheServicoScreen(props: any) {
   return <DiaristaDetalhe {...props} />;
 }
 
-export function DiaristaNavigator() {
+// Abas reais (5). A bottom bar só existe aqui dentro.
+function DiaristaTabs() {
   return (
     <Tab.Navigator
       tabBar={(props) => <DBottomTabBar {...props} variant="diarista" />}
@@ -74,23 +79,33 @@ export function DiaristaNavigator() {
       <Tab.Screen name="Agendamentos" component={AgendamentosDiaristaScreen} />
       <Tab.Screen name="Novo" component={ServicosDiaristaScreen} />
       <Tab.Screen name="Mensagens" component={MensagensDiaristaScreen} />
-      <Tab.Screen name="Notificacoes" component={DiaristaNotificacoes} />
-      <Tab.Screen name="ChatAberto" component={ChatAbertoScreen} />
       <Tab.Screen name="Perfil" component={PerfilScreen} />
-      <Tab.Screen name="ProfissionalPerfil" component={ProfissionalPerfilScreen} />
-      <Tab.Screen name="DetalheServico" component={DetalheServicoScreen} />
-      <Tab.Screen name="DiaristaDetalhe" component={DetalheServicoScreen} />
-      <Tab.Screen name="Paywall" component={PaywallScreen} />
-      <Tab.Screen name="Seguranca" component={SegurancaScreen} />
-      <Tab.Screen name="Carteira" component={DiaristaCarteira} />
-      <Tab.Screen name="VerificacaoDocs" component={VerificacaoDocs} />
-      <Tab.Screen name="SafeScore" component={SafeScoreScreen} />
-      <Tab.Screen name="SosFlow" component={SosFlowScreen} />
-      <Tab.Screen name="ReportIncident" component={ReportIncident} />
-      <Tab.Screen name="Suporte" component={Suporte} />
-      <Tab.Screen name="Termos" component={Termos} />
-      <Tab.Screen name="Privacidade" component={Privacidade} />
     </Tab.Navigator>
+  );
+}
+
+// Stack raiz: abas + telas de detalhe/sub-tela empilhadas acima (fora da bottom
+// bar). goBack() volta para a origem real.
+export function DiaristaNavigator() {
+  return (
+    <RootStack.Navigator screenOptions={{ headerShown: false }}>
+      <RootStack.Screen name="DiaristaTabs" component={DiaristaTabs} />
+      <RootStack.Screen name="Notificacoes" component={DiaristaNotificacoes} />
+      <RootStack.Screen name="ChatAberto" component={ChatAbertoScreen} />
+      <RootStack.Screen name="ProfissionalPerfil" component={ProfissionalPerfilScreen} />
+      <RootStack.Screen name="DetalheServico" component={DetalheServicoScreen} />
+      <RootStack.Screen name="DiaristaDetalhe" component={DetalheServicoScreen} />
+      <RootStack.Screen name="Paywall" component={PaywallScreen} />
+      <RootStack.Screen name="Seguranca" component={SegurancaScreen} />
+      <RootStack.Screen name="Carteira" component={DiaristaCarteira} />
+      <RootStack.Screen name="VerificacaoDocs" component={VerificacaoDocs} />
+      <RootStack.Screen name="SafeScore" component={SafeScoreScreen} />
+      <RootStack.Screen name="SosFlow" component={SosFlowScreen} />
+      <RootStack.Screen name="ReportIncident" component={ReportIncident} />
+      <RootStack.Screen name="Suporte" component={Suporte} />
+      <RootStack.Screen name="Termos" component={Termos} />
+      <RootStack.Screen name="Privacidade" component={Privacidade} />
+    </RootStack.Navigator>
   );
 }
 

@@ -139,6 +139,8 @@ function mapServicoToAgendamento(servico: ServicoEmpregador): AgendamentoItem {
     nota: "--",
     experiencia: String(servico.status ?? "Pendente").replace(/_/g, " "),
     valor: formatMoney(servico.precoFinal),
+    precoFinalCentavos: typeof servico.precoFinal === "number" ? servico.precoFinal : 0,
+    statusRaw: String(servico.status ?? "").toUpperCase(),
     observacao: servico.observacoes,
     avatarUrl: profissional?.avatarUrl ?? undefined,
     reagendamentoPendente: !!servico.reagendamentoData,
@@ -276,6 +278,13 @@ export function AgendamentosEmpregadorScreen() {
                   key={item.id}
                   item={item}
                   onDetails={() => navigation.navigate("EmpregadorDetalhe", { servicoId: item.id })}
+                  onChat={() =>
+                    navigation.navigate("ChatAberto", {
+                      roomId: item.id,
+                      servicoId: item.id,
+                      nomeUsuario: item.nome,
+                    })
+                  }
                 />
               ))
             )}

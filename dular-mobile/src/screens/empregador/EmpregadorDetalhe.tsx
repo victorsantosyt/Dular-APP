@@ -24,7 +24,7 @@ import {
 import { DButton } from "@/components/DButton";
 import { DularBadge } from "@/components/DularBadge";
 import { MotivoModal } from "@/components/MotivoModal";
-import { AvaliacaoModal } from "@/components/ui";
+import { AvaliacaoModal, DAvatar } from "@/components/ui";
 import { formatPrice } from "@/utils/formatPrice";
 import { isStatusEncerrado } from "@/utils/servicoStatus";
 import { colors, radius, shadow, spacing, typography } from "@/theme/tokens";
@@ -66,6 +66,55 @@ function statusVariant(st: string): "success" | "warning" | "neutral" | "danger"
   return "neutral";
 }
 
+// ── Rótulos do comprovante ────────────────────────────────────────────────────
+const TIPO_LABEL: Record<string, string> = {
+  FAXINA: "Diarista",
+  FAXINEIRA: "Faxineira",
+  BABA: "Babá",
+  CUIDADORA: "Cuidadora",
+  COZINHEIRA: "Cozinheira",
+  PASSA_ROUPA: "Passadeira",
+  LAVADEIRA: "Lavadeira",
+  MONTADOR: "Montador",
+};
+function tipoLabel(t?: string | null) {
+  return TIPO_LABEL[statusUp(t)] ?? "Serviço";
+}
+function categoriaLabelFmt(c?: string | null) {
+  if (!c) return null;
+  return String(c)
+    .replace(/^MONTADOR_/, "")
+    .replace(/_/g, " ")
+    .toLowerCase()
+    .replace(/^\w/, (m) => m.toUpperCase());
+}
+function turnoLabel(t?: string | null) {
+  const v = statusUp(t);
+  return v === "MANHA" ? "Manhã" : v === "TARDE" ? "Tarde" : "A combinar";
+}
+function formatDateTime(v?: string | number | Date | null) {
+  if (!v) return null;
+  const d = new Date(v);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleString("pt-BR", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+// Linha rótulo → valor do comprovante.
+function RowKV({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={s.kvRow}>
+      <Text style={s.kvLabel}>{label}</Text>
+      <Text style={s.kvValue} numberOfLines={2}>{value}</Text>
+    </View>
+  );
+}
+
 export default function EmpregadorDetalhe({ route, navigation }: any) {
   const params = route.params as any;
   const servicoId: string = params.servicoId ?? params.servico?.id ?? "";
@@ -83,6 +132,7 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
   const [motivoVisible, setMotivoVisible] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [decidindoReag, setDecidindoReag] = useState(false);
+  const [finalizadoEm, setFinalizadoEm] = useState<string | null>(null);
   const busyRef = useRef(false);
 
   const fetchAtual = useCallback(async (silent = true) => {
@@ -106,6 +156,21 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
   }, [params.servico, servicoId, fetchAtual]);
 
   useEffect(() => { fetchAtual(); }, [fetchAtual]);
+
+  // Data de finalização: vem do endpoint de detalhe ([id]) via último
+  // ServicoEvento de finalização (sem migration). Apenas leitura para o comprovante.
+  useEffect(() => {
+    if (!servicoId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await api.get(`/api/servicos/${servicoId}`);
+        const ev = (res.data?.servico?.eventos ?? [])[0];
+        if (!cancelled && ev?.createdAt) setFinalizadoEm(ev.createdAt);
+      } catch { /* silencioso — finalizadoEm fica null ("Não finalizado") */ }
+    })();
+    return () => { cancelled = true; };
+  }, [servicoId]);
 
   useFocusEffect(useCallback(() => {
     fetchAtual();
@@ -280,8 +345,36 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
     );
   }
 
+  const prof = svc.montador ?? svc.diarista ?? null;
+  const avaliacao = (svc as {
+    avaliacao?: {
+      notaGeral: number;
+      pontualidade: number;
+      qualidade: number;
+      comunicacao: number;
+      comentario?: string | null;
+    } | null;
+  }).avaliacao ?? null;
+  const profIniciais = (prof?.nome ?? "?").slice(0, 2).toUpperCase();
+  const valorLabel = svc.precoFinal > 0 ? formatPrice(svc.precoFinal) : "A combinar";
+  const finalizadoLabel = formatDateTime(finalizadoEm) ?? "Não finalizado";
+  const categoria = categoriaLabelFmt(svc.categoria);
+
   return (
     <SafeAreaView style={s.safe} edges={["top", "bottom"]}>
+      {/* Voltar — stack real (PR #103); goBack() volta à origem exata. */}
+      <View style={s.topBar}>
+        <Pressable
+          onPress={() => navigation.goBack()}
+          hitSlop={10}
+          style={({ pressed }) => [s.backBtn, pressed && { opacity: 0.7 }]}
+        >
+          <Ionicons name="arrow-back" size={22} color={colors.primary} />
+        </Pressable>
+        <Text style={s.topBarTitle}>Comprovante</Text>
+        <View style={s.backBtn} />
+      </View>
+
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={s.scroll}
@@ -292,46 +385,89 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
           <View style={s.toast}><Text style={s.toastText}>{toast}</Text></View>
         ) : null}
 
-        {/* Título + status */}
-        <View style={s.titleRow}>
-          <Pressable
-            onPress={async () => {
-              await Clipboard.setStringAsync(`#${svc.id.slice(0, 6).toUpperCase()}`);
-              setToast("Número do serviço copiado.");
-            }}
-            hitSlop={8}
-            style={{ flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 1 }}
-          >
-            <Text style={s.title}>Serviço #{svc.id.slice(0, 6).toUpperCase()}</Text>
-            <Ionicons name="copy-outline" size={16} color={colors.sub} />
-          </Pressable>
-          <DularBadge text={statusLabel(svc.status)} variant={statusVariant(svc.status)} />
+        {/* CABEÇALHO — protocolo + status */}
+        <View style={s.section}>
+          <Text style={s.sectionLabel}>Protocolo</Text>
+          <View style={s.protocoloRow}>
+            <Pressable
+              onPress={async () => {
+                await Clipboard.setStringAsync(svc.id);
+                setToast("Protocolo copiado.");
+              }}
+              hitSlop={8}
+              style={s.protocoloPress}
+            >
+              <Text style={s.protocolo}>#{svc.id.slice(0, 8).toUpperCase()}</Text>
+              <Ionicons name="copy-outline" size={15} color={colors.sub} />
+            </Pressable>
+            <DularBadge text={statusLabel(svc.status)} variant={statusVariant(svc.status)} />
+          </View>
         </View>
 
-        {/* Info card */}
+        {/* SERVIÇO */}
         <View style={s.card}>
-          <View style={s.infoRow}>
-            <Ionicons name="location-outline" size={15} color={colors.green} />
-            <Text style={s.infoText}>{svc.bairro} — {svc.cidade}/{svc.uf}</Text>
-          </View>
+          <Text style={s.sectionLabel}>Serviço</Text>
+          <RowKV label="Tipo" value={tipoLabel(svc.tipo)} />
+          {categoria ? (
+            <>
+              <View style={s.divider} />
+              <RowKV label="Categoria" value={categoria} />
+            </>
+          ) : null}
           <View style={s.divider} />
-          <View style={s.infoRow}>
-            <Ionicons name="cash-outline" size={15} color={colors.green} />
-            <Text style={[s.infoText, { fontWeight: "700", color: colors.greenDark }]}>
-              {formatPrice(svc.precoFinal)}
-            </Text>
-          </View>
-          <View style={s.divider} />
-          <View style={s.infoRow}>
-            <Ionicons name="person-outline" size={15} color={colors.green} />
-            <Text style={s.infoText}>Diarista: {svc.diarista?.nome ?? "Pendente"}</Text>
-          </View>
-          <View style={s.divider} />
-          <View style={s.infoRow}>
-            <Ionicons name="calendar-outline" size={15} color={colors.green} />
-            <Text style={s.infoText}>Criado em {formatDate(svc.createdAt)}</Text>
+          <RowKV label="Turno" value={turnoLabel(svc.turno)} />
+        </View>
+
+        {/* PROFISSIONAL */}
+        <View style={s.card}>
+          <Text style={s.sectionLabel}>Profissional</Text>
+          <View style={s.profRow}>
+            <DAvatar size="md" uri={prof?.avatarUrl ?? undefined} initials={profIniciais} />
+            <View style={{ flex: 1, gap: 2 }}>
+              <Text style={s.profNome}>{prof?.nome ?? "Aguardando profissional"}</Text>
+              {prof?.telefone ? <Text style={s.profTel}>{prof.telefone}</Text> : null}
+            </View>
           </View>
         </View>
+
+        {/* LOCAL */}
+        <View style={s.card}>
+          <Text style={s.sectionLabel}>Local</Text>
+          <View style={s.infoRow}>
+            <Ionicons name="location-outline" size={15} color={colors.green} />
+            <Text style={s.infoText}>{svc.bairro}, {svc.cidade} - {svc.uf}</Text>
+          </View>
+        </View>
+
+        {/* DATAS */}
+        <View style={s.card}>
+          <Text style={s.sectionLabel}>Datas</Text>
+          <RowKV label="Agendada" value={formatDate(svc.data)} />
+          <View style={s.divider} />
+          <RowKV label="Finalização" value={finalizadoLabel} />
+        </View>
+
+        {/* VALOR */}
+        <View style={s.card}>
+          <Text style={s.sectionLabel}>Valor</Text>
+          <Text style={s.valor}>{valorLabel}</Text>
+        </View>
+
+        {/* AVALIAÇÃO (só se houver) */}
+        {avaliacao ? (
+          <View style={s.card}>
+            <Text style={s.sectionLabel}>Avaliação</Text>
+            <View style={s.infoRow}>
+              <Ionicons name="star" size={16} color={colors.star} />
+              <Text style={[s.infoText, { fontWeight: "700" }]}>{avaliacao.notaGeral}/5</Text>
+            </View>
+            {avaliacao.comentario ? <Text style={s.comentario}>“{avaliacao.comentario}”</Text> : null}
+            <View style={s.divider} />
+            <RowKV label="Pontualidade" value={`${avaliacao.pontualidade}/5`} />
+            <RowKV label="Qualidade" value={`${avaliacao.qualidade}/5`} />
+            <RowKV label="Comunicação" value={`${avaliacao.comunicacao}/5`} />
+          </View>
+        ) : null}
 
         {/* Status CTA cards */}
         {["PENDENTE", "SOLICITADO"].includes(statusRaw) ? (
@@ -461,6 +597,9 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
             <Text style={s.cancelText}>{cancelling ? "Cancelando..." : "Cancelar serviço"}</Text>
           </Pressable>
         ) : null}
+
+        {/* RODAPÉ */}
+        <Text style={s.rodape}>Guarde este protocolo para suporte: {svc.id}</Text>
       </ScrollView>
 
       <MotivoModal
@@ -490,6 +629,63 @@ const s = StyleSheet.create({
   safe:    { flex: 1, backgroundColor: colors.bg },
   scroll:  { padding: spacing.screenPadding, gap: 12, paddingBottom: 48 },
   loading: { ...typography.sub, textAlign: "center", marginTop: 48 },
+
+  // ── Comprovante
+  topBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: spacing.screenPadding,
+    paddingVertical: 10,
+  },
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.stroke,
+  },
+  topBarTitle: { fontSize: 15, fontWeight: "800", color: colors.ink },
+  section: { gap: 6 },
+  sectionLabel: {
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 0.6,
+    textTransform: "uppercase",
+    color: colors.sub,
+  },
+  protocoloRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+  protocoloPress: { flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 1 },
+  protocolo: {
+    fontSize: 22,
+    lineHeight: 27,
+    fontWeight: "800",
+    color: colors.ink,
+    fontFamily: "monospace",
+    letterSpacing: 1,
+  },
+  kvRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  kvLabel: { fontSize: 12, fontWeight: "600", color: colors.sub },
+  kvValue: { fontSize: 14, fontWeight: "700", color: colors.ink, flexShrink: 1, textAlign: "right" },
+  profRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+  profNome: { fontSize: 15, fontWeight: "700", color: colors.ink },
+  profTel: { fontSize: 13, fontWeight: "500", color: colors.sub },
+  valor: { fontSize: 20, fontWeight: "800", color: colors.greenDark },
+  comentario: { fontSize: 13, fontWeight: "500", color: colors.ink, fontStyle: "italic" },
+  rodape: { fontSize: 11, fontWeight: "500", color: colors.sub, textAlign: "center", marginTop: 6 },
 
   toast: {
     padding: 12,

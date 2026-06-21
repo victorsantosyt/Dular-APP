@@ -226,9 +226,34 @@ model User {
   notifications         Notification[]
   empregadorFavoritos   EmpregadorFavorito[] @relation("EmpregadorFavoritos")
   profissionalFavoritado EmpregadorFavorito[] @relation("ProfissionalFavoritado")
+  enderecos             EnderecoUsuario[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+enum TipoEndereco {
+  RESIDENCIAL
+  EMPRESARIAL
+}
+
+model EnderecoUsuario {
+  id              String       @id @default(cuid())
+  userId          String
+  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tipo            TipoEndereco
+  cep             String
+  rua             String
+  numero          String
+  complemento     String?
+  bairro          String
+  cidade          String
+  uf              String
+  pontoReferencia String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@index([userId])
 }
 
 model EmpregadorPerfil {

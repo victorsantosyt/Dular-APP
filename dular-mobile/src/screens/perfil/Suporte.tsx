@@ -60,7 +60,7 @@ export default function Suporte() {
   const nav = useNavigation<any>();
   const role = useAuth((s) => s.role ?? s.user?.role);
   const theme = useProfileTheme(role);
-  const voltarPerfil = () => nav.navigate(role === "MONTADOR" ? "MontadorPerfil" : "Perfil");
+  const voltarPerfil = () => nav.goBack();
 
   const abrirWhats = async () => {
     const url = `https://wa.me/${SUPORTE_WHATSAPP}?text=${encodeURIComponent("Olá! Preciso de suporte no app Dular.")}`;

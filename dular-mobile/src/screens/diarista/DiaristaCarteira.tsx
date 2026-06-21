@@ -104,8 +104,8 @@ export default function DiaristaCarteira() {
   const [error, setError] = useState<string | null>(null);
   const [servicos, setServicos] = useState<ServicoCarteira[]>([]);
 
-  const from = (route.params as { from?: keyof DiaristaTabParamList } | undefined)?.from;
-  const voltar = () => navigation.navigate((from ?? "Home") as never);
+  // Stack real (#103): volta para a tela de origem (push/goBack).
+  const voltar = () => navigation.goBack();
 
   const load = useCallback(async (isRefresh = false) => {
     try {

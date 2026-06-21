@@ -140,8 +140,8 @@ export default function ReportIncident({ route }: any) {
   // Acento por gênero (rosa/verde/roxo). O vermelho permanece como identidade
   // de emergência/denúncia; o acento liga a tela ao perfil do usuário.
   const theme = useProfileTheme(role);
-  // Estas telas são abas: goBack cairia na Home. Volta direto ao perfil do papel.
-  const voltarPerfil = () => nav.navigate(role === "MONTADOR" ? "MontadorPerfil" : "Perfil");
+  // Stack real (#103): volta para a tela de origem (perfil / onde abriu).
+  const voltarPerfil = () => nav.goBack();
 
   const serviceId = route?.params?.serviceId ?? route?.params?.servicoId ?? "";
   const initialReportedUserId = route?.params?.reportedUserId ?? "";

@@ -59,7 +59,7 @@ export default function SosFlowScreen() {
   const theme = useProfileTheme(currentUser?.role);
   const st = useMemo(() => makeStyles(theme), [theme]);
 
-  const voltarPerfil = () => nav.navigate(currentUser?.role === "MONTADOR" ? "MontadorPerfil" : "Perfil");
+  const voltarPerfil = () => nav.goBack();
   const [step, setStep] = useState<Step>("tipo");
   const [tipoId, setTipoId] = useState<string | null>(null);
   const [relato, setRelato] = useState("");

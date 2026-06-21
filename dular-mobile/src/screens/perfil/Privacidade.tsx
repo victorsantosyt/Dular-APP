@@ -84,7 +84,7 @@ export default function Privacidade() {
   const nav = useNavigation<any>();
   const role = useAuth((s) => s.role ?? s.user?.role);
   const theme = useProfileTheme(role);
-  const voltarPerfil = () => nav.navigate(role === "MONTADOR" ? "MontadorPerfil" : "Perfil");
+  const voltarPerfil = () => nav.goBack();
 
   return (
     <Screen

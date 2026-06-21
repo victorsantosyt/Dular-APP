@@ -12,10 +12,50 @@ import { useAuthStore } from "@/stores/authStore";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { hasSeenOnboarding, resetOnboardingSeen, shouldResetOnboardingInDev } from "@/lib/onboarding";
 import { ThemeScope } from "@/contexts/ThemeContext";
+import { CadastroEnderecoScreen } from "@/screens/shared/CadastroEnderecoScreen";
+import { fetchEnderecos } from "@/api/enderecoApi";
 import { colors } from "@/theme";
 
 function PushNotificationsGate({ children }: { children: React.ReactNode }) {
   usePushNotifications();
+  return <>{children}</>;
+}
+
+// Gate de endereço (self-contained, NÃO toca no authStore): consulta
+// GET /api/me/enderecos no mount. Vazio → tela de cadastro; tem endereço →
+// renderiza o app. Falha de rede não bloqueia. Aparece após os gates de
+// gênero/catálogo, antes da Home.
+function EnderecoGate({
+  role,
+  children,
+}: {
+  role: "EMPREGADOR" | "DIARISTA" | "MONTADOR";
+  children: React.ReactNode;
+}) {
+  const [status, setStatus] = useState<"loading" | "need" | "ok">("loading");
+
+  useEffect(() => {
+    let alive = true;
+    fetchEnderecos()
+      .then((list) => {
+        if (alive) setStatus(list.length > 0 ? "ok" : "need");
+      })
+      .catch(() => {
+        if (alive) setStatus("ok");
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  if (status === "loading") return <View style={styles.bootScreen} />;
+  if (status === "need") {
+    return (
+      <ThemeScope forceLight>
+        <CadastroEnderecoScreen role={role} mode="onboarding" onDone={() => setStatus("ok")} />
+      </ThemeScope>
+    );
+  }
   return <>{children}</>;
 }
 
@@ -37,7 +77,9 @@ function AuthenticatedFlow({ role, onboardingSeen }: { role: string | null; onbo
   if (normalizedRole === "empregador") {
     return (
       <PushNotificationsGate>
-        <EmpregadorNavigator />
+        <EnderecoGate role="EMPREGADOR">
+          <EmpregadorNavigator />
+        </EnderecoGate>
       </PushNotificationsGate>
     );
   }
@@ -55,7 +97,9 @@ function AuthenticatedFlow({ role, onboardingSeen }: { role: string | null; onbo
     }
     return (
       <PushNotificationsGate>
-        <DiaristaNavigator />
+        <EnderecoGate role="DIARISTA">
+          <DiaristaNavigator />
+        </EnderecoGate>
       </PushNotificationsGate>
     );
   }
@@ -72,7 +116,9 @@ function AuthenticatedFlow({ role, onboardingSeen }: { role: string | null; onbo
     }
     return (
       <PushNotificationsGate>
-        <MontadorNavigator />
+        <EnderecoGate role="MONTADOR">
+          <MontadorNavigator />
+        </EnderecoGate>
       </PushNotificationsGate>
     );
   }

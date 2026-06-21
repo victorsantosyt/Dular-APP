@@ -6,13 +6,16 @@ import { DCard } from "@/components/ui/DCard";
 import { colors, gradients, radius, shadows, spacing, typography } from "@/theme";
 
 export type CategoriaFiltro = "todas" | "diarista" | "baba" | "cozinheira" | "montador";
-export type StatusFiltro = "todas" | "pendentes" | "aceitas" | "andamento" | "concluidas" | "canceladas";
+export type StatusFiltro = "todas" | "aguardando" | "aceitas" | "concluidas" | "canceladas";
 export type StatusAgendamento = "pendente" | "aceita" | "andamento" | "concluida" | "cancelada";
 
 export type AgendamentoItem = {
   id: string;
   nome: string;
+  /** Bucket visual (cor/ícone do pill de status). */
   status: StatusAgendamento;
+  /** Status CRU do backend (UPPERCASE) — usado nos filtros por status. */
+  statusRaw: string;
   idade: string;
   categoria: string;
   categoriaKey: CategoriaFiltro;
@@ -23,6 +26,8 @@ export type AgendamentoItem = {
   nota: string;
   experiencia: string;
   valor: string;
+  /** precoFinal em centavos (0 = a combinar) — decide valor vs botão "A Combinar". */
+  precoFinalCentavos: number;
   observacao?: string | null;
   avatarUrl?: string;
   /** Há uma proposta de reagendamento do profissional aguardando decisão. */
@@ -38,84 +43,66 @@ export const CATEGORIAS: Array<{ label: string; value: CategoriaFiltro; icon: Ap
 ];
 
 export const STATUS_FILTERS: Array<{ label: string; value: StatusFiltro; color?: string }> = [
-  { label: "Todas", value: "todas" },
-  { label: "Pendentes", value: "pendentes", color: colors.warning },
+  { label: "Todos", value: "todas" },
+  { label: "Aguardando", value: "aguardando", color: colors.warning },
   { label: "Aceitas", value: "aceitas", color: colors.success },
-  { label: "Em andamento", value: "andamento", color: colors.primary },
   { label: "Concluídas", value: "concluidas", color: colors.textMuted },
   { label: "Canceladas", value: "canceladas", color: colors.danger },
 ];
 
-const STATUS_FILTER_MAP: Record<Exclude<StatusFiltro, "todas">, StatusAgendamento> = {
-  pendentes: "pendente",
-  aceitas: "aceita",
-  andamento: "andamento",
-  concluidas: "concluida",
-  canceladas: "cancelada",
+// Filtro por STATUS CRU do backend (não pelo bucket visual). Aguardando=SOLICITADO;
+// Aceitas=ACEITO/EM_ANDAMENTO (+AGUARDANDO_FINALIZACAO, ainda ativo); Concluídas=
+// CONCLUIDO/CONFIRMADO/FINALIZADO; Canceladas=CANCELADO/RECUSADO.
+const STATUS_FILTER_RAW: Record<Exclude<StatusFiltro, "todas">, string[]> = {
+  aguardando: ["SOLICITADO", "PENDENTE", "RASCUNHO"],
+  aceitas: ["ACEITO", "EM_ANDAMENTO", "AGUARDANDO_FINALIZACAO"],
+  concluidas: ["CONCLUIDO", "CONFIRMADO", "FINALIZADO"],
+  canceladas: ["CANCELADO", "RECUSADO"],
 };
 
 const STATUS_UI: Record<
   StatusAgendamento,
-  {
-    label: string;
-    button: string;
-    color: string;
-    bg: string;
-    actionBg?: string;
-    actionColor: string;
-    actionIcon: AppIconName;
-    actionGradient?: boolean;
-  }
+  { label: string; color: string; bg: string; actionColor: string; actionIcon: AppIconName }
 > = {
   pendente: {
     label: "Pendente",
-    button: "Aguardando",
     color: colors.warning,
     bg: colors.warningSoft,
-    actionBg: "#FFE0BA",
     actionColor: colors.warning,
     actionIcon: "Hourglass",
   },
   aceita: {
     label: "Aceita",
-    button: "Confirmado",
     color: colors.white,
     bg: colors.success,
     actionColor: colors.white,
     actionIcon: "CheckCircle",
-    actionGradient: true,
   },
   andamento: {
     label: "Em andamento",
-    button: "Em andamento",
     color: colors.primary,
     bg: colors.lavenderSoft,
-    actionBg: colors.lavender,
     actionColor: colors.primary,
     actionIcon: "Clock3",
   },
   concluida: {
     label: "Concluída",
-    button: "Concluído",
     color: colors.textSecondary,
     bg: colors.lavenderSoft,
-    actionBg: colors.lavenderSoft,
     actionColor: colors.textSecondary,
     actionIcon: "CheckCircle",
   },
   cancelada: {
     label: "Cancelada",
-    button: "Cancelado",
     color: colors.danger,
     bg: colors.dangerSoft,
-    actionBg: colors.dangerSoft,
     actionColor: colors.danger,
     actionIcon: "XCircle",
   },
 };
 
 export function statusMatchesFilter(item: AgendamentoItem, status: StatusFiltro) {
-  return status === "todas" || item.status === STATUS_FILTER_MAP[status];
+  return status === "todas" || STATUS_FILTER_RAW[status].includes(item.statusRaw);
 }
 
 export function CategoryChip({
@@ -171,13 +158,21 @@ export function StatusFilterBar({ children }: { children: React.ReactNode }) {
   return <View style={s.statusBar}>{children}</View>;
 }
 
-export function AppointmentCard({ item, onDetails }: { item: AgendamentoItem; onDetails?: () => void }) {
+export function AppointmentCard({
+  item,
+  onDetails,
+  onChat,
+}: {
+  item: AgendamentoItem;
+  onDetails?: () => void;
+  onChat?: () => void;
+}) {
   const status = STATUS_UI[item.status];
   const firstName = item.nome.split(" ")[0];
-  const valorLabel = item.valor === "A combinar" ? "A combinar!" : item.valor;
   const dateLine = item.horario && item.horario !== "Horário a combinar"
     ? `${item.data} (${item.horario.toLowerCase()})`
     : item.data;
+  const temValor = item.precoFinalCentavos > 0;
 
   return (
     <DCard style={s.card}>
@@ -208,12 +203,6 @@ export function AppointmentCard({ item, onDetails }: { item: AgendamentoItem; on
               <AppIcon name="Calendar" size={14} color={colors.textMuted} strokeWidth={2.1} />
               <Text allowFontScaling={false} style={s.metaText} numberOfLines={1}>{dateLine}</Text>
             </View>
-            <View style={s.inlineRow}>
-              <AppIcon name="Star" size={14} color={colors.warning} strokeWidth={2.2} />
-              <Text allowFontScaling={false} style={s.metaStrong}>{item.nota}</Text>
-              <Text allowFontScaling={false} style={s.metaMuted}>•</Text>
-              <Text allowFontScaling={false} style={s.metaText} numberOfLines={1}>{item.experiencia}</Text>
-            </View>
           </View>
 
           <View style={s.divider} />
@@ -227,24 +216,11 @@ export function AppointmentCard({ item, onDetails }: { item: AgendamentoItem; on
           <View style={s.avatarRing}>
             <DAvatar size="lg" uri={item.avatarUrl} />
           </View>
-          <View
-            style={[
-              s.statusPillCard,
-              { backgroundColor: item.status === "pendente" ? "#FFF1E2" : status.bg },
-            ]}
-          >
-            <AppIcon
-              name={status.actionIcon}
-              size={13}
-              color={item.status === "pendente" ? "#E98A15" : status.actionColor}
-              strokeWidth={2.4}
-            />
+          <View style={[s.statusPillCard, { backgroundColor: status.bg }]}>
+            <AppIcon name={status.actionIcon} size={13} color={status.actionColor} strokeWidth={2.4} />
             <Text
               allowFontScaling={false}
-              style={[
-                s.statusPillText,
-                { color: item.status === "pendente" ? "#E98A15" : status.actionColor },
-              ]}
+              style={[s.statusPillText, { color: status.actionColor }]}
               numberOfLines={1}
             >
               {status.label}
@@ -256,16 +232,27 @@ export function AppointmentCard({ item, onDetails }: { item: AgendamentoItem; on
       <View style={s.divider} />
 
       <View style={s.actionsRow}>
-        <View style={s.valueButton}>
-          <AppIcon name="CircleUserRound" size={14} color={colors.primary} strokeWidth={2.2} />
-          <Text allowFontScaling={false} style={s.valueButtonText} numberOfLines={1}>{valorLabel}</Text>
-        </View>
+        {/* precoFinal > 0 → mostra valor ao lado do botão; === 0 → botão "A Combinar" (vai ao chat). */}
+        {temValor ? (
+          <View style={s.valueTag}>
+            <Text allowFontScaling={false} style={s.valueLabel}>Valor</Text>
+            <Text allowFontScaling={false} style={s.valueAmount} numberOfLines={1}>{item.valor}</Text>
+          </View>
+        ) : (
+          <Pressable
+            onPress={onChat ?? (() => Alert.alert("Combinar valor", "Abra o chat para combinar o valor."))}
+            style={({ pressed }) => [s.combinarBtn, pressed && { opacity: 0.85 }]}
+          >
+            <AppIcon name="MessageCircle" size={14} color={colors.primary} strokeWidth={2.2} />
+            <Text allowFontScaling={false} style={s.combinarText} numberOfLines={1}>A Combinar</Text>
+          </Pressable>
+        )}
         <Pressable
           onPress={onDetails ?? (() => Alert.alert("Agendamentos", "Detalhes do agendamento em breve."))}
           style={({ pressed }) => [pressed && { opacity: 0.9 }]}
         >
-          <LinearGradient colors={["#FFB347", "#FF9F1C"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.detailsButton}>
-            <Text allowFontScaling={false} style={s.detailsText} numberOfLines={1}>Detalhes</Text>
+          <LinearGradient colors={gradients.button} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.detailsButton}>
+            <Text allowFontScaling={false} style={s.detailsText} numberOfLines={1}>Ver Detalhes</Text>
             <AppIcon name="ChevronRight" size={14} color={colors.white} strokeWidth={2.7} />
           </LinearGradient>
         </Pressable>
@@ -365,7 +352,7 @@ const s = StyleSheet.create({
     color: colors.primary,
   },
   card: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.surface,
     borderRadius: 24,
     borderWidth: 0,
     paddingHorizontal: 18,
@@ -384,7 +371,7 @@ const s = StyleSheet.create({
     gap: 8,
   },
   name: {
-    color: "#1F1B2D",
+    color: colors.textPrimary,
     ...typography.title,
     fontWeight: "800",
     letterSpacing: 0,
@@ -416,30 +403,18 @@ const s = StyleSheet.create({
   },
   metaText: {
     flexShrink: 1,
-    color: "#5F596B",
+    color: colors.textSecondary,
     ...typography.caption,
     fontWeight: "600",
     letterSpacing: 0,
   },
-  metaStrong: {
-    color: "#1F1B2D",
-    ...typography.caption,
-    fontWeight: "700",
-    letterSpacing: 0,
-  },
-  metaMuted: {
-    color: colors.textMuted,
-    ...typography.caption,
-    fontWeight: "700",
-    letterSpacing: 0,
-  },
   divider: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: "rgba(31, 27, 45, 0.10)",
+    backgroundColor: colors.border,
     alignSelf: "stretch",
   },
   observacao: {
-    color: "#5F596B",
+    color: colors.textSecondary,
     ...typography.caption,
     fontWeight: "600",
     letterSpacing: 0,
@@ -449,21 +424,46 @@ const s = StyleSheet.create({
     alignItems: "center",
     gap: 10,
   },
-  valueButton: {
+  valueTag: {
+    flex: 1,
+    minWidth: 0,
+    minHeight: 38,
+    borderRadius: radius.pill,
+    borderWidth: 1.2,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    paddingHorizontal: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
+  valueLabel: {
+    color: colors.textMuted,
+    ...typography.caption,
+    fontWeight: "600",
+  },
+  valueAmount: {
+    color: colors.textPrimary,
+    ...typography.caption,
+    fontWeight: "800",
+    letterSpacing: 0,
+  },
+  combinarBtn: {
     flex: 1,
     minWidth: 0,
     minHeight: 38,
     borderRadius: radius.pill,
     borderWidth: 1.2,
     borderColor: colors.primary,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.surface,
     paddingHorizontal: 12,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 5,
   },
-  valueButtonText: {
+  combinarText: {
     color: colors.primary,
     ...typography.caption,
     fontWeight: "800",
@@ -479,17 +479,13 @@ const s = StyleSheet.create({
     width: 76,
     height: 76,
     borderRadius: 38,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.surface,
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#3B2A66",
-    shadowOpacity: 0.11,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 3,
+    ...shadows.soft,
   },
   detailsButton: {
-    width: 118,
+    width: 130,
     minHeight: 38,
     borderRadius: radius.pill,
     alignItems: "center",
@@ -497,11 +493,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 10,
     flexDirection: "row",
     gap: 3,
-    shadowColor: "#FF9F1C",
-    shadowOpacity: 0.22,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 7 },
-    elevation: 4,
+    ...shadows.primaryButton,
   },
   detailsText: {
     color: colors.white,
@@ -560,7 +552,6 @@ const s = StyleSheet.create({
   bannerSubtitle: {
     color: colors.textSecondary,
     ...typography.caption,
-    
     fontWeight: "500",
   },
   bannerButton: {

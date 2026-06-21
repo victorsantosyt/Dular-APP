@@ -69,8 +69,8 @@ export default function CarteiraScreen() {
   const theme = useProfileTheme("MONTADOR");
   const { servicos, loading, error, refetch, refreshing } = useMontadorServicos();
 
-  const from = (route.params as { from?: keyof MontadorTabParamList } | undefined)?.from;
-  const voltar = () => navigation.navigate((from ?? "MontadorPerfil") as never);
+  // Stack real (#103): volta para a tela de origem (push/goBack).
+  const voltar = () => navigation.goBack();
 
   const resumo = useMemo(() => {
     const concluidos = servicos.filter((s) => CONCLUIDO.has(upperStatus(s.status)));

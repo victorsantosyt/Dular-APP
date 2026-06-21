@@ -68,8 +68,8 @@ export default function VerificacaoDocs() {
   // Mesma fonte de cor por gênero usada no resto do perfil (role + user.genero).
   const theme = useProfileTheme(currentUser?.role);
   const st = useMemo(() => makeStyles(theme), [theme]);
-  // Volta direto para o perfil do papel (estas telas são abas: goBack cairia na Home).
-  const voltarPerfil = () => nav.navigate(currentUser?.role === "MONTADOR" ? "MontadorPerfil" : "Perfil");
+  // Stack real (#103): volta para a tela de origem (perfil / onde abriu).
+  const voltarPerfil = () => nav.goBack();
   const [docFrente, setDocFrente] = useState<PickedFile | null>(null);
   const [docVerso, setDocVerso] = useState<PickedFile | null>(null);
   const [state, setState] = useState<UploadState>("idle");

@@ -24,8 +24,7 @@ export default function SafeScoreScreen() {
   const currentUser = useAuth((s) => s.user);
   const theme = useProfileTheme(currentUser?.role);
   const s = useMemo(() => makeStyles(theme), [theme]);
-  const voltarPerfil = () =>
-    nav.navigate(currentUser?.role === "MONTADOR" ? "MontadorPerfil" : "Perfil");
+  const voltarPerfil = () => nav.goBack();
 
   const [score, setScore] = useState<PublicScore | null>(null);
   const [lastSos, setLastSos] = useState<SafetyEvent | null>(null);

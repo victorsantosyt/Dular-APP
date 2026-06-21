@@ -18,6 +18,7 @@ import { formatCurrencyBRL, formatDecimalBRL } from "@/api/diaristaApi";
 import { fetchServicosMinhas } from "@/api/sharedFetcher";
 import { isStatusEncerrado } from "@/utils/servicoStatus";
 import type { EmpregadorTabParamList } from "@/navigation/EmpregadorNavigator";
+import { goToTab } from "@/navigation/navHelpers";
 import type { ServicoOferecido } from "@/types/diarista";
 import { PerfilPublicoLayout, type PerfilSection } from "@/screens/empregador/PerfilPublicoLayout";
 
@@ -130,7 +131,7 @@ export function DiaristaProfileScreen() {
       navigation.navigate("EmpregadorDetalhe", { servicoId: activeService.id });
       return;
     }
-    navigation.navigate("Agendamentos");
+    goToTab(navigation, "EmpregadorTabs", "Agendamentos");
   };
 
   const handleContratar = () => {

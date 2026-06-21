@@ -5,6 +5,7 @@ import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { EmpregadorTabParamList } from "@/navigation/EmpregadorNavigator";
 import type { EmpregadorServiceFlowStackParamList } from "@/navigation/EmpregadorServiceFlowNavigator";
+import { goToTab } from "@/navigation/navHelpers";
 import { ServiceCategory, useServiceFlow } from "./ServiceFlowContext";
 import { FlowPrimaryButton, flowStyles, ServiceOptionCard, StepHeader } from "./components";
 import { MONTADOR_ESPECIALIDADES } from "./montadorEspecialidades";
@@ -37,7 +38,7 @@ export function SolicitarServicoScreen() {
   const leaveFlow = () => {
     const parent = navigation.getParent<BottomTabNavigationProp<EmpregadorTabParamList>>();
     if (parent) {
-      parent.navigate("Home");
+      goToTab(parent, "EmpregadorTabs", "Home");
       return;
     }
     if (navigation.canGoBack()) navigation.goBack();
@@ -47,7 +48,7 @@ export function SolicitarServicoScreen() {
     resetDraft();
     const parent = navigation.getParent<BottomTabNavigationProp<EmpregadorTabParamList>>();
     if (parent) {
-      parent.navigate("Buscar", { categoriaInicial: "montador" });
+      goToTab(parent, "EmpregadorTabs", "Buscar", { categoriaInicial: "montador" });
       return;
     }
     if (navigation.canGoBack()) navigation.goBack();
@@ -57,7 +58,7 @@ export function SolicitarServicoScreen() {
     resetDraft();
     const parent = navigation.getParent<BottomTabNavigationProp<EmpregadorTabParamList>>();
     if (parent) {
-      parent.navigate("Buscar", { categoriaInicial: categoria });
+      goToTab(parent, "EmpregadorTabs", "Buscar", { categoriaInicial: categoria });
       return;
     }
     if (navigation.canGoBack()) navigation.goBack();

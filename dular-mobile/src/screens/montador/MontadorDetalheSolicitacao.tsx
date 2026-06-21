@@ -7,6 +7,7 @@ import { MotivoModal } from "@/components/MotivoModal";
 import { useMontadorServicos } from "@/hooks/useMontadorServicos";
 import { useProfileTheme } from "@/hooks/useProfileTheme";
 import type { MontadorTabParamList } from "@/navigation/MontadorNavigator";
+import { goToTab } from "@/navigation/navHelpers";
 import { colors, radius, shadows, spacing, typography } from "@/theme";
 import {
   formatDateTime,
@@ -40,12 +41,12 @@ export default function MontadorDetalheSolicitacao({ route, navigation }: Props)
       // Aguarda o refetch para que o status reflita ACEITO antes da navegação,
       // evitando que a tela mostre o botão "Aceitar" novamente ao voltar.
       await reload();
-      navigation.navigate("MontadorAgenda");
+      goToTab(navigation, "MontadorTabs", "MontadorAgenda");
     } catch (err: any) {
       // 409 = aceito por outro fluxo; sincroniza e leva para a agenda.
       if (err?.response?.status === 409) {
         await reload();
-        navigation.navigate("MontadorAgenda");
+        goToTab(navigation, "MontadorTabs", "MontadorAgenda");
         return;
       }
       Alert.alert("Erro", "Não foi possível aceitar a solicitação.");
@@ -66,7 +67,7 @@ export default function MontadorDetalheSolicitacao({ route, navigation }: Props)
       await recusarSolicitacaoMontador(servico.id, motivo, observacao || undefined);
       setRecusarOpen(false);
       reload();
-      navigation.navigate("MontadorSolicitacoes");
+      goToTab(navigation, "MontadorTabs", "MontadorSolicitacoes");
     } catch {
       Alert.alert("Erro", "Não foi possível recusar a solicitação.");
     } finally {

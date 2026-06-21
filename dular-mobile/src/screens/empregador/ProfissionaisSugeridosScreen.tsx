@@ -28,6 +28,7 @@ import { useFavoritos } from "@/hooks/useFavoritos";
 import { useBuscar, type ApiDiarista } from "@/hooks/useBuscar";
 import type { MontadorItem } from "@/types/montador";
 import type { EmpregadorTabParamList } from "@/navigation/EmpregadorNavigator";
+import { goToTab } from "@/navigation/navHelpers";
 
 type Navigation = BottomTabNavigationProp<EmpregadorTabParamList>;
 
@@ -151,7 +152,7 @@ export function ProfissionaisSugeridosScreen() {
           title="Defina sua região para ver sugestões"
           subtitle="Informe sua localização atual para encontrarmos profissionais próximos de você."
           action="Ir para Buscar"
-          onAction={() => navigation.navigate("Buscar")}
+          onAction={() => goToTab(navigation, "EmpregadorTabs", "Buscar")}
         />
       </View>
     );

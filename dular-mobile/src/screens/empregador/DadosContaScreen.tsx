@@ -42,7 +42,7 @@ export function DadosContaScreen() {
     <SafeAreaView style={s.safe} edges={["top", "left", "right"]}>
       <View style={s.header}>
         <Text style={s.title}>Dados da conta</Text>
-        <BackCircleButton onPress={() => navigation.navigate("Perfil")} color={THEME.icon} borderColor={THEME.border} />
+        <BackCircleButton onPress={() => navigation.goBack()} color={THEME.icon} borderColor={THEME.border} />
       </View>
 
       <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>

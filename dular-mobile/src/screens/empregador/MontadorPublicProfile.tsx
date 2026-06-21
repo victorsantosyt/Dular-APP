@@ -17,6 +17,7 @@ import { MONTADOR_ESPECIALIDADES, type MontadorItem } from "@/types/montador";
 import { isStatusEncerrado } from "@/utils/servicoStatus";
 import { useFavoritos } from "@/hooks/useFavoritos";
 import { PerfilPublicoLayout, type PerfilSection } from "@/screens/empregador/PerfilPublicoLayout";
+import { goToTab } from "@/navigation/navHelpers";
 
 type Navigation = BottomTabNavigationProp<EmpregadorTabParamList>;
 type RouteProps = RouteProp<EmpregadorTabParamList, "MontadorPublicProfile">;
@@ -172,7 +173,7 @@ export default function MontadorPublicProfile() {
       navigation.navigate("EmpregadorDetalhe", { servicoId: activeService.id });
       return;
     }
-    navigation.navigate("Agendamentos");
+    goToTab(navigation, "EmpregadorTabs", "Agendamentos");
   };
 
   if (loading) {

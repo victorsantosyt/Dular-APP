@@ -7,6 +7,7 @@ import { DButton } from "@/components/ui/DButton";
 import { DCard } from "@/components/ui/DCard";
 import type { EmpregadorTabParamList } from "@/navigation/EmpregadorNavigator";
 import type { EmpregadorServiceFlowStackParamList } from "@/navigation/EmpregadorServiceFlowNavigator";
+import { goToTab } from "@/navigation/navHelpers";
 import { colors, radius, spacing } from "@/theme";
 import { useServiceFlow } from "./ServiceFlowContext";
 import { FlowPrimaryButton, flowStyles, SuccessBadge } from "./components";
@@ -35,13 +36,13 @@ export function SolicitacaoSucessoScreen() {
   const goHome = () => {
     resetDraft();
     const parent = navigation.getParent<BottomTabNavigationProp<EmpregadorTabParamList>>();
-    if (parent) parent.navigate("Home");
+    if (parent) goToTab(parent, "EmpregadorTabs", "Home");
   };
 
   const acompanharSolicitacoes = () => {
     resetDraft();
     const parent = navigation.getParent<BottomTabNavigationProp<EmpregadorTabParamList>>();
-    if (parent) parent.navigate("Agendamentos");
+    if (parent) goToTab(parent, "EmpregadorTabs", "Agendamentos");
   };
 
   return (

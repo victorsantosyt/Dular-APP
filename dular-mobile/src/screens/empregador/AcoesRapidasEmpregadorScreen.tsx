@@ -12,6 +12,7 @@ import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import { AppIcon, type AppIconName, DScreenHeader } from "@/components/ui";
 import { colors, radius, shadows, spacing, typography } from "@/theme";
 import type { EmpregadorTabParamList } from "@/navigation/EmpregadorNavigator";
+import { goToTab } from "@/navigation/navHelpers";
 
 type Navigation = BottomTabNavigationProp<EmpregadorTabParamList>;
 
@@ -31,14 +32,14 @@ const ACOES: AcaoRapida[] = [
     icon: "Search",
     label: "Buscar profissional",
     description: "Encontre diaristas, montadores, babás e cozinheiras.",
-    onPress: (navigation) => navigation.navigate("Buscar"),
+    onPress: (navigation) => goToTab(navigation, "EmpregadorTabs", "Buscar"),
   },
   {
     key: "agendamentos",
     icon: "Calendar",
     label: "Meus agendamentos",
     description: "Acompanhe os serviços ativos e pedidos em andamento.",
-    onPress: (navigation) => navigation.navigate("Agendamentos"),
+    onPress: (navigation) => goToTab(navigation, "EmpregadorTabs", "Agendamentos"),
   },
   {
     key: "favoritos",
@@ -66,7 +67,7 @@ const ACOES: AcaoRapida[] = [
     icon: "User",
     label: "Perfil",
     description: "Edite seus dados pessoais e preferências.",
-    onPress: (navigation) => navigation.navigate("Perfil"),
+    onPress: (navigation) => goToTab(navigation, "EmpregadorTabs", "Perfil"),
   },
   {
     key: "sos",

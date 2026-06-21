@@ -8,6 +8,7 @@ import { colors, radius, shadows, spacing, typography } from "@/theme";
 import { getProfileTheme } from "@/theme/profileTheme";
 import { CATEGORIAS } from "@/constants/categorias";
 import type { EmpregadorTabParamList } from "@/navigation/EmpregadorNavigator";
+import { goToTab } from "@/navigation/navHelpers";
 
 /**
  * CategoriasTodasScreen — "Ver todos" da seção "Quem você precisa hoje?".
@@ -26,7 +27,7 @@ export function CategoriasTodasScreen() {
     <SafeAreaView style={s.safe} edges={["top", "left", "right"]}>
       <View style={s.header}>
         <Text style={s.title}>Categorias</Text>
-        <BackCircleButton onPress={() => navigation.navigate("Home")} color={THEME.icon} borderColor={THEME.border} />
+        <BackCircleButton onPress={() => navigation.goBack()} color={THEME.icon} borderColor={THEME.border} />
       </View>
 
       <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
@@ -36,7 +37,7 @@ export function CategoriasTodasScreen() {
           {CATEGORIAS.map((c) => (
             <Pressable
               key={c.key}
-              onPress={() => navigation.navigate("Buscar", { categoriaInicial: c.key })}
+              onPress={() => goToTab(navigation, "EmpregadorTabs", "Buscar", { categoriaInicial: c.key })}
               style={({ pressed }) => [s.card, pressed && s.pressed]}
             >
               <View style={[s.iconWrap, { backgroundColor: c.bg }]}>

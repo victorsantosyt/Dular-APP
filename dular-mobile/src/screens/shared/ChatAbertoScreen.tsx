@@ -183,21 +183,24 @@ export function ChatAbertoScreen({ route }: Props) {
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={["top", "left", "right"]}>
-      {/* Header em card arredondado preenchido com a cor do gênero. */}
-      <View style={[styles.header, { backgroundColor: theme.primary }]}>
+      {/* Botão de sair FORA do card; card arredondado (foto + nome + categoria)
+          preenchido com a cor do gênero, centralizado. */}
+      <View style={styles.headerRow}>
         <Pressable onPress={() => navigation.goBack()} hitSlop={12} style={styles.backBtn}>
-          <AppIcon name="ArrowLeft" size={22} color={colors.white} strokeWidth={2.5} />
+          <AppIcon name="ArrowLeft" size={24} color={colors.textPrimary} strokeWidth={2.5} />
         </Pressable>
-        <DAvatar size="md" uri={avatarFinal} initials={initials} />
-        <View style={styles.headerTextCol}>
-          <Text style={styles.headerName} numberOfLines={1}>
-            {nomeFinal}
-          </Text>
-          <View style={styles.headerSubRow}>
-            <AppIcon name={subtituloIcon} size={12} color={colors.whiteAlpha80} strokeWidth={2.3} />
-            <Text style={styles.headerSubtitle} numberOfLines={1}>
-              {subtituloCategoria}
+        <View style={[styles.header, { backgroundColor: theme.primary }]}>
+          <DAvatar size="md" uri={avatarFinal} initials={initials} />
+          <View style={styles.headerTextCol}>
+            <Text style={styles.headerName} numberOfLines={1}>
+              {nomeFinal}
             </Text>
+            <View style={styles.headerSubRow}>
+              <AppIcon name={subtituloIcon} size={12} color={colors.whiteAlpha80} strokeWidth={2.3} />
+              <Text style={styles.headerSubtitle} numberOfLines={1}>
+                {subtituloCategoria}
+              </Text>
+            </View>
           </View>
         </View>
       </View>
@@ -300,15 +303,22 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingLeft: 4,
+    paddingRight: 10,
+    paddingTop: 6,
+    paddingBottom: 4,
+    gap: 4,
+  },
   header: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    marginHorizontal: 10,
-    marginTop: 6,
-    marginBottom: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
     borderRadius: 20,
     backgroundColor: colors.primary,
     ...shadow(4),

@@ -150,24 +150,26 @@ export default function ChatScreen({ route, navigation }: any) {
         behavior={platformSelect({ ios: "padding", android: undefined })}
         keyboardVerticalOffset={0}
       >
-        <View style={[s.header, { backgroundColor: theme.primary }]}>
+        <View style={s.headerRow}>
           <Pressable onPress={() => navigation.goBack()} hitSlop={10} style={s.iconBtn}>
-            <AppIcon name="ArrowLeft" size={22} color={colors.white} />
+            <AppIcon name="ArrowLeft" size={24} color={colors.ink} />
           </Pressable>
-          <DAvatar
-            size="md"
-            uri={room?.other?.avatarUrl ?? undefined}
-            initials={(room?.other?.nome ?? "Empregador").trim().split(/\s+/).map((w) => w[0]).join("").slice(0, 2).toUpperCase()}
-          />
-          <View style={s.headerText}>
-            <Text style={s.title} numberOfLines={1}>
-              {room?.other?.nome ?? "Empregador"}
-            </Text>
-            <View style={s.subRow}>
-              <AppIcon name="UserRound" size={12} color={colors.whiteAlpha80} strokeWidth={2.3} />
-              <Text style={s.subtitle} numberOfLines={1}>
-                Empregador
+          <View style={[s.header, { backgroundColor: theme.primary }]}>
+            <DAvatar
+              size="md"
+              uri={room?.other?.avatarUrl ?? undefined}
+              initials={(room?.other?.nome ?? "Empregador").trim().split(/\s+/).map((w) => w[0]).join("").slice(0, 2).toUpperCase()}
+            />
+            <View style={s.headerText}>
+              <Text style={s.title} numberOfLines={1}>
+                {room?.other?.nome ?? "Empregador"}
               </Text>
+              <View style={s.subRow}>
+                <AppIcon name="UserRound" size={12} color={colors.whiteAlpha80} strokeWidth={2.3} />
+                <Text style={s.subtitle} numberOfLines={1}>
+                  Empregador
+                </Text>
+              </View>
             </View>
           </View>
         </View>
@@ -277,15 +279,22 @@ export default function ChatScreen({ route, navigation }: any) {
 const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
   flex: { flex: 1 },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingLeft: 4,
+    paddingRight: 10,
+    paddingTop: 6,
+    paddingBottom: 4,
+    gap: 4,
+  },
   header: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    marginHorizontal: 10,
-    marginTop: 6,
-    marginBottom: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
     borderRadius: 20,
     backgroundColor: colors.card,
     ...shadow.float,

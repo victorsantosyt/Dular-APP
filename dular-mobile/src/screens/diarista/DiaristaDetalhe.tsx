@@ -60,6 +60,35 @@ function getServicoEndereco(servico: Servico | null | undefined) {
   return typeof endereco === "string" && endereco.trim() ? endereco.trim() : null;
 }
 
+// Rótulos do tipo/categoria do serviço (para a profissional saber o que foi
+// contratado — ex.: "Limpeza pesada").
+const TIPO_LABEL_DET: Record<string, string> = {
+  FAXINA: "Limpeza",
+  BABA: "Babá",
+  COZINHEIRA: "Cozinheira",
+  PASSA_ROUPA: "Passar roupa",
+  FAXINEIRA: "Faxineira",
+  CUIDADORA: "Cuidadora",
+  LAVADEIRA: "Lavadeira",
+  MONTADOR: "Montador",
+};
+const CATEGORIA_LABEL_DET: Record<string, string> = {
+  FAXINA_LEVE: "Limpeza leve",
+  FAXINA_COMPLETA: "Limpeza completa",
+  FAXINA_PESADA: "Limpeza pesada",
+  BABA_DIURNA: "Babá diurna",
+  BABA_NOTURNA: "Babá noturna",
+  BABA_INTEGRAL: "Babá integral",
+  COZINHEIRA_DIARIA: "Cozinha diária",
+  COZINHEIRA_EVENTO: "Cozinha para evento",
+  PASSA_ROUPA_BASICO: "Passar roupa — básico",
+  PASSA_ROUPA_COMPLETO: "Passar roupa — completo",
+};
+function servicoLabel(s: Servico): string {
+  if (s.categoria && CATEGORIA_LABEL_DET[s.categoria]) return CATEGORIA_LABEL_DET[s.categoria];
+  return TIPO_LABEL_DET[s.tipo] ?? s.tipo;
+}
+
 // ── Componente ────────────────────────────────────────────────────────────────
 
 export default function DiaristaDetalhe({ route, navigation }: any) {
@@ -67,7 +96,8 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
   const params = route.params as any;
   const [svc, setSvc] = useState<Servico | null>(params.servico ?? null);
   const [loadingInit, setLoadingInit] = useState(!params.servico);
-  const servicoId: string = params.servicoId ?? params.servico?.id ?? "";
+  // Aceita tanto { servicoId } quanto { id } (o card da Agenda navega com `id`).
+  const servicoId: string = params.servicoId ?? params.id ?? params.servico?.id ?? "";
   const [loading, setLoading] = useState(false);
   const [recusarOpen, setRecusarOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
@@ -228,10 +258,35 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
     confirmarAceite();
   }
 
-  if (loadingInit || !svc) {
+  if (loadingInit) {
     return (
       <SafeAreaView style={s.safe} edges={["top", "bottom"]}>
         <Text style={{ ...typography.sub, textAlign: "center", marginTop: 48 }}>Carregando...</Text>
+      </SafeAreaView>
+    );
+  }
+
+  // Carregou mas não achou o serviço → estado claro (não fica "Carregando…" eterno).
+  if (!svc) {
+    return (
+      <SafeAreaView style={s.safe} edges={["top", "bottom"]}>
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 24, gap: 14 }}>
+          <Text style={{ ...typography.sub, textAlign: "center" }}>
+            Não foi possível carregar este serviço. Volte e tente novamente.
+          </Text>
+          <Pressable
+            onPress={() => navigation.goBack()}
+            style={{
+              paddingHorizontal: 20,
+              paddingVertical: 10,
+              borderRadius: 999,
+              borderWidth: 1.4,
+              borderColor: theme.primary,
+            }}
+          >
+            <Text style={{ ...typography.bodySmMedium, color: theme.primary, fontWeight: "700" }}>Voltar</Text>
+          </Pressable>
+        </View>
       </SafeAreaView>
     );
   }
@@ -261,6 +316,12 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
 
         {/* ── Info card ── */}
         <View style={s.card}>
+          <InfoRow icon="briefcase-outline" label="Serviço">
+            <Text style={s.infoValue}>{servicoLabel(svc)}</Text>
+          </InfoRow>
+
+          <View style={s.divider} />
+
           <InfoRow icon="location-outline" label="Local">
             <Text style={s.infoValue}>{svc.bairro} — {svc.cidade}/{svc.uf}</Text>
           </InfoRow>
@@ -358,7 +419,7 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
                 disabled={checkInRealizado}
                 onPress={() => { void fazerCheckIn(svc.id); }}
               />
-              <DButton tint={theme.primary}
+              <DButton tint={colors.warning}
                 title="Reportar problema"
                 variant="outline"
                 onPress={() => navigation.navigate("ReportIncident", { servicoId: svc.id })}
@@ -372,7 +433,7 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
                 loading={loading}
                 onPress={() => { void action("iniciar"); }}
               />
-              <DButton tint={theme.primary}
+              <DButton tint={colors.danger}
                 title="Cancelar serviço"
                 variant="outline"
                 onPress={() => setCancelOpen(true)}

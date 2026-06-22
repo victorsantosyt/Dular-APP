@@ -32,7 +32,7 @@ import SafeScoreScreen from "@/screens/perfil/SafeScoreScreen";
 import { EnderecoEditRoute, type CadastroEnderecoParams } from "@/screens/shared/EnderecoEditRoute";
 import { MeusEnderecosScreen, type MeusEnderecosParams } from "@/screens/shared/MeusEnderecosScreen";
 import { useAuth } from "@/stores/authStore";
-import type { ServiceCategory, TipoProfissional } from "@/screens/empregador/service-flow/ServiceFlowContext";
+import type { PrecoInfo, ServiceCategory, TipoProfissional } from "@/screens/empregador/service-flow/ServiceFlowContext";
 
 export type EmpregadorTabParamList = {
   // Container das abas reais (Home/Buscar/Agendamentos/Mensagens/Perfil).
@@ -56,7 +56,7 @@ export type EmpregadorTabParamList = {
    *  abre o flow no estado inicial. */
   SolicitarServico:
     | undefined
-    | { categoriaInicial?: ServiceCategory; tipoInicial?: TipoProfissional; profissionalId?: string; profissionalNome?: string; precoEstimadoLabel?: string; servicosOferecidos?: string[] };
+    | { categoriaInicial?: ServiceCategory; tipoInicial?: TipoProfissional; profissionalId?: string; profissionalNome?: string; precoEstimadoLabel?: string; servicosOferecidos?: string[]; precoInfo?: PrecoInfo };
   Mensagens: undefined;
   Notificacoes: undefined;
   ChatAberto: ChatAbertoParams;

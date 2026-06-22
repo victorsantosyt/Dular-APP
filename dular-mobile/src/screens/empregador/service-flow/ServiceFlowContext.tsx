@@ -22,6 +22,17 @@ export type ServiceCategory =
  */
 export type TipoProfissional = ServiceFlowTipo;
 
+/** Preços do profissional carregados no fluxo, para montar a tabela de valores
+ *  por intensidade. leve/medio/pesada em CENTAVOS; baba/cozinheira em REAIS. */
+export type PrecoInfo = {
+  leve: number | null;
+  medio: number | null;
+  pesada: number | null;
+  babaHora: number | null;
+  cozinheiraBase: number | null;
+  valorACombinar: boolean;
+};
+
 export type ServiceDraft = {
   categoria: ServiceCategory;
   tipo: ServiceFlowTipo;
@@ -33,6 +44,12 @@ export type ServiceDraft = {
   /** Serviços que a profissional selecionada oferece (ServicoOferecido[]).
    *  Usado para a tela "Escolha o serviço" listar só o que ela faz. */
   servicosOferecidosProf?: string[];
+  /** Preços do profissional para a tabela de valores por intensidade. */
+  precoInfo?: PrecoInfo;
+  /** Valor escolhido pelo empregador (em REAIS) na tabela de intensidades. */
+  valorSelecionado?: number;
+  /** Rótulo da intensidade escolhida (ex.: "Limpeza pesada"). */
+  intensidadeLabel?: string;
   especialidadeId?: string;
   especialidadeLabel?: string;
   categoriaBackend?: string;
@@ -113,6 +130,8 @@ type Props = {
   initialPrecoEstimadoLabel?: string;
   /** Serviços oferecidos pela profissional (do perfil público). */
   initialServicosOferecidos?: string[];
+  /** Preços do profissional (do perfil público) para a tabela de valores. */
+  initialPrecoInfo?: PrecoInfo;
 };
 
 export function ServiceFlowProvider({
@@ -123,6 +142,7 @@ export function ServiceFlowProvider({
   initialProfissionalNome,
   initialPrecoEstimadoLabel,
   initialServicosOferecidos,
+  initialPrecoInfo,
 }: Props) {
   const [draft, setDraft] = useState<ServiceDraft>(() => {
     if (!initialCategoria && !initialTipo && !initialProfissionalId) return INITIAL_DRAFT;
@@ -142,6 +162,7 @@ export function ServiceFlowProvider({
       ...(initialProfissionalNome ? { profissionalNome: initialProfissionalNome } : {}),
       ...(initialPrecoEstimadoLabel ? { precoEstimadoLabel: initialPrecoEstimadoLabel } : {}),
       ...(initialServicosOferecidos?.length ? { servicosOferecidosProf: initialServicosOferecidos } : {}),
+      ...(initialPrecoInfo ? { precoInfo: initialPrecoInfo } : {}),
     };
   });
 

@@ -45,15 +45,12 @@ import {
   type Me,
   type VerificacaoStatus,
 } from "@/api/perfilApi";
-import { getCatalogoServicos, type CatalogoTipo } from "@/api/catalogoApi";
 import {
   calcularCompletudeDiarista,
   decimalToNumber,
   formatCurrencyBRL,
   getDiaristaPerfilMe,
-  getHabilidades,
   patchDiaristaPerfil,
-  putHabilidades,
   updateAreaAtendimento,
   updateBairros,
   updateDisponibilidade,
@@ -63,7 +60,6 @@ import {
   type DiaristaProfileMe,
   type DiaristaCompletude,
   type DisponibilidadeSlot,
-  type HabilidadePayload,
 } from "@/api/diaristaApi";
 import { apiMsg } from "@/utils/apiMsg";
 import { useAuth } from "@/stores/authStore";
@@ -162,7 +158,6 @@ type ModalType =
   | "servicos"
   | "area"
   | "precos"
-  | "habilidades"
   | "disponibilidade"
   | "avaliacoes";
 
@@ -314,8 +309,6 @@ export default function DiaristaPerfil({ onLogout }: Props) {
   const [verificacao, setVerificacao] = useState<VerificacaoStatus>("NAO_ENVIADO");
   const [showVisivelCard, setShowVisivelCard] = useState(false);
   const prevAprovadoRef = useRef<boolean | null>(null);
-  const [catalogo, setCatalogo] = useState<CatalogoTipo[]>([]);
-  const [habilidades, setHabilidades] = useState<HabilidadePayload[]>([]);
 
   // Geo + dark mode
   const [geoEnabled, setGeoEnabled] = useState(true);
@@ -401,11 +394,9 @@ export default function DiaristaPerfil({ onLogout }: Props) {
         setError(null);
         setLoading(true);
       }
-      const [meData, perfilData, cat, habs] = await Promise.all([
+      const [meData, perfilData] = await Promise.all([
         getMe(),
         getDiaristaPerfilMe(),
-        getCatalogoServicos(),
-        getHabilidades(),
       ]);
       if (!mountedRef.current) return;
 
@@ -428,8 +419,6 @@ export default function DiaristaPerfil({ onLogout }: Props) {
         }
       }
 
-      setCatalogo(cat?.tipos ?? []);
-      setHabilidades(Array.isArray(habs) ? habs : []);
     } catch (e: any) {
       if (mountedRef.current) setError(apiMsg(e, "Falha ao carregar perfil."));
     } finally {
@@ -485,6 +474,19 @@ export default function DiaristaPerfil({ onLogout }: Props) {
     () => (profile?.servicosOferecidos as ServicoOferecido[]) ?? [],
     [profile?.servicosOferecidos],
   );
+
+  // Categorias com tabela de valores própria (Diarista/Babá/Cozinheira) que a
+  // profissional oferece. O modal de Preços mostra um botão por categoria e a
+  // tabela só da categoria selecionada.
+  const categoriasPreco = useMemo<ServicoOferecido[]>(
+    () => servicosOferecidos.filter((c) => c === "DIARISTA" || c === "BABA" || c === "COZINHEIRA"),
+    [servicosOferecidos],
+  );
+  // Acordeão: categoria atualmente expandida no modal de Preços (null = todas
+  // recolhidas).
+  const [precoCatSel, setPrecoCatSel] = useState<ServicoOferecido | null>("DIARISTA");
+  const catLabelPreco = (c: ServicoOferecido) => SERVICOS_OPTIONS.find((o) => o.id === c)?.title ?? c;
+  const catIconPreco = (c: ServicoOferecido) => SERVICOS_OPTIONS.find((o) => o.id === c)?.icon ?? "Sparkles";
 
   const completude: DiaristaCompletude = useMemo(
     () => calcularCompletudeDiarista(profile, me?.nome ?? user?.nome ?? ""),
@@ -589,11 +591,6 @@ export default function DiaristaPerfil({ onLogout }: Props) {
       .join(", ");
   }, [servicosOferecidos]);
 
-  const habilidadesResumo = useMemo(() => {
-    if (!habilidades.length) return "Adicione suas especialidades";
-    return `${habilidades.length} selecionada(s)`;
-  }, [habilidades.length]);
-
   const disponibilidadeResumo = useMemo(() => {
     const agenda = profile?.agenda ?? [];
     if (!agenda.length) return "Defina dias e turnos disponíveis";
@@ -658,9 +655,8 @@ export default function DiaristaPerfil({ onLogout }: Props) {
             valorACombinar: profile?.valorACombinar ?? false,
             observacao: profile?.observacaoPreco ?? "",
           });
-          break;
-        case "habilidades":
-          // catálogo já está carregado em `catalogo`; nada para inicializar
+          // Seleciona a 1ª categoria com tabela de valores (Diarista/Babá/Cozinheira).
+          setPrecoCatSel(categoriasPreco[0] ?? null);
           break;
         case "disponibilidade": {
           const dias = new Set<number>();
@@ -721,34 +717,6 @@ export default function DiaristaPerfil({ onLogout }: Props) {
     } finally {
       if (mountedRef.current) setAvatarUploading(false);
       busyRef.current = false;
-    }
-  };
-
-  // ── Habilidades ──────────────────────────────────────────────────────────
-  const toggleHabilidade = (tipo: string, categoria?: string | null) => {
-    const key = `${tipo}::${categoria ?? ""}`;
-    setHabilidades((prev) => {
-      const exists = prev.some((h) => `${h.tipo}::${h.categoria ?? ""}` === key);
-      return exists
-        ? prev.filter((h) => `${h.tipo}::${h.categoria ?? ""}` !== key)
-        : [...prev, { tipo, categoria: categoria ?? null }];
-    });
-  };
-
-  const salvarHabilidades = async () => {
-    if (saving) return;
-    try {
-      setSaving(true);
-      setFormError(null);
-      const updated = await putHabilidades(habilidades);
-      if (!mountedRef.current) return;
-      setHabilidades(Array.isArray(updated) ? updated : habilidades);
-      setModal(null);
-      setToast("Habilidades salvas.");
-    } catch (e: any) {
-      setFormError(apiMsg(e, "Falha ao salvar habilidades."));
-    } finally {
-      if (mountedRef.current) setSaving(false);
     }
   };
 
@@ -1393,14 +1361,6 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                 <ProfileRow
                   accentColor={theme.primary}
                   accentSoft={theme.primarySoft}
-                  icon="Star"
-                  title="Catálogo de serviços"
-                  subtitle={habilidadesResumo}
-                  onPress={() => openModal("habilidades")}
-                />
-                <ProfileRow
-                  accentColor={theme.primary}
-                  accentSoft={theme.primarySoft}
                   icon="Calendar"
                   title="Dias e turnos"
                   subtitle={disponibilidadeResumo}
@@ -1874,71 +1834,99 @@ export default function DiaristaPerfil({ onLogout }: Props) {
 
               {!precosForm.valorACombinar ? (
                 <>
-                  {servicosOferecidos.includes("DIARISTA") ? (
-                    <>
-                      <Text style={s.modalLabel}>Diarista — Limpeza leve (R$)</Text>
-                      <TextInput
-                        value={precosForm.leve}
-                        onChangeText={(v) => setPrecosForm((cur) => ({ ...cur, leve: v }))}
-                        placeholder="Ex.: 120,00"
-                        placeholderTextColor={colors.textMuted}
-                        style={s.modalInput}
-                        keyboardType="decimal-pad"
-                      />
+                  {/* Acordeão: um card por categoria que a profissional oferece.
+                      Tocar no card expande/recolhe a tabela de valores dela. */}
+                  {categoriasPreco.length === 0 ? (
+                    <Text style={s.modalSubtitle}>
+                      Escolha os serviços que você oferece em “O que você oferece” para definir os valores.
+                    </Text>
+                  ) : (
+                    categoriasPreco.map((c) => {
+                      const aberto = precoCatSel === c;
+                      return (
+                        <View key={c} style={s.precoCatCard}>
+                          <Pressable
+                            onPress={() => setPrecoCatSel(aberto ? null : c)}
+                            style={s.precoCatHeader}
+                          >
+                            <View style={s.precoCatIcon}>
+                              <AppIcon name={catIconPreco(c)} size={18} color={theme.primary} strokeWidth={2.2} />
+                            </View>
+                            <Text style={s.precoCatTitle}>{catLabelPreco(c)}</Text>
+                            <View style={aberto ? s.precoCatChevronOpen : undefined}>
+                              <AppIcon name="ChevronRight" size={18} color={colors.textMuted} strokeWidth={2.2} />
+                            </View>
+                          </Pressable>
 
-                      <Text style={s.modalLabel}>Diarista — Limpeza média (R$) — opcional</Text>
-                      <TextInput
-                        value={precosForm.medio}
-                        onChangeText={(v) => setPrecosForm((cur) => ({ ...cur, medio: v }))}
-                        placeholder="Ex.: 160,00"
-                        placeholderTextColor={colors.textMuted}
-                        style={s.modalInput}
-                        keyboardType="decimal-pad"
-                      />
+                          {aberto ? (
+                            <View style={s.precoCatBody}>
+                              {c === "DIARISTA" ? (
+                                <>
+                                  <Text style={s.modalLabel}>Limpeza leve (R$)</Text>
+                                  <TextInput
+                                    value={precosForm.leve}
+                                    onChangeText={(v) => setPrecosForm((cur) => ({ ...cur, leve: v }))}
+                                    placeholder="Ex.: 120,00"
+                                    placeholderTextColor={colors.textMuted}
+                                    style={s.modalInput}
+                                    keyboardType="decimal-pad"
+                                  />
 
-                      <Text style={s.modalLabel}>Diarista — Limpeza pesada (R$)</Text>
-                      <TextInput
-                        value={precosForm.pesada}
-                        onChangeText={(v) => setPrecosForm((cur) => ({ ...cur, pesada: v }))}
-                        placeholder="Ex.: 200,00"
-                        placeholderTextColor={colors.textMuted}
-                        style={s.modalInput}
-                        keyboardType="decimal-pad"
-                      />
-                    </>
-                  ) : null}
+                                  <Text style={s.modalLabel}>Limpeza média (R$) — opcional</Text>
+                                  <TextInput
+                                    value={precosForm.medio}
+                                    onChangeText={(v) => setPrecosForm((cur) => ({ ...cur, medio: v }))}
+                                    placeholder="Ex.: 160,00"
+                                    placeholderTextColor={colors.textMuted}
+                                    style={s.modalInput}
+                                    keyboardType="decimal-pad"
+                                  />
 
-                  {servicosOferecidos.includes("BABA") ? (
-                    <>
-                      <Text style={s.modalLabel}>Babá — preço por hora (R$)</Text>
-                      <TextInput
-                        value={precosForm.babaHora}
-                        onChangeText={(v) =>
-                          setPrecosForm((cur) => ({ ...cur, babaHora: v }))
-                        }
-                        placeholder="Ex.: 35,00"
-                        placeholderTextColor={colors.textMuted}
-                        style={s.modalInput}
-                        keyboardType="decimal-pad"
-                      />
-                    </>
-                  ) : null}
+                                  <Text style={s.modalLabel}>Limpeza pesada (R$)</Text>
+                                  <TextInput
+                                    value={precosForm.pesada}
+                                    onChangeText={(v) => setPrecosForm((cur) => ({ ...cur, pesada: v }))}
+                                    placeholder="Ex.: 200,00"
+                                    placeholderTextColor={colors.textMuted}
+                                    style={s.modalInput}
+                                    keyboardType="decimal-pad"
+                                  />
+                                </>
+                              ) : null}
 
-                  {servicosOferecidos.includes("COZINHEIRA") ? (
-                    <>
-                      <Text style={s.modalLabel}>Cozinheira — preço base (R$)</Text>
-                      <TextInput
-                        value={precosForm.cozinheiraBase}
-                        onChangeText={(v) =>
-                          setPrecosForm((cur) => ({ ...cur, cozinheiraBase: v }))
-                        }
-                        placeholder="Ex.: 180,00"
-                        placeholderTextColor={colors.textMuted}
-                        style={s.modalInput}
-                        keyboardType="decimal-pad"
-                      />
-                    </>
-                  ) : null}
+                              {c === "BABA" ? (
+                                <>
+                                  <Text style={s.modalLabel}>Preço por hora (R$)</Text>
+                                  <TextInput
+                                    value={precosForm.babaHora}
+                                    onChangeText={(v) => setPrecosForm((cur) => ({ ...cur, babaHora: v }))}
+                                    placeholder="Ex.: 35,00"
+                                    placeholderTextColor={colors.textMuted}
+                                    style={s.modalInput}
+                                    keyboardType="decimal-pad"
+                                  />
+                                </>
+                              ) : null}
+
+                              {c === "COZINHEIRA" ? (
+                                <>
+                                  <Text style={s.modalLabel}>Preço base (R$)</Text>
+                                  <TextInput
+                                    value={precosForm.cozinheiraBase}
+                                    onChangeText={(v) => setPrecosForm((cur) => ({ ...cur, cozinheiraBase: v }))}
+                                    placeholder="Ex.: 180,00"
+                                    placeholderTextColor={colors.textMuted}
+                                    style={s.modalInput}
+                                    keyboardType="decimal-pad"
+                                  />
+                                </>
+                              ) : null}
+                            </View>
+                          ) : null}
+                        </View>
+                      );
+                    })
+                  )}
 
                   <Text style={s.modalLabel}>Taxa mínima (R$) — opcional</Text>
                   <TextInput
@@ -1994,61 +1982,6 @@ export default function DiaristaPerfil({ onLogout }: Props) {
             </ScrollView>
           </View>
         </KeyboardAvoidingView>
-      </Modal>
-
-      {/* Modal Habilidades (F) */}
-      <Modal visible={modal === "habilidades"} animationType="fade" transparent onRequestClose={closeModal}>
-        <View style={s.floatOverlay}>
-          <View style={s.floatCardTall}>
-            <View style={s.modalHeader}>
-              <Text style={s.modalTitle}>Habilidades</Text>
-              <Pressable onPress={closeModal} hitSlop={12}>
-                <AppIcon name="XCircle" size={23} color={colors.textSecondary} />
-              </Pressable>
-            </View>
-
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 14 }}>
-              {catalogo.length === 0 ? (
-                <Text style={s.modalSubtitle}>Carregando catálogo…</Text>
-              ) : (
-                catalogo.map((t) => (
-                  <View key={t.tipo} style={{ gap: 6 }}>
-                    <Text style={s.catLabel}>{t.label}</Text>
-                    <View style={s.chips}>
-                      {t.categorias.map((c) => {
-                        const key = `${t.tipo}::${c.categoria}`;
-                        const active = habilidades.some(
-                          (h) => `${h.tipo}::${h.categoria ?? ""}` === key,
-                        );
-                        return (
-                          <Pressable
-                            key={c.categoria}
-                            onPress={() => toggleHabilidade(t.tipo, c.categoria)}
-                            style={[s.chip, active && s.chipOn]}
-                          >
-                            <Text style={[s.chipText, active && s.chipTextOn]}>{c.label}</Text>
-                          </Pressable>
-                        );
-                      })}
-                    </View>
-                  </View>
-                ))
-              )}
-            </ScrollView>
-
-            {formError ? <Text style={s.errorText}>{formError}</Text> : null}
-
-            <View style={s.modalActions}>
-              <DButton flat tint={theme.primary} tintDark={theme.primaryDark} label="Cancelar" onPress={closeModal} variant="secondary" disabled={saving} style={{ flex: 1 }} />
-              <DButton flat tint={theme.primary} tintDark={theme.primaryDark}
-                label={saving ? "Salvando…" : "Salvar"}
-                onPress={salvarHabilidades}
-                loading={saving}
-                style={{ flex: 1 }}
-              />
-            </View>
-          </View>
-        </View>
       </Modal>
 
       {/* Modal Disponibilidade (G) */}
@@ -2604,6 +2537,46 @@ function makeStyles(colors: ThemeColors, theme: ProfileTheme) {
     },
     chipTextOn: {
       color: colors.white,
+    },
+
+    // Acordeão de valores por categoria (modal Preços)
+    precoCatCard: {
+      borderRadius: radius.lg,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+      overflow: "hidden",
+      marginTop: spacing.sm,
+    },
+    precoCatHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+      paddingHorizontal: 12,
+      paddingVertical: 12,
+    },
+    precoCatIcon: {
+      width: 34,
+      height: 34,
+      borderRadius: 12,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: theme.primarySoft,
+    },
+    precoCatTitle: {
+      flex: 1,
+      ...typography.bodySm,
+      fontWeight: "800",
+      color: colors.textPrimary,
+    },
+    precoCatChevronOpen: {
+      transform: [{ rotate: "90deg" }],
+    },
+    precoCatBody: {
+      paddingHorizontal: 12,
+      paddingBottom: 12,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: colors.divider,
     },
 
     // Avaliações (read-only)

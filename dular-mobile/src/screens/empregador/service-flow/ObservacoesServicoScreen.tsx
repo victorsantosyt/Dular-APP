@@ -7,12 +7,10 @@ import { DCard } from "@/components/ui/DCard";
 import type { EmpregadorServiceFlowStackParamList } from "@/navigation/EmpregadorServiceFlowNavigator";
 import { colors, radius, spacing } from "@/theme";
 import { useServiceFlow } from "./ServiceFlowContext";
-import { FlowPrimaryButton, flowStyles, StepHeader, UploadChip } from "./components";
+import { FlowPrimaryButton, flowStyles, StepHeader } from "./components";
 import { getServiceFlowTheme } from "@/theme/serviceFlowTheme";
 
 type Navigation = NativeStackNavigationProp<EmpregadorServiceFlowStackParamList, "ObservacoesServico">;
-
-const CHIPS_DIARISTA = ["Levar produtos", "Tom geral", "Falar ambiente", "Detalhes"];
 
 export function ObservacoesServicoScreen() {
   const navigation = useNavigation<Navigation>();
@@ -20,23 +18,11 @@ export function ObservacoesServicoScreen() {
   const [submitted, setSubmitted] = useState(false);
   const isMontador = draft.tipo === "MONTADOR";
   const flowTheme = getServiceFlowTheme(draft.tipo);
-  const chipsList = CHIPS_DIARISTA;
-  const uploadTitle = isMontador ? "Especialidade selecionada" : "Fotos opcionais";
-  const uploadSubtitle = isMontador
-    ? draft.especialidadeLabel ?? "Volte para escolher a especialidade do serviço."
-    : "Inclua referências visuais depois, se precisar.";
   const observacoesPlaceholder = isMontador
     ? "Descreva o serviço em detalhes: o que precisa ser feito, medidas aproximadas, se tem peças/materiais disponíveis…"
     : "Descreva detalhes ou preferências para o(a) profissional…";
   const descriptionLength = draft.observacoes.trim().length;
   const descriptionInvalid = isMontador && submitted && descriptionLength < 20;
-
-  const toggleChip = (label: string) => {
-    const next = draft.chips.includes(label)
-      ? draft.chips.filter((chip) => chip !== label)
-      : [...draft.chips, label];
-    updateDraft({ chips: next });
-  };
 
   const continueFlow = () => {
     setSubmitted(true);
@@ -75,44 +61,21 @@ export function ObservacoesServicoScreen() {
           </View>
         </DCard>
 
-        <DCard style={s.uploadCard}>
-          <View style={s.uploadHeader}>
-            <View style={[s.uploadIcon, { backgroundColor: flowTheme.primarySoft }]}>
-              <AppIcon name={isMontador ? "Wrench" : "Camera"} size={19} color={flowTheme.primary} />
+        {isMontador ? (
+          <DCard style={s.uploadCard}>
+            <View style={s.uploadHeader}>
+              <View style={[s.uploadIcon, { backgroundColor: flowTheme.primarySoft }]}>
+                <AppIcon name="Wrench" size={19} color={flowTheme.primary} />
+              </View>
+              <View style={s.uploadText}>
+                <Text style={s.uploadTitle}>Especialidade selecionada</Text>
+                <Text style={s.uploadSubtitle}>
+                  {draft.especialidadeLabel ?? "Volte para escolher a especialidade do serviço."}
+                </Text>
+              </View>
             </View>
-            <View style={s.uploadText}>
-              <Text style={s.uploadTitle}>{uploadTitle}</Text>
-              <Text style={s.uploadSubtitle}>{uploadSubtitle}</Text>
-            </View>
-          </View>
-          {!isMontador ? (
-            <View style={s.chips}>
-              {chipsList.map((chip) => (
-                <UploadChip
-                  key={chip}
-                  label={chip}
-                  selected={draft.chips.includes(chip)}
-                  theme={flowTheme}
-                  onPress={() => toggleChip(chip)}
-                />
-              ))}
-            </View>
-          ) : null}
-        </DCard>
-
-        <DCard style={s.priorityCard}>
-          <View style={s.priorityRow}>
-            <View style={[s.uploadIcon, { backgroundColor: flowTheme.primarySoft }]}>
-              <AppIcon name="Clock" size={19} color={flowTheme.primary} />
-            </View>
-            <View style={s.priorityText}>
-              <Text style={s.priorityLabel}>Prioridade do agendamento</Text>
-              <Text style={s.priorityValue}>{draft.prioridade}</Text>
-            </View>
-            <AppIcon name="ChevronRight" size={18} color={colors.textMuted} />
-          </View>
-          <Text style={s.priorityHint}>Mais opções disponíveis para o(a) profissional e para você</Text>
-        </DCard>
+          </DCard>
+        ) : null}
       </ScrollView>
 
       <SafeAreaView style={flowStyles.footer}>
@@ -187,42 +150,5 @@ const s = StyleSheet.create({
     color: colors.textSecondary,
     fontSize: 13,
     fontWeight: "600",
-  },
-  chips: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
-  },
-  priorityCard: {
-    marginTop: spacing.lg,
-    borderRadius: radius.xl,
-    gap: spacing.sm,
-  },
-  priorityRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-  },
-  priorityText: {
-    flex: 1,
-    gap: 4,
-  },
-  priorityLabel: {
-    color: colors.textMuted,
-    fontSize: 12,
-    fontWeight: "700",
-    textTransform: "uppercase",
-  },
-  priorityValue: {
-    color: colors.textPrimary,
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  priorityHint: {
-    color: colors.textSecondary,
-    fontSize: 13,
-    lineHeight: 19,
-    fontWeight: "600",
-    paddingLeft: 54,
   },
 });

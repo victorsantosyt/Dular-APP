@@ -30,6 +30,9 @@ export type ServiceDraft = {
    *  guardamos o id para envio na confirmação. Opcional. */
   profissionalId?: string;
   profissionalNome?: string;
+  /** Serviços que a profissional selecionada oferece (ServicoOferecido[]).
+   *  Usado para a tela "Escolha o serviço" listar só o que ela faz. */
+  servicosOferecidosProf?: string[];
   especialidadeId?: string;
   especialidadeLabel?: string;
   categoriaBackend?: string;
@@ -108,6 +111,8 @@ type Props = {
   /** Rótulo de preço já formatado vindo do perfil público — repassado direto
    *  ao draft inicial sem transformação. */
   initialPrecoEstimadoLabel?: string;
+  /** Serviços oferecidos pela profissional (do perfil público). */
+  initialServicosOferecidos?: string[];
 };
 
 export function ServiceFlowProvider({
@@ -117,6 +122,7 @@ export function ServiceFlowProvider({
   initialProfissionalId,
   initialProfissionalNome,
   initialPrecoEstimadoLabel,
+  initialServicosOferecidos,
 }: Props) {
   const [draft, setDraft] = useState<ServiceDraft>(() => {
     if (!initialCategoria && !initialTipo && !initialProfissionalId) return INITIAL_DRAFT;
@@ -135,6 +141,7 @@ export function ServiceFlowProvider({
       ...(initialProfissionalId ? { profissionalId: initialProfissionalId } : {}),
       ...(initialProfissionalNome ? { profissionalNome: initialProfissionalNome } : {}),
       ...(initialPrecoEstimadoLabel ? { precoEstimadoLabel: initialPrecoEstimadoLabel } : {}),
+      ...(initialServicosOferecidos?.length ? { servicosOferecidosProf: initialServicosOferecidos } : {}),
     };
   });
 

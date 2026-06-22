@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
@@ -10,21 +10,10 @@ import { ServiceCategory, useServiceFlow } from "./ServiceFlowContext";
 import { FlowPrimaryButton, flowStyles, ServiceOptionCard, StepHeader } from "./components";
 import { MONTADOR_ESPECIALIDADES } from "./montadorEspecialidades";
 import { getServiceFlowTheme } from "@/theme/serviceFlowTheme";
+import { CATEGORIAS, CATEGORIAS_DIARISTA } from "@/constants/categorias";
 import { colors, radius, spacing, typography } from "@/theme";
 
 type Navigation = NativeStackNavigationProp<EmpregadorServiceFlowStackParamList, "EscolherServico">;
-
-const SERVICES: Array<{
-  id: ServiceCategory;
-  title: string;
-  subtitle: string;
-  icon: React.ComponentProps<typeof ServiceOptionCard>["icon"];
-}> = [
-  { id: "baba", title: "Babá", subtitle: "Cuidado infantil com segurança e carinho.", icon: "Baby" },
-  { id: "cozinheira", title: "Cozinheira", subtitle: "Refeições do dia, preparo e organização.", icon: "ChefHat" },
-  { id: "diarista", title: "Diarista", subtitle: "Limpeza residencial com profissional verificado.", icon: "WashingMachine" },
-  { id: "montador", title: "Montador", subtitle: "Para montagem, escolha primeiro um profissional disponível.", icon: "Wrench" },
-];
 
 export function SolicitarServicoScreen() {
   const navigation = useNavigation<Navigation>();
@@ -34,6 +23,18 @@ export function SolicitarServicoScreen() {
   const missingMontador = isMontador && !draft.profissionalId;
   const canContinue = isMontador ? Boolean(draft.especialidadeId) : Boolean(draft.profissionalId);
   const hasSelectedProfessional = Boolean(draft.profissionalId);
+
+  // Catálogo de categorias do passo. Com uma profissional já selecionada,
+  // mostramos SÓ o que ela oferece (servicosOferecidos). Sem profissional
+  // (navegação livre pela tab central), mostramos o catálogo completo.
+  const categoriaOptions = useMemo(() => {
+    if (hasSelectedProfessional && draft.tipo === "DIARISTA") {
+      const oferecidos = new Set(draft.servicosOferecidosProf ?? []);
+      const filtradas = CATEGORIAS_DIARISTA.filter((c) => c.oferta && oferecidos.has(c.oferta));
+      return filtradas.length > 0 ? filtradas : CATEGORIAS_DIARISTA;
+    }
+    return CATEGORIAS;
+  }, [hasSelectedProfessional, draft.tipo, draft.servicosOferecidosProf]);
 
   const leaveFlow = () => {
     const parent = navigation.getParent<BottomTabNavigationProp<EmpregadorTabParamList>>();
@@ -155,15 +156,15 @@ export function SolicitarServicoScreen() {
                   }
                 />
               ))
-            : SERVICES.map((service) => (
+            : categoriaOptions.map((cat) => (
                 <ServiceOptionCard
-                  key={service.id}
-                  title={service.title}
-                  subtitle={service.subtitle}
-                  icon={service.icon}
-                  selected={hasSelectedProfessional && draft.categoria === service.id}
+                  key={cat.key}
+                  title={cat.label}
+                  subtitle={cat.subtitle}
+                  icon={cat.icon}
+                  selected={hasSelectedProfessional && draft.categoria === cat.key}
                   theme={flowTheme}
-                  onPress={() => selectGeneralService(service.id)}
+                  onPress={() => selectGeneralService(cat.key as ServiceCategory)}
                 />
               ))}
         </ScrollView>

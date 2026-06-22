@@ -42,6 +42,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { colors, radius, shadows, spacing, typography } from "@/theme";
 import type { ProfileTheme } from "@/theme/profileTheme";
 import { platformSelect } from "@/utils/platform";
+import { VerifiedBadge } from "@/components/ui/VerifiedBadge";
 import { firstName, formatMoneyFromCents, upperStatus } from "./montadorUtils";
 
 type ModalType = "dados" | "especialidades" | "area" | "precos" | "portfolio" | "avaliacoes" | null;
@@ -920,7 +921,7 @@ export default function MontadorPerfil() {
         <View style={styles.heroText}>
           <View style={styles.nameRow}>
             <Text style={styles.name}>{nome}</Text>
-            {verificado ? <AppIcon name="ShieldCheck" size={16} color={colors.white} /> : null}
+            {verificado ? <VerifiedBadge size={18} /> : null}
           </View>
           <Text style={styles.role}>Montador profissional</Text>
           <View style={styles.heroBadges}>

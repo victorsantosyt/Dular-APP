@@ -18,6 +18,7 @@ import { formatCurrencyBRL, formatDecimalBRL } from "@/api/diaristaApi";
 import { fetchServicosMinhas } from "@/api/sharedFetcher";
 import { isStatusEncerrado } from "@/utils/servicoStatus";
 import type { EmpregadorTabParamList } from "@/navigation/EmpregadorNavigator";
+import type { PrecoInfo } from "@/screens/empregador/service-flow/ServiceFlowContext";
 import { goToTab } from "@/navigation/navHelpers";
 import type { ServicoOferecido } from "@/types/diarista";
 import { PerfilPublicoLayout, type PerfilSection } from "@/screens/empregador/PerfilPublicoLayout";
@@ -148,15 +149,32 @@ export function DiaristaProfileScreen() {
     }
 
     let precoEstimadoLabel: string | undefined;
+    let precoInfo: PrecoInfo | undefined;
     if (diarista) {
       const tipoParaPreco: ServicoOferecido =
         diarista.servicosOferecidos?.[0] ??
         (categoriaInicial?.toUpperCase() as ServicoOferecido | undefined) ??
         "DIARISTA";
-      precoEstimadoLabel = precoLinhaLabel(tipoParaPreco, diarista.precos, {
-        precoBabaHora: diarista.precoBabaHora,
-        precoCozinheiraBase: diarista.precoCozinheiraBase,
-      });
+      // Só "A combinar" quando a profissional realmente marcou essa opção.
+      precoEstimadoLabel = diarista.valorACombinar
+        ? "A combinar"
+        : precoLinhaLabel(tipoParaPreco, diarista.precos, {
+            precoBabaHora: diarista.precoBabaHora,
+            precoCozinheiraBase: diarista.precoCozinheiraBase,
+          });
+      const toNum = (v: string | number | null | undefined): number | null => {
+        if (v == null) return null;
+        const n = typeof v === "number" ? v : Number(String(v).replace(",", "."));
+        return Number.isFinite(n) && n > 0 ? n : null;
+      };
+      precoInfo = {
+        leve: diarista.precos.leve,
+        medio: diarista.precos.medio,
+        pesada: diarista.precos.pesada,
+        babaHora: toNum(diarista.precoBabaHora),
+        cozinheiraBase: toNum(diarista.precoCozinheiraBase),
+        valorACombinar: diarista.valorACombinar,
+      };
     }
 
     navigation.navigate("SolicitarServico", {
@@ -166,6 +184,7 @@ export function DiaristaProfileScreen() {
       profissionalNome: nome,
       precoEstimadoLabel,
       servicosOferecidos: diarista?.servicosOferecidos ?? undefined,
+      precoInfo,
     });
   };
 

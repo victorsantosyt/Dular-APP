@@ -7,6 +7,7 @@ import { EscolherDataScreen } from "@/screens/empregador/service-flow/EscolherDa
 import { ObservacoesServicoScreen } from "@/screens/empregador/service-flow/ObservacoesServicoScreen";
 import {
   ServiceFlowProvider,
+  type PrecoInfo,
   type ServiceCategory,
   type TipoProfissional,
 } from "@/screens/empregador/service-flow/ServiceFlowContext";
@@ -35,6 +36,7 @@ type SolicitarServicoRouteParams = {
   profissionalNome?: string;
   precoEstimadoLabel?: string;
   servicosOferecidos?: string[];
+  precoInfo?: PrecoInfo;
 };
 
 export function EmpregadorServiceFlowNavigator() {
@@ -58,6 +60,7 @@ export function EmpregadorServiceFlowNavigator() {
       initialProfissionalNome={params?.profissionalNome}
       initialPrecoEstimadoLabel={params?.precoEstimadoLabel}
       initialServicosOferecidos={params?.servicosOferecidos}
+      initialPrecoInfo={params?.precoInfo}
     >
       <Stack.Navigator
         initialRouteName="EscolherServico"

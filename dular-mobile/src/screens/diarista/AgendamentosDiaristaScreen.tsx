@@ -46,10 +46,11 @@ const CATEGORIA_LABEL: Record<string, string> = {
   PASSA_ROUPA_COMPLETO: "Passar roupa — completo",
 };
 
-/** Rótulo completo do serviço: tipo + intensidade (ex.: "Diarista · Limpeza pesada"). */
+/** Rótulo do serviço: a categoria/intensidade quando houver (ex.: "Limpeza
+ *  pesada"), senão o tipo (ex.: "Limpeza"). */
 function servicoCompleto(a: Agendamento): string {
-  const intensidade = a.categoria ? CATEGORIA_LABEL[a.categoria] : null;
-  return intensidade ? `${a.servico} · ${intensidade}` : a.servico;
+  if (a.categoria && CATEGORIA_LABEL[a.categoria]) return CATEGORIA_LABEL[a.categoria];
+  return a.servico;
 }
 
 const FILTROS: { label: string; value: Filtro }[] = [

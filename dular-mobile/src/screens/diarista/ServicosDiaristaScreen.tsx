@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
@@ -45,6 +45,9 @@ const CATEGORIA_LABEL: Record<string, string> = {
 };
 
 const TIPO_ORDER = ["FAXINA", "BABA", "COZINHEIRA", "PASSA_ROUPA"];
+
+type ServicoView = "ativos" | "historico";
+const STATUS_HISTORICO: StatusDiarista[] = ["finalizado", "cancelado"];
 
 function tipoMeta(tipo: string): { label: string; icon: AppIconName } {
   return TIPO_META[tipo] ?? { label: tipo || "Outros", icon: "Sparkles" };
@@ -114,10 +117,17 @@ export function ServicosDiaristaScreen() {
   const theme = useGenderTheme("DIARISTA");
   const s = makeStyles(theme);
   const { agendamentos, loading, error, refetch } = useAgendamentosDiarista();
+  const [view, setView] = useState<ServicoView>("ativos");
+
+  // Histórico = serviços finalizados/cancelados; Ativos = o restante.
+  const visiveis = useMemo(() => {
+    const isHist = (a: AgendamentoDiarista) => STATUS_HISTORICO.includes(a.status);
+    return agendamentos.filter((a) => (view === "historico" ? isHist(a) : !isHist(a)));
+  }, [agendamentos, view]);
 
   const groups = useMemo(() => {
     const byTipo = new Map<string, AgendamentoDiarista[]>();
-    for (const a of agendamentos) {
+    for (const a of visiveis) {
       const key = a.tipo || "OUTROS";
       const list = byTipo.get(key) ?? [];
       list.push(a);
@@ -128,7 +138,7 @@ export function ServicosDiaristaScreen() {
       .filter((k) => !TIPO_ORDER.includes(k))
       .map((k) => ({ tipo: k, items: byTipo.get(k)! }));
     return [...known, ...others];
-  }, [agendamentos]);
+  }, [visiveis]);
 
   const abrir = (id: string) => navigation.navigate("DiaristaDetalhe", { servicoId: id });
 
@@ -142,6 +152,29 @@ export function ServicosDiaristaScreen() {
           </View>
         </View>
         <Text style={s.subtitle}>Suas solicitações por categoria</Text>
+
+        <View style={s.segment}>
+          {(["ativos", "historico"] as ServicoView[]).map((v) => {
+            const active = view === v;
+            return (
+              <Pressable
+                key={v}
+                onPress={() => setView(v)}
+                style={[s.segmentItem, active && { backgroundColor: theme.primarySoft }]}
+              >
+                <AppIcon
+                  name={v === "ativos" ? "Sparkles" : "Clock3"}
+                  size={15}
+                  color={active ? theme.primary : colors.textMuted}
+                  strokeWidth={2.2}
+                />
+                <Text style={[s.segmentText, active && { color: theme.primary }]}>
+                  {v === "ativos" ? "Ativos" : "Histórico"}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
       </View>
 
       {loading && agendamentos.length === 0 ? (
@@ -165,9 +198,13 @@ export function ServicosDiaristaScreen() {
               <View style={s.emptyIconBox}>
                 <AppIcon name="BrushCleaning" size={30} color={theme.primary} strokeWidth={2} />
               </View>
-              <Text style={s.emptyTitle}>Nenhum serviço solicitado</Text>
+              <Text style={s.emptyTitle}>
+                {view === "historico" ? "Sem histórico ainda" : "Nenhum serviço solicitado"}
+              </Text>
               <Text style={s.emptyText}>
-                Quando empregadores solicitarem seus serviços, eles aparecem aqui organizados por categoria.
+                {view === "historico"
+                  ? "Serviços finalizados ou cancelados ficam guardados aqui para você revisar."
+                  : "Quando empregadores solicitarem seus serviços, eles aparecem aqui organizados por categoria."}
               </Text>
             </View>
           ) : (
@@ -216,6 +253,27 @@ function makeStyles(theme: ProfileTheme) {
     },
     title: { ...typography.h2, color: colors.textPrimary },
     subtitle: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
+
+    segment: {
+      flexDirection: "row",
+      gap: 4,
+      marginTop: 12,
+      padding: 4,
+      borderRadius: radius.lg,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    segmentItem: {
+      flex: 1,
+      minHeight: 36,
+      borderRadius: radius.md,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 6,
+    },
+    segmentText: { ...typography.caption, fontWeight: "700", color: colors.textMuted },
 
     scroll: { padding: spacing.screenPadding, paddingBottom: 122, gap: 18 },
 

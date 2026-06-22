@@ -203,6 +203,9 @@ export function ChatAbertoScreen({ route }: Props) {
             </View>
           </View>
         </View>
+        {/* Espaçador invisível = largura do botão voltar → card centralizado
+            com a mesma folga dos dois lados. */}
+        <View style={styles.backBtn} />
       </View>
 
       <KeyboardAvoidingView
@@ -306,11 +309,10 @@ const styles = StyleSheet.create({
   headerRow: {
     flexDirection: "row",
     alignItems: "center",
-    paddingLeft: 4,
-    paddingRight: 10,
+    paddingHorizontal: 4,
     paddingTop: 6,
     paddingBottom: 4,
-    gap: 4,
+    gap: 6,
   },
   header: {
     flex: 1,

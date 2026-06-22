@@ -19,14 +19,6 @@ import {
  * empregador, montador e diarista para ficarem exatamente iguais.
  */
 
-function categoriaFromTipo(tipo?: string | null): Pick<ConversationItem, "categoria" | "categoriaIcon"> {
-  const value = String(tipo ?? "").toUpperCase();
-  if (value === "BABA") return { categoria: "Babá", categoriaIcon: "Baby" };
-  if (value === "COZINHEIRA") return { categoria: "Cozinheira", categoriaIcon: "ChefHat" };
-  if (value === "MONTADOR") return { categoria: "Montador", categoriaIcon: "Wrench" };
-  return { categoria: "Diarista", categoriaIcon: "BrushCleaning" };
-}
-
 function initialsFromName(nome: string) {
   return nome
     .split(/\s+/)
@@ -45,12 +37,14 @@ function timeLabel(room: ChatRoom) {
 
 function roomToConversation(room: ChatRoom): ConversationItem {
   const nome = room.outroUsuario.nome || "Contato";
-  const category = categoriaFromTipo(room.servico?.tipo);
+  // MensagensView é usada por diarista e montador — o outro lado é sempre o
+  // empregador, então a categoria exibida no card é "Empregador".
   return {
     id: room.id,
     servicoId: room.servicoId,
     nome,
-    ...category,
+    categoria: "Empregador",
+    categoriaIcon: "UserRound",
     localizacao: room.servico?.local ?? "Local do serviço",
     rating: "--",
     experiencia: room.servico?.status ? String(room.servico.status).replace(/_/g, " ") : "Serviço confirmado",

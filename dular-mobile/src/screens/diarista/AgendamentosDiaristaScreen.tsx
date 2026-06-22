@@ -5,7 +5,6 @@ import { useNavigation } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import { AppIcon, DAvatar, DBadge, DButton, DCard } from "@/components/ui";
 import { colors, radius, spacing, typography } from "@/theme";
-import { useAuth } from "@/stores/authStore";
 import { useGenderTheme } from "@/hooks/useProfileTheme";
 import type { ProfileTheme } from "@/theme/profileTheme";
 import type { DiaristaTabParamList } from "@/navigation/DiaristaNavigator";
@@ -231,9 +230,7 @@ function AgendamentoDiaristaCard({
 
 export function AgendamentosDiaristaScreen() {
   const navigation = useNavigation<Navigation>();
-  const { user } = useAuth();
   const theme = useGenderTheme("DIARISTA");
-  const firstName = (user?.nome || "Diarista").trim().split(/\s+/)[0];
   const [activeFilter, setActiveFilter] = useState<Filtro>("hoje");
   const { agendamentos: realAgendamentos, loading, error, refetch } = useAgendamentosDiarista();
   const { rooms } = useMensagens();
@@ -266,7 +263,7 @@ export function AgendamentosDiaristaScreen() {
       <View style={styles.content}>
         <View style={styles.header}>
           <View style={styles.headerText}>
-            <Text style={styles.greeting}>Olá, {firstName}</Text>
+            <Text style={styles.greeting}>Agenda</Text>
             <Text style={styles.subtitle}>Seus agendamentos</Text>
           </View>
           <Pressable
@@ -351,8 +348,7 @@ const styles = StyleSheet.create({
     paddingRight: spacing.md,
   },
   greeting: {
-    ...typography.title,
-    fontWeight: "700",
+    ...typography.h2,
     color: colors.textPrimary,
   },
   subtitle: {

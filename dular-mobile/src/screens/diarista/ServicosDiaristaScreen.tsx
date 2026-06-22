@@ -53,9 +53,11 @@ function tipoMeta(tipo: string): { label: string; icon: AppIconName } {
   return TIPO_META[tipo] ?? { label: tipo || "Outros", icon: "Sparkles" };
 }
 
-function categoriaLabel(categoria: string | null): string {
-  if (!categoria) return "Categoria não especificada";
-  return CATEGORIA_LABEL[categoria] ?? categoria;
+function categoriaLabel(categoria: string | null, tipo?: string): string {
+  if (categoria) return CATEGORIA_LABEL[categoria] ?? categoria;
+  // Sem subtipo (intensidade) definido → mostra o tipo do serviço (ex.: "Diarista").
+  if (tipo) return tipoMeta(tipo).label;
+  return "Categoria não especificada";
 }
 
 function statusBadge(status: StatusDiarista): { label: string; type: BadgeType } {
@@ -90,7 +92,7 @@ function ServicoCard({
     <DCard style={s.card} onPress={onPress}>
       <View style={s.cardRow}>
         <View style={s.cardInfo}>
-          <Text style={s.categoria}>{categoriaLabel(item.categoria)}</Text>
+          <Text style={s.categoria}>{categoriaLabel(item.categoria, item.tipo)}</Text>
           <View style={s.metaRow}>
             <AppIcon name="UserRound" size={13} color={colors.textSecondary} strokeWidth={2.2} />
             <Text style={s.metaText} numberOfLines={1}>{item.nomeCliente}</Text>

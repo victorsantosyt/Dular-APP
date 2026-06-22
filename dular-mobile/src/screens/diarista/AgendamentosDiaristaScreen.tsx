@@ -242,6 +242,7 @@ function AgendamentoDiaristaCard({
           <DButton
             variant="ghost"
             size="sm"
+            tint={colors.warning}
             label="Detalhes"
             onPress={() => navigation.navigate("DetalheServico", { id: agendamento.id })}
           />

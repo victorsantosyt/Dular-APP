@@ -384,7 +384,7 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
                 disabled={checkInRealizado}
                 onPress={() => { void fazerCheckIn(svc.id); }}
               />
-              <DButton tint={theme.primary}
+              <DButton tint={colors.warning}
                 title="Reportar problema"
                 variant="outline"
                 onPress={() => navigation.navigate("ReportIncident", { servicoId: svc.id })}
@@ -398,7 +398,7 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
                 loading={loading}
                 onPress={() => { void action("iniciar"); }}
               />
-              <DButton tint={theme.primary}
+              <DButton tint={colors.danger}
                 title="Cancelar serviço"
                 variant="outline"
                 onPress={() => setCancelOpen(true)}

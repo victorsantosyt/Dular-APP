@@ -641,17 +641,13 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
               </ProfileSection>
               ) : null}
 
-              <ProfileSection title="Dados da conta">
+              <ProfileSection title="Conta">
                 <ProfileRow
                   icon="UserRound"
-                  title="Ver dados da conta"
+                  title="Dados da conta"
                   subtitle="Foto, nome completo e telefone"
                   onPress={() => navigation.navigate("DadosConta")}
-                  isLast
                 />
-              </ProfileSection>
-
-              <ProfileSection title="Conta">
                 <ProfileRow
                   icon="FileText"
                   title="Documentos e verificação"

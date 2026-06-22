@@ -57,6 +57,8 @@ function roomToConversation(room: ChatRoom): ConversationItem {
     horario: timeLabel(room),
     initials: initialsFromName(nome),
     avatarUrl: room.outroUsuario.avatarUrl ?? undefined,
+    lastMessage: room.ultimaMensagem?.texto ?? "",
+    unread: room.naoLidas,
   };
 }
 

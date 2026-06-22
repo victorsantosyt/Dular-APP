@@ -42,6 +42,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { colors, radius, shadows, spacing, typography } from "@/theme";
 import type { ProfileTheme } from "@/theme/profileTheme";
 import { platformSelect } from "@/utils/platform";
+import { EnderecoPerfilSection } from "@/screens/shared/EnderecoPerfilSection";
 import { firstName, formatMoneyFromCents, upperStatus } from "./montadorUtils";
 
 type ModalType = "dados" | "especialidades" | "area" | "precos" | "portfolio" | "avaliacoes" | null;
@@ -1028,6 +1029,14 @@ export default function MontadorPerfil() {
         <Row icon="Star" title="Avaliações" subtitle={perfil.avaliacoes?.total ? `${perfil.avaliacoes.total} avaliação(ões)` : "Sem avaliações ainda"} theme={profileTheme} onPress={() => openModal("avaliacoes")} />
         <Row icon="CreditCard" title="Carteira/Ganhos" subtitle={formatMoneyFromCents(ganhos)} theme={profileTheme} onPress={() => navigation.navigate("Carteira", { from: "MontadorPerfil" })} />
       </Section>
+
+      <EnderecoPerfilSection
+        accentColor={profileTheme.primary}
+        accentSoft={profileTheme.primarySoft}
+        onEdit={(endereco) =>
+          navigation.navigate("CadastroEndereco", { role: "MONTADOR", initial: endereco })
+        }
+      />
 
       <Section title="Documentos e segurança" borderColor={profileTheme.border}>
         <Row icon="FileText" title="Documentos" subtitle={perfil.verificacaoStatus === "APROVADO" ? "Verificado" : perfil.verificacaoStatus === "PENDENTE" ? "Em análise" : "Enviar documento"} theme={profileTheme} onPress={() => navigation.navigate("VerificacaoDocs")} />

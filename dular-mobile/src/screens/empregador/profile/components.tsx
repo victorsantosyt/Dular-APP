@@ -3,6 +3,7 @@ import { Image, ImageSourcePropType, Pressable, StyleSheet, Switch, Text, View }
 import { LinearGradient } from "expo-linear-gradient";
 import { AppIcon, type AppIconName } from "@/components/ui/AppIcon";
 import { DCard } from "@/components/ui/DCard";
+import { VerifiedBadge } from "@/components/ui/VerifiedBadge";
 import { useDularColors } from "@/hooks/useDularColors";
 import { radius, shadows, spacing, typography } from "@/theme";
 
@@ -94,6 +95,13 @@ export function ProfileHeroCard({
   const accent = accentColor ?? colors.primary;
   const cameraBadgeColor = cameraColor ?? colors.pink;
   const pill = verificacaoPill(verificacaoStatus, colors, accent);
+  // Conta verificada → selo azul ao lado do nome (undefined = uso legado, que
+  // sempre assumia "Verificado"). Demais estados mantêm a pílula com o texto
+  // do status (pendente/reprovado/não verificado).
+  const isVerified =
+    verificacaoStatus === undefined ||
+    verificacaoStatus === "APROVADO" ||
+    verificacaoStatus === "VERIFICADO";
   // Quando o status é passado, o badge já comunica o estado da verificação,
   // então o subtitle vira informativo (ou pode ser omitido pelo chamador).
   // Quando o status NÃO é passado (uso legado pelo EmpregadorPerfil), o
@@ -134,10 +142,14 @@ export function ProfileHeroCard({
           <Text style={s.heroName} numberOfLines={1}>
             {nome}
           </Text>
-          <View style={s.verifiedPill}>
-            <AppIcon name={pill.icon} size={12} color={pill.color} strokeWidth={3} />
-            <Text style={[s.verifiedText, { color: pill.color }]}>{pill.label}</Text>
-          </View>
+          {isVerified ? (
+            <VerifiedBadge size={18} />
+          ) : (
+            <View style={s.verifiedPill}>
+              <AppIcon name={pill.icon} size={12} color={pill.color} strokeWidth={3} />
+              <Text style={[s.verifiedText, { color: pill.color }]}>{pill.label}</Text>
+            </View>
+          )}
         </View>
         {showSubtitle ? <Text style={s.heroSubtitle}>{subtitle}</Text> : null}
         <View style={s.heroDivider} />
@@ -370,7 +382,7 @@ function makeStyles(colors: ThemeColors) {
       gap: 8,
     },
     heroName: {
-      flex: 1,
+      flexShrink: 1,
       color: colors.white,
       ...typography.h3,
 

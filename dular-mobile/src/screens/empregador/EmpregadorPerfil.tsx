@@ -23,6 +23,7 @@ import * as ImagePicker from "expo-image-picker";
 import { salvarLocalizacaoAtual } from "@/api/localizacaoApi";
 import { api } from "@/lib/api";
 import { uploadAvatarDataUrl } from "@/api/perfilApi";
+import { fetchEnderecos, type Endereco } from "@/api/enderecoApi";
 import { AppIcon, DButton, DCard, type AppIconName } from "@/components/ui";
 import { useCurrentRegion } from "@/hooks/useCurrentRegion";
 import { usePerfil } from "@/hooks/usePerfil";
@@ -99,8 +100,11 @@ function textValue(value?: string | null) {
   return clean ? clean : null;
 }
 
-function firstName(value?: string | null) {
-  return textValue(value)?.split(/\s+/)[0] ?? "Sem nome";
+// Nome + sobrenome (2 primeiros tokens). Ex.: "Victor Santos Silva" → "Victor Santos".
+function firstAndLastName(value?: string | null) {
+  const parts = textValue(value)?.split(/\s+/).filter(Boolean) ?? [];
+  if (parts.length === 0) return "Sem nome";
+  return parts.slice(0, 2).join(" ");
 }
 
 function formatMemberSince(value?: string | null) {
@@ -215,6 +219,7 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
   const [avatarLocal, setAvatarLocal] = useState<string | null>(null);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [showVisivelCard, setShowVisivelCard] = useState(false);
+  const [enderecos, setEnderecos] = useState<Endereco[] | null>(null);
 
   useEffect(() => {
     const backendEnabled = Boolean((perfil ?? user)?.localizacaoPermitida);
@@ -253,6 +258,17 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
   useFocusEffect(
     useCallback(() => {
       refetch();
+      let alive = true;
+      fetchEnderecos()
+        .then((list) => {
+          if (alive) setEnderecos(list);
+        })
+        .catch(() => {
+          if (alive) setEnderecos([]);
+        });
+      return () => {
+        alive = false;
+      };
     }, [refetch]),
   );
 
@@ -419,7 +435,18 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
 
   const profileData = (perfil ?? user ?? null) as ProfileData | null;
   const heroLocation = profileLocation(profileData);
-  const hasLocation = Boolean(heroLocation);
+  // Hero usa o endereço CADASTRADO (bairro + cidade/UF) como fonte primária —
+  // dado limpo que o usuário digitou. Geolocalização vira fallback. Prefere o
+  // Residencial; senão o primeiro disponível.
+  const enderecoPrincipal = useMemo(() => {
+    if (!enderecos?.length) return null;
+    return enderecos.find((e) => e.tipo === "RESIDENCIAL") ?? enderecos[0];
+  }, [enderecos]);
+  const enderecoLocation = enderecoPrincipal
+    ? [enderecoPrincipal.bairro, `${enderecoPrincipal.cidade} - ${enderecoPrincipal.uf}`]
+        .filter(Boolean)
+        .join(", ")
+    : "";
   const locationIsEnabled = geoEnabled || profileData?.localizacaoPermitida === true;
   const verificationStatus = normalizeVerification(profileData);
   const completion = calculateProfileProgress(profileData, heroLocation);
@@ -487,7 +514,7 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
     user?.id,
     navigation,
   ]);
-  const displayName = firstName(profileData?.nome);
+  const displayName = firstAndLastName(profileData?.nome);
   const avatarUri = avatarLocal ?? profileData?.avatarUrl ?? null;
   const avatarFallback: ImageSourcePropType | null = null;
   const memberSince = formatMemberSince(profileData?.createdAt ?? profileData?.criadoEm);
@@ -501,7 +528,8 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
   const emailText = textValue(profileData?.email) ?? "Não informado";
   const roleText = roleLabel(profileData?.role);
   const createdAtText = memberSince || "Não informado";
-  const locationText = heroLocation || (locationIsEnabled ? "Localização ativada" : "Localização não informada");
+  const locationText =
+    enderecoLocation || heroLocation || (locationIsEnabled ? "Localização ativada" : "Localização não informada");
   const progressLabel = completion.completo ? "Perfil completo" : "Perfil incompleto";
   const progressTone = completion.completo ? colors.success : colors.warning;
   const progressSoft = completion.completo ? colors.successSoft : colors.warningSoft;
@@ -514,10 +542,6 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
   // banner de erro vira algo "inline" com retry, sem esconder o resto.
   const showInitialSpinner = loading && !perfil;
   const showErrorBanner = !loading && !!error && !perfil;
-
-  const openLocationCta = () => {
-    void saveCurrentLocation();
-  };
 
   return (
     <SafeAreaView style={s.safe} edges={["top", "left", "right"]}>
@@ -646,17 +670,13 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
               </ProfileSection>
               ) : null}
 
-              <ProfileSection title="Dados da conta">
+              <ProfileSection title="Conta">
                 <ProfileRow
                   icon="UserRound"
-                  title="Ver dados da conta"
+                  title="Dados da conta"
                   subtitle="Foto, nome completo e telefone"
                   onPress={() => navigation.navigate("DadosConta")}
-                  isLast
                 />
-              </ProfileSection>
-
-              <ProfileSection title="Conta">
                 <ProfileRow
                   icon="FileText"
                   title="Documentos e verificação"
@@ -677,17 +697,9 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
                 />
                 <ProfileRow
                   icon="MapPin"
-                  title={hasLocation ? "Endereço" : locationIsEnabled ? "Atualizar localização" : "Adicionar localização"}
-                  subtitle={
-                    hasLocation
-                      ? locationText
-                      : geoSaving
-                        ? "Buscando sua localização atual"
-                        : locationIsEnabled
-                          ? "Toque para buscar cidade e bairro atuais"
-                          : "Informe sua localização para melhorar buscas"
-                  }
-                  onPress={hasLocation ? () => Alert.alert("Endereço", locationText) : openLocationCta}
+                  title="Endereço"
+                  subtitle="Gerencie seus endereços cadastrados"
+                  onPress={() => navigation.navigate("MeusEnderecos", { role: "EMPREGADOR" })}
                   isLast
                 />
               </ProfileSection>

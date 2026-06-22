@@ -22,6 +22,7 @@ import {
 } from "@react-navigation/native";
 import { AppIcon, DCard } from "@/components/ui";
 import { useDularColors } from "@/hooks/useDularColors";
+import { useGenderTheme } from "@/hooks/useProfileTheme";
 import { radius, spacing, typography } from "@/theme";
 import { fetchEnderecos, type Endereco } from "@/api/enderecoApi";
 import type { CadastroEnderecoParams, Role } from "@/screens/shared/EnderecoEditRoute";
@@ -44,12 +45,15 @@ const TIPO_LABEL: Record<Endereco["tipo"], string> = {
 
 export function MeusEnderecosScreen() {
   const colors = useDularColors();
+  // Cor de destaque segue a identidade do usuário logado (gênero/role). Os
+  // params ainda podem sobrescrever, mas o default já vem do tema correto.
+  const theme = useGenderTheme();
   const s = useMemo(() => makeStyles(colors), [colors]);
   const navigation = useNavigation<Nav>();
   const route = useRoute<RouteProp<{ MeusEnderecos: MeusEnderecosParams }, "MeusEnderecos">>();
   const { role = "EMPREGADOR", accentColor, accentSoft } = route.params ?? { role: "EMPREGADOR" };
-  const accent = accentColor ?? colors.primary;
-  const accentBg = accentSoft ?? colors.lavenderSoft;
+  const accent = accentColor ?? theme.primary;
+  const accentBg = accentSoft ?? theme.primarySoft;
 
   const [enderecos, setEnderecos] = useState<Endereco[] | null>(null);
 

@@ -1,12 +1,12 @@
 import React, { useMemo } from "react";
-import { SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { EmpregadorTabParamList } from "@/navigation/EmpregadorNavigator";
 import type { EmpregadorServiceFlowStackParamList } from "@/navigation/EmpregadorServiceFlowNavigator";
 import { goToTab } from "@/navigation/navHelpers";
-import { ServiceCategory, useServiceFlow } from "./ServiceFlowContext";
+import { ServiceCategory, useServiceFlow, type PrecoInfo } from "./ServiceFlowContext";
 import { FlowPrimaryButton, flowStyles, ServiceOptionCard, StepHeader } from "./components";
 import { MONTADOR_ESPECIALIDADES } from "./montadorEspecialidades";
 import { getServiceFlowTheme } from "@/theme/serviceFlowTheme";
@@ -15,14 +15,47 @@ import { colors, radius, spacing, typography } from "@/theme";
 
 type Navigation = NativeStackNavigationProp<EmpregadorServiceFlowStackParamList, "EscolherServico">;
 
+type OpcaoValor = { id: string; label: string; valor: number };
+
+function formatBRL(valor: number): string {
+  return `R$ ${valor.toFixed(2).replace(".", ",")}`;
+}
+
+/** Opções de valor por intensidade para a categoria escolhida, a partir dos
+ *  preços reais do profissional. Vazio = sem tabela (valor a combinar). */
+function opcoesDeValor(categoria: ServiceCategory, p?: PrecoInfo): OpcaoValor[] {
+  if (!p || p.valorACombinar) return [];
+  if (categoria === "diarista") {
+    return [
+      p.leve != null ? { id: "leve", label: "Limpeza leve", valor: p.leve / 100 } : null,
+      p.medio != null ? { id: "medio", label: "Limpeza média", valor: p.medio / 100 } : null,
+      p.pesada != null ? { id: "pesada", label: "Limpeza pesada", valor: p.pesada / 100 } : null,
+    ].filter((o): o is OpcaoValor => o !== null);
+  }
+  if (categoria === "baba") {
+    return p.babaHora != null ? [{ id: "hora", label: "Por hora", valor: p.babaHora }] : [];
+  }
+  if (categoria === "cozinheira") {
+    return p.cozinheiraBase != null ? [{ id: "base", label: "Valor base", valor: p.cozinheiraBase }] : [];
+  }
+  return [];
+}
+
 export function SolicitarServicoScreen() {
   const navigation = useNavigation<Navigation>();
   const { draft, updateDraft, resetDraft } = useServiceFlow();
   const flowTheme = getServiceFlowTheme(draft.tipo);
   const isMontador = draft.tipo === "MONTADOR";
   const missingMontador = isMontador && !draft.profissionalId;
-  const canContinue = isMontador ? Boolean(draft.especialidadeId) : Boolean(draft.profissionalId);
   const hasSelectedProfessional = Boolean(draft.profissionalId);
+  const opcoesValor = useMemo(
+    () => opcoesDeValor(draft.categoria, draft.precoInfo),
+    [draft.categoria, draft.precoInfo],
+  );
+  const precisaValor = hasSelectedProfessional && !isMontador && opcoesValor.length > 0;
+  const canContinue = isMontador
+    ? Boolean(draft.especialidadeId)
+    : Boolean(draft.profissionalId) && (!precisaValor || draft.valorSelecionado != null);
 
   // Catálogo de categorias do passo. Com uma profissional já selecionada,
   // mostramos SÓ o que ela oferece (servicosOferecidos). Sem profissional
@@ -85,6 +118,9 @@ export function SolicitarServicoScreen() {
       especialidadeId: undefined,
       especialidadeLabel: undefined,
       categoriaBackend: undefined,
+      // troca de categoria → zera o valor escolhido (é por categoria).
+      valorSelecionado: undefined,
+      intensidadeLabel: undefined,
     });
   };
 
@@ -168,6 +204,39 @@ export function SolicitarServicoScreen() {
                 />
               ))}
         </ScrollView>
+
+        {/* Tabela de valores por intensidade — só com profissional escolhido e
+            categoria definida. Vazio = "a combinar" (sem tabela). */}
+        {hasSelectedProfessional && !isMontador && draft.categoria ? (
+          <View style={s.valoresWrap}>
+            <Text style={s.valoresTitle}>Valor do serviço</Text>
+            {opcoesValor.length > 0 ? (
+              opcoesValor.map((op) => {
+                const sel = draft.intensidadeLabel === op.label;
+                return (
+                  <Pressable
+                    key={op.id}
+                    onPress={() => updateDraft({ valorSelecionado: op.valor, intensidadeLabel: op.label })}
+                    style={[
+                      s.valorCard,
+                      { borderColor: sel ? flowTheme.primary : flowTheme.border },
+                      sel && { backgroundColor: flowTheme.primarySoft },
+                    ]}
+                  >
+                    <Text style={s.valorLabel}>{op.label}</Text>
+                    <Text style={[s.valorValue, { color: flowTheme.primary }]}>{formatBRL(op.valor)}</Text>
+                  </Pressable>
+                );
+              })
+            ) : (
+              <View style={[s.valorInfo, { borderColor: flowTheme.border }]}>
+                <Text style={s.valorInfoText}>
+                  Valor a combinar diretamente com o(a) profissional.
+                </Text>
+              </View>
+            )}
+          </View>
+        ) : null}
       </ScrollView>
       <SafeAreaView style={flowStyles.footer}>
         <FlowPrimaryButton
@@ -184,6 +253,45 @@ export function SolicitarServicoScreen() {
 const s = StyleSheet.create({
   list: {
     gap: 14,
+  },
+  valoresWrap: {
+    marginTop: 18,
+    gap: 10,
+  },
+  valoresTitle: {
+    color: colors.textPrimary,
+    ...typography.bodyMedium,
+    fontWeight: "800",
+  },
+  valorCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderWidth: 1.5,
+    borderRadius: radius.lg,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 14,
+    backgroundColor: colors.surface,
+  },
+  valorLabel: {
+    color: colors.textPrimary,
+    ...typography.bodySmMedium,
+    fontWeight: "700",
+  },
+  valorValue: {
+    ...typography.bodyMedium,
+    fontWeight: "800",
+  },
+  valorInfo: {
+    borderWidth: 1,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    backgroundColor: colors.surface,
+  },
+  valorInfoText: {
+    color: colors.textSecondary,
+    ...typography.bodySm,
+    fontWeight: "600",
   },
   blockCard: {
     borderWidth: 1,

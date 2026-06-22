@@ -1208,11 +1208,15 @@ export default function DiaristaPerfil({ onLogout }: Props) {
             <View style={s.headerSide} />
           </View>
 
-          {loading ? (
+          {/* Só bloqueia a tela inteira no PRIMEIRO carregamento (sem dados).
+              Em refocos (useFocusEffect → loadMe), `profile` já existe, então
+              mantemos o conteúdo na tela e atualizamos em background — sem a
+              "tela branca + spinner" a cada vez que se volta para o perfil. */}
+          {loading && !profile ? (
             <View style={s.centerCard}>
               <ActivityIndicator color={theme.primary} size="large" />
             </View>
-          ) : error ? (
+          ) : error && !profile ? (
             <DCard style={s.errorCard}>
               <Text style={s.errorTitle}>Não foi possível carregar.</Text>
               <Text style={s.errorText}>{error}</Text>

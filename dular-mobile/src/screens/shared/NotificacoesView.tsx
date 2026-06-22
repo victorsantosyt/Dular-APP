@@ -174,7 +174,13 @@ export function NotificacoesView({ theme, onVoltar, onOpenChat, onOpenServico }:
   const { notificacoes, loading, marcarComoLida, marcarTodasComoLidas } = useNotificacoes();
   const [activeTab, setActiveTab] = useState<NotificationTab>("todas");
 
-  const notifications = useMemo<UINotification[]>(() => notificacoes.map(fromRemote), [notificacoes]);
+  // Mensagens de chat NÃO entram na tela de Notificações — elas aparecem como
+  // contagem no card da conversa (tela de Mensagens). Aqui filtramos na origem
+  // para não afetar contadores nem o "marcar todas como lidas".
+  const notifications = useMemo<UINotification[]>(
+    () => notificacoes.map(fromRemote).filter((n) => !(n.type && CHAT_TYPES.has(n.type))),
+    [notificacoes],
+  );
   const unreadCount = notifications.filter((item) => item.unread).length;
   const filtered = useMemo(() => {
     if (activeTab === "nao_lidas") return notifications.filter((item) => item.unread);

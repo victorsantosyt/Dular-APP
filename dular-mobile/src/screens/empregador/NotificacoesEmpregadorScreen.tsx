@@ -88,6 +88,10 @@ function sectionOf(iso: string): "Hoje" | "Ontem" | "Anteriores" {
   return "Anteriores";
 }
 
+// Mensagens de chat não entram na tela de Notificações (aparecem como contagem
+// no card da conversa, na tela de Mensagens).
+const CHAT_TYPES = new Set<string>(["CHAT_NOVA_MENSAGEM", "MENSAGEM_RECEBIDA"]);
+
 function toNotificationItem(n: Notificacao): NotificationItem & { _raw: Notificacao } {
   const meta = metaFor(n.type);
   const section = sectionOf(n.createdAt);
@@ -119,7 +123,10 @@ export function NotificacoesEmpregadorScreen() {
     marcarTodasComoLidas,
   } = useNotificacoes();
 
-  const items = useMemo(() => notificacoes.map(toNotificationItem), [notificacoes]);
+  const items = useMemo(
+    () => notificacoes.map(toNotificationItem).filter((it) => !CHAT_TYPES.has(it._raw.type)),
+    [notificacoes],
+  );
 
   const filtered = useMemo(() => {
     if (activeTab === "todas") return items;

@@ -165,6 +165,7 @@ export function DiaristaProfileScreen() {
       profissionalId: diaristaId,
       profissionalNome: nome,
       precoEstimadoLabel,
+      servicosOferecidos: diarista?.servicosOferecidos ?? undefined,
     });
   };
 
@@ -205,7 +206,13 @@ export function DiaristaProfileScreen() {
     valorACombinar,
     observacaoPreco,
     perfilCompleto,
+    anosExperiencia,
   } = diarista;
+
+  const experienciaLabel =
+    anosExperiencia != null && anosExperiencia > 0
+      ? `${anosExperiencia} ${anosExperiencia === 1 ? "ano" : "anos"}`
+      : "Não informado";
 
   const servicosList = servicosOferecidos?.length ? servicosOferecidos : [];
   const tipoParaPreco: ServicoOferecido = servicosList[0] ?? "DIARISTA";
@@ -242,6 +249,7 @@ export function DiaristaProfileScreen() {
       kind: "infoGrid",
       cells: [
         { label: "Preço", value: precoValue, hint: observacaoPreco },
+        { label: "Experiência", value: experienciaLabel },
         {
           label: "SafeScore",
           value: safeScore?.faixa ?? "Em análise",

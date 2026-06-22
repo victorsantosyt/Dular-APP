@@ -23,6 +23,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { AppIcon, DInput, type AppIconName } from "@/components/ui";
 import { useDularColors } from "@/hooks/useDularColors";
+import { useGenderTheme } from "@/hooks/useProfileTheme";
 import { radius, shadows, spacing, typography } from "@/theme";
 import {
   atualizarEndereco,
@@ -54,6 +55,9 @@ function maskCep(raw: string): string {
 
 export function CadastroEnderecoScreen({ role, mode = "onboarding", initial, onDone, onCancel }: Props) {
   const colors = useDularColors();
+  // Cor de destaque segue a identidade do usuário logado (gênero/role): roxo
+  // p/ empregador, rosa/verde/neutro p/ diarista e montador.
+  const theme = useGenderTheme();
   const s = useMemo(() => makeStyles(colors), [colors]);
   const isEmpregador = role === "EMPREGADOR";
   const isEdit = mode === "edit" || !!initial;
@@ -184,7 +188,7 @@ export function CadastroEnderecoScreen({ role, mode = "onboarding", initial, onD
         {onCancel ? (
           <View style={s.header}>
             <Pressable onPress={onCancel} hitSlop={10} style={({ pressed }) => [s.backBtn, pressed && s.pressed]}>
-              <AppIcon name="ArrowLeft" size={20} color={colors.primary} strokeWidth={2.4} />
+              <AppIcon name="ArrowLeft" size={20} color={theme.primary} strokeWidth={2.4} />
             </Pressable>
             <Text style={s.headerTitle} numberOfLines={1}>
               Endereço
@@ -202,8 +206,8 @@ export function CadastroEnderecoScreen({ role, mode = "onboarding", initial, onD
                 onPress={() => escolher(o.key)}
                 style={({ pressed }) => [s.optionCard, pressed && s.pressed]}
               >
-                <View style={s.optionIcon}>
-                  <AppIcon name={o.icon} size={22} color={colors.primary} strokeWidth={2.3} />
+                <View style={[s.optionIcon, { backgroundColor: theme.primarySoft }]}>
+                  <AppIcon name={o.icon} size={22} color={theme.primary} strokeWidth={2.3} />
                 </View>
                 <View style={s.optionText}>
                   <Text style={s.optionLabel}>{o.label}</Text>
@@ -228,7 +232,7 @@ export function CadastroEnderecoScreen({ role, mode = "onboarding", initial, onD
         <View style={s.header}>
           {onCancel ? (
             <Pressable onPress={onCancel} hitSlop={10} style={({ pressed }) => [s.backBtn, pressed && s.pressed]}>
-              <AppIcon name="ArrowLeft" size={20} color={colors.primary} strokeWidth={2.4} />
+              <AppIcon name="ArrowLeft" size={20} color={theme.primary} strokeWidth={2.4} />
             </Pressable>
           ) : (
             <View style={s.backBtn} />
@@ -302,7 +306,12 @@ export function CadastroEnderecoScreen({ role, mode = "onboarding", initial, onD
           <Pressable
             onPress={salvar}
             disabled={saving}
-            style={({ pressed }) => [s.saveBtn, saving && s.saveBtnDisabled, pressed && !saving && s.pressed]}
+            style={({ pressed }) => [
+              s.saveBtn,
+              { backgroundColor: theme.primary },
+              saving && s.saveBtnDisabled,
+              pressed && !saving && s.pressed,
+            ]}
           >
             {saving ? (
               <ActivityIndicator color={colors.white} />

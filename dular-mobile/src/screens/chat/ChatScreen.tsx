@@ -172,6 +172,8 @@ export default function ChatScreen({ route, navigation }: any) {
               </View>
             </View>
           </View>
+          {/* Espaçador = largura do botão voltar → card centralizado. */}
+          <View style={s.iconBtn} />
         </View>
 
         {loading ? (
@@ -282,11 +284,10 @@ const s = StyleSheet.create({
   headerRow: {
     flexDirection: "row",
     alignItems: "center",
-    paddingLeft: 4,
-    paddingRight: 10,
+    paddingHorizontal: 4,
     paddingTop: 6,
     paddingBottom: 4,
-    gap: 4,
+    gap: 6,
   },
   header: {
     flex: 1,

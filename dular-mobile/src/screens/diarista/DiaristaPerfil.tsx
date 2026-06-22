@@ -45,15 +45,12 @@ import {
   type Me,
   type VerificacaoStatus,
 } from "@/api/perfilApi";
-import { getCatalogoServicos, type CatalogoTipo } from "@/api/catalogoApi";
 import {
   calcularCompletudeDiarista,
   decimalToNumber,
   formatCurrencyBRL,
   getDiaristaPerfilMe,
-  getHabilidades,
   patchDiaristaPerfil,
-  putHabilidades,
   updateAreaAtendimento,
   updateBairros,
   updateDisponibilidade,
@@ -63,7 +60,6 @@ import {
   type DiaristaProfileMe,
   type DiaristaCompletude,
   type DisponibilidadeSlot,
-  type HabilidadePayload,
 } from "@/api/diaristaApi";
 import { apiMsg } from "@/utils/apiMsg";
 import { useAuth } from "@/stores/authStore";
@@ -162,7 +158,6 @@ type ModalType =
   | "servicos"
   | "area"
   | "precos"
-  | "habilidades"
   | "disponibilidade"
   | "avaliacoes";
 
@@ -314,8 +309,6 @@ export default function DiaristaPerfil({ onLogout }: Props) {
   const [verificacao, setVerificacao] = useState<VerificacaoStatus>("NAO_ENVIADO");
   const [showVisivelCard, setShowVisivelCard] = useState(false);
   const prevAprovadoRef = useRef<boolean | null>(null);
-  const [catalogo, setCatalogo] = useState<CatalogoTipo[]>([]);
-  const [habilidades, setHabilidades] = useState<HabilidadePayload[]>([]);
 
   // Geo + dark mode
   const [geoEnabled, setGeoEnabled] = useState(true);
@@ -401,11 +394,9 @@ export default function DiaristaPerfil({ onLogout }: Props) {
         setError(null);
         setLoading(true);
       }
-      const [meData, perfilData, cat, habs] = await Promise.all([
+      const [meData, perfilData] = await Promise.all([
         getMe(),
         getDiaristaPerfilMe(),
-        getCatalogoServicos(),
-        getHabilidades(),
       ]);
       if (!mountedRef.current) return;
 
@@ -428,8 +419,6 @@ export default function DiaristaPerfil({ onLogout }: Props) {
         }
       }
 
-      setCatalogo(cat?.tipos ?? []);
-      setHabilidades(Array.isArray(habs) ? habs : []);
     } catch (e: any) {
       if (mountedRef.current) setError(apiMsg(e, "Falha ao carregar perfil."));
     } finally {
@@ -589,11 +578,6 @@ export default function DiaristaPerfil({ onLogout }: Props) {
       .join(", ");
   }, [servicosOferecidos]);
 
-  const habilidadesResumo = useMemo(() => {
-    if (!habilidades.length) return "Adicione suas especialidades";
-    return `${habilidades.length} selecionada(s)`;
-  }, [habilidades.length]);
-
   const disponibilidadeResumo = useMemo(() => {
     const agenda = profile?.agenda ?? [];
     if (!agenda.length) return "Defina dias e turnos disponíveis";
@@ -659,9 +643,6 @@ export default function DiaristaPerfil({ onLogout }: Props) {
             observacao: profile?.observacaoPreco ?? "",
           });
           break;
-        case "habilidades":
-          // catálogo já está carregado em `catalogo`; nada para inicializar
-          break;
         case "disponibilidade": {
           const dias = new Set<number>();
           const turnos = new Set<string>();
@@ -721,34 +702,6 @@ export default function DiaristaPerfil({ onLogout }: Props) {
     } finally {
       if (mountedRef.current) setAvatarUploading(false);
       busyRef.current = false;
-    }
-  };
-
-  // ── Habilidades ──────────────────────────────────────────────────────────
-  const toggleHabilidade = (tipo: string, categoria?: string | null) => {
-    const key = `${tipo}::${categoria ?? ""}`;
-    setHabilidades((prev) => {
-      const exists = prev.some((h) => `${h.tipo}::${h.categoria ?? ""}` === key);
-      return exists
-        ? prev.filter((h) => `${h.tipo}::${h.categoria ?? ""}` !== key)
-        : [...prev, { tipo, categoria: categoria ?? null }];
-    });
-  };
-
-  const salvarHabilidades = async () => {
-    if (saving) return;
-    try {
-      setSaving(true);
-      setFormError(null);
-      const updated = await putHabilidades(habilidades);
-      if (!mountedRef.current) return;
-      setHabilidades(Array.isArray(updated) ? updated : habilidades);
-      setModal(null);
-      setToast("Habilidades salvas.");
-    } catch (e: any) {
-      setFormError(apiMsg(e, "Falha ao salvar habilidades."));
-    } finally {
-      if (mountedRef.current) setSaving(false);
     }
   };
 
@@ -1393,14 +1346,6 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                 <ProfileRow
                   accentColor={theme.primary}
                   accentSoft={theme.primarySoft}
-                  icon="Star"
-                  title="Catálogo de serviços"
-                  subtitle={habilidadesResumo}
-                  onPress={() => openModal("habilidades")}
-                />
-                <ProfileRow
-                  accentColor={theme.primary}
-                  accentSoft={theme.primarySoft}
                   icon="Calendar"
                   title="Dias e turnos"
                   subtitle={disponibilidadeResumo}
@@ -1994,61 +1939,6 @@ export default function DiaristaPerfil({ onLogout }: Props) {
             </ScrollView>
           </View>
         </KeyboardAvoidingView>
-      </Modal>
-
-      {/* Modal Habilidades (F) */}
-      <Modal visible={modal === "habilidades"} animationType="fade" transparent onRequestClose={closeModal}>
-        <View style={s.floatOverlay}>
-          <View style={s.floatCardTall}>
-            <View style={s.modalHeader}>
-              <Text style={s.modalTitle}>Habilidades</Text>
-              <Pressable onPress={closeModal} hitSlop={12}>
-                <AppIcon name="XCircle" size={23} color={colors.textSecondary} />
-              </Pressable>
-            </View>
-
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 14 }}>
-              {catalogo.length === 0 ? (
-                <Text style={s.modalSubtitle}>Carregando catálogo…</Text>
-              ) : (
-                catalogo.map((t) => (
-                  <View key={t.tipo} style={{ gap: 6 }}>
-                    <Text style={s.catLabel}>{t.label}</Text>
-                    <View style={s.chips}>
-                      {t.categorias.map((c) => {
-                        const key = `${t.tipo}::${c.categoria}`;
-                        const active = habilidades.some(
-                          (h) => `${h.tipo}::${h.categoria ?? ""}` === key,
-                        );
-                        return (
-                          <Pressable
-                            key={c.categoria}
-                            onPress={() => toggleHabilidade(t.tipo, c.categoria)}
-                            style={[s.chip, active && s.chipOn]}
-                          >
-                            <Text style={[s.chipText, active && s.chipTextOn]}>{c.label}</Text>
-                          </Pressable>
-                        );
-                      })}
-                    </View>
-                  </View>
-                ))
-              )}
-            </ScrollView>
-
-            {formError ? <Text style={s.errorText}>{formError}</Text> : null}
-
-            <View style={s.modalActions}>
-              <DButton flat tint={theme.primary} tintDark={theme.primaryDark} label="Cancelar" onPress={closeModal} variant="secondary" disabled={saving} style={{ flex: 1 }} />
-              <DButton flat tint={theme.primary} tintDark={theme.primaryDark}
-                label={saving ? "Salvando…" : "Salvar"}
-                onPress={salvarHabilidades}
-                loading={saving}
-                style={{ flex: 1 }}
-              />
-            </View>
-          </View>
-        </View>
       </Modal>
 
       {/* Modal Disponibilidade (G) */}

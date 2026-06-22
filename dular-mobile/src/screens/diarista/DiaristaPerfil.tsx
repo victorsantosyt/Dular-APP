@@ -475,6 +475,16 @@ export default function DiaristaPerfil({ onLogout }: Props) {
     [profile?.servicosOferecidos],
   );
 
+  // Categorias com tabela de valores própria (Diarista/Babá/Cozinheira) que a
+  // profissional oferece. O modal de Preços mostra um botão por categoria e a
+  // tabela só da categoria selecionada.
+  const categoriasPreco = useMemo<ServicoOferecido[]>(
+    () => servicosOferecidos.filter((c) => c === "DIARISTA" || c === "BABA" || c === "COZINHEIRA"),
+    [servicosOferecidos],
+  );
+  const [precoCatSel, setPrecoCatSel] = useState<ServicoOferecido>("DIARISTA");
+  const catLabelPreco = (c: ServicoOferecido) => SERVICOS_OPTIONS.find((o) => o.id === c)?.title ?? c;
+
   const completude: DiaristaCompletude = useMemo(
     () => calcularCompletudeDiarista(profile, me?.nome ?? user?.nome ?? ""),
     [profile, me?.nome, user?.nome],
@@ -642,6 +652,8 @@ export default function DiaristaPerfil({ onLogout }: Props) {
             valorACombinar: profile?.valorACombinar ?? false,
             observacao: profile?.observacaoPreco ?? "",
           });
+          // Seleciona a 1ª categoria com tabela de valores (Diarista/Babá/Cozinheira).
+          setPrecoCatSel(categoriasPreco[0] ?? "DIARISTA");
           break;
         case "disponibilidade": {
           const dias = new Set<number>();
@@ -1819,9 +1831,31 @@ export default function DiaristaPerfil({ onLogout }: Props) {
 
               {!precosForm.valorACombinar ? (
                 <>
-                  {servicosOferecidos.includes("DIARISTA") ? (
+                  {/* Seletor de categorias: um botão por serviço que ela oferece.
+                      Clicar abre a tabela de valores daquela categoria. */}
+                  {categoriasPreco.length >= 2 ? (
                     <>
-                      <Text style={s.modalLabel}>Diarista — Limpeza leve (R$)</Text>
+                      <Text style={s.modalLabel}>Categoria do serviço</Text>
+                      <View style={s.chips}>
+                        {categoriasPreco.map((c) => {
+                          const active = precoCatSel === c;
+                          return (
+                            <Pressable
+                              key={c}
+                              onPress={() => setPrecoCatSel(c)}
+                              style={[s.chip, active && s.chipOn]}
+                            >
+                              <Text style={[s.chipText, active && s.chipTextOn]}>{catLabelPreco(c)}</Text>
+                            </Pressable>
+                          );
+                        })}
+                      </View>
+                    </>
+                  ) : null}
+
+                  {precoCatSel === "DIARISTA" && categoriasPreco.includes("DIARISTA") ? (
+                    <>
+                      <Text style={s.modalLabel}>Limpeza leve (R$)</Text>
                       <TextInput
                         value={precosForm.leve}
                         onChangeText={(v) => setPrecosForm((cur) => ({ ...cur, leve: v }))}
@@ -1831,7 +1865,7 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                         keyboardType="decimal-pad"
                       />
 
-                      <Text style={s.modalLabel}>Diarista — Limpeza média (R$) — opcional</Text>
+                      <Text style={s.modalLabel}>Limpeza média (R$) — opcional</Text>
                       <TextInput
                         value={precosForm.medio}
                         onChangeText={(v) => setPrecosForm((cur) => ({ ...cur, medio: v }))}
@@ -1841,7 +1875,7 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                         keyboardType="decimal-pad"
                       />
 
-                      <Text style={s.modalLabel}>Diarista — Limpeza pesada (R$)</Text>
+                      <Text style={s.modalLabel}>Limpeza pesada (R$)</Text>
                       <TextInput
                         value={precosForm.pesada}
                         onChangeText={(v) => setPrecosForm((cur) => ({ ...cur, pesada: v }))}
@@ -1853,9 +1887,9 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                     </>
                   ) : null}
 
-                  {servicosOferecidos.includes("BABA") ? (
+                  {precoCatSel === "BABA" && categoriasPreco.includes("BABA") ? (
                     <>
-                      <Text style={s.modalLabel}>Babá — preço por hora (R$)</Text>
+                      <Text style={s.modalLabel}>Preço por hora (R$)</Text>
                       <TextInput
                         value={precosForm.babaHora}
                         onChangeText={(v) =>
@@ -1869,9 +1903,9 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                     </>
                   ) : null}
 
-                  {servicosOferecidos.includes("COZINHEIRA") ? (
+                  {precoCatSel === "COZINHEIRA" && categoriasPreco.includes("COZINHEIRA") ? (
                     <>
-                      <Text style={s.modalLabel}>Cozinheira — preço base (R$)</Text>
+                      <Text style={s.modalLabel}>Preço base (R$)</Text>
                       <TextInput
                         value={precosForm.cozinheiraBase}
                         onChangeText={(v) =>

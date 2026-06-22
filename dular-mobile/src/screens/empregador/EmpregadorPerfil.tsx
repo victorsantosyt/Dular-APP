@@ -38,6 +38,7 @@ import {
   ProfileSection,
   ProfileSwitchRow,
 } from "./profile/components";
+import { EnderecoPerfilSection } from "@/screens/shared/EnderecoPerfilSection";
 
 type Props = { onLogout: () => void };
 type Navigation = BottomTabNavigationProp<EmpregadorTabParamList>;
@@ -655,6 +656,12 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
                   isLast
                 />
               </ProfileSection>
+
+              <EnderecoPerfilSection
+                onEdit={(endereco) =>
+                  navigation.navigate("CadastroEndereco", { role: "EMPREGADOR", initial: endereco })
+                }
+              />
 
               <ProfileSection title="Conta">
                 <ProfileRow

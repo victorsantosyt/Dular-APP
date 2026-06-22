@@ -80,6 +80,7 @@ import {
   ProfileSection,
   ProfileSwitchRow,
 } from "../empregador/profile/components";
+import { EnderecoPerfilSection } from "@/screens/shared/EnderecoPerfilSection";
 import type { ServicoOferecido } from "@/types/diarista";
 import { OFERTAS_DIARISTA } from "@/constants/categorias";
 
@@ -1424,6 +1425,15 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                   isLast
                 />
               </ProfileSection>
+
+              {/* ── Endereço ────────────────────────────────────────────── */}
+              <EnderecoPerfilSection
+                accentColor={theme.primary}
+                accentSoft={theme.primarySoft}
+                onEdit={(endereco) =>
+                  navigation.navigate("CadastroEndereco", { role: "DIARISTA", initial: endereco })
+                }
+              />
 
               {/* ── Documentos e segurança ──────────────────────────────── */}
               <ProfileSection title="Documentos e segurança">

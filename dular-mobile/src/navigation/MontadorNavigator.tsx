@@ -19,6 +19,7 @@ import ReportIncident from "@/screens/perfil/ReportIncident";
 import Suporte from "@/screens/perfil/Suporte";
 import Termos from "@/screens/perfil/Termos";
 import Privacidade from "@/screens/perfil/Privacidade";
+import { EnderecoEditRoute, type CadastroEnderecoParams } from "@/screens/shared/EnderecoEditRoute";
 import { useMontadorServicos } from "@/hooks/useMontadorServicos";
 
 export type MontadorTabParamList = {
@@ -41,6 +42,7 @@ export type MontadorTabParamList = {
   Suporte: undefined;
   Termos: undefined;
   Privacidade: undefined;
+  CadastroEndereco: CadastroEnderecoParams;
 };
 
 const Tab = createBottomTabNavigator<MontadorTabParamList>();
@@ -91,6 +93,7 @@ export function MontadorNavigator() {
       <RootStack.Screen name="Suporte" component={Suporte} />
       <RootStack.Screen name="Termos" component={Termos} />
       <RootStack.Screen name="Privacidade" component={Privacidade} />
+      <RootStack.Screen name="CadastroEndereco" component={EnderecoEditRoute} />
     </RootStack.Navigator>
   );
 }

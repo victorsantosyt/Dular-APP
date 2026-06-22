@@ -16,8 +16,10 @@ import { useFocusEffect } from "@react-navigation/native";
 
 import { api } from "@/lib/api";
 import { useAuth } from "@/stores/authStore";
+import { useGenderTheme } from "@/hooks/useProfileTheme";
 import { apiMsg } from "@/utils/apiMsg";
 import { AppIcon } from "@/components/ui";
+import { DAvatar } from "@/components/ui/DAvatar";
 import { PaperPlane3DIcon } from "@/assets/icons";
 import { colors, radius, shadow, spacing, typography } from "@/theme/tokens";
 import type { ChatMessage } from "../../../../shared/types/chat";
@@ -33,6 +35,7 @@ type ChatRoom = {
 export default function ChatScreen({ route, navigation }: any) {
   const servicoId = route?.params?.servicoId as string | undefined;
   const user = useAuth((s) => s.user);
+  const theme = useGenderTheme("MONTADOR");
   const insets = useSafeAreaInsets();
   const scrollRef = useRef<ScrollView>(null);
   const [room, setRoom] = useState<ChatRoom | null>(null);
@@ -147,15 +150,24 @@ export default function ChatScreen({ route, navigation }: any) {
         behavior={platformSelect({ ios: "padding", android: undefined })}
         keyboardVerticalOffset={0}
       >
-        <View style={s.header}>
+        <View style={[s.header, { backgroundColor: theme.primary }]}>
           <Pressable onPress={() => navigation.goBack()} hitSlop={10} style={s.iconBtn}>
-            <AppIcon name="ArrowLeft" size={22} color={colors.ink} />
+            <AppIcon name="ArrowLeft" size={22} color={colors.white} />
           </Pressable>
+          <DAvatar
+            size="md"
+            initials={(room?.other?.nome ?? "Empregador").trim().split(/\s+/).map((w) => w[0]).join("").slice(0, 2).toUpperCase()}
+          />
           <View style={s.headerText}>
-            <Text style={s.title}>Chat</Text>
-            <Text style={s.subtitle} numberOfLines={1}>
-              {room?.other?.nome ?? "Atendimento"} {room?.servico?.local ? `• ${room.servico.local}` : ""}
+            <Text style={s.title} numberOfLines={1}>
+              {room?.other?.nome ?? "Empregador"}
             </Text>
+            <View style={s.subRow}>
+              <AppIcon name="UserRound" size={12} color={colors.whiteAlpha80} strokeWidth={2.3} />
+              <Text style={s.subtitle} numberOfLines={1}>
+                Empregador
+              </Text>
+            </View>
           </View>
         </View>
 
@@ -268,23 +280,20 @@ const s = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: 12,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 10,
     backgroundColor: colors.card,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.stroke,
   },
   iconBtn: {
-    width: 36,
+    width: 34,
     height: 36,
-    borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.cardStrong,
   },
-  headerText: { flex: 1 },
-  title: { ...typography.h3 },
-  subtitle: { ...typography.sub, marginTop: 1 },
+  headerText: { flex: 1, minWidth: 0, gap: 1 },
+  title: { ...typography.bodyMedium, color: colors.white, fontWeight: "700" },
+  subRow: { flexDirection: "row", alignItems: "center", gap: 4 },
+  subtitle: { ...typography.caption, color: colors.whiteAlpha80, fontWeight: "600" },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   errorBox: {
     margin: spacing.lg,

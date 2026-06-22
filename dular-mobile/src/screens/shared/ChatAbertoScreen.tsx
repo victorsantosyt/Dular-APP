@@ -12,11 +12,15 @@ import {
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
-import { AppIcon } from "@/components/ui";
+import * as ImagePicker from "expo-image-picker";
+import { AppIcon, type AppIconName } from "@/components/ui";
+import { DAvatar } from "@/components/ui/DAvatar";
 import { MensagemBubble } from "@/components/ui/MensagemBubble";
 import { useChat } from "@/hooks/useChat";
 import type { Mensagem } from "@/hooks/useChat";
 import { useAuth } from "@/stores/authStore";
+import { useGenderTheme } from "@/hooks/useProfileTheme";
+import { requestLocationWithAddress } from "@/lib/location";
 import { colors, radius, spacing, typography } from "@/theme/tokens";
 import { platformSelect, shadow } from "@/utils/platform";
 
@@ -24,6 +28,11 @@ export type ChatAbertoParams = {
   roomId: string;
   servicoId: string;
   nomeUsuario: string;
+  /** Categoria do serviço (mostrada para o empregador). Opcional. */
+  categoria?: string;
+  categoriaIcon?: AppIconName;
+  /** Avatar do outro usuário. Opcional. */
+  avatarUrl?: string;
 };
 
 type Props = {
@@ -32,12 +41,20 @@ type Props = {
 
 export function ChatAbertoScreen({ route }: Props) {
   const navigation = useNavigation();
-  const { roomId, nomeUsuario } = route.params;
+  const { roomId, nomeUsuario, categoria, categoriaIcon, avatarUrl } = route.params;
   const userId = useAuth((state) => state.user?.id) ?? "";
+  const role = useAuth((state) => state.user?.role);
+  const theme = useGenderTheme();
   const insets = useSafeAreaInsets();
   const listRef = useRef<FlatList<Mensagem>>(null);
 
-  const { mensagens, servicoStatus, loading, error, enviar, refetch } = useChat(roomId);
+  // O empregador vê a categoria do profissional; o profissional vê "Empregador".
+  const isEmpregador = role === "EMPREGADOR";
+  const subtituloCategoria = isEmpregador ? categoria ?? "Profissional" : "Empregador";
+  const subtituloIcon: AppIconName = isEmpregador ? categoriaIcon ?? "BrushCleaning" : "UserRound";
+  const initials = nomeUsuario.trim().split(/\s+/).map((w) => w[0]).join("").slice(0, 2).toUpperCase();
+
+  const { mensagens, servicoStatus, loading, error, enviar, enviarMidia, refetch } = useChat(roomId);
   // Status terminais → sala arquivada (somente leitura).
   const arquivada = servicoStatus
     ? ["CONCLUIDO", "CONFIRMADO", "FINALIZADO"].includes(servicoStatus.toUpperCase())
@@ -45,6 +62,7 @@ export function ChatAbertoScreen({ route }: Props) {
 
   const [text, setText] = useState("");
   const [enviando, setEnviando] = useState(false);
+  const [anexando, setAnexando] = useState(false);
   const [keyboardOpen, setKeyboardOpen] = useState(false);
 
   // Detecta teclado aberto pra remover paddingBottom redundante (insets.bottom
@@ -92,29 +110,70 @@ export function ChatAbertoScreen({ route }: Props) {
     }
   }, [text, enviando, enviar]);
 
+  const enviarFoto = useCallback(async () => {
+    if (anexando) return;
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (perm.status !== "granted") return;
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.5,
+      base64: true,
+    });
+    if (result.canceled) return;
+    const asset = result.assets?.[0];
+    if (!asset?.base64) return;
+    setAnexando(true);
+    try {
+      const mime = (asset as { mimeType?: string }).mimeType ?? "image/jpeg";
+      await enviarMidia("IMAGE", `data:${mime};base64,${asset.base64}`);
+    } finally {
+      setAnexando(false);
+    }
+  }, [anexando, enviarMidia]);
+
+  const enviarLocalizacao = useCallback(async () => {
+    if (anexando) return;
+    setAnexando(true);
+    try {
+      const { coords } = await requestLocationWithAddress();
+      if (coords?.latitude != null && coords?.longitude != null) {
+        await enviarMidia("LOCATION", JSON.stringify({ lat: coords.latitude, lng: coords.longitude }));
+      }
+    } catch {
+      /* permissão negada / localização indisponível */
+    } finally {
+      setAnexando(false);
+    }
+  }, [anexando, enviarMidia]);
+
   const renderItem = useCallback(
     ({ item }: { item: Mensagem }) => (
-      <MensagemBubble mensagem={item} isOwn={item.autorId === userId} />
+      <MensagemBubble mensagem={item} isOwn={item.autorId === userId} accent={theme.primary} />
     ),
-    [userId]
+    [userId, theme.primary]
   );
 
   const canSend = text.trim().length > 0 && !enviando;
 
   return (
-    <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
-      {/* Header — outside KAV so it stays fixed */}
-      <View style={styles.header}>
-        <Pressable
-          onPress={() => navigation.goBack()}
-          hitSlop={12}
-          style={styles.backBtn}
-        >
+    <SafeAreaView style={[styles.safe, { backgroundColor: theme.primary }]} edges={["top", "left", "right"]}>
+      {/* Header — outside KAV so it stays fixed. Estilo WhatsApp: foto + nome + categoria. */}
+      <View style={[styles.header, { backgroundColor: theme.primary }]}>
+        <Pressable onPress={() => navigation.goBack()} hitSlop={12} style={styles.backBtn}>
           <AppIcon name="ArrowLeft" size={22} color={colors.white} strokeWidth={2.5} />
         </Pressable>
-        <Text style={styles.headerTitle} numberOfLines={1}>
-          {nomeUsuario}
-        </Text>
+        <DAvatar size="md" uri={avatarUrl} initials={initials} />
+        <View style={styles.headerTextCol}>
+          <Text style={styles.headerName} numberOfLines={1}>
+            {nomeUsuario}
+          </Text>
+          <View style={styles.headerSubRow}>
+            <AppIcon name={subtituloIcon} size={12} color={colors.whiteAlpha80} strokeWidth={2.3} />
+            <Text style={styles.headerSubtitle} numberOfLines={1}>
+              {subtituloCategoria}
+            </Text>
+          </View>
+        </View>
       </View>
 
       <KeyboardAvoidingView
@@ -177,6 +236,12 @@ export function ChatAbertoScreen({ route }: Props) {
               { paddingBottom: keyboardOpen ? 8 : Math.max(8, insets.bottom) },
             ]}
           >
+            <Pressable onPress={enviarLocalizacao} disabled={anexando} hitSlop={8} style={styles.attachBtn}>
+              <AppIcon name="MapPin" size={22} color={theme.primary} strokeWidth={2.2} />
+            </Pressable>
+            <Pressable onPress={enviarFoto} disabled={anexando} hitSlop={8} style={styles.attachBtn}>
+              <AppIcon name="Image" size={22} color={theme.primary} strokeWidth={2.2} />
+            </Pressable>
             <TextInput
               value={text}
               onChangeText={setText}
@@ -191,7 +256,7 @@ export function ChatAbertoScreen({ route }: Props) {
             <Pressable
               onPress={handleEnviar}
               disabled={!canSend}
-              style={[styles.sendBtn, !canSend && styles.sendBtnDisabled]}
+              style={[styles.sendBtn, { backgroundColor: theme.primary }, !canSend && styles.sendBtnDisabled]}
             >
               <AppIcon name="Send" size={19} color={colors.white} strokeWidth={2.5} />
             </Pressable>
@@ -218,16 +283,37 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
   },
   backBtn: {
-    width: 40,
+    width: 36,
     height: 40,
     borderRadius: radius.full,
     alignItems: "center",
     justifyContent: "center",
   },
-  headerTitle: {
+  headerTextCol: {
     flex: 1,
-    ...typography.h3,
+    minWidth: 0,
+    gap: 1,
+  },
+  headerName: {
+    ...typography.bodyMedium,
     color: colors.white,
+    fontWeight: "700",
+  },
+  headerSubRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  headerSubtitle: {
+    ...typography.caption,
+    color: colors.whiteAlpha80,
+    fontWeight: "600",
+  },
+  attachBtn: {
+    width: 36,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
   },
   kav: {
     flex: 1,

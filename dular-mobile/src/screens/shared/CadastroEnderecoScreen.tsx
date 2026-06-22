@@ -59,8 +59,11 @@ export function CadastroEnderecoScreen({ role, mode = "onboarding", initial, onD
   const isEdit = mode === "edit" || !!initial;
 
   // Fila de tipos a cadastrar. null = empregador ainda escolhendo o tipo.
+  // - editando um endereço existente → usa o tipo dele (sem seletor);
+  // - diarista/montador → sempre RESIDENCIAL;
+  // - empregador adicionando (sem `initial`) → mostra o seletor de tipo.
   const [queue, setQueue] = useState<TipoEndereco[] | null>(() => {
-    if (isEdit) return [initial?.tipo ?? "RESIDENCIAL"];
+    if (initial) return [initial.tipo];
     if (!isEmpregador) return ["RESIDENCIAL"];
     return null;
   });
@@ -178,6 +181,17 @@ export function CadastroEnderecoScreen({ role, mode = "onboarding", initial, onD
     };
     return (
       <SafeAreaView style={s.safe} edges={["top", "left", "right"]}>
+        {onCancel ? (
+          <View style={s.header}>
+            <Pressable onPress={onCancel} hitSlop={10} style={({ pressed }) => [s.backBtn, pressed && s.pressed]}>
+              <AppIcon name="ArrowLeft" size={20} color={colors.primary} strokeWidth={2.4} />
+            </Pressable>
+            <Text style={s.headerTitle} numberOfLines={1}>
+              Endereço
+            </Text>
+            <View style={s.backBtn} />
+          </View>
+        ) : null}
         <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
           <Text style={s.title}>Qual endereço você quer cadastrar?</Text>
           <Text style={s.subtitle}>Você precisa de um endereço para solicitar serviços.</Text>
@@ -220,7 +234,7 @@ export function CadastroEnderecoScreen({ role, mode = "onboarding", initial, onD
             <View style={s.backBtn} />
           )}
           <Text style={s.headerTitle} numberOfLines={1}>
-            {isEdit ? "Atualizar endereço" : "Endereço"}
+            {initial ? "Atualizar endereço" : "Endereço"}
           </Text>
           <View style={s.backBtn} />
         </View>

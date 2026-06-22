@@ -30,6 +30,7 @@ import VerificacaoDocs from "@/screens/perfil/VerificacaoDocs";
 import SosFlowScreen from "@/screens/perfil/SosFlowScreen";
 import SafeScoreScreen from "@/screens/perfil/SafeScoreScreen";
 import { EnderecoEditRoute, type CadastroEnderecoParams } from "@/screens/shared/EnderecoEditRoute";
+import { MeusEnderecosScreen, type MeusEnderecosParams } from "@/screens/shared/MeusEnderecosScreen";
 import { useAuth } from "@/stores/authStore";
 import type { ServiceCategory, TipoProfissional } from "@/screens/empregador/service-flow/ServiceFlowContext";
 
@@ -90,6 +91,7 @@ export type EmpregadorTabParamList = {
   DadosConta: undefined;
   Suporte: undefined;
   CadastroEndereco: CadastroEnderecoParams;
+  MeusEnderecos: MeusEnderecosParams;
 };
 
 const Tab = createBottomTabNavigator<EmpregadorTabParamList>();
@@ -154,6 +156,7 @@ export function EmpregadorNavigator() {
       <RootStack.Screen name="AcoesRapidas" component={AcoesRapidasEmpregadorScreen} />
       <RootStack.Screen name="ProfissionaisDestaque" component={ProfissionaisDestaqueScreen} />
       <RootStack.Screen name="CadastroEndereco" component={EnderecoEditRoute} />
+      <RootStack.Screen name="MeusEnderecos" component={MeusEnderecosScreen} />
     </RootStack.Navigator>
   );
 }

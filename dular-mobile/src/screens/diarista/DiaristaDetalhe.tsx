@@ -67,7 +67,8 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
   const params = route.params as any;
   const [svc, setSvc] = useState<Servico | null>(params.servico ?? null);
   const [loadingInit, setLoadingInit] = useState(!params.servico);
-  const servicoId: string = params.servicoId ?? params.servico?.id ?? "";
+  // Aceita tanto { servicoId } quanto { id } (o card da Agenda navega com `id`).
+  const servicoId: string = params.servicoId ?? params.id ?? params.servico?.id ?? "";
   const [loading, setLoading] = useState(false);
   const [recusarOpen, setRecusarOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
@@ -228,10 +229,35 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
     confirmarAceite();
   }
 
-  if (loadingInit || !svc) {
+  if (loadingInit) {
     return (
       <SafeAreaView style={s.safe} edges={["top", "bottom"]}>
         <Text style={{ ...typography.sub, textAlign: "center", marginTop: 48 }}>Carregando...</Text>
+      </SafeAreaView>
+    );
+  }
+
+  // Carregou mas não achou o serviço → estado claro (não fica "Carregando…" eterno).
+  if (!svc) {
+    return (
+      <SafeAreaView style={s.safe} edges={["top", "bottom"]}>
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 24, gap: 14 }}>
+          <Text style={{ ...typography.sub, textAlign: "center" }}>
+            Não foi possível carregar este serviço. Volte e tente novamente.
+          </Text>
+          <Pressable
+            onPress={() => navigation.goBack()}
+            style={{
+              paddingHorizontal: 20,
+              paddingVertical: 10,
+              borderRadius: 999,
+              borderWidth: 1.4,
+              borderColor: theme.primary,
+            }}
+          >
+            <Text style={{ ...typography.bodySmMedium, color: theme.primary, fontWeight: "700" }}>Voltar</Text>
+          </Pressable>
+        </View>
       </SafeAreaView>
     );
   }

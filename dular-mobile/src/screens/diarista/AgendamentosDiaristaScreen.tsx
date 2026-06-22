@@ -22,12 +22,35 @@ type Agendamento = {
   avaliacao: string;
   localizacao: string;
   servico: string;
+  /** Categoria/subtipo bruto (ex.: FAXINA_PESADA) — define a intensidade. */
+  categoria?: string | null;
   data: string;
   hora: string;
   preco: string;
   status: StatusAgendamento;
   avatarUrl?: string;
 };
+
+// Intensidade/subtipo legível para o card (FAXINA_PESADA → "Limpeza pesada").
+const CATEGORIA_LABEL: Record<string, string> = {
+  FAXINA_LEVE: "Limpeza leve",
+  FAXINA_MEDIA: "Limpeza média",
+  FAXINA_PESADA: "Limpeza pesada",
+  FAXINA_COMPLETA: "Limpeza completa",
+  BABA_DIURNA: "Babá diurna",
+  BABA_NOTURNA: "Babá noturna",
+  BABA_INTEGRAL: "Babá integral",
+  COZINHEIRA_DIARIA: "Cozinha diária",
+  COZINHEIRA_EVENTO: "Cozinha para evento",
+  PASSA_ROUPA_BASICO: "Passar roupa — básico",
+  PASSA_ROUPA_COMPLETO: "Passar roupa — completo",
+};
+
+/** Rótulo completo do serviço: tipo + intensidade (ex.: "Diarista · Limpeza pesada"). */
+function servicoCompleto(a: Agendamento): string {
+  const intensidade = a.categoria ? CATEGORIA_LABEL[a.categoria] : null;
+  return intensidade ? `${a.servico} · ${intensidade}` : a.servico;
+}
 
 const FILTROS: { label: string; value: Filtro }[] = [
   { label: "Hoje", value: "hoje" },
@@ -167,7 +190,7 @@ function AgendamentoDiaristaCard({
         />
         <View style={styles.cardTopInfo}>
           <Text style={styles.clientName} numberOfLines={1}>{agendamento.nomeCliente}</Text>
-          <Text style={styles.clientSub} numberOfLines={1}>{agendamento.servico}</Text>
+          <Text style={styles.clientSub} numberOfLines={1}>{servicoCompleto(agendamento)}</Text>
         </View>
         <DBadge type={badge.type} label={badge.label} />
       </View>

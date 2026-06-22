@@ -38,7 +38,6 @@ import {
   ProfileSection,
   ProfileSwitchRow,
 } from "./profile/components";
-import { EnderecoPerfilSection } from "@/screens/shared/EnderecoPerfilSection";
 
 type Props = { onLogout: () => void };
 type Navigation = BottomTabNavigationProp<EmpregadorTabParamList>;
@@ -420,7 +419,6 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
 
   const profileData = (perfil ?? user ?? null) as ProfileData | null;
   const heroLocation = profileLocation(profileData);
-  const hasLocation = Boolean(heroLocation);
   const locationIsEnabled = geoEnabled || profileData?.localizacaoPermitida === true;
   const verificationStatus = normalizeVerification(profileData);
   const completion = calculateProfileProgress(profileData, heroLocation);
@@ -515,10 +513,6 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
   // banner de erro vira algo "inline" com retry, sem esconder o resto.
   const showInitialSpinner = loading && !perfil;
   const showErrorBanner = !loading && !!error && !perfil;
-
-  const openLocationCta = () => {
-    void saveCurrentLocation();
-  };
 
   return (
     <SafeAreaView style={s.safe} edges={["top", "left", "right"]}>
@@ -657,12 +651,6 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
                 />
               </ProfileSection>
 
-              <EnderecoPerfilSection
-                onEdit={(endereco) =>
-                  navigation.navigate("CadastroEndereco", { role: "EMPREGADOR", initial: endereco })
-                }
-              />
-
               <ProfileSection title="Conta">
                 <ProfileRow
                   icon="FileText"
@@ -684,17 +672,9 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
                 />
                 <ProfileRow
                   icon="MapPin"
-                  title={hasLocation ? "Endereço" : locationIsEnabled ? "Atualizar localização" : "Adicionar localização"}
-                  subtitle={
-                    hasLocation
-                      ? locationText
-                      : geoSaving
-                        ? "Buscando sua localização atual"
-                        : locationIsEnabled
-                          ? "Toque para buscar cidade e bairro atuais"
-                          : "Informe sua localização para melhorar buscas"
-                  }
-                  onPress={hasLocation ? () => Alert.alert("Endereço", locationText) : openLocationCta}
+                  title="Endereço"
+                  subtitle="Gerencie seus endereços cadastrados"
+                  onPress={() => navigation.navigate("MeusEnderecos", { role: "EMPREGADOR" })}
                   isLast
                 />
               </ProfileSection>

@@ -20,7 +20,7 @@ import {
   type NavigationProp,
   type RouteProp,
 } from "@react-navigation/native";
-import { AppIcon, DCard } from "@/components/ui";
+import { AppIcon, BackCircleButton, DCard } from "@/components/ui";
 import { useDularColors } from "@/hooks/useDularColors";
 import { useGenderTheme } from "@/hooks/useProfileTheme";
 import { radius, spacing, typography } from "@/theme";
@@ -79,18 +79,11 @@ export function MeusEnderecosScreen() {
 
   return (
     <SafeAreaView style={s.safe} edges={["top", "left", "right"]}>
+      {/* Header no padrão das demais telas: título (h2) à esquerda +
+          BackCircleButton à direita. */}
       <View style={s.header}>
-        <Pressable
-          onPress={() => navigation.goBack()}
-          hitSlop={10}
-          style={({ pressed }) => [s.backBtn, pressed && s.pressed]}
-        >
-          <AppIcon name="ArrowLeft" size={20} color={accent} strokeWidth={2.4} />
-        </Pressable>
-        <Text style={s.headerTitle} numberOfLines={1}>
-          Endereço
-        </Text>
-        <View style={s.backBtn} />
+        <Text style={s.title}>Endereço</Text>
+        <BackCircleButton onPress={() => navigation.goBack()} color={accent} borderColor={theme.border} />
       </View>
 
       <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
@@ -165,22 +158,14 @@ function makeStyles(colors: ThemeColors) {
     header: {
       flexDirection: "row",
       alignItems: "center",
-      paddingHorizontal: spacing.md,
-      paddingVertical: spacing.sm,
+      justifyContent: "space-between",
+      paddingHorizontal: spacing.screenPadding,
+      paddingTop: 10,
+      paddingBottom: 8,
     },
-    backBtn: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    headerTitle: {
-      flex: 1,
-      textAlign: "center",
-      ...typography.bodyMedium,
+    title: {
+      ...typography.h2,
       color: colors.textPrimary,
-      fontWeight: "700",
     },
     scroll: {
       paddingHorizontal: spacing.screenPadding,

@@ -16,8 +16,10 @@ import { useFocusEffect } from "@react-navigation/native";
 
 import { api } from "@/lib/api";
 import { useAuth } from "@/stores/authStore";
+import { useGenderTheme } from "@/hooks/useProfileTheme";
 import { apiMsg } from "@/utils/apiMsg";
 import { AppIcon } from "@/components/ui";
+import { DAvatar } from "@/components/ui/DAvatar";
 import { PaperPlane3DIcon } from "@/assets/icons";
 import { colors, radius, shadow, spacing, typography } from "@/theme/tokens";
 import type { ChatMessage } from "../../../../shared/types/chat";
@@ -26,13 +28,14 @@ const POLL_MS = 12000;
 const STATUS_ARQUIVADOS = new Set(["CONCLUIDO", "CONFIRMADO", "FINALIZADO"]);
 
 type ChatRoom = {
-  other?: { nome?: string | null } | null;
+  other?: { nome?: string | null; avatarUrl?: string | null } | null;
   servico?: { local?: string | null; status?: string | null } | null;
 };
 
 export default function ChatScreen({ route, navigation }: any) {
   const servicoId = route?.params?.servicoId as string | undefined;
   const user = useAuth((s) => s.user);
+  const theme = useGenderTheme("MONTADOR");
   const insets = useSafeAreaInsets();
   const scrollRef = useRef<ScrollView>(null);
   const [room, setRoom] = useState<ChatRoom | null>(null);
@@ -141,22 +144,36 @@ export default function ChatScreen({ route, navigation }: any) {
   }, [load, scrollToBottom, sending, servicoId, text]);
 
   return (
-    <SafeAreaView style={s.safe} edges={["top", "left", "right"]}>
+    <SafeAreaView style={[s.safe, { backgroundColor: theme.background }]} edges={["top", "left", "right"]}>
       <KeyboardAvoidingView
         style={s.flex}
         behavior={platformSelect({ ios: "padding", android: undefined })}
         keyboardVerticalOffset={0}
       >
-        <View style={s.header}>
+        <View style={s.headerRow}>
           <Pressable onPress={() => navigation.goBack()} hitSlop={10} style={s.iconBtn}>
-            <AppIcon name="ArrowLeft" size={22} color={colors.ink} />
+            <AppIcon name="ArrowLeft" size={24} color={colors.ink} />
           </Pressable>
-          <View style={s.headerText}>
-            <Text style={s.title}>Chat</Text>
-            <Text style={s.subtitle} numberOfLines={1}>
-              {room?.other?.nome ?? "Atendimento"} {room?.servico?.local ? `• ${room.servico.local}` : ""}
-            </Text>
+          <View style={[s.header, { backgroundColor: theme.primary }]}>
+            <DAvatar
+              size="md"
+              uri={room?.other?.avatarUrl ?? undefined}
+              initials={(room?.other?.nome ?? "Empregador").trim().split(/\s+/).map((w) => w[0]).join("").slice(0, 2).toUpperCase()}
+            />
+            <View style={s.headerText}>
+              <Text style={s.title} numberOfLines={1}>
+                {room?.other?.nome ?? "Empregador"}
+              </Text>
+              <View style={s.subRow}>
+                <AppIcon name="UserRound" size={12} color={colors.whiteAlpha80} strokeWidth={2.3} />
+                <Text style={s.subtitle} numberOfLines={1}>
+                  Empregador
+                </Text>
+              </View>
+            </View>
           </View>
+          {/* Espaçador = largura do botão voltar → card centralizado. */}
+          <View style={s.iconBtn} />
         </View>
 
         {loading ? (
@@ -264,27 +281,35 @@ export default function ChatScreen({ route, navigation }: any) {
 const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
   flex: { flex: 1 },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 4,
+    paddingTop: 6,
+    paddingBottom: 4,
+    gap: 6,
+  },
   header: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderRadius: 20,
     backgroundColor: colors.card,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.stroke,
+    ...shadow.float,
   },
   iconBtn: {
-    width: 36,
+    width: 34,
     height: 36,
-    borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.cardStrong,
   },
-  headerText: { flex: 1 },
-  title: { ...typography.h3 },
-  subtitle: { ...typography.sub, marginTop: 1 },
+  headerText: { flex: 1, minWidth: 0, gap: 1 },
+  title: { ...typography.bodyMedium, color: colors.white, fontWeight: "700" },
+  subRow: { flexDirection: "row", alignItems: "center", gap: 4 },
+  subtitle: { ...typography.caption, color: colors.whiteAlpha80, fontWeight: "600" },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   errorBox: {
     margin: spacing.lg,

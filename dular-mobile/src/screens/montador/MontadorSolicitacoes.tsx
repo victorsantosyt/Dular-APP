@@ -27,11 +27,12 @@ import {
 } from "./montadorUtils";
 
 type Navigation = BottomTabNavigationProp<MontadorTabParamList>;
-type Tab = "novas" | "aceitas" | "recusadas" | "expiradas";
+type Tab = "novas" | "aceitas" | "historico" | "recusadas" | "expiradas";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "novas", label: "Novas" },
   { id: "aceitas", label: "Aceitas" },
+  { id: "historico", label: "Histórico" },
   { id: "recusadas", label: "Recusadas" },
   { id: "expiradas", label: "Expiradas" },
 ];
@@ -39,7 +40,9 @@ const TABS: { id: Tab; label: string }[] = [
 function inTab(servico: MontadorServico, tab: Tab) {
   const status = upperStatus(servico.status);
   if (tab === "novas") return status === "SOLICITADO" || status === "PENDENTE";
-  if (tab === "aceitas") return ["ACEITO", "CONFIRMADO", "EM_ANDAMENTO", "FINALIZADO", "CONCLUIDO"].includes(status);
+  // Aceitas = serviços em andamento; concluídos vão para o Histórico.
+  if (tab === "aceitas") return ["ACEITO", "CONFIRMADO", "EM_ANDAMENTO"].includes(status);
+  if (tab === "historico") return status === "FINALIZADO" || status === "CONCLUIDO";
   if (tab === "recusadas") return status === "RECUSADO" || status === "CANCELADO";
   return status === "EXPIRADO";
 }

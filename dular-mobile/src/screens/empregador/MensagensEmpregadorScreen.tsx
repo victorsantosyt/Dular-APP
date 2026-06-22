@@ -77,6 +77,9 @@ export function MensagensEmpregadorScreen() {
         roomId: item.servicoId,
         servicoId: item.servicoId,
         nomeUsuario: item.nome,
+        categoria: item.categoria,
+        categoriaIcon: item.categoriaIcon,
+        avatarUrl: item.avatarUrl,
       });
     },
     [navigation],

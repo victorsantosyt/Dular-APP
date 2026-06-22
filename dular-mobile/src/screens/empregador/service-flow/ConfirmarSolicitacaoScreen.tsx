@@ -28,18 +28,16 @@ export function ConfirmarSolicitacaoScreen() {
   const flowTheme = getServiceFlowTheme(draft.tipo);
   const isMontador = draft.tipo === "MONTADOR";
 
-  // Nichos sem preço fixo — valor sempre "a combinar".
-  const CATEGORIAS_A_COMBINAR = new Set(["faxineira", "cuidadora", "passadeira", "lavadeira"]);
-
-  // Rótulo de preço exibido na tela de confirmação.
-  // Prioridade: 1) precoEstimadoLabel do draft (vindo do perfil público)
-  //             2) fallback por categoria
-  // Nunca exibe número fixo hardcoded.
+  // Valor final exibido na confirmação. "A combinar" SÓ quando a profissional
+  // marcou essa opção (não mais forçado por categoria). Prioriza o valor que o
+  // empregador escolheu na tabela de intensidades.
   function resolvePrecoLabel(): string {
     if (isMontador) return "A orçar";
-    if (CATEGORIAS_A_COMBINAR.has(draft.categoria)) return "A combinar";
+    if (draft.precoInfo?.valorACombinar) return "A combinar";
+    if (draft.valorSelecionado != null) {
+      return `R$ ${draft.valorSelecionado.toFixed(2).replace(".", ",")}`;
+    }
     if (draft.precoEstimadoLabel) return draft.precoEstimadoLabel;
-    // Preço não disponível por nenhum motivo — omite com "A combinar"
     return "A combinar";
   }
   const precoLabel = resolvePrecoLabel();
@@ -157,12 +155,18 @@ export function ConfirmarSolicitacaoScreen() {
     }
 
     return [
-      { label: "Serviço", value: SERVICE_LABELS[draft.categoria], icon: "BriefcaseBusiness" as const },
+      {
+        label: "Serviço",
+        value: draft.intensidadeLabel
+          ? `${SERVICE_LABELS[draft.categoria]} · ${draft.intensidadeLabel}`
+          : SERVICE_LABELS[draft.categoria],
+        icon: "BriefcaseBusiness" as const,
+      },
       { label: "Data e horário", value: `${formatDate(draft.dataISO)} às ${draft.horario || "--:--"}`, icon: "Calendar" as const },
       { label: "Endereço", value: address, icon: "MapPin" as const },
       { label: "Observações", value: draft.observacoes || "Nenhuma observação adicionada.", icon: "FileText" as const },
     ];
-  }, [address, draft, isMontador]);
+  }, [address, draft, isMontador, precoLabel]);
 
   return (
     <SafeAreaView style={flowStyles.screen}>

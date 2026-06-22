@@ -214,7 +214,7 @@ function makeStyles(theme: ProfileTheme) {
       justifyContent: "center",
       backgroundColor: theme.primarySoft,
     },
-    title: { ...typography.title, fontWeight: "700", color: colors.textPrimary },
+    title: { ...typography.h2, color: colors.textPrimary },
     subtitle: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
 
     scroll: { padding: spacing.screenPadding, paddingBottom: 122, gap: 18 },

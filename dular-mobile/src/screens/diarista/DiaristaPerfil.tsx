@@ -482,8 +482,11 @@ export default function DiaristaPerfil({ onLogout }: Props) {
     () => servicosOferecidos.filter((c) => c === "DIARISTA" || c === "BABA" || c === "COZINHEIRA"),
     [servicosOferecidos],
   );
-  const [precoCatSel, setPrecoCatSel] = useState<ServicoOferecido>("DIARISTA");
+  // Acordeão: categoria atualmente expandida no modal de Preços (null = todas
+  // recolhidas).
+  const [precoCatSel, setPrecoCatSel] = useState<ServicoOferecido | null>("DIARISTA");
   const catLabelPreco = (c: ServicoOferecido) => SERVICOS_OPTIONS.find((o) => o.id === c)?.title ?? c;
+  const catIconPreco = (c: ServicoOferecido) => SERVICOS_OPTIONS.find((o) => o.id === c)?.icon ?? "Sparkles";
 
   const completude: DiaristaCompletude = useMemo(
     () => calcularCompletudeDiarista(profile, me?.nome ?? user?.nome ?? ""),
@@ -653,7 +656,7 @@ export default function DiaristaPerfil({ onLogout }: Props) {
             observacao: profile?.observacaoPreco ?? "",
           });
           // Seleciona a 1ª categoria com tabela de valores (Diarista/Babá/Cozinheira).
-          setPrecoCatSel(categoriasPreco[0] ?? "DIARISTA");
+          setPrecoCatSel(categoriasPreco[0] ?? null);
           break;
         case "disponibilidade": {
           const dias = new Set<number>();
@@ -1831,93 +1834,99 @@ export default function DiaristaPerfil({ onLogout }: Props) {
 
               {!precosForm.valorACombinar ? (
                 <>
-                  {/* Seletor de categorias: um botão por serviço que ela oferece.
-                      Clicar abre a tabela de valores daquela categoria. */}
-                  {categoriasPreco.length >= 2 ? (
-                    <>
-                      <Text style={s.modalLabel}>Categoria do serviço</Text>
-                      <View style={s.chips}>
-                        {categoriasPreco.map((c) => {
-                          const active = precoCatSel === c;
-                          return (
-                            <Pressable
-                              key={c}
-                              onPress={() => setPrecoCatSel(c)}
-                              style={[s.chip, active && s.chipOn]}
-                            >
-                              <Text style={[s.chipText, active && s.chipTextOn]}>{catLabelPreco(c)}</Text>
-                            </Pressable>
-                          );
-                        })}
-                      </View>
-                    </>
-                  ) : null}
+                  {/* Acordeão: um card por categoria que a profissional oferece.
+                      Tocar no card expande/recolhe a tabela de valores dela. */}
+                  {categoriasPreco.length === 0 ? (
+                    <Text style={s.modalSubtitle}>
+                      Escolha os serviços que você oferece em “O que você oferece” para definir os valores.
+                    </Text>
+                  ) : (
+                    categoriasPreco.map((c) => {
+                      const aberto = precoCatSel === c;
+                      return (
+                        <View key={c} style={s.precoCatCard}>
+                          <Pressable
+                            onPress={() => setPrecoCatSel(aberto ? null : c)}
+                            style={s.precoCatHeader}
+                          >
+                            <View style={s.precoCatIcon}>
+                              <AppIcon name={catIconPreco(c)} size={18} color={theme.primary} strokeWidth={2.2} />
+                            </View>
+                            <Text style={s.precoCatTitle}>{catLabelPreco(c)}</Text>
+                            <View style={aberto ? s.precoCatChevronOpen : undefined}>
+                              <AppIcon name="ChevronRight" size={18} color={colors.textMuted} strokeWidth={2.2} />
+                            </View>
+                          </Pressable>
 
-                  {precoCatSel === "DIARISTA" && categoriasPreco.includes("DIARISTA") ? (
-                    <>
-                      <Text style={s.modalLabel}>Limpeza leve (R$)</Text>
-                      <TextInput
-                        value={precosForm.leve}
-                        onChangeText={(v) => setPrecosForm((cur) => ({ ...cur, leve: v }))}
-                        placeholder="Ex.: 120,00"
-                        placeholderTextColor={colors.textMuted}
-                        style={s.modalInput}
-                        keyboardType="decimal-pad"
-                      />
+                          {aberto ? (
+                            <View style={s.precoCatBody}>
+                              {c === "DIARISTA" ? (
+                                <>
+                                  <Text style={s.modalLabel}>Limpeza leve (R$)</Text>
+                                  <TextInput
+                                    value={precosForm.leve}
+                                    onChangeText={(v) => setPrecosForm((cur) => ({ ...cur, leve: v }))}
+                                    placeholder="Ex.: 120,00"
+                                    placeholderTextColor={colors.textMuted}
+                                    style={s.modalInput}
+                                    keyboardType="decimal-pad"
+                                  />
 
-                      <Text style={s.modalLabel}>Limpeza média (R$) — opcional</Text>
-                      <TextInput
-                        value={precosForm.medio}
-                        onChangeText={(v) => setPrecosForm((cur) => ({ ...cur, medio: v }))}
-                        placeholder="Ex.: 160,00"
-                        placeholderTextColor={colors.textMuted}
-                        style={s.modalInput}
-                        keyboardType="decimal-pad"
-                      />
+                                  <Text style={s.modalLabel}>Limpeza média (R$) — opcional</Text>
+                                  <TextInput
+                                    value={precosForm.medio}
+                                    onChangeText={(v) => setPrecosForm((cur) => ({ ...cur, medio: v }))}
+                                    placeholder="Ex.: 160,00"
+                                    placeholderTextColor={colors.textMuted}
+                                    style={s.modalInput}
+                                    keyboardType="decimal-pad"
+                                  />
 
-                      <Text style={s.modalLabel}>Limpeza pesada (R$)</Text>
-                      <TextInput
-                        value={precosForm.pesada}
-                        onChangeText={(v) => setPrecosForm((cur) => ({ ...cur, pesada: v }))}
-                        placeholder="Ex.: 200,00"
-                        placeholderTextColor={colors.textMuted}
-                        style={s.modalInput}
-                        keyboardType="decimal-pad"
-                      />
-                    </>
-                  ) : null}
+                                  <Text style={s.modalLabel}>Limpeza pesada (R$)</Text>
+                                  <TextInput
+                                    value={precosForm.pesada}
+                                    onChangeText={(v) => setPrecosForm((cur) => ({ ...cur, pesada: v }))}
+                                    placeholder="Ex.: 200,00"
+                                    placeholderTextColor={colors.textMuted}
+                                    style={s.modalInput}
+                                    keyboardType="decimal-pad"
+                                  />
+                                </>
+                              ) : null}
 
-                  {precoCatSel === "BABA" && categoriasPreco.includes("BABA") ? (
-                    <>
-                      <Text style={s.modalLabel}>Preço por hora (R$)</Text>
-                      <TextInput
-                        value={precosForm.babaHora}
-                        onChangeText={(v) =>
-                          setPrecosForm((cur) => ({ ...cur, babaHora: v }))
-                        }
-                        placeholder="Ex.: 35,00"
-                        placeholderTextColor={colors.textMuted}
-                        style={s.modalInput}
-                        keyboardType="decimal-pad"
-                      />
-                    </>
-                  ) : null}
+                              {c === "BABA" ? (
+                                <>
+                                  <Text style={s.modalLabel}>Preço por hora (R$)</Text>
+                                  <TextInput
+                                    value={precosForm.babaHora}
+                                    onChangeText={(v) => setPrecosForm((cur) => ({ ...cur, babaHora: v }))}
+                                    placeholder="Ex.: 35,00"
+                                    placeholderTextColor={colors.textMuted}
+                                    style={s.modalInput}
+                                    keyboardType="decimal-pad"
+                                  />
+                                </>
+                              ) : null}
 
-                  {precoCatSel === "COZINHEIRA" && categoriasPreco.includes("COZINHEIRA") ? (
-                    <>
-                      <Text style={s.modalLabel}>Preço base (R$)</Text>
-                      <TextInput
-                        value={precosForm.cozinheiraBase}
-                        onChangeText={(v) =>
-                          setPrecosForm((cur) => ({ ...cur, cozinheiraBase: v }))
-                        }
-                        placeholder="Ex.: 180,00"
-                        placeholderTextColor={colors.textMuted}
-                        style={s.modalInput}
-                        keyboardType="decimal-pad"
-                      />
-                    </>
-                  ) : null}
+                              {c === "COZINHEIRA" ? (
+                                <>
+                                  <Text style={s.modalLabel}>Preço base (R$)</Text>
+                                  <TextInput
+                                    value={precosForm.cozinheiraBase}
+                                    onChangeText={(v) => setPrecosForm((cur) => ({ ...cur, cozinheiraBase: v }))}
+                                    placeholder="Ex.: 180,00"
+                                    placeholderTextColor={colors.textMuted}
+                                    style={s.modalInput}
+                                    keyboardType="decimal-pad"
+                                  />
+                                </>
+                              ) : null}
+                            </View>
+                          ) : null}
+                        </View>
+                      );
+                    })
+                  )}
 
                   <Text style={s.modalLabel}>Taxa mínima (R$) — opcional</Text>
                   <TextInput
@@ -2528,6 +2537,46 @@ function makeStyles(colors: ThemeColors, theme: ProfileTheme) {
     },
     chipTextOn: {
       color: colors.white,
+    },
+
+    // Acordeão de valores por categoria (modal Preços)
+    precoCatCard: {
+      borderRadius: radius.lg,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+      overflow: "hidden",
+      marginTop: spacing.sm,
+    },
+    precoCatHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+      paddingHorizontal: 12,
+      paddingVertical: 12,
+    },
+    precoCatIcon: {
+      width: 34,
+      height: 34,
+      borderRadius: 12,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: theme.primarySoft,
+    },
+    precoCatTitle: {
+      flex: 1,
+      ...typography.bodySm,
+      fontWeight: "800",
+      color: colors.textPrimary,
+    },
+    precoCatChevronOpen: {
+      transform: [{ rotate: "90deg" }],
+    },
+    precoCatBody: {
+      paddingHorizontal: 12,
+      paddingBottom: 12,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: colors.divider,
     },
 
     // Avaliações (read-only)

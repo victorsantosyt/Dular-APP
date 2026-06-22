@@ -39,6 +39,18 @@ type Props = {
   route: { params: ChatAbertoParams };
 };
 
+function categoriaDoServico(tipo?: string | null): { label: string; icon: AppIconName } {
+  const v = String(tipo ?? "").toUpperCase();
+  if (v === "BABA") return { label: "Babá", icon: "Baby" };
+  if (v === "COZINHEIRA") return { label: "Cozinheira", icon: "ChefHat" };
+  if (v === "MONTADOR") return { label: "Montador", icon: "Wrench" };
+  if (v === "FAXINEIRA") return { label: "Faxineira", icon: "Sparkles" };
+  if (v === "CUIDADORA") return { label: "Cuidadora", icon: "Heart" };
+  if (v === "PASSA_ROUPA" || v === "PASSADEIRA") return { label: "Passadeira", icon: "Shirt" };
+  if (v === "LAVADEIRA") return { label: "Lavadeira", icon: "WashingMachine" };
+  return { label: "Diarista", icon: "BrushCleaning" };
+}
+
 export function ChatAbertoScreen({ route }: Props) {
   const navigation = useNavigation();
   const { roomId, nomeUsuario, categoria, categoriaIcon, avatarUrl } = route.params;
@@ -48,13 +60,27 @@ export function ChatAbertoScreen({ route }: Props) {
   const insets = useSafeAreaInsets();
   const listRef = useRef<FlatList<Mensagem>>(null);
 
-  // O empregador vê a categoria do profissional; o profissional vê "Empregador".
-  const isEmpregador = role === "EMPREGADOR";
-  const subtituloCategoria = isEmpregador ? categoria ?? "Profissional" : "Empregador";
-  const subtituloIcon: AppIconName = isEmpregador ? categoriaIcon ?? "BrushCleaning" : "UserRound";
-  const initials = nomeUsuario.trim().split(/\s+/).map((w) => w[0]).join("").slice(0, 2).toUpperCase();
+  const { mensagens, servicoStatus, outroUsuario, servicoTipo, loading, error, enviar, enviarMidia, refetch } =
+    useChat(roomId);
 
-  const { mensagens, servicoStatus, loading, error, enviar, enviarMidia, refetch } = useChat(roomId);
+  // Fonte de verdade: dados da sala (GET), com fallback nos params da rota —
+  // assim a foto/nome/categoria aparecem ao abrir o chat de qualquer tela.
+  // O empregador vê a categoria do profissional; o profissional vê "Empregador".
+  const nomeFinal = outroUsuario?.nome || nomeUsuario;
+  const avatarFinal = outroUsuario?.avatarUrl ?? avatarUrl;
+  const isEmpregador = role === "EMPREGADOR";
+  const catServico = categoriaDoServico(servicoTipo);
+  const subtituloCategoria = isEmpregador
+    ? servicoTipo
+      ? catServico.label
+      : categoria ?? "Profissional"
+    : "Empregador";
+  const subtituloIcon: AppIconName = isEmpregador
+    ? servicoTipo
+      ? catServico.icon
+      : categoriaIcon ?? "BrushCleaning"
+    : "UserRound";
+  const initials = nomeFinal.trim().split(/\s+/).map((w) => w[0]).join("").slice(0, 2).toUpperCase();
   // Status terminais → sala arquivada (somente leitura).
   const arquivada = servicoStatus
     ? ["CONCLUIDO", "CONFIRMADO", "FINALIZADO"].includes(servicoStatus.toUpperCase())
@@ -156,16 +182,16 @@ export function ChatAbertoScreen({ route }: Props) {
   const canSend = text.trim().length > 0 && !enviando;
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: theme.primary }]} edges={["top", "left", "right"]}>
-      {/* Header — outside KAV so it stays fixed. Estilo WhatsApp: foto + nome + categoria. */}
+    <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={["top", "left", "right"]}>
+      {/* Header em card arredondado preenchido com a cor do gênero. */}
       <View style={[styles.header, { backgroundColor: theme.primary }]}>
         <Pressable onPress={() => navigation.goBack()} hitSlop={12} style={styles.backBtn}>
           <AppIcon name="ArrowLeft" size={22} color={colors.white} strokeWidth={2.5} />
         </Pressable>
-        <DAvatar size="md" uri={avatarUrl} initials={initials} />
+        <DAvatar size="md" uri={avatarFinal} initials={initials} />
         <View style={styles.headerTextCol}>
           <Text style={styles.headerName} numberOfLines={1}>
-            {nomeUsuario}
+            {nomeFinal}
           </Text>
           <View style={styles.headerSubRow}>
             <AppIcon name={subtituloIcon} size={12} color={colors.whiteAlpha80} strokeWidth={2.3} />
@@ -177,7 +203,7 @@ export function ChatAbertoScreen({ route }: Props) {
       </View>
 
       <KeyboardAvoidingView
-        style={styles.kav}
+        style={[styles.kav, { backgroundColor: theme.background }]}
         behavior={platformSelect({ ios: "padding", android: "height" })}
         keyboardVerticalOffset={0}
       >
@@ -272,15 +298,20 @@ export default ChatAbertoScreen;
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: colors.primary,
+    backgroundColor: colors.background,
   },
   header: {
-    height: 56,
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: spacing.md,
-    gap: spacing.md,
+    gap: 10,
+    marginHorizontal: 10,
+    marginTop: 6,
+    marginBottom: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    borderRadius: 20,
     backgroundColor: colors.primary,
+    ...shadow(4),
   },
   backBtn: {
     width: 36,

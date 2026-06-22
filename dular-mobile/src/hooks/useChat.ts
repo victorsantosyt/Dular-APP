@@ -15,10 +15,20 @@ export interface Mensagem {
   status?: "enviando" | "enviado" | "erro";
 }
 
+export interface OutroUsuario {
+  nome: string;
+  avatarUrl: string | null;
+  role: string | null;
+}
+
 export interface UseChatReturn {
   mensagens: Mensagem[];
   /** Status do serviço associado a essa sala. Usado para bloquear envio quando arquivado. */
   servicoStatus: string | null;
+  /** Outro participante da conversa (nome, foto, papel) — vindo do GET da sala. */
+  outroUsuario: OutroUsuario | null;
+  /** Tipo do serviço da sala (BABA, MONTADOR, FAXINA…). */
+  servicoTipo: string | null;
   loading: boolean;
   error: string | null;
   enviar: (texto: string) => Promise<void>;
@@ -78,6 +88,8 @@ export function useChat(roomId: string): UseChatReturn {
   const userId = useAuth((state) => state.user?.id) ?? "";
   const [mensagens, setMensagens] = useState<Mensagem[]>([]);
   const [servicoStatus, setServicoStatus] = useState<string | null>(null);
+  const [outroUsuario, setOutroUsuario] = useState<OutroUsuario | null>(null);
+  const [servicoTipo, setServicoTipo] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const isFirstFetch = useRef(true);
@@ -105,11 +117,19 @@ export function useChat(roomId: string): UseChatReturn {
       const sorted = rawList
         .map(normalize)
         .sort((a, b) => new Date(a.criadaEm).getTime() - new Date(b.criadaEm).getTime());
-      // Backend retorna `{ room: { servico: { status, ... } }, messages: [...] }`
+      // Backend retorna `{ room: { servico: { status, tipo }, other: {...} }, messages }`
       const status: string | null = res.data?.room?.servico?.status ?? null;
+      const tipo: string | null = res.data?.room?.servico?.tipo ?? null;
+      const other = res.data?.room?.other ?? null;
       if (mountedRef.current) {
         setMensagens(sorted);
         setServicoStatus(status);
+        setServicoTipo(tipo);
+        setOutroUsuario(
+          other
+            ? { nome: other.nome ?? "", avatarUrl: other.avatarUrl ?? null, role: other.role ?? null }
+            : null,
+        );
         setError(null);
       }
     } catch (err) {
@@ -218,5 +238,5 @@ export function useChat(roomId: string): UseChatReturn {
     [roomId, userId],
   );
 
-  return { mensagens, servicoStatus, loading, error, enviar, enviarMidia, refetch };
+  return { mensagens, servicoStatus, outroUsuario, servicoTipo, loading, error, enviar, enviarMidia, refetch };
 }

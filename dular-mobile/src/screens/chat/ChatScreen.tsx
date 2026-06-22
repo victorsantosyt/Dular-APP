@@ -28,7 +28,7 @@ const POLL_MS = 12000;
 const STATUS_ARQUIVADOS = new Set(["CONCLUIDO", "CONFIRMADO", "FINALIZADO"]);
 
 type ChatRoom = {
-  other?: { nome?: string | null } | null;
+  other?: { nome?: string | null; avatarUrl?: string | null } | null;
   servico?: { local?: string | null; status?: string | null } | null;
 };
 
@@ -144,7 +144,7 @@ export default function ChatScreen({ route, navigation }: any) {
   }, [load, scrollToBottom, sending, servicoId, text]);
 
   return (
-    <SafeAreaView style={s.safe} edges={["top", "left", "right"]}>
+    <SafeAreaView style={[s.safe, { backgroundColor: theme.background }]} edges={["top", "left", "right"]}>
       <KeyboardAvoidingView
         style={s.flex}
         behavior={platformSelect({ ios: "padding", android: undefined })}
@@ -156,6 +156,7 @@ export default function ChatScreen({ route, navigation }: any) {
           </Pressable>
           <DAvatar
             size="md"
+            uri={room?.other?.avatarUrl ?? undefined}
             initials={(room?.other?.nome ?? "Empregador").trim().split(/\s+/).map((w) => w[0]).join("").slice(0, 2).toUpperCase()}
           />
           <View style={s.headerText}>
@@ -280,9 +281,14 @@ const s = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    paddingHorizontal: spacing.md,
+    marginHorizontal: 10,
+    marginTop: 6,
+    marginBottom: 4,
+    paddingHorizontal: 10,
     paddingVertical: 10,
+    borderRadius: 20,
     backgroundColor: colors.card,
+    ...shadow.float,
   },
   iconBtn: {
     width: 34,

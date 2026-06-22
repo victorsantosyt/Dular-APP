@@ -99,7 +99,7 @@ function AgendamentoItem({
       </View>
       <View style={styles.appointmentText}>
         <Text style={styles.appointmentFamily} numberOfLines={1}>{agendamento.nomeCliente}</Text>
-        <Text style={styles.appointmentType} numberOfLines={1}>{agendamento.servico}</Text>
+        <Text style={styles.appointmentType} numberOfLines={1}>{agendamento.servicoLabel}</Text>
         <View style={styles.appointmentLocationRow}>
           <AppIcon name="MapPin" size={12} color={colors.textSecondary} />
           <Text style={styles.appointmentLocation} numberOfLines={1}>{agendamento.localizacao}</Text>

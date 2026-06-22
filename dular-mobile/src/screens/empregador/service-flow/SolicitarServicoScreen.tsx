@@ -15,7 +15,10 @@ import { colors, radius, spacing, typography } from "@/theme";
 
 type Navigation = NativeStackNavigationProp<EmpregadorServiceFlowStackParamList, "EscolherServico">;
 
-type OpcaoValor = { id: string; label: string; valor: number };
+// `categoriaBackend` = subtipo ServicoCategoria persistido no serviço (para a
+// profissional ver "Limpeza leve/completa/pesada" e o backend calcular o preço:
+// FAXINA_LEVE→precoLeve, FAXINA_COMPLETA→precoMedio, FAXINA_PESADA→precoPesada).
+type OpcaoValor = { id: string; label: string; valor: number; categoriaBackend?: string };
 
 function formatBRL(valor: number): string {
   return `R$ ${valor.toFixed(2).replace(".", ",")}`;
@@ -26,11 +29,18 @@ function formatBRL(valor: number): string {
 function opcoesDeValor(categoria: ServiceCategory, p?: PrecoInfo): OpcaoValor[] {
   if (!p || p.valorACombinar) return [];
   if (categoria === "diarista") {
-    return [
-      p.leve != null ? { id: "leve", label: "Limpeza leve", valor: p.leve / 100 } : null,
-      p.medio != null ? { id: "medio", label: "Limpeza média", valor: p.medio / 100 } : null,
-      p.pesada != null ? { id: "pesada", label: "Limpeza pesada", valor: p.pesada / 100 } : null,
-    ].filter((o): o is OpcaoValor => o !== null);
+    const opcoes: Array<OpcaoValor | null> = [
+      p.leve != null
+        ? { id: "FAXINA_LEVE", label: "Limpeza leve", valor: p.leve / 100, categoriaBackend: "FAXINA_LEVE" }
+        : null,
+      p.medio != null
+        ? { id: "FAXINA_COMPLETA", label: "Limpeza completa", valor: p.medio / 100, categoriaBackend: "FAXINA_COMPLETA" }
+        : null,
+      p.pesada != null
+        ? { id: "FAXINA_PESADA", label: "Limpeza pesada", valor: p.pesada / 100, categoriaBackend: "FAXINA_PESADA" }
+        : null,
+    ];
+    return opcoes.filter((o): o is OpcaoValor => o !== null);
   }
   if (categoria === "baba") {
     return p.babaHora != null ? [{ id: "hora", label: "Por hora", valor: p.babaHora }] : [];
@@ -216,7 +226,13 @@ export function SolicitarServicoScreen() {
                 return (
                   <Pressable
                     key={op.id}
-                    onPress={() => updateDraft({ valorSelecionado: op.valor, intensidadeLabel: op.label })}
+                    onPress={() =>
+                      updateDraft({
+                        valorSelecionado: op.valor,
+                        intensidadeLabel: op.label,
+                        categoriaBackend: op.categoriaBackend,
+                      })
+                    }
                     style={[
                       s.valorCard,
                       { borderColor: sel ? flowTheme.primary : flowTheme.border },

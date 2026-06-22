@@ -382,7 +382,7 @@ function makeStyles(colors: ThemeColors) {
       gap: 8,
     },
     heroName: {
-      flex: 1,
+      flexShrink: 1,
       color: colors.white,
       ...typography.h3,
 

@@ -1425,6 +1425,25 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                 />
               </ProfileSection>
 
+              {/* ── Endereço ────────────────────────────────────────────── */}
+              <ProfileSection title="Endereço">
+                <ProfileRow
+                  accentColor={theme.primary}
+                  accentSoft={theme.primarySoft}
+                  icon="MapPin"
+                  title="Endereço"
+                  subtitle="Seu endereço residencial"
+                  onPress={() =>
+                    navigation.navigate("MeusEnderecos", {
+                      role: "DIARISTA",
+                      accentColor: theme.primary,
+                      accentSoft: theme.primarySoft,
+                    })
+                  }
+                  isLast
+                />
+              </ProfileSection>
+
               {/* ── Documentos e segurança ──────────────────────────────── */}
               <ProfileSection title="Documentos e segurança">
                 <ProfileRow

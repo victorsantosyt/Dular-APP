@@ -42,6 +42,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { colors, radius, shadows, spacing, typography } from "@/theme";
 import type { ProfileTheme } from "@/theme/profileTheme";
 import { platformSelect } from "@/utils/platform";
+import { VerifiedBadge } from "@/components/ui/VerifiedBadge";
 import { firstName, formatMoneyFromCents, upperStatus } from "./montadorUtils";
 
 type ModalType = "dados" | "especialidades" | "area" | "precos" | "portfolio" | "avaliacoes" | null;
@@ -920,7 +921,7 @@ export default function MontadorPerfil() {
         <View style={styles.heroText}>
           <View style={styles.nameRow}>
             <Text style={styles.name}>{nome}</Text>
-            {verificado ? <AppIcon name="ShieldCheck" size={16} color={colors.white} /> : null}
+            {verificado ? <VerifiedBadge size={18} /> : null}
           </View>
           <Text style={styles.role}>Montador profissional</Text>
           <View style={styles.heroBadges}>
@@ -1027,6 +1028,22 @@ export default function MontadorPerfil() {
         <Row icon="Camera" title="Portfólio" subtitle={perfil.portfolioFotos.length ? `${perfil.portfolioFotos.length} foto(s)` : "Sem fotos no portfólio"} theme={profileTheme} onPress={() => openModal("portfolio")} />
         <Row icon="Star" title="Avaliações" subtitle={perfil.avaliacoes?.total ? `${perfil.avaliacoes.total} avaliação(ões)` : "Sem avaliações ainda"} theme={profileTheme} onPress={() => openModal("avaliacoes")} />
         <Row icon="CreditCard" title="Carteira/Ganhos" subtitle={formatMoneyFromCents(ganhos)} theme={profileTheme} onPress={() => navigation.navigate("Carteira", { from: "MontadorPerfil" })} />
+      </Section>
+
+      <Section title="Endereço" borderColor={profileTheme.border}>
+        <Row
+          icon="MapPin"
+          title="Endereço"
+          subtitle="Seu endereço residencial"
+          theme={profileTheme}
+          onPress={() =>
+            navigation.navigate("MeusEnderecos", {
+              role: "MONTADOR",
+              accentColor: profileTheme.primary,
+              accentSoft: profileTheme.primarySoft,
+            })
+          }
+        />
       </Section>
 
       <Section title="Documentos e segurança" borderColor={profileTheme.border}>

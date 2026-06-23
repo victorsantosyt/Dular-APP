@@ -19,6 +19,10 @@ export type ConversationItem = {
   horario: string;
   initials: string;
   avatarUrl?: string;
+  /** Mensagens não-lidas da conversa (badge estilo WhatsApp). */
+  naoLidas?: number;
+  /** Prévia da última mensagem (quando disponível). */
+  ultimaMensagem?: string;
 };
 
 type MessagesTabsProps = {
@@ -73,16 +77,18 @@ type ConversationCardProps = {
 };
 
 export function ConversationCard({ item, onPress, accent = colors.primary, soft = colors.lavenderSoft }: ConversationCardProps) {
+  const naoLidas = item.naoLidas ?? 0;
+  const unread = naoLidas > 0;
   return (
     <DCard style={s.conversationCard}>
       <View style={s.avatarWrap}>
         <DAvatar size="lg" uri={item.avatarUrl} initials={item.initials} />
-        <OnlineDot />
+        {unread ? <View style={[s.unreadDot, { backgroundColor: accent }]} /> : <OnlineDot />}
       </View>
 
       <View style={s.cardMain}>
         <View style={s.nameRow}>
-          <Text style={s.name} numberOfLines={1}>
+          <Text style={[s.name, unread && s.nameUnread]} numberOfLines={1}>
             {item.nome}
           </Text>
           <VerifiedBadge />
@@ -110,7 +116,12 @@ export function ConversationCard({ item, onPress, accent = colors.primary, soft 
       </View>
 
       <View style={s.rightCol}>
-        <Text style={s.time}>{item.horario}</Text>
+        <Text style={[s.time, unread && { color: accent, fontWeight: "700" }]}>{item.horario}</Text>
+        {unread ? (
+          <View style={[s.unreadBadge, { backgroundColor: accent }]}>
+            <Text style={s.unreadBadgeText}>{naoLidas > 9 ? "9+" : naoLidas}</Text>
+          </View>
+        ) : null}
         <Pressable onPress={onPress} style={({ pressed }) => [s.chatButton, pressed && { opacity: 0.82 }]}>
           <AppIcon name="MessageCircle" size={15} color={colors.successDark} strokeWidth={2.4} />
           <Text style={s.chatButtonText}>Conversar</Text>
@@ -192,6 +203,33 @@ const s = StyleSheet.create({
     borderWidth: 3,
     borderColor: colors.surface,
     backgroundColor: colors.success,
+  },
+  unreadDot: {
+    position: "absolute",
+    right: 2,
+    top: 6,
+    width: 15,
+    height: 15,
+    borderRadius: 8,
+    borderWidth: 3,
+    borderColor: colors.surface,
+  },
+  nameUnread: {
+    fontWeight: "800",
+  },
+  unreadBadge: {
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    paddingHorizontal: 6,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  unreadBadgeText: {
+    color: colors.white,
+    fontSize: 11,
+    lineHeight: 14,
+    fontWeight: "800",
   },
   cardMain: {
     flex: 1,

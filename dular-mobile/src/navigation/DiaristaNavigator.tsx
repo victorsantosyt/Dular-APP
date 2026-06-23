@@ -2,6 +2,7 @@ import React from "react";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { DBottomTabBar } from "@/navigation/DBottomTabBar";
+import { useMensagens, totalNaoLidas } from "@/hooks/useMensagens";
 import { DiaristaHomeScreen } from "@/screens/diarista/DiaristaHomeScreen";
 import { AgendamentosDiaristaScreen } from "@/screens/diarista/AgendamentosDiaristaScreen";
 import { ServicosDiaristaScreen } from "@/screens/diarista/ServicosDiaristaScreen";
@@ -67,9 +68,18 @@ function DetalheServicoScreen(props: any) {
 
 // Abas reais (5). A bottom bar só existe aqui dentro.
 function DiaristaTabs() {
+  const { rooms } = useMensagens();
+  const unreadMessages = totalNaoLidas(rooms);
+
   return (
     <Tab.Navigator
-      tabBar={(props) => <DBottomTabBar {...props} variant="diarista" />}
+      tabBar={(props) => (
+        <DBottomTabBar
+          {...props}
+          variant="diarista"
+          messagesBadge={unreadMessages > 0 ? unreadMessages : undefined}
+        />
+      )}
       screenOptions={{
         headerShown: false,
         tabBarStyle: { position: "absolute", borderTopWidth: 0, elevation: 0, backgroundColor: "transparent" },

@@ -158,6 +158,11 @@ async function fetchRoomsShared(force = false): Promise<{ rooms: ChatRoom[]; err
   return pendingPromise;
 }
 
+/** Soma de mensagens não-lidas de todas as salas (badge da aba Mensagens). */
+export function totalNaoLidas(rooms: ChatRoom[]): number {
+  return rooms.reduce((total, room) => total + Math.max(0, Number(room.naoLidas) || 0), 0);
+}
+
 export function useMensagens(): UseMensagensReturn {
   const [rooms, setRooms] = useState<ChatRoom[]>(cachedRooms ?? []);
   const [loading, setLoading] = useState(false);

@@ -44,7 +44,6 @@ function categoriaDoServico(tipo?: string | null): { label: string; icon: AppIco
   if (v === "BABA") return { label: "Babá", icon: "Baby" };
   if (v === "COZINHEIRA") return { label: "Cozinheira", icon: "ChefHat" };
   if (v === "MONTADOR") return { label: "Montador", icon: "Wrench" };
-  if (v === "FAXINEIRA") return { label: "Faxineira", icon: "Sparkles" };
   if (v === "CUIDADORA") return { label: "Cuidadora", icon: "Heart" };
   if (v === "PASSA_ROUPA" || v === "PASSADEIRA") return { label: "Passadeira", icon: "Shirt" };
   if (v === "LAVADEIRA") return { label: "Lavadeira", icon: "WashingMachine" };

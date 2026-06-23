@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const criarServicoSchema = z.object({
-  tipo: z.enum(["FAXINA", "BABA", "COZINHEIRA", "PASSA_ROUPA", "MONTADOR", "FAXINEIRA", "LAVADEIRA", "CUIDADORA"]),
+  tipo: z.enum(["FAXINA", "BABA", "COZINHEIRA", "PASSA_ROUPA", "MONTADOR", "LAVADEIRA", "CUIDADORA"]),
   categoria: z
     .enum([
       "FAXINA_LEVE",

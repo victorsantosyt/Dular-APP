@@ -152,7 +152,6 @@ export async function POST(req: Request) {
         "MONTADOR_CARPINTARIA",
       ],
       // Nichos novos sem subcategorias (serviço único, categoria nula).
-      FAXINEIRA: [],
       LAVADEIRA: [],
       CUIDADORA: [],
     };
@@ -481,9 +480,9 @@ export async function POST(req: Request) {
     //
     // Quando `valorACombinar=true`, registramos 0 como sentinela "a combinar"
     // (preço negociado externamente — mesma convenção usada para Montador).
-    // Nichos sem preço dedicado (Faxineira/Passadeira/Lavadeira/Cuidadora) são
+    // Nichos sem preço dedicado (Passadeira/Lavadeira/Cuidadora) são
     // sempre "a combinar": precoFinal = 0 e sem exigência de preço configurado.
-    const tipoACombinar = ["FAXINEIRA", "PASSA_ROUPA", "LAVADEIRA", "CUIDADORA"].includes(tipo);
+    const tipoACombinar = ["PASSA_ROUPA", "LAVADEIRA", "CUIDADORA"].includes(tipo);
     let precoFinal = 0;
     if (prof.valorACombinar || tipoACombinar) {
       precoFinal = 0;

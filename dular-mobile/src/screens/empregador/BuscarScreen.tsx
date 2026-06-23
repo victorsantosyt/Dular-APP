@@ -106,10 +106,6 @@ const CATEGORIA_LOGOS: Partial<
     style: { width: 105, height: 75, right: -20, bottom: -2 },
   },
   // Logos retrato (≈392×638): mantêm a proporção para ancorar no canto inferior.
-  faxineira: {
-    source: require("../../../assets/images/empregador_buscar/buscar_card_faxineira_logo.png"),
-    style: { width: 65, height: 80, right: -6, bottom: -9 },
-  },
   passadeira: {
     source: require("../../../assets/images/empregador_buscar/buscar_card_passadeira_logo.png"),
     style: { width: 64, height: 80, right: -4, bottom: -2 },

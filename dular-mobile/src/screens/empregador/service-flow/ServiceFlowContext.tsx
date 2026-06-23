@@ -6,7 +6,6 @@ export type ServiceCategory =
   | "cozinheira"
   | "diarista"
   | "montador"
-  | "faxineira"
   | "cuidadora"
   | "passadeira"
   | "lavadeira";
@@ -109,7 +108,6 @@ export const SERVICE_LABELS: Record<ServiceCategory, string> = {
   cozinheira: "Cozinheira",
   diarista: "Diarista",
   montador: "Montador",
-  faxineira: "Faxineira",
   cuidadora: "Cuidadora",
   passadeira: "Passadeira",
   lavadeira: "Lavadeira",

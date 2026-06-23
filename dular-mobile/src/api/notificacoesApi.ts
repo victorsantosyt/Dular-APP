@@ -32,6 +32,13 @@ type ListResponse = {
   items?: Notificacao[];
 };
 
+/**
+ * Tipos de notificação que pertencem ao chat. Elas NÃO aparecem na tela/contagem
+ * de Notificações — o não-lido de mensagens é sinalizado só em Mensagens (badge
+ * da aba e do card da conversa), no modelo WhatsApp.
+ */
+const CHAT_NOTIFICACAO_TYPES = new Set<string>(["CHAT_NOVA_MENSAGEM", "MENSAGEM_RECEBIDA"]);
+
 export async function listarNotificacoes(): Promise<Notificacao[]> {
   const res = await api.get<ListResponse>("/api/notificacoes");
   const list =
@@ -39,7 +46,9 @@ export async function listarNotificacoes(): Promise<Notificacao[]> {
     res.data?.notificacoes ??
     res.data?.items ??
     [];
-  return Array.isArray(list) ? list : [];
+  if (!Array.isArray(list)) return [];
+  // Notificações de chat são tratadas só na aba Mensagens.
+  return list.filter((n) => !CHAT_NOTIFICACAO_TYPES.has(String(n.type)));
 }
 
 export async function marcarComoLida(id: string): Promise<void> {

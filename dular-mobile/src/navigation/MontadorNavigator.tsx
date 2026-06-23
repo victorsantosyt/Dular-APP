@@ -20,6 +20,7 @@ import Suporte from "@/screens/perfil/Suporte";
 import Termos from "@/screens/perfil/Termos";
 import Privacidade from "@/screens/perfil/Privacidade";
 import { useMontadorServicos } from "@/hooks/useMontadorServicos";
+import { useMensagens, totalNaoLidas } from "@/hooks/useMensagens";
 
 export type MontadorTabParamList = {
   // Container das abas reais.
@@ -49,6 +50,8 @@ const RootStack = createNativeStackNavigator<MontadorTabParamList>();
 // Abas reais (5). A bottom bar só existe aqui dentro.
 function MontadorTabs() {
   const { pendentes } = useMontadorServicos();
+  const { rooms } = useMensagens();
+  const unreadMessages = totalNaoLidas(rooms);
 
   return (
     <Tab.Navigator
@@ -56,6 +59,7 @@ function MontadorTabs() {
         <DBottomTabBar
           {...props}
           variant="montador"
+          messagesBadge={unreadMessages > 0 ? unreadMessages : undefined}
           requestsBadge={pendentes.length > 0 ? pendentes.length : undefined}
         />
       )}

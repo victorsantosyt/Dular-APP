@@ -27,6 +27,7 @@ const CATEGORIAS_HOME = CATEGORIAS.filter((c) =>
 import { PILOT_MODE, PILOT } from "@/config/pilotConfig";
 import { useGeoDefaults } from "@/hooks/useGeoDefaults";
 import { useMensagens } from "@/hooks/useMensagens";
+import { useNotificacoes } from "@/hooks/useNotificacoes";
 import { usePaywallGuard } from "@/hooks/usePaywallGuard";
 import { useFavoritos } from "@/hooks/useFavoritos";
 import { useAuth } from "@/stores/authStore";
@@ -187,6 +188,7 @@ export default function EmpregadorHome() {
   const geo = useGeoDefaults();
   const { verificar } = usePaywallGuard();
   const { rooms } = useMensagens();
+  const { unreadCount } = useNotificacoes();
   const { isFavorito, toggle: toggleFavorito } = useFavoritos();
 
   const firstName = useMemo(() => {
@@ -377,10 +379,10 @@ export default function EmpregadorHome() {
               onPress={() => navigation.navigate("Notificacoes")}
             >
               <AppIcon name="Bell" size={20} color={EMPREGADOR_THEME.icon} strokeWidth={2.2} />
-              {unreadMessages > 0 && (
+              {unreadCount > 0 && (
                 <View style={s.notifBadge}>
                   <Text allowFontScaling={false} style={s.notifBadgeText}>
-                    {unreadMessages > 9 ? "9+" : unreadMessages}
+                    {unreadCount > 9 ? "9+" : unreadCount}
                   </Text>
                 </View>
               )}

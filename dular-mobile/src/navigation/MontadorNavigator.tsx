@@ -2,6 +2,7 @@ import React from "react";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { DBottomTabBar } from "@/navigation/DBottomTabBar";
+import { useMensagens, totalNaoLidas } from "@/hooks/useMensagens";
 import { MontadorHome } from "@/screens/montador/MontadorHome";
 import MontadorAgenda from "@/screens/montador/MontadorAgenda";
 import MontadorSolicitacoes from "@/screens/montador/MontadorSolicitacoes";
@@ -53,6 +54,8 @@ const RootStack = createNativeStackNavigator<MontadorTabParamList>();
 // Abas reais (5). A bottom bar só existe aqui dentro.
 function MontadorTabs() {
   const { pendentes } = useMontadorServicos();
+  const { rooms } = useMensagens();
+  const unreadMessages = totalNaoLidas(rooms);
 
   return (
     <Tab.Navigator
@@ -60,6 +63,7 @@ function MontadorTabs() {
         <DBottomTabBar
           {...props}
           variant="montador"
+          messagesBadge={unreadMessages > 0 ? unreadMessages : undefined}
           requestsBadge={pendentes.length > 0 ? pendentes.length : undefined}
         />
       )}

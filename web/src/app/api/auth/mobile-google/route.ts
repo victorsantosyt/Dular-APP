@@ -27,6 +27,9 @@ export async function GET(request: Request) {
   try {
     const csrfResp = await fetch(`${BASE}/api/auth/csrf`, {
       cache: "no-store",
+      // ngrok free serve uma página HTML de aviso sem este header; sem ele o
+      // .json() abaixo quebra e cai em "Falha ao obter CSRF token".
+      headers: { "ngrok-skip-browser-warning": "true" },
     });
     const json = (await csrfResp.json()) as { csrfToken?: string };
     csrfToken = json.csrfToken ?? "";
@@ -44,6 +47,8 @@ export async function GET(request: Request) {
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
+        // Mesmo motivo do fetch do CSRF: pular o aviso do ngrok free.
+        "ngrok-skip-browser-warning": "true",
         // Envia apenas o valor do cookie CSRF, sem atributos (Secure; HttpOnly…)
         Cookie: csrfCookies.map((c) => c.split(";")[0]).join("; "),
       },

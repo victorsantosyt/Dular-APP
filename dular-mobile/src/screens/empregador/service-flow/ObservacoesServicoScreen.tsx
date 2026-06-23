@@ -50,8 +50,8 @@ export function ObservacoesServicoScreen() {
         <StepHeader
           title="Observações"
           subtitle="Adicione detalhes para deixar a solicitação mais precisa."
-          step={4}
-          total={5}
+          step={5}
+          total={6}
           onBack={() => navigation.goBack()}
           theme={flowTheme}
         />

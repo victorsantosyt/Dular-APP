@@ -28,18 +28,13 @@ export function ConfirmarSolicitacaoScreen() {
   const flowTheme = getServiceFlowTheme(draft.tipo);
   const isMontador = draft.tipo === "MONTADOR";
 
-  // Nichos sem preço fixo — valor sempre "a combinar".
-  const CATEGORIAS_A_COMBINAR = new Set(["faxineira", "cuidadora", "passadeira", "lavadeira"]);
-
   // Rótulo de preço exibido na tela de confirmação.
-  // Prioridade: 1) precoEstimadoLabel do draft (vindo do perfil público)
-  //             2) fallback por categoria
+  // `precoEstimadoLabel` já vem resolvido por nicho do perfil público (ex.:
+  // "R$ 130,00", "A partir de…" ou "A combinar" quando não há valor definido).
   // Nunca exibe número fixo hardcoded.
   function resolvePrecoLabel(): string {
     if (isMontador) return "A orçar";
-    if (CATEGORIAS_A_COMBINAR.has(draft.categoria)) return "A combinar";
     if (draft.precoEstimadoLabel) return draft.precoEstimadoLabel;
-    // Preço não disponível por nenhum motivo — omite com "A combinar"
     return "A combinar";
   }
   const precoLabel = resolvePrecoLabel();
@@ -170,8 +165,8 @@ export function ConfirmarSolicitacaoScreen() {
         <StepHeader
           title="Confirmar solicitação"
           subtitle="Revise tudo antes de enviar para os profissionais."
-          step={5}
-          total={5}
+          step={6}
+          total={6}
           onBack={() => navigation.goBack()}
           theme={flowTheme}
         />

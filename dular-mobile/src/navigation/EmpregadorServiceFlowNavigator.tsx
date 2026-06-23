@@ -4,6 +4,7 @@ import { useRoute, type RouteProp } from "@react-navigation/native";
 import { ConfirmarSolicitacaoScreen } from "@/screens/empregador/service-flow/ConfirmarSolicitacaoScreen";
 import { EnderecoServicoScreen } from "@/screens/empregador/service-flow/EnderecoServicoScreen";
 import { EscolherDataScreen } from "@/screens/empregador/service-flow/EscolherDataScreen";
+import { EscolherIntensidadeScreen } from "@/screens/empregador/service-flow/EscolherIntensidadeScreen";
 import { ObservacoesServicoScreen } from "@/screens/empregador/service-flow/ObservacoesServicoScreen";
 import {
   ServiceFlowProvider,
@@ -16,6 +17,7 @@ import type { EmpregadorTabParamList } from "@/navigation/EmpregadorNavigator";
 
 export type EmpregadorServiceFlowStackParamList = {
   EscolherServico: undefined;
+  EscolherIntensidade: undefined;
   EscolherData: undefined;
   EnderecoServico: undefined;
   ObservacoesServico: undefined;
@@ -34,6 +36,7 @@ type SolicitarServicoRouteParams = {
   profissionalId?: string;
   profissionalNome?: string;
   precoEstimadoLabel?: string;
+  precos?: { leve: number | null; medio: number | null; pesada: number | null };
 };
 
 export function EmpregadorServiceFlowNavigator() {
@@ -56,12 +59,14 @@ export function EmpregadorServiceFlowNavigator() {
       initialProfissionalId={params?.profissionalId}
       initialProfissionalNome={params?.profissionalNome}
       initialPrecoEstimadoLabel={params?.precoEstimadoLabel}
+      initialPrecos={params?.precos}
     >
       <Stack.Navigator
         initialRouteName="EscolherServico"
         screenOptions={{ headerShown: false, animation: "slide_from_right" }}
       >
         <Stack.Screen name="EscolherServico" component={SolicitarServicoScreen} />
+        <Stack.Screen name="EscolherIntensidade" component={EscolherIntensidadeScreen} />
         <Stack.Screen name="EscolherData" component={EscolherDataScreen} />
         <Stack.Screen name="EnderecoServico" component={EnderecoServicoScreen} />
         <Stack.Screen name="ObservacoesServico" component={ObservacoesServicoScreen} />

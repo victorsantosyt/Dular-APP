@@ -29,7 +29,6 @@ const SERVICO_LABELS: Record<ServicoOferecido, string> = {
   DIARISTA: "Diarista",
   BABA: "Babá",
   COZINHEIRA: "Cozinheira",
-  FAXINEIRA: "Faxineira",
   PASSADEIRA: "Passadeira",
   LAVADEIRA: "Lavadeira",
   CUIDADORA: "Cuidadora",
@@ -57,6 +56,9 @@ function precoLinhaLabel(
   extras: {
     precoBabaHora?: string | number | null;
     precoCozinheiraBase?: string | number | null;
+    precoCuidadoraHora?: string | number | null;
+    precoPassadeira?: string | number | null;
+    precoLavadeira?: string | number | null;
   },
 ): string {
   if (tipo === "DIARISTA") {
@@ -74,6 +76,18 @@ function precoLinhaLabel(
   }
   if (tipo === "COZINHEIRA") {
     const fmt = formatDecimalBRL(extras.precoCozinheiraBase ?? null);
+    return fmt ? `A partir de ${fmt}` : "A combinar";
+  }
+  if (tipo === "CUIDADORA") {
+    const fmt = formatDecimalBRL(extras.precoCuidadoraHora ?? null);
+    return fmt ? `${fmt}/hora` : "A combinar";
+  }
+  if (tipo === "PASSADEIRA") {
+    const fmt = formatDecimalBRL(extras.precoPassadeira ?? null);
+    return fmt ? `${fmt}/hora` : "A combinar";
+  }
+  if (tipo === "LAVADEIRA") {
+    const fmt = formatDecimalBRL(extras.precoLavadeira ?? null);
     return fmt ? `A partir de ${fmt}` : "A combinar";
   }
   return "A combinar";
@@ -149,13 +163,18 @@ export function DiaristaProfileScreen() {
 
     let precoEstimadoLabel: string | undefined;
     if (diarista) {
+      // Preço estimado do nicho que está sendo contratado (categoriaInicial),
+      // com fallback no primeiro serviço ofertado.
       const tipoParaPreco: ServicoOferecido =
-        diarista.servicosOferecidos?.[0] ??
         (categoriaInicial?.toUpperCase() as ServicoOferecido | undefined) ??
+        diarista.servicosOferecidos?.[0] ??
         "DIARISTA";
       precoEstimadoLabel = precoLinhaLabel(tipoParaPreco, diarista.precos, {
         precoBabaHora: diarista.precoBabaHora,
         precoCozinheiraBase: diarista.precoCozinheiraBase,
+        precoCuidadoraHora: diarista.precoCuidadoraHora,
+        precoPassadeira: diarista.precoPassadeira,
+        precoLavadeira: diarista.precoLavadeira,
       });
     }
 
@@ -165,6 +184,8 @@ export function DiaristaProfileScreen() {
       profissionalId: diaristaId,
       profissionalNome: nome,
       precoEstimadoLabel,
+      // Preços por intensidade (leve/média/pesada) para o passo de intensidade.
+      precos: diarista?.precos,
     });
   };
 
@@ -202,6 +223,9 @@ export function DiaristaProfileScreen() {
     atendeTodaCidade,
     precoBabaHora,
     precoCozinheiraBase,
+    precoCuidadoraHora,
+    precoPassadeira,
+    precoLavadeira,
     valorACombinar,
     observacaoPreco,
     perfilCompleto,
@@ -211,7 +235,13 @@ export function DiaristaProfileScreen() {
   const tipoParaPreco: ServicoOferecido = servicosList[0] ?? "DIARISTA";
   const precoValue = valorACombinar
     ? "A combinar"
-    : precoLinhaLabel(tipoParaPreco, precos, { precoBabaHora, precoCozinheiraBase });
+    : precoLinhaLabel(tipoParaPreco, precos, {
+        precoBabaHora,
+        precoCozinheiraBase,
+        precoCuidadoraHora,
+        precoPassadeira,
+        precoLavadeira,
+      });
 
   const cidadeUf = [cidade, uf].filter(Boolean).join(", ") || "Localização a confirmar";
   const bairrosItems = atendeTodaCidade

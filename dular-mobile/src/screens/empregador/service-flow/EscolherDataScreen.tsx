@@ -86,8 +86,8 @@ export function EscolherDataScreen() {
         <StepHeader
           title="Escolher data"
           subtitle="Defina o melhor dia e horário para receber o profissional."
-          step={2}
-          total={5}
+          step={3}
+          total={6}
           onBack={() => navigation.goBack()}
           theme={flowTheme}
         />

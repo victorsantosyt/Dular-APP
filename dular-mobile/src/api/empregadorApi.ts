@@ -6,7 +6,6 @@ const CATEGORIA_TO_TIPO: Record<ServiceCategory, string | null> = {
   baba: "BABA",
   cozinheira: "COZINHEIRA",
   montador: "MONTADOR",
-  faxineira: "FAXINEIRA",
   cuidadora: "CUIDADORA",
   passadeira: "PASSA_ROUPA",
   lavadeira: "LAVADEIRA",
@@ -168,7 +167,10 @@ export function prepararPayload(draft: DraftSlice): PrepareResult {
 
   const basePayload = {
     tipo,
-    categoria: isMontador ? draft.categoriaBackend : undefined,
+    // Subtipo do serviço: montador (especialidade) ou diarista (intensidade,
+    // ex.: FAXINA_LEVE). O backend valida contra CAT_BY_TIPO, grava a categoria
+    // e calcula o precoFinal a partir dela.
+    categoria: draft.categoriaBackend ?? undefined,
     dataISO: draft.dataISO,
     turno: horarioParaTurno(draft.horario || "10:00"),
     cidade,

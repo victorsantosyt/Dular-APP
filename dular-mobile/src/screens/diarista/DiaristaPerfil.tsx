@@ -67,7 +67,7 @@ import {
 } from "@/api/diaristaApi";
 import { apiMsg } from "@/utils/apiMsg";
 import { useAuth } from "@/stores/authStore";
-import { AppIcon, DButton, DCard } from "@/components/ui";
+import { AppIcon, type AppIconName, DButton, DCard } from "@/components/ui";
 import type { DiaristaTabParamList } from "@/navigation/DiaristaNavigator";
 import { radius, shadows, spacing, typography } from "@/theme";
 import { useDularColors } from "@/hooks/useDularColors";
@@ -258,6 +258,78 @@ function decimalToInput(value: string | number | null | undefined): string {
   return n.toFixed(2).replace(".", ",");
 }
 
+/**
+ * Configuração da tela "Valores por intensidade de serviço".
+ * Um card por nicho ofertado; cada card abre o formulário de valores do nicho.
+ * `key` aponta para um campo string de `precosForm`.
+ */
+type PrecoFieldKey =
+  | "leve"
+  | "medio"
+  | "pesada"
+  | "babaHora"
+  | "cozinheiraBase"
+  | "cuidadoraHora"
+  | "passadeira"
+  | "lavadeira";
+
+type PrecoNichoConfig = {
+  oferta: ServicoOferecido;
+  icon: AppIconName;
+  label: string;
+  hint: string;
+  campos: Array<{ key: PrecoFieldKey; label: string; placeholder: string }>;
+};
+
+const PRECO_NICHOS: PrecoNichoConfig[] = [
+  {
+    oferta: "DIARISTA",
+    icon: "BrushCleaning",
+    label: "Diarista",
+    hint: "Limpeza por intensidade",
+    campos: [
+      { key: "leve", label: "Limpeza leve (R$)", placeholder: "Ex.: 120,00" },
+      { key: "medio", label: "Limpeza média (R$) — opcional", placeholder: "Ex.: 160,00" },
+      { key: "pesada", label: "Limpeza pesada (R$)", placeholder: "Ex.: 200,00" },
+    ],
+  },
+  {
+    oferta: "BABA",
+    icon: "Baby",
+    label: "Babá",
+    hint: "Cuidado infantil",
+    campos: [{ key: "babaHora", label: "Valor por hora (R$)", placeholder: "Ex.: 35,00" }],
+  },
+  {
+    oferta: "CUIDADORA",
+    icon: "Heart",
+    label: "Cuidadora",
+    hint: "Cuidado a idosos/pessoas",
+    campos: [{ key: "cuidadoraHora", label: "Valor por hora (R$)", placeholder: "Ex.: 40,00" }],
+  },
+  {
+    oferta: "COZINHEIRA",
+    icon: "ChefHat",
+    label: "Cozinheira",
+    hint: "Preparo de refeições",
+    campos: [{ key: "cozinheiraBase", label: "Valor base (R$)", placeholder: "Ex.: 180,00" }],
+  },
+  {
+    oferta: "PASSADEIRA",
+    icon: "Shirt",
+    label: "Passadeira",
+    hint: "Passar roupa",
+    campos: [{ key: "passadeira", label: "Valor por hora (R$)", placeholder: "Ex.: 45,00" }],
+  },
+  {
+    oferta: "LAVADEIRA",
+    icon: "WashingMachine",
+    label: "Lavadeira",
+    hint: "Lavar roupa",
+    campos: [{ key: "lavadeira", label: "Valor por cesto/visita (R$)", placeholder: "Ex.: 50,00" }],
+  },
+];
+
 function joinBairros(bairros: string[]) {
   return bairros.join(", ");
 }
@@ -342,11 +414,16 @@ export default function DiaristaPerfil({ onLogout }: Props) {
     pesada: "",
     babaHora: "",
     cozinheiraBase: "",
+    cuidadoraHora: "",
+    passadeira: "",
+    lavadeira: "",
     taxaMinima: "",
     cobraDeslocamento: false,
     valorACombinar: false,
     observacao: "",
   });
+  // Qual card de nicho está aberto na tela "Valores por intensidade de serviço".
+  const [precoNichoAberto, setPrecoNichoAberto] = useState<ServicoOferecido | null>(null);
   const [disponibilidadeForm, setDisponibilidadeForm] = useState<{ dias: number[]; turnos: string[] }>({
     dias: [],
     turnos: [],
@@ -653,11 +730,15 @@ export default function DiaristaPerfil({ onLogout }: Props) {
             pesada: centsToInput(profile?.precoPesada ?? null),
             babaHora: decimalToInput(profile?.precoBabaHora ?? null),
             cozinheiraBase: decimalToInput(profile?.precoCozinheiraBase ?? null),
+            cuidadoraHora: decimalToInput(profile?.precoCuidadoraHora ?? null),
+            passadeira: decimalToInput(profile?.precoPassadeira ?? null),
+            lavadeira: decimalToInput(profile?.precoLavadeira ?? null),
             taxaMinima: decimalToInput(profile?.taxaMinima ?? null),
             cobraDeslocamento: profile?.cobraDeslocamento ?? false,
             valorACombinar: profile?.valorACombinar ?? false,
             observacao: profile?.observacaoPreco ?? "",
           });
+          setPrecoNichoAberto(null);
           break;
         case "habilidades":
           // catálogo já está carregado em `catalogo`; nada para inicializar
@@ -959,6 +1040,16 @@ export default function DiaristaPerfil({ onLogout }: Props) {
     const cozinheiraBase = ofereceCozinheira
       ? inputToDecimalString(precosForm.cozinheiraBase)
       : null;
+    // Nichos novos: valor único por nicho, gravado só quando ofertado.
+    const cuidadoraHora = servicosOferecidos.includes("CUIDADORA")
+      ? inputToDecimalString(precosForm.cuidadoraHora)
+      : null;
+    const passadeira = servicosOferecidos.includes("PASSADEIRA")
+      ? inputToDecimalString(precosForm.passadeira)
+      : null;
+    const lavadeira = servicosOferecidos.includes("LAVADEIRA")
+      ? inputToDecimalString(precosForm.lavadeira)
+      : null;
     const taxaMinima = inputToDecimalString(precosForm.taxaMinima);
 
     try {
@@ -981,6 +1072,9 @@ export default function DiaristaPerfil({ onLogout }: Props) {
         observacaoPreco: observacao || null,
         precoBabaHora: babaHora,
         precoCozinheiraBase: cozinheiraBase,
+        precoCuidadoraHora: cuidadoraHora,
+        precoPassadeira: passadeira,
+        precoLavadeira: lavadeira,
         taxaMinima,
       };
       await updatePrecosCompletos(patchPayload);
@@ -999,6 +1093,9 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                 ofereceDiarista && pesada != null ? pesada : prev.precoPesada,
               precoBabaHora: babaHora,
               precoCozinheiraBase: cozinheiraBase,
+              precoCuidadoraHora: cuidadoraHora,
+              precoPassadeira: passadeira,
+              precoLavadeira: lavadeira,
               taxaMinima,
               cobraDeslocamento: precosForm.cobraDeslocamento,
               valorACombinar: false,
@@ -1851,71 +1948,58 @@ export default function DiaristaPerfil({ onLogout }: Props) {
 
               {!precosForm.valorACombinar ? (
                 <>
-                  {servicosOferecidos.includes("DIARISTA") ? (
-                    <>
-                      <Text style={s.modalLabel}>Diarista — Limpeza leve (R$)</Text>
-                      <TextInput
-                        value={precosForm.leve}
-                        onChangeText={(v) => setPrecosForm((cur) => ({ ...cur, leve: v }))}
-                        placeholder="Ex.: 120,00"
-                        placeholderTextColor={colors.textMuted}
-                        style={s.modalInput}
-                        keyboardType="decimal-pad"
-                      />
+                  <Text style={s.modalSubtitle}>
+                    Toque em cada serviço que você oferece para informar os valores.
+                  </Text>
 
-                      <Text style={s.modalLabel}>Diarista — Limpeza média (R$) — opcional</Text>
-                      <TextInput
-                        value={precosForm.medio}
-                        onChangeText={(v) => setPrecosForm((cur) => ({ ...cur, medio: v }))}
-                        placeholder="Ex.: 160,00"
-                        placeholderTextColor={colors.textMuted}
-                        style={s.modalInput}
-                        keyboardType="decimal-pad"
-                      />
+                  {PRECO_NICHOS.filter((n) => servicosOferecidos.includes(n.oferta)).length === 0 ? (
+                    <Text style={s.modalSubtitle}>
+                      Você ainda não escolheu serviços. Defina em “O que você oferece” para configurar os valores.
+                    </Text>
+                  ) : (
+                    PRECO_NICHOS.filter((n) => servicosOferecidos.includes(n.oferta)).map((nicho) => {
+                      const aberto = precoNichoAberto === nicho.oferta;
+                      return (
+                        <View key={nicho.oferta} style={s.precoNichoCard}>
+                          <Pressable
+                            style={s.precoNichoHeader}
+                            onPress={() => setPrecoNichoAberto(aberto ? null : nicho.oferta)}
+                          >
+                            <View style={[s.precoNichoIcon, { backgroundColor: theme.primarySoft }]}>
+                              <AppIcon name={nicho.icon} size={18} color={theme.primary} strokeWidth={2.2} />
+                            </View>
+                            <View style={{ flex: 1 }}>
+                              <Text style={s.precoNichoTitle}>{nicho.label}</Text>
+                              <Text style={s.precoNichoHint}>{nicho.hint}</Text>
+                            </View>
+                            <View style={aberto ? s.precoNichoChevronOpen : undefined}>
+                              <AppIcon name="ChevronRight" size={18} color={colors.textMuted} />
+                            </View>
+                          </Pressable>
 
-                      <Text style={s.modalLabel}>Diarista — Limpeza pesada (R$)</Text>
-                      <TextInput
-                        value={precosForm.pesada}
-                        onChangeText={(v) => setPrecosForm((cur) => ({ ...cur, pesada: v }))}
-                        placeholder="Ex.: 200,00"
-                        placeholderTextColor={colors.textMuted}
-                        style={s.modalInput}
-                        keyboardType="decimal-pad"
-                      />
-                    </>
-                  ) : null}
-
-                  {servicosOferecidos.includes("BABA") ? (
-                    <>
-                      <Text style={s.modalLabel}>Babá — preço por hora (R$)</Text>
-                      <TextInput
-                        value={precosForm.babaHora}
-                        onChangeText={(v) =>
-                          setPrecosForm((cur) => ({ ...cur, babaHora: v }))
-                        }
-                        placeholder="Ex.: 35,00"
-                        placeholderTextColor={colors.textMuted}
-                        style={s.modalInput}
-                        keyboardType="decimal-pad"
-                      />
-                    </>
-                  ) : null}
-
-                  {servicosOferecidos.includes("COZINHEIRA") ? (
-                    <>
-                      <Text style={s.modalLabel}>Cozinheira — preço base (R$)</Text>
-                      <TextInput
-                        value={precosForm.cozinheiraBase}
-                        onChangeText={(v) =>
-                          setPrecosForm((cur) => ({ ...cur, cozinheiraBase: v }))
-                        }
-                        placeholder="Ex.: 180,00"
-                        placeholderTextColor={colors.textMuted}
-                        style={s.modalInput}
-                        keyboardType="decimal-pad"
-                      />
-                    </>
-                  ) : null}
+                          {aberto ? (
+                            <View style={s.precoNichoBody}>
+                              {nicho.campos.map((campo) => (
+                                <View key={campo.key}>
+                                  <Text style={s.modalLabel}>{campo.label}</Text>
+                                  <TextInput
+                                    value={precosForm[campo.key]}
+                                    onChangeText={(v) =>
+                                      setPrecosForm((cur) => ({ ...cur, [campo.key]: v }))
+                                    }
+                                    placeholder={campo.placeholder}
+                                    placeholderTextColor={colors.textMuted}
+                                    style={s.modalInput}
+                                    keyboardType="decimal-pad"
+                                  />
+                                </View>
+                              ))}
+                            </View>
+                          ) : null}
+                        </View>
+                      );
+                    })
+                  )}
 
                   <Text style={s.modalLabel}>Taxa mínima (R$) — opcional</Text>
                   <TextInput
@@ -2386,6 +2470,49 @@ function makeStyles(colors: ThemeColors, theme: ProfileTheme) {
     modalInputMulti: {
       minHeight: 94,
       paddingTop: 12,
+    },
+    // ── "Valores por intensidade": card por nicho ─────────────────────────
+    precoNichoCard: {
+      borderRadius: radius.lg,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+      marginTop: 10,
+      overflow: "hidden",
+    },
+    precoNichoHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+      paddingHorizontal: 12,
+      paddingVertical: 12,
+    },
+    precoNichoIcon: {
+      width: 38,
+      height: 38,
+      borderRadius: 12,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    precoNichoTitle: {
+      color: colors.textPrimary,
+      fontSize: 15,
+      fontWeight: "800",
+    },
+    precoNichoHint: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      fontWeight: "500",
+      marginTop: 1,
+    },
+    precoNichoChevronOpen: {
+      transform: [{ rotate: "90deg" }],
+    },
+    precoNichoBody: {
+      paddingHorizontal: 12,
+      paddingBottom: 12,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
     },
     modalReadonly: {
       minHeight: 44,

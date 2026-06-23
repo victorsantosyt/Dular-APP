@@ -60,6 +60,34 @@ function getServicoEndereco(servico: Servico | null | undefined) {
   return typeof endereco === "string" && endereco.trim() ? endereco.trim() : null;
 }
 
+// Rótulos do tipo/categoria do serviço — para a profissional saber o que foi
+// contratado (ex.: "Limpeza pesada"). Prioriza a categoria/intensidade.
+const TIPO_LABEL_DET: Record<string, string> = {
+  FAXINA: "Limpeza",
+  BABA: "Babá",
+  COZINHEIRA: "Cozinheira",
+  PASSA_ROUPA: "Passar roupa",
+  CUIDADORA: "Cuidadora",
+  LAVADEIRA: "Lavadeira",
+  MONTADOR: "Montador",
+};
+const CATEGORIA_LABEL_DET: Record<string, string> = {
+  FAXINA_LEVE: "Limpeza leve",
+  FAXINA_COMPLETA: "Limpeza completa",
+  FAXINA_PESADA: "Limpeza pesada",
+  BABA_DIURNA: "Babá diurna",
+  BABA_NOTURNA: "Babá noturna",
+  BABA_INTEGRAL: "Babá integral",
+  COZINHEIRA_DIARIA: "Cozinha diária",
+  COZINHEIRA_EVENTO: "Cozinha para evento",
+  PASSA_ROUPA_BASICO: "Passar roupa — básico",
+  PASSA_ROUPA_COMPLETO: "Passar roupa — completo",
+};
+function servicoLabelDetalhe(s: Servico): string {
+  if (s.categoria && CATEGORIA_LABEL_DET[s.categoria]) return CATEGORIA_LABEL_DET[s.categoria];
+  return TIPO_LABEL_DET[s.tipo] ?? s.tipo;
+}
+
 // ── Componente ────────────────────────────────────────────────────────────────
 
 export default function DiaristaDetalhe({ route, navigation }: any) {
@@ -243,6 +271,13 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
         showsVerticalScrollIndicator={false}
       >
 
+        {/* ── Voltar ── */}
+        <View style={s.navRow}>
+          <Pressable onPress={() => navigation.goBack()} hitSlop={10} style={s.backBtn}>
+            <Ionicons name="arrow-back" size={22} color={colors.ink} />
+          </Pressable>
+        </View>
+
         {/* ── Título + status ── */}
         <View style={s.titleRow}>
           <Pressable
@@ -261,6 +296,12 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
 
         {/* ── Info card ── */}
         <View style={s.card}>
+          <InfoRow icon="briefcase-outline" label="Serviço">
+            <Text style={s.infoValue}>{servicoLabelDetalhe(svc)}</Text>
+          </InfoRow>
+
+          <View style={s.divider} />
+
           <InfoRow icon="location-outline" label="Local">
             <Text style={s.infoValue}>{svc.bairro} — {svc.cidade}/{svc.uf}</Text>
           </InfoRow>
@@ -487,6 +528,20 @@ const s = StyleSheet.create({
     gap: 16,
   },
 
+  navRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.stroke,
+  },
   titleRow: {
     flexDirection: "row",
     alignItems: "center",

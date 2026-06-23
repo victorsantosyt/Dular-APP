@@ -13,7 +13,6 @@ function parseServico(value: string | null): ServicoOferecido | null {
     value === "DIARISTA" ||
     value === "BABA" ||
     value === "COZINHEIRA" ||
-    value === "FAXINEIRA" ||
     value === "PASSADEIRA" ||
     value === "LAVADEIRA" ||
     value === "CUIDADORA"

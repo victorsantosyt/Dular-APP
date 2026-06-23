@@ -67,7 +67,6 @@ const TIPO_LABEL_DET: Record<string, string> = {
   BABA: "Babá",
   COZINHEIRA: "Cozinheira",
   PASSA_ROUPA: "Passar roupa",
-  FAXINEIRA: "Faxineira",
   CUIDADORA: "Cuidadora",
   LAVADEIRA: "Lavadeira",
   MONTADOR: "Montador",

@@ -23,6 +23,8 @@ type Agendamento = {
   avaliacao: string;
   localizacao: string;
   servico: string;
+  /** Rótulo já resolvido com a categoria/intensidade quando houver. */
+  servicoLabel: string;
   data: string;
   hora: string;
   preco: string;
@@ -168,7 +170,7 @@ function AgendamentoDiaristaCard({
         />
         <View style={styles.cardTopInfo}>
           <Text style={styles.clientName} numberOfLines={1}>{agendamento.nomeCliente}</Text>
-          <Text style={styles.clientSub} numberOfLines={1}>{agendamento.servico}</Text>
+          <Text style={styles.clientSub} numberOfLines={1}>{agendamento.servicoLabel}</Text>
         </View>
         <DBadge type={badge.type} label={badge.label} />
       </View>

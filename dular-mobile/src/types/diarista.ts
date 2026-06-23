@@ -2,7 +2,6 @@ export type ServicoOferecido =
   | "DIARISTA"
   | "BABA"
   | "COZINHEIRA"
-  | "FAXINEIRA"
   | "PASSADEIRA"
   | "LAVADEIRA"
   | "CUIDADORA";

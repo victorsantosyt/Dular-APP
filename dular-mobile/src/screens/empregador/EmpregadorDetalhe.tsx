@@ -69,7 +69,6 @@ function statusVariant(st: string): "success" | "warning" | "neutral" | "danger"
 // ── Rótulos do comprovante ────────────────────────────────────────────────────
 const TIPO_LABEL: Record<string, string> = {
   FAXINA: "Diarista",
-  FAXINEIRA: "Faxineira",
   BABA: "Babá",
   CUIDADORA: "Cuidadora",
   COZINHEIRA: "Cozinheira",

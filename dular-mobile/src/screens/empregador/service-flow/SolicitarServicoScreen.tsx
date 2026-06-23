@@ -7,6 +7,7 @@ import type { EmpregadorTabParamList } from "@/navigation/EmpregadorNavigator";
 import type { EmpregadorServiceFlowStackParamList } from "@/navigation/EmpregadorServiceFlowNavigator";
 import { goToTab } from "@/navigation/navHelpers";
 import { ServiceCategory, useServiceFlow } from "./ServiceFlowContext";
+import { categoriaTemIntensidade } from "./EscolherIntensidadeScreen";
 import { FlowPrimaryButton, flowStyles, ServiceOptionCard, StepHeader } from "./components";
 import { MONTADOR_ESPECIALIDADES } from "./montadorEspecialidades";
 import { getServiceFlowTheme } from "@/theme/serviceFlowTheme";
@@ -95,7 +96,7 @@ export function SolicitarServicoScreen() {
             title="Escolha um montador"
             subtitle="Selecione um profissional antes de solicitar o serviço."
             step={1}
-            total={5}
+            total={6}
             onBack={goToMontadores}
             theme={flowTheme}
           />
@@ -129,7 +130,7 @@ export function SolicitarServicoScreen() {
           title={isMontador ? "Escolha a especialidade" : "Escolha o serviço"}
           subtitle={isMontador ? "Selecione o tipo de trabalho para o montador." : "Selecione o tipo de ajuda que você precisa agora."}
           step={1}
-          total={5}
+          total={6}
           onBack={leaveFlow}
           theme={flowTheme}
         />
@@ -173,7 +174,15 @@ export function SolicitarServicoScreen() {
           label="Continuar"
           theme={flowTheme}
           disabled={!canContinue}
-          onPress={() => navigation.navigate("EscolherData")}
+          onPress={() =>
+            navigation.navigate(
+              // Nichos com subtipo (ex.: Diarista → leve/média/pesada) passam
+              // pelo passo de intensidade; os demais vão direto para a data.
+              !isMontador && categoriaTemIntensidade(draft.categoria)
+                ? "EscolherIntensidade"
+                : "EscolherData",
+            )
+          }
         />
       </SafeAreaView>
     </SafeAreaView>

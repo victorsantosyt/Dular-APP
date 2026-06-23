@@ -152,7 +152,6 @@ export async function POST(req: Request) {
         "MONTADOR_CARPINTARIA",
       ],
       // Nichos novos sem subcategorias (serviço único, categoria nula).
-      FAXINEIRA: [],
       LAVADEIRA: [],
       CUIDADORA: [],
     };
@@ -481,11 +480,19 @@ export async function POST(req: Request) {
     //
     // Quando `valorACombinar=true`, registramos 0 como sentinela "a combinar"
     // (preço negociado externamente — mesma convenção usada para Montador).
-    // Nichos sem preço dedicado (Faxineira/Passadeira/Lavadeira/Cuidadora) são
-    // sempre "a combinar": precoFinal = 0 e sem exigência de preço configurado.
-    const tipoACombinar = ["FAXINEIRA", "PASSA_ROUPA", "LAVADEIRA", "CUIDADORA"].includes(tipo);
+    // Nichos sem subtipo (Faxineira/Cuidadora/Passadeira/Lavadeira): valor único
+    // por nicho, em REAIS (Decimal). Quando configurado, vira precoFinal; quando
+    // nulo, o nicho fica "a combinar" (precoFinal 0, sem exigência de preço).
+    const PRECO_NICHO_DECIMAL: Record<string, unknown> = {
+      CUIDADORA: prof.precoCuidadoraHora,
+      PASSA_ROUPA: prof.precoPassadeira,
+      LAVADEIRA: prof.precoLavadeira,
+    };
+    const temPrecoNicho = Object.prototype.hasOwnProperty.call(PRECO_NICHO_DECIMAL, tipo);
+    // "a combinar" = flag global OU nicho de valor único sem preço configurado.
+    let aCombinar = prof.valorACombinar;
     let precoFinal = 0;
-    if (prof.valorACombinar || tipoACombinar) {
+    if (prof.valorACombinar) {
       precoFinal = 0;
     } else if (tipo === "FAXINA") {
       if (categoria === "FAXINA_PESADA") {
@@ -499,11 +506,19 @@ export async function POST(req: Request) {
       precoFinal = Math.round(Number(prof.precoBabaHora ?? 0) * 100);
     } else if (tipo === "COZINHEIRA") {
       precoFinal = Math.round(Number(prof.precoCozinheiraBase ?? 0) * 100);
+    } else if (temPrecoNicho) {
+      const valorNicho = PRECO_NICHO_DECIMAL[tipo];
+      if (valorNicho != null) {
+        precoFinal = Math.round(Number(valorNicho) * 100);
+      } else {
+        aCombinar = true;
+        precoFinal = 0;
+      }
     } else {
       precoFinal = prof.precoLeve;
     }
 
-    if (!prof.valorACombinar && !tipoACombinar && (!precoFinal || precoFinal <= 0)) {
+    if (!aCombinar && (!precoFinal || precoFinal <= 0)) {
       return NextResponse.json(
         { ok: false, error: "Profissional sem preço configurado para este serviço." },
         { status: 400 },

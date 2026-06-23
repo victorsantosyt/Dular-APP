@@ -15,7 +15,6 @@ import type { ServicoOferecido } from "@/types/diarista";
 
 export type CategoriaKey =
   | "diarista"
-  | "faxineira"
   | "baba"
   | "cuidadora"
   | "cozinheira"
@@ -25,7 +24,6 @@ export type CategoriaKey =
 
 export type ServicoTipoEnum =
   | "FAXINA"
-  | "FAXINEIRA"
   | "BABA"
   | "CUIDADORA"
   | "COZINHEIRA"
@@ -51,7 +49,6 @@ export type Categoria = {
 
 export const CATEGORIAS: Categoria[] = [
   { key: "diarista",   tipo: "FAXINA",      oferta: "DIARISTA",   label: "Diarista",   subtitle: "Limpeza e organização",   icon: "BrushCleaning",   bg: "#FFF1F5", fg: "#F7658B", profissional: "diarista" },
-  { key: "faxineira",  tipo: "FAXINEIRA",   oferta: "FAXINEIRA",  label: "Faxineira",  subtitle: "Faxina e limpeza pontual", icon: "Sparkles",       bg: "#E8F4FF", fg: "#2E8FD6", profissional: "diarista" },
   { key: "baba",       tipo: "BABA",        oferta: "BABA",       label: "Babá",       subtitle: "Cuidados com crianças",    icon: "Baby",           bg: "#F2ECFF", fg: "#7B5CFA", profissional: "diarista" },
   { key: "cuidadora",  tipo: "CUIDADORA",   oferta: "CUIDADORA",  label: "Cuidadora",  subtitle: "Cuidados a idosos/pessoas", icon: "Heart",          bg: "#EAF7EF", fg: "#2BA15F", profissional: "diarista" },
   { key: "cozinheira", tipo: "COZINHEIRA",  oferta: "COZINHEIRA", label: "Cozinheira", subtitle: "Preparo de refeições",     icon: "ChefHat",        bg: "#FFF0E2", fg: "#F47A1F", profissional: "diarista" },

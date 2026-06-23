@@ -2,6 +2,7 @@ import React from "react";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { DBottomTabBar } from "@/navigation/DBottomTabBar";
+import { useMensagens, totalNaoLidas } from "@/hooks/useMensagens";
 import { AgendamentosEmpregadorScreen } from "@/screens/empregador/AgendamentosEmpregadorScreen";
 import EmpregadorHome from "@/screens/empregador/EmpregadorHome";
 import { BuscarScreen } from "@/screens/empregador/BuscarScreen";
@@ -44,7 +45,6 @@ export type EmpregadorTabParamList = {
           | "cozinheira"
           | "diarista"
           | "montador"
-          | "faxineira"
           | "cuidadora"
           | "passadeira"
           | "lavadeira";
@@ -54,7 +54,14 @@ export type EmpregadorTabParamList = {
    *  abre o flow no estado inicial. */
   SolicitarServico:
     | undefined
-    | { categoriaInicial?: ServiceCategory; tipoInicial?: TipoProfissional; profissionalId?: string; profissionalNome?: string; precoEstimadoLabel?: string };
+    | {
+        categoriaInicial?: ServiceCategory;
+        tipoInicial?: TipoProfissional;
+        profissionalId?: string;
+        profissionalNome?: string;
+        precoEstimadoLabel?: string;
+        precos?: { leve: number | null; medio: number | null; pesada: number | null };
+      };
   Mensagens: undefined;
   Notificacoes: undefined;
   ChatAberto: ChatAbertoParams;
@@ -104,9 +111,18 @@ function DetalheServicoScreen(props: any) {
 
 // Abas reais (5). A bottom bar só existe aqui dentro.
 function EmpregadorTabs() {
+  const { rooms } = useMensagens();
+  const unreadMessages = totalNaoLidas(rooms);
+
   return (
     <Tab.Navigator
-      tabBar={(props) => <DBottomTabBar {...props} variant="empregador" />}
+      tabBar={(props) => (
+        <DBottomTabBar
+          {...props}
+          variant="empregador"
+          messagesBadge={unreadMessages > 0 ? unreadMessages : undefined}
+        />
+      )}
       screenOptions={{
         headerShown: false,
         tabBarStyle: { position: "absolute", borderTopWidth: 0, elevation: 0, backgroundColor: "transparent" },

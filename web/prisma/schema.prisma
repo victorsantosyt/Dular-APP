@@ -296,6 +296,10 @@ model DiaristaProfile {
   // Preços multi-nicho (Decimal para alinhar com MontadorPerfil)
   precoBabaHora       Decimal? @db.Decimal(10, 2)
   precoCozinheiraBase Decimal? @db.Decimal(10, 2)
+  // Nichos novos (sem subtipo): valor único por nicho. Null = "a combinar".
+  precoCuidadoraHora  Decimal? @db.Decimal(10, 2)
+  precoPassadeira     Decimal? @db.Decimal(10, 2)
+  precoLavadeira      Decimal? @db.Decimal(10, 2)
   taxaMinima          Decimal? @db.Decimal(10, 2)
   cobraDeslocamento   Boolean  @default(false)
   valorACombinar      Boolean  @default(false)

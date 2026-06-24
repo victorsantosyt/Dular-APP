@@ -12,6 +12,8 @@ export interface Mensagem {
   tipo: MensagemTipo;
   autorId: string;
   criadaEm: string;
+  /** Timestamp ISO de quando o destinatário leu a mensagem; null = ainda não lida. */
+  readAt: string | null;
   status?: "enviando" | "enviado" | "erro";
 }
 
@@ -48,6 +50,7 @@ type RawMessage = {
   autorId?: string;
   createdAt?: string;
   criadaEm?: string;
+  readAt?: string | null;
 };
 
 function normalize(raw: RawMessage): Mensagem {
@@ -59,6 +62,7 @@ function normalize(raw: RawMessage): Mensagem {
     tipo,
     autorId: raw.senderId ?? raw.autorId ?? "",
     criadaEm: raw.createdAt ?? raw.criadaEm ?? new Date().toISOString(),
+    readAt: raw.readAt ?? null,
     status: "enviado",
   };
 }
@@ -171,6 +175,7 @@ export function useChat(roomId: string): UseChatReturn {
         tipo: "TEXT",
         autorId: userId,
         criadaEm: new Date().toISOString(),
+        readAt: null,
         status: "enviando",
       };
 
@@ -209,6 +214,7 @@ export function useChat(roomId: string): UseChatReturn {
         tipo,
         autorId: userId,
         criadaEm: new Date().toISOString(),
+        readAt: null,
         status: "enviando",
       };
       setMensagens((prev) => [...prev, tempMsg]);

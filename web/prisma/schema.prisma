@@ -204,6 +204,8 @@ model User {
   emObservacao   Boolean       @default(false)
   avatarUrl      String?
   pushToken      String?
+  /** Último heartbeat do usuário (presença "online / visto por último"). */
+  lastSeenAt     DateTime?
 
   empregadorPerfil      EmpregadorPerfil?
   diaristaProfile       DiaristaProfile?
@@ -640,6 +642,7 @@ model ChatMessage {
   sender    User        @relation(fields: [senderId], references: [id])
   content   String
   type      MessageType @default(TEXT)
+  deliveredAt DateTime?
   readAt    DateTime?
   createdAt DateTime    @default(now())
 

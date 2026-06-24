@@ -5,6 +5,10 @@ export function mapStatus(status: string): string {
     ACEITO: "aceita",
     CONFIRMADO: "confirmado",
     EM_ANDAMENTO: "andamento",
+    // Sem esta entrada o status caía no fallback e virava "pendente" no mapa do
+    // hook → o card exibia "Aceitar" depois de finalizado (bug). Agora é um
+    // estado próprio de espera (sem ação).
+    AGUARDANDO_FINALIZACAO: "aguardando",
     CONCLUIDO: "concluida",
     FINALIZADO: "finalizado",
     CANCELADO: "cancelada",

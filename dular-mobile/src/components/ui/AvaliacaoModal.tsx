@@ -1,8 +1,11 @@
 import { useState } from "react";
 import {
   Alert,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -65,50 +68,62 @@ export default function AvaliacaoModal({
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={s.overlay}>
+      {/* KeyboardAvoidingView sobe a folha junto com o teclado; o ScrollView
+          (keyboardShouldPersistTaps) mantém estrelas e "Enviar" acessíveis com
+          o teclado aberto, sem precisar fechá-lo antes. */}
+      <KeyboardAvoidingView
+        style={s.overlay}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+      >
         <SafeAreaView style={s.sheet} edges={["bottom"]}>
-          <Text style={s.title}>Avaliar {nomeAvaliado}</Text>
+          <ScrollView
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={s.sheetContent}
+          >
+            <Text style={s.title}>Avaliar {nomeAvaliado}</Text>
 
-          {/* Stars */}
-          <View style={s.starsRow}>
-            {[1, 2, 3, 4, 5].map((n) => (
-              <Pressable key={n} onPress={() => setNota(n)} hitSlop={8}>
-                <Text style={[s.star, nota >= n && s.starFilled]}>
-                  {nota >= n ? "★" : "☆"}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
+            {/* Stars */}
+            <View style={s.starsRow}>
+              {[1, 2, 3, 4, 5].map((n) => (
+                <Pressable key={n} onPress={() => setNota(n)} hitSlop={8}>
+                  <Text style={[s.star, nota >= n && s.starFilled]}>
+                    {nota >= n ? "★" : "☆"}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
 
-          {/* Comment */}
-          <TextInput
-            value={comentario}
-            onChangeText={(t) => setComentario(t.slice(0, 300))}
-            placeholder="Deixe um comentário..."
-            placeholderTextColor={colors.textMuted}
-            multiline
-            style={s.input}
-          />
-          <Text style={s.charCount}>{comentario.length}/300</Text>
-
-          {/* Buttons */}
-          <View style={s.btns}>
-            <DButton
-              label="Cancelar"
-              onPress={onClose}
-              variant="outline"
-              style={s.btnHalf}
+            {/* Comment */}
+            <TextInput
+              value={comentario}
+              onChangeText={(t) => setComentario(t.slice(0, 300))}
+              placeholder="Deixe um comentário..."
+              placeholderTextColor={colors.textMuted}
+              multiline
+              style={s.input}
             />
-            <DButton
-              label="Enviar"
-              onPress={handleEnviar}
-              loading={enviando}
-              disabled={nota === 0}
-              style={s.btnHalf}
-            />
-          </View>
+            <Text style={s.charCount}>{comentario.length}/300</Text>
+
+            {/* Buttons */}
+            <View style={s.btns}>
+              <DButton
+                label="Cancelar"
+                onPress={onClose}
+                variant="outline"
+                style={s.btnHalf}
+              />
+              <DButton
+                label="Enviar"
+                onPress={handleEnviar}
+                loading={enviando}
+                disabled={nota === 0}
+                style={s.btnHalf}
+              />
+            </View>
+          </ScrollView>
         </SafeAreaView>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -124,6 +139,11 @@ const s = StyleSheet.create({
     borderTopLeftRadius: radius.xl,
     borderTopRightRadius: radius.xl,
     padding: spacing.lg,
+    // Limita a folha para que, com o teclado aberto, o conteúdo role em vez de
+    // estourar a tela.
+    maxHeight: "88%",
+  },
+  sheetContent: {
     gap: spacing.md,
   },
   title: {

@@ -102,7 +102,10 @@ const STATUS_UI: Record<
 };
 
 export function statusMatchesFilter(item: AgendamentoItem, status: StatusFiltro) {
-  return status === "todas" || STATUS_FILTER_RAW[status].includes(item.statusRaw);
+  // "Todos" = só as solicitações ainda pendentes (feitas e não aceitas).
+  // Aceitas, em andamento, concluídas e canceladas aparecem só nas próprias abas.
+  if (status === "todas") return STATUS_FILTER_RAW.aguardando.includes(item.statusRaw);
+  return STATUS_FILTER_RAW[status].includes(item.statusRaw);
 }
 
 export function CategoryChip({

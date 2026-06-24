@@ -2,6 +2,7 @@ import React, { useCallback, useMemo, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { AppIcon, DCard, DEmptyState, DErrorState, DLoadingState } from "@/components/ui";
+import { useAuth } from "@/stores/authStore";
 import { useMensagens, type ChatRoom } from "@/hooks/useMensagens";
 import type { ProfileTheme } from "@/theme/profileTheme";
 import { colors, radius, shadows, spacing, typography } from "@/theme";
@@ -35,7 +36,23 @@ function timeLabel(room: ChatRoom) {
   return date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 }
 
-function roomToConversation(room: ChatRoom): ConversationItem {
+/**
+ * Prévia da última mensagem no card (estilo WhatsApp):
+ *  - LOCATION: "📍 Localização"
+ *  - SYSTEM:   conteúdo direto (anúncios de status)
+ *  - TEXT/IMAGE: conteúdo (prefixado com "Você: " quando foi minha)
+ *  - Sem mensagens: string vazia (o card mostra fallback "Toque para conversar")
+ */
+function previewLastMessage(room: ChatRoom, myId: string): string {
+  const u = room.ultimaMensagem;
+  if (!u || !u.texto) return "";
+  if (u.type === "LOCATION") return "📍 Localização";
+  if (u.type === "SYSTEM") return u.texto;
+  const prefix = u.senderId && u.senderId === myId ? "Você: " : "";
+  return prefix + u.texto;
+}
+
+function roomToConversation(room: ChatRoom, myId: string): ConversationItem {
   const nome = room.outroUsuario.nome || "Contato";
   // MensagensView é usada por diarista e montador — o outro lado é sempre o
   // empregador, então a categoria exibida no card é "Empregador".
@@ -51,7 +68,7 @@ function roomToConversation(room: ChatRoom): ConversationItem {
     horario: timeLabel(room),
     initials: initialsFromName(nome),
     avatarUrl: room.outroUsuario.avatarUrl ?? undefined,
-    lastMessage: room.ultimaMensagem?.texto ?? "",
+    lastMessage: previewLastMessage(room, myId),
     unread: room.naoLidas,
   };
 }
@@ -66,12 +83,13 @@ type Props = {
 export function MensagensView({ theme, infoTitle, infoText, onOpenChat }: Props) {
   const [activeTab, setActiveTab] = useState<MessagesTab>("conversas");
   const { rooms, loading, error, refetch } = useMensagens();
+  const myId = useAuth((state) => state.user?.id) ?? "";
 
   const visibleConversations = useMemo(() => {
     const filtered =
       activeTab === "arquivadas" ? rooms.filter((r) => r.arquivada) : rooms.filter((r) => !r.arquivada);
-    return filtered.map(roomToConversation);
-  }, [activeTab, rooms]);
+    return filtered.map((r) => roomToConversation(r, myId));
+  }, [activeTab, rooms, myId]);
 
   const handleOpen = useCallback((item: ConversationItem) => onOpenChat(item), [onOpenChat]);
 

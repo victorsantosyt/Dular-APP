@@ -85,7 +85,7 @@ export function ConversationCard({ item, onPress, accent = colors.primary, soft 
     <DCard style={s.conversationCard} onPress={onPress}>
       <View style={s.avatarWrap}>
         <DAvatar size="lg" uri={item.avatarUrl} initials={item.initials} />
-        <OnlineDot />
+        {/* OnlineDot removido — Etapa 2 fará presença real (lastSeenAt no User). */}
       </View>
 
       <View style={s.cardMain}>

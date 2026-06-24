@@ -39,6 +39,24 @@ type Props = {
   route: { params: ChatAbertoParams };
 };
 
+/**
+ * Rótulo de presença ("online", "visto há X") a partir do lastSeenAt do outro.
+ * String vazia quando nunca houve heartbeat (null) — nesse caso não exibe nada.
+ */
+function getPresenceLabel(lastSeenAt: string | null): string {
+  if (!lastSeenAt) return "";
+  const ts = new Date(lastSeenAt).getTime();
+  if (!Number.isFinite(ts)) return "";
+  const minutes = Math.floor(Math.max(0, Date.now() - ts) / 60_000);
+  if (minutes < 2) return "online";
+  if (minutes < 60) return `visto há ${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `visto há ${hours}h`;
+  const days = Math.floor(hours / 24);
+  if (days === 1) return "visto ontem";
+  return `visto há ${days} dias`;
+}
+
 function categoriaDoServico(tipo?: string | null): { label: string; icon: AppIconName } {
   const v = String(tipo ?? "").toUpperCase();
   if (v === "BABA") return { label: "Babá", icon: "Baby" };
@@ -79,6 +97,7 @@ export function ChatAbertoScreen({ route }: Props) {
       ? catServico.icon
       : categoriaIcon ?? "BrushCleaning"
     : "UserRound";
+  const presenceLabel = getPresenceLabel(outroUsuario?.lastSeenAt ?? null);
   const initials = nomeFinal.trim().split(/\s+/).map((w) => w[0]).join("").slice(0, 2).toUpperCase();
   // Status terminais → sala arquivada (somente leitura).
   const arquivada = servicoStatus
@@ -200,6 +219,11 @@ export function ChatAbertoScreen({ route }: Props) {
                 {subtituloCategoria}
               </Text>
             </View>
+            {presenceLabel ? (
+              <Text style={styles.headerPresence} numberOfLines={1}>
+                {presenceLabel}
+              </Text>
+            ) : null}
           </View>
         </View>
         {/* Espaçador invisível = largura do botão voltar → card centralizado
@@ -350,6 +374,11 @@ const styles = StyleSheet.create({
     ...typography.caption,
     color: colors.whiteAlpha80,
     fontWeight: "600",
+  },
+  headerPresence: {
+    ...typography.caption,
+    color: colors.whiteAlpha70,
+    fontWeight: "500",
   },
   attachBtn: {
     width: 36,

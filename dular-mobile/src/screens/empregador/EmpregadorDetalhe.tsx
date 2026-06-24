@@ -192,7 +192,8 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
   const alreadyRated = useMemo(
     () => Boolean(
       (svc as any)?.__ratedByClient || (svc as any)?.avaliacaoCliente ||
-      (svc as any)?.notaCliente || statusRaw === "AVALIADO"
+      (svc as any)?.notaCliente || (svc as any)?.avaliacao ||
+      statusRaw === "AVALIADO" || statusRaw === "FINALIZADO"
     ),
     [svc, statusRaw]
   );
@@ -204,8 +205,10 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
     () => statusRaw === "AGUARDANDO_FINALIZACAO",
     [statusRaw]
   );
-  const finalizarPeloEmpregador = useMemo(
-    () => statusRaw === "EM_ANDAMENTO",
+  // CONCLUIDO = ambas as partes finalizaram; falta o empregador "confirmar
+  // recebimento" (→ CONFIRMADO, libera avaliação). Muda o rótulo do botão.
+  const confirmarRecebimento = useMemo(
+    () => ["CONCLUIDO", "CONCLUÍDO"].includes(statusRaw),
     [statusRaw]
   );
   const podeCancelar = useMemo(
@@ -232,11 +235,11 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
       setAvaliacaoVisible(true);
     }
   }, [podeAvaliar]);
-  // Chat disponível desde o aceite até a finalização completa.
-  // FINALIZADO/CANCELADO encerram o chat; AGUARDANDO_FINALIZACAO e CONCLUIDO
-  // ainda precisam de comunicação entre as partes.
+  // Chat disponível desde o aceite até a finalização (AGUARDANDO_FINALIZACAO).
+  // A partir de CONCLUIDO o serviço encerra e o chat some (também em
+  // CONFIRMADO/FINALIZADO/CANCELADO).
   const chatLiberado = useMemo(
-    () => ["ACEITO", "INICIADO", "EM_ANDAMENTO", "AGUARDANDO_FINALIZACAO", "CONCLUIDO", "CONCLUÍDO"].includes(statusRaw),
+    () => ["ACEITO", "INICIADO", "EM_ANDAMENTO", "AGUARDANDO_FINALIZACAO"].includes(statusRaw),
     [statusRaw]
   );
 
@@ -560,10 +563,19 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
           />
         ) : null}
 
-        {/* Confirmar finalização */}
-        {podeConfirmar || finalizarPeloEmpregador ? (
+        {/* Confirmação do empregador. Em AGUARDANDO_FINALIZACAO o profissional
+            já finalizou → "Confirmar finalização" (→ CONCLUIDO). Em CONCLUIDO
+            falta liberar a avaliação → "Confirmar recebimento" (→ CONFIRMADO).
+            Em EM_ANDAMENTO o empregador só acompanha (sem botão). */}
+        {podeConfirmar ? (
           <DButton
-            title={confirming ? "Confirmando..." : "Confirmar finalização"}
+            title={
+              confirming
+                ? "Confirmando..."
+                : confirmarRecebimento
+                  ? "Confirmar recebimento"
+                  : "Confirmar finalização"
+            }
             onPress={onConfirmar}
             loading={confirming}
             disabled={confirming}

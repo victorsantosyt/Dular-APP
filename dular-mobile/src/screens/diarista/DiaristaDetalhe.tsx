@@ -389,9 +389,10 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
               />
             </>
           )}
-          {/* Chat disponível do aceite até AGUARDANDO_FINALIZACAO/CONCLUIDO —
-               só encerra em FINALIZADO/CANCELADO/RECUSADO. */}
-          {["ACEITO", "INICIADO", "EM_ANDAMENTO", "AGUARDANDO_FINALIZACAO", "CONCLUIDO", "CONCLUÍDO"].includes(svc.status.toUpperCase()) && (
+          {/* Chat disponível do aceite até a finalização (AGUARDANDO_FINALIZACAO).
+               A partir de CONCLUIDO/CONFIRMADO/FINALIZADO o serviço encerra e o
+               chat some (alinhado ao comprovante do empregador). */}
+          {["ACEITO", "INICIADO", "EM_ANDAMENTO", "AGUARDANDO_FINALIZACAO"].includes(svc.status.toUpperCase()) && (
             <DButton tint={theme.primary}
               title="Abrir chat"
               variant="outline"
@@ -439,23 +440,30 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
               />
             </>
           )}
-          {/* Vale para EM_ANDAMENTO (1ª confirmação) e AGUARDANDO_FINALIZACAO
-              (quando o empregador confirmou primeiro — sem este caso a diarista
-              ficava sem botão e o serviço travava). Backend é idempotente. */}
-          {["INICIADO", "EM_ANDAMENTO", "AGUARDANDO_FINALIZACAO"].includes(svc.status.toUpperCase()) && !isStatusEncerrado(svc.status) && (
+          {/* Modelo profissional-finaliza-primeiro: a diarista finaliza em
+              EM_ANDAMENTO (→ AGUARDANDO_FINALIZACAO) e o empregador confirma
+              depois. Em AGUARDANDO ela apenas espera (botão desabilitado). */}
+          {["INICIADO", "EM_ANDAMENTO"].includes(svc.status.toUpperCase()) && !isStatusEncerrado(svc.status) && (
             <DButton tint={theme.primary}
-              title="Confirmar finalização"
+              title="Finalizar serviço"
               loading={loading}
               onPress={() => { void confirmarFinalizacao(); }}
             />
           )}
           {svc.status.toUpperCase() === "AGUARDANDO_FINALIZACAO" && (
-            <View style={s.waitingCard}>
-              <Ionicons name="hourglass-outline" size={20} color={colors.warning} />
-              <Text style={s.waitingText}>
-                Confirme a finalização para concluir. Se já confirmou, aguarde a outra parte.
-              </Text>
-            </View>
+            <>
+              <DButton tint={theme.primary}
+                title="Aguardando confirmação"
+                disabled
+                onPress={() => {}}
+              />
+              <View style={s.waitingCard}>
+                <Ionicons name="hourglass-outline" size={20} color={colors.warning} />
+                <Text style={s.waitingText}>
+                  Você finalizou o serviço. Aguardando o cliente confirmar para concluir.
+                </Text>
+              </View>
+            </>
           )}
           {svc.status.toUpperCase() === "CONFIRMADO" && (
             <View style={s.paidCard}>

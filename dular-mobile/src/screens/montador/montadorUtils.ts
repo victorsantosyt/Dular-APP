@@ -16,7 +16,9 @@ export function isServicoNaAgenda(servico: MontadorServico) {
 
 export function canOpenChat(servico: MontadorServico) {
   const status = upperStatus(servico.status);
-  return ["ACEITO", "CONFIRMADO", "EM_ANDAMENTO", "AGUARDANDO_FINALIZACAO", "FINALIZADO", "CONCLUIDO"].includes(status);
+  // Chat aberto do aceite até a finalização. A partir de CONCLUIDO o serviço
+  // encerra e o chat some (também CONFIRMADO/FINALIZADO) — alinhado a diarista/empregador.
+  return ["ACEITO", "EM_ANDAMENTO", "AGUARDANDO_FINALIZACAO"].includes(status);
 }
 
 export function firstName(value?: string | null, fallback = "Montador") {

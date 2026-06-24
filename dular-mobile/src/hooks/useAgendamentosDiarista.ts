@@ -3,7 +3,13 @@ import { apiService } from "@/services/api";
 import { useAuth } from "@/stores/authStore";
 import { formatDate, formatHora, mapStatus } from "@/utils/formatters";
 
-export type StatusDiarista = "pendente" | "confirmado" | "andamento" | "finalizado" | "cancelado";
+export type StatusDiarista =
+  | "pendente"
+  | "confirmado"
+  | "andamento"
+  | "aguardando"
+  | "finalizado"
+  | "cancelado";
 
 export interface AgendamentoDiarista {
   id: string;
@@ -55,9 +61,11 @@ const STATUS_DIARISTA_MAP: Record<string, StatusDiarista> = {
   aceita: "confirmado",
   confirmado: "confirmado",
   andamento: "andamento",
+  aguardando: "aguardando",
   concluida: "finalizado",
   finalizado: "finalizado",
   cancelada: "cancelado",
+  recusado: "cancelado",
 };
 
 function mapServico(raw: any): AgendamentoDiarista {

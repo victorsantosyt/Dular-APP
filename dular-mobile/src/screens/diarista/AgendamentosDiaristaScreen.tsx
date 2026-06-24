@@ -14,7 +14,13 @@ import { useMensagens } from "@/hooks/useMensagens";
 
 type Navigation = BottomTabNavigationProp<DiaristaTabParamList>;
 type Filtro = "hoje" | "amanha" | "semana" | "pendentes" | "confirmados" | "concluidos";
-type StatusAgendamento = "pendente" | "confirmado" | "andamento" | "finalizado" | "cancelado";
+type StatusAgendamento =
+  | "pendente"
+  | "confirmado"
+  | "andamento"
+  | "aguardando"
+  | "finalizado"
+  | "cancelado";
 
 type Agendamento = {
   id: string;
@@ -110,6 +116,8 @@ function statusCardStyle(status: StatusAgendamento, accentColor: string) {
       return { borderColor: accentColor, borderWidth: 1.5 };
     case "andamento":
       return styles.statusAndamento;
+    case "aguardando":
+      return styles.statusAndamento;
     case "finalizado":
       return styles.statusFinalizado;
     case "cancelado":
@@ -128,6 +136,8 @@ function statusBadgeMeta(status: StatusAgendamento): {
       return { label: "Confirmado", type: "success" };
     case "andamento":
       return { label: "Em andamento", type: "info" };
+    case "aguardando":
+      return { label: "Aguardando confirmação", type: "warning" };
     case "finalizado":
       return { label: "Finalizado", type: "default" };
     case "cancelado":

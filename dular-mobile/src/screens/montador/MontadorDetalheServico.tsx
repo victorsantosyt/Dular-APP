@@ -180,9 +180,9 @@ export default function MontadorDetalheServico({ route, navigation }: Props) {
             <View style={styles.actionGrid}>
               {/* CTA principal: mesmo card do grid, mas preenchido (cor cheia)
                   para se destacar quando o serviço pode ser finalizado. */}
-              {!encerrado && ["EM_ANDAMENTO", "AGUARDANDO_FINALIZACAO"].includes(status) ? (
+              {!encerrado && status === "EM_ANDAMENTO" ? (
                 <ActionButton
-                  label={actionLoading === "finalizar" ? "Finalizando…" : "Confirmar finalização"}
+                  label={actionLoading === "finalizar" ? "Finalizando…" : "Finalizar serviço"}
                   icon="CheckCircle"
                   accent={profileTheme.primary}
                   soft={profileTheme.primarySoft}
@@ -239,8 +239,7 @@ export default function MontadorDetalheServico({ route, navigation }: Props) {
               <View style={[styles.statusInfo, { backgroundColor: colors.warningSoft }]}>
                 <AppIcon name="Hourglass" size={16} color={colors.warning} />
                 <Text style={[styles.statusInfoText, { color: colors.warning }]}>
-                  Confirme a finalização para concluir o serviço. Se você já confirmou,
-                  aguarde a outra parte.
+                  Você finalizou o serviço. Aguardando o empregador confirmar para concluir.
                 </Text>
               </View>
             ) : null}

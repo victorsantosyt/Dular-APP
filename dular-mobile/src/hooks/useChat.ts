@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useFocusEffect } from "@react-navigation/native";
 import { api } from "@/lib/api";
+import { sendHeartbeat } from "@/api/heartbeatApi";
 import { useAuth } from "@/stores/authStore";
 
 export type MensagemTipo = "TEXT" | "IMAGE" | "LOCATION";
@@ -12,6 +13,8 @@ export interface Mensagem {
   tipo: MensagemTipo;
   autorId: string;
   criadaEm: string;
+  /** Timestamp ISO de quando a mensagem foi entregue ao destinatário; null = ainda não. */
+  deliveredAt: string | null;
   /** Timestamp ISO de quando o destinatário leu a mensagem; null = ainda não lida. */
   readAt: string | null;
   status?: "enviando" | "enviado" | "erro";
@@ -21,6 +24,8 @@ export interface OutroUsuario {
   nome: string;
   avatarUrl: string | null;
   role: string | null;
+  /** Última presença (heartbeat) do outro usuário; null = nunca visto. */
+  lastSeenAt: string | null;
 }
 
 export interface UseChatReturn {
@@ -50,6 +55,7 @@ type RawMessage = {
   autorId?: string;
   createdAt?: string;
   criadaEm?: string;
+  deliveredAt?: string | null;
   readAt?: string | null;
 };
 
@@ -62,6 +68,7 @@ function normalize(raw: RawMessage): Mensagem {
     tipo,
     autorId: raw.senderId ?? raw.autorId ?? "",
     criadaEm: raw.createdAt ?? raw.criadaEm ?? new Date().toISOString(),
+    deliveredAt: raw.deliveredAt ?? null,
     readAt: raw.readAt ?? null,
     status: "enviado",
   };
@@ -107,6 +114,16 @@ export function useChat(roomId: string): UseChatReturn {
     };
   }, []);
 
+  // Heartbeat de presença: enquanto a conversa está aberta, marca lastSeenAt a
+  // cada 30s (e imediatamente ao abrir). Silencioso e local a este hook — sem
+  // presença global. Intervalo separado do polling de mensagens (8s).
+  useEffect(() => {
+    if (!roomId) return;
+    void sendHeartbeat();
+    const interval = setInterval(() => void sendHeartbeat(), 30_000);
+    return () => clearInterval(interval);
+  }, [roomId]);
+
   const fetchMensagens = useCallback(async () => {
     if (!roomId) {
       if (mountedRef.current) setLoading(false);
@@ -131,7 +148,12 @@ export function useChat(roomId: string): UseChatReturn {
         setServicoTipo(tipo);
         setOutroUsuario(
           other
-            ? { nome: other.nome ?? "", avatarUrl: other.avatarUrl ?? null, role: other.role ?? null }
+            ? {
+                nome: other.nome ?? "",
+                avatarUrl: other.avatarUrl ?? null,
+                role: other.role ?? null,
+                lastSeenAt: other.lastSeenAt ?? null,
+              }
             : null,
         );
         setError(null);
@@ -175,6 +197,7 @@ export function useChat(roomId: string): UseChatReturn {
         tipo: "TEXT",
         autorId: userId,
         criadaEm: new Date().toISOString(),
+        deliveredAt: null,
         readAt: null,
         status: "enviando",
       };
@@ -214,6 +237,7 @@ export function useChat(roomId: string): UseChatReturn {
         tipo,
         autorId: userId,
         criadaEm: new Date().toISOString(),
+        deliveredAt: null,
         readAt: null,
         status: "enviando",
       };

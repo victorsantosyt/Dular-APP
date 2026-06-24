@@ -98,7 +98,10 @@ describe("GET /api/chat/[roomId] — ler mensagens", () => {
       nome: "Diarista",
       avatarUrl: null,
       role: "DIARISTA",
+      lastSeenAt: null,
     });
+    // GET marca deliveredAt (e depois readAt) via updateMany — Etapa 2.
+    mockPrisma.chatMessage.updateMany = async () => ({ count: 0 });
     mockPrisma.chatMessage.findMany = async () => [];
 
     const { GET } = await getHandlers();

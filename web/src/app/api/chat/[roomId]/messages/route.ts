@@ -98,6 +98,20 @@ export async function GET(req: Request, { params }: Params) {
     // ?before=<messageId>  — carrega mensagens anteriores (scroll infinito)
     const before = url.searchParams.get("before") ?? undefined;
 
+    const profissionalUserId = servico.montadorId ?? servico.diaristaId;
+    const otherUserId =
+      auth.userId === servico.clientId ? profissionalUserId : servico.clientId;
+
+    // Entrega (deliveredAt) ANTES de leitura (readAt): ao carregar a sala, todas
+    // as mensagens do outro viram "entregues"; só as efetivamente vistas viram
+    // "lidas" no bloco abaixo.
+    if (otherUserId) {
+      await prisma.chatMessage.updateMany({
+        where: { roomId: room.id, senderId: otherUserId, deliveredAt: null },
+        data: { deliveredAt: new Date() },
+      });
+    }
+
     const messages = await prisma.chatMessage.findMany({
       where: {
         roomId: room.id,
@@ -110,6 +124,7 @@ export async function GET(req: Request, { params }: Params) {
         type: true,
         content: true,
         senderId: true,
+        deliveredAt: true,
         readAt: true,
         createdAt: true,
         sender: { select: { id: true, nome: true, avatarUrl: true } },
@@ -117,22 +132,18 @@ export async function GET(req: Request, { params }: Params) {
     });
 
     // Marca como lidas as mensagens do outro participante que ainda não foram lidas
-    const profissionalUserId = servico.montadorId ?? servico.diaristaId;
-    const otherUserId =
-      auth.userId === servico.clientId ? profissionalUserId : servico.clientId;
-
     const unreadIds = messages
       .filter((m) => m.senderId === otherUserId && m.readAt === null)
       .map((m) => m.id);
 
     if (unreadIds.length > 0) {
+      const now = new Date();
       await prisma.chatMessage.updateMany({
         where: { id: { in: unreadIds } },
-        data: { readAt: new Date() },
+        data: { readAt: now },
       });
 
       // Reflete o readAt nas mensagens já carregadas (sem nova query)
-      const now = new Date();
       for (const m of messages) {
         if (unreadIds.includes(m.id)) m.readAt = now;
       }
@@ -222,6 +233,7 @@ export async function POST(req: Request, { params }: Params) {
         type: true,
         content: true,
         senderId: true,
+        deliveredAt: true,
         readAt: true,
         createdAt: true,
         sender: { select: { id: true, nome: true, avatarUrl: true } },

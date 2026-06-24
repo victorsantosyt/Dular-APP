@@ -5,6 +5,7 @@ import { useNavigation } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import { AppIcon, DCard, DEmptyState, DErrorState, DLoadingState } from "@/components/ui";
 import { useMensagens, type ChatRoom } from "@/hooks/useMensagens";
+import { useAuth } from "@/stores/authStore";
 import type { EmpregadorTabParamList } from "@/navigation/EmpregadorNavigator";
 import { colors, radius, shadows, spacing, typography } from "@/theme";
 import {
@@ -41,7 +42,16 @@ function timeLabel(room: ChatRoom) {
   return date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 }
 
-function roomToConversation(room: ChatRoom): ConversationItem {
+function previewLastMessage(room: ChatRoom, myId: string): string {
+  const u = room.ultimaMensagem;
+  if (!u || !u.texto) return "";
+  if (u.type === "LOCATION") return "📍 Localização";
+  if (u.type === "SYSTEM") return u.texto;
+  const prefix = u.senderId && u.senderId === myId ? "Você: " : "";
+  return prefix + u.texto;
+}
+
+function roomToConversation(room: ChatRoom, myId: string): ConversationItem {
   const nome = room.outroUsuario.nome || "Contato";
   const category = categoriaFromTipo(room.servico?.tipo);
   return {
@@ -55,6 +65,8 @@ function roomToConversation(room: ChatRoom): ConversationItem {
     horario: timeLabel(room),
     initials: initialsFromName(nome),
     avatarUrl: room.outroUsuario.avatarUrl ?? undefined,
+    lastMessage: previewLastMessage(room, myId),
+    unread: room.naoLidas,
   };
 }
 
@@ -62,14 +74,15 @@ export function MensagensEmpregadorScreen() {
   const navigation = useNavigation<Navigation>();
   const [activeTab, setActiveTab] = useState<MessagesTab>("conversas");
   const { rooms, loading, error, refetch } = useMensagens();
+  const myId = useAuth((state) => state.user?.id) ?? "";
 
   const visibleConversations = useMemo(() => {
     const filtered =
       activeTab === "arquivadas"
         ? rooms.filter((r) => r.arquivada)
         : rooms.filter((r) => !r.arquivada);
-    return filtered.map(roomToConversation);
-  }, [activeTab, rooms]);
+    return filtered.map((r) => roomToConversation(r, myId));
+  }, [activeTab, rooms, myId]);
 
   const openChat = useCallback(
     (item: ConversationItem) => {

@@ -2,6 +2,7 @@ import { Image, Linking, Pressable, StyleSheet, Text, View } from "react-native"
 import { AppIcon } from "@/components/ui/AppIcon";
 import { shadow } from "@/utils/platform";
 import type { Mensagem } from "@/hooks/useChat";
+import { useDularColors } from "@/hooks/useDularColors";
 import { colors, radius, spacing, typography } from "@/theme/tokens";
 
 export interface MensagemBubbleProps {
@@ -25,6 +26,39 @@ function abrirLocalizacao(content: string) {
   } catch {
     /* conteúdo inválido — ignora */
   }
+}
+
+/**
+ * Recibo de leitura (estilo WhatsApp), só nas mensagens enviadas por mim.
+ * - Otimista (id `temp-*`, ainda enviando): relógio translúcido
+ * - Falhou (`status === "erro"`): texto "Falha ao enviar"
+ * - Enviado (id real, readAt null): um check translúcido
+ * - Lido (readAt definido): dois checks sólidos sobrepostos
+ *
+ * Cores vêm do tema (useDularColors) — sem hex hardcoded. As 2 variantes de
+ * "minha" bolha (sólida com accent) usam tons de branco para garantir contraste.
+ */
+function MessageStatus({ mensagem }: { mensagem: Mensagem }) {
+  const c = useDularColors();
+  const isOptimistic = mensagem.id.startsWith("temp-") || mensagem.status === "enviando";
+
+  if (mensagem.status === "erro") {
+    return <Text style={[styles.statusErro, { color: c.error }]}>Falha ao enviar</Text>;
+  }
+  if (isOptimistic) {
+    return <AppIcon name="Clock" size={11} color={c.whiteAlpha70} strokeWidth={2.4} />;
+  }
+  if (mensagem.readAt) {
+    return (
+      <View style={styles.checkRow}>
+        <AppIcon name="Check" size={12} color={c.white} strokeWidth={2.6} />
+        <View style={styles.checkOverlap}>
+          <AppIcon name="Check" size={12} color={c.white} strokeWidth={2.6} />
+        </View>
+      </View>
+    );
+  }
+  return <AppIcon name="Check" size={12} color={c.whiteAlpha70} strokeWidth={2.4} />;
 }
 
 export function MensagemBubble({ mensagem, isOwn, accent }: MensagemBubbleProps) {
@@ -52,16 +86,16 @@ export function MensagemBubble({ mensagem, isOwn, accent }: MensagemBubbleProps)
           </Text>
         )}
 
-        <Text style={[styles.time, isOwn ? styles.timeOwn : styles.timeOther, isImage && styles.timeOnImage]}>
-          {formatTime(mensagem.criadaEm)}
-        </Text>
-
-        {isOwn && mensagem.status === "enviando" && (
-          <Text style={styles.statusEnviando}>...</Text>
-        )}
-        {isOwn && mensagem.status === "erro" && (
-          <Text style={styles.statusErro}>Falha ao enviar</Text>
-        )}
+        <View style={[styles.metaRow, isImage && styles.metaRowOnImage]}>
+          <Text style={[styles.time, isOwn ? styles.timeOwn : styles.timeOther]}>
+            {formatTime(mensagem.criadaEm)}
+          </Text>
+          {isOwn ? (
+            <View style={styles.statusWrap}>
+              <MessageStatus mensagem={mensagem} />
+            </View>
+          ) : null}
+        </View>
       </View>
     </View>
   );
@@ -115,14 +149,33 @@ const styles = StyleSheet.create({
   locationText: {
     textDecorationLine: "underline",
   },
-  timeOnImage: {
+  metaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-end",
+    gap: 4,
+    marginTop: spacing.xs,
+  },
+  metaRowOnImage: {
     position: "absolute",
     right: 8,
     bottom: 8,
-    color: colors.white,
-    paddingHorizontal: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
     borderRadius: 6,
     backgroundColor: "rgba(0,0,0,0.35)",
+    marginTop: 0,
+  },
+  statusWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  checkRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  checkOverlap: {
+    marginLeft: -6,
   },
   texto: {
     ...typography.body,
@@ -135,7 +188,6 @@ const styles = StyleSheet.create({
   },
   time: {
     ...typography.caption,
-    marginTop: spacing.xs,
     textAlign: "right",
   },
   timeOwn: {
@@ -144,15 +196,8 @@ const styles = StyleSheet.create({
   timeOther: {
     color: colors.textMuted,
   },
-  statusEnviando: {
-    ...typography.caption,
-    color: colors.white,
-    opacity: 0.6,
-    textAlign: "right",
-  },
   statusErro: {
     ...typography.caption,
-    color: colors.error,
     textAlign: "right",
   },
 });

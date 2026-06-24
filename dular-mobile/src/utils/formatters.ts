@@ -18,12 +18,18 @@ export function mapStatus(status: string): string {
 
 export function formatDate(dateStr?: string): string {
   if (!dateStr) return "--";
-  const date = new Date(dateStr);
-  const hoje = new Date();
-  if (date.toDateString() === hoje.toDateString()) return "Hoje";
-  const amanha = new Date(hoje);
-  amanha.setDate(hoje.getDate() + 1);
-  if (date.toDateString() === amanha.toDateString()) return "Amanhã";
+  const parsed = new Date(dateStr);
+  if (Number.isNaN(parsed.getTime())) return "--";
+  // O backend grava a data do serviço como meia-noite UTC ("2026-06-24T00:00:00Z").
+  // Exibir com `new Date(...)` em fuso negativo (Brasil, UTC-3) deslizava o dia
+  // (mostrava o anterior/seguinte). Lemos os componentes em UTC para recuperar o
+  // dia de calendário escolhido e comparamos por dia local, sem deslocamento.
+  const date = new Date(parsed.getUTCFullYear(), parsed.getUTCMonth(), parsed.getUTCDate());
+  const agora = new Date();
+  const hoje = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate());
+  const diffDays = Math.round((date.getTime() - hoje.getTime()) / 86_400_000);
+  if (diffDays === 0) return "Hoje";
+  if (diffDays === 1) return "Amanhã";
   return date.toLocaleDateString("pt-BR", {
     weekday: "short",
     day: "2-digit",

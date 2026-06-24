@@ -28,15 +28,29 @@ function abrirLocalizacao(content: string) {
   }
 }
 
+/** Dois checks sobrepostos (✓✓), na cor recebida. */
+function DoubleCheck({ color }: { color: string }) {
+  return (
+    <View style={styles.checkRow}>
+      <AppIcon name="Check" size={12} color={color} strokeWidth={2.6} />
+      <View style={styles.checkOverlap}>
+        <AppIcon name="Check" size={12} color={color} strokeWidth={2.6} />
+      </View>
+    </View>
+  );
+}
+
 /**
- * Recibo de leitura (estilo WhatsApp), só nas mensagens enviadas por mim.
- * - Otimista (id `temp-*`, ainda enviando): relógio translúcido
+ * Recibo (estilo WhatsApp), só nas mensagens enviadas por mim. 4 estados:
+ * - Otimista (id `temp-*`/`enviando`): relógio translúcido
  * - Falhou (`status === "erro"`): texto "Falha ao enviar"
- * - Enviado (id real, readAt null): um check translúcido
- * - Lido (readAt definido): dois checks sólidos sobrepostos
+ * - Enviado (sem deliveredAt): um check translúcido
+ * - Entregue (deliveredAt, sem readAt): ✓✓ translúcido
+ * - Lido (readAt): ✓✓ branco sólido
  *
- * Cores vêm do tema (useDularColors) — sem hex hardcoded. As 2 variantes de
- * "minha" bolha (sólida com accent) usam tons de branco para garantir contraste.
+ * Cores via tema (useDularColors) — sem hex. Como a bolha própria é sólida com
+ * accent, os checks usam branco: translúcido (enviado/entregue) vs sólido (lido)
+ * para garantir contraste (substitui o "cinza vs azul" do fundo claro).
  */
 function MessageStatus({ mensagem }: { mensagem: Mensagem }) {
   const c = useDularColors();
@@ -49,14 +63,10 @@ function MessageStatus({ mensagem }: { mensagem: Mensagem }) {
     return <AppIcon name="Clock" size={11} color={c.whiteAlpha70} strokeWidth={2.4} />;
   }
   if (mensagem.readAt) {
-    return (
-      <View style={styles.checkRow}>
-        <AppIcon name="Check" size={12} color={c.white} strokeWidth={2.6} />
-        <View style={styles.checkOverlap}>
-          <AppIcon name="Check" size={12} color={c.white} strokeWidth={2.6} />
-        </View>
-      </View>
-    );
+    return <DoubleCheck color={c.white} />;
+  }
+  if (mensagem.deliveredAt) {
+    return <DoubleCheck color={c.whiteAlpha70} />;
   }
   return <AppIcon name="Check" size={12} color={c.whiteAlpha70} strokeWidth={2.4} />;
 }

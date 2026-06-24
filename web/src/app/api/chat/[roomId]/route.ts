@@ -89,9 +89,20 @@ export async function GET(req: Request, { params }: Params) {
     const otherUser = otherUserId
       ? await prisma.user.findUnique({
           where: { id: otherUserId },
-          select: { id: true, nome: true, avatarUrl: true, role: true },
+          select: { id: true, nome: true, avatarUrl: true, role: true, lastSeenAt: true },
         })
       : null;
+
+    // Entrega (deliveredAt) ANTES de leitura (readAt): ao abrir/atualizar a sala,
+    // as mensagens do outro são consideradas entregues; só as visíveis aqui
+    // também viram lidas. Assim uma msg pode ficar "entregue" sem "lida" se o
+    // destinatário ainda não tiver aberto a conversa.
+    if (otherUserId) {
+      await prisma.chatMessage.updateMany({
+        where: { roomId: room.id, senderId: otherUserId, deliveredAt: null },
+        data: { deliveredAt: new Date() },
+      });
+    }
 
     const messages = await prisma.chatMessage.findMany({
       where: { roomId: room.id },
@@ -103,6 +114,7 @@ export async function GET(req: Request, { params }: Params) {
         type: true,
         content: true,
         senderId: true,
+        deliveredAt: true,
         readAt: true,
         createdAt: true,
         sender: { select: { id: true, nome: true, avatarUrl: true } },
@@ -114,10 +126,15 @@ export async function GET(req: Request, { params }: Params) {
       .map((m) => m.id);
 
     if (unreadIds.length > 0) {
+      const now = new Date();
       await prisma.chatMessage.updateMany({
         where: { id: { in: unreadIds } },
-        data: { readAt: new Date() },
+        data: { readAt: now },
       });
+      // Reflete nas mensagens já carregadas (sem nova query).
+      for (const m of messages) {
+        if (unreadIds.includes(m.id)) m.readAt = now;
+      }
     }
 
     return NextResponse.json({
@@ -209,6 +226,7 @@ export async function POST(req: Request, { params }: Params) {
         type: true,
         content: true,
         senderId: true,
+        deliveredAt: true,
         readAt: true,
         createdAt: true,
         sender: { select: { id: true, nome: true, avatarUrl: true } },

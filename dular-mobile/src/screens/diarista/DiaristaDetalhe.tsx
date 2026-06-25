@@ -447,7 +447,12 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
             <DButton tint={theme.primary}
               title="Finalizar serviço"
               loading={loading}
-              onPress={() => { void confirmarFinalizacao(); }}
+              onPress={() =>
+                Alert.alert("Pagamento", "Você já recebeu o pagamento?", [
+                  { text: "Ainda não", style: "cancel" },
+                  { text: "Sim, já recebi", onPress: () => { void confirmarFinalizacao(); } },
+                ])
+              }
             />
           )}
           {svc.status.toUpperCase() === "AGUARDANDO_FINALIZACAO" && (

@@ -16,7 +16,16 @@ export function MontadorMensagens() {
       theme={theme}
       infoTitle="Conversas dos seus serviços"
       infoText="Converse com os clientes para combinar os detalhes do serviço."
-      onOpenChat={(item) => navigation.navigate("MontadorChat", { servicoId: item.servicoId })}
+      onOpenChat={(item) =>
+        navigation.navigate("MontadorChat", {
+          roomId: item.servicoId,
+          servicoId: item.servicoId,
+          nomeUsuario: item.nome,
+          categoria: item.categoria,
+          categoriaIcon: item.categoriaIcon,
+          avatarUrl: item.avatarUrl,
+        })
+      }
     />
   );
 }

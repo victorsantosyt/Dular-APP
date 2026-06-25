@@ -28,6 +28,7 @@ import {
 } from "@/components/ui";
 import { api } from "@/lib/api";
 import { fetchServicosMinhas } from "@/api/sharedFetcher";
+import { parseDataServico } from "@/utils/formatters";
 import { colors, radius, shadows, spacing, typography } from "@/theme";
 import type { EmpregadorTabParamList } from "@/navigation/EmpregadorNavigator";
 
@@ -138,9 +139,9 @@ function categoriaLabelFor(servico: ServicoRaw): string {
 }
 
 function formatDate(value?: string | null): string {
-  if (!value) return "Data a combinar";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Data a combinar";
+  // Data do serviço é meia-noite UTC — normaliza p/ não deslizar o dia (fuso).
+  const date = parseDataServico(value);
+  if (!date) return "Data a combinar";
   return date.toLocaleDateString("pt-BR", {
     day: "2-digit",
     month: "short",

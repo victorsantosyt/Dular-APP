@@ -307,6 +307,7 @@ export default function MontadorDetalheServico({ route, navigation }: Props) {
           servicoId={servico.id}
           nomeAvaliado={servico.empregador?.nome ?? "Empregador"}
           endpoint={`/api/servicos/${servico.id}/avaliar-empregador`}
+          accent={profileTheme.primary}
           onClose={() => setAvaliarOpen(false)}
           onSucesso={() => {
             setAvaliarOpen(false);

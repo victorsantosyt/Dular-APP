@@ -28,6 +28,12 @@ export interface AvaliacaoModalProps {
    * O profissional avaliando o empregador passa `/avaliar-empregador`.
    */
   endpoint?: string;
+  /**
+   * Cor de acento (identidade por gênero/perfil) aplicada aos botões.
+   * Omitida = roxo padrão do empregador. Os perfis profissionais
+   * (diarista/montador) passam a cor do seu tema para seguir o padrão do app.
+   */
+  accent?: string;
 }
 
 export default function AvaliacaoModal({
@@ -37,6 +43,7 @@ export default function AvaliacaoModal({
   onClose,
   onSucesso,
   endpoint,
+  accent,
 }: AvaliacaoModalProps) {
   const [nota, setNota] = useState(0);
   const [comentario, setComentario] = useState("");
@@ -117,6 +124,7 @@ export default function AvaliacaoModal({
                 label="Cancelar"
                 onPress={onClose}
                 variant="outline"
+                tint={accent}
                 style={s.btnHalf}
               />
               <DButton
@@ -124,6 +132,7 @@ export default function AvaliacaoModal({
                 onPress={handleEnviar}
                 loading={enviando}
                 disabled={nota === 0}
+                tint={accent}
                 style={s.btnHalf}
               />
             </View>

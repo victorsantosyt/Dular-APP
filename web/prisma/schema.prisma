@@ -464,9 +464,10 @@ model Servico {
   diarista User? @relation("ServicoDiarista", fields: [diaristaId], references: [id], onDelete: Restrict)
   montador User? @relation("ServicoMontador", fields: [montadorId], references: [id], onDelete: Restrict)
 
-  avaliacao Avaliacao?
-  eventos   ServicoEvento[]
-  chatRoom  ChatRoom?
+  avaliacao           Avaliacao?
+  avaliacaoEmpregador AvaliacaoEmpregador?
+  eventos             ServicoEvento[]
+  chatRoom            ChatRoom?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -533,6 +534,33 @@ model Avaliacao {
   @@index([diaristaId])
   @@index([montadorId])
   @@index([clientId])
+}
+
+// Avaliação na direção inversa: o profissional (DIARISTA/MONTADOR) avalia o
+// EMPREGADOR. Mantida como modelo separado de `Avaliacao` (em vez de uma
+// coluna de direção) para preservar 100% a relação 1:1 `Servico.avaliacao`
+// existente e todos os seus leitores. Migration puramente aditiva.
+model AvaliacaoEmpregador {
+  id        String  @id @default(cuid())
+  servicoId String  @unique
+  servico   Servico @relation(fields: [servicoId], references: [id], onDelete: Cascade)
+
+  // Plain String (sem @relation), espelhando o padrão de `Avaliacao`.
+  // profissionalId = autor (User.id do diarista/montador);
+  // empregadorId = avaliado (User.id do cliente do serviço).
+  profissionalId String
+  empregadorId   String
+
+  notaGeral    Int
+  pontualidade Int
+  qualidade    Int
+  comunicacao  Int
+  comentario   String?
+
+  createdAt DateTime @default(now())
+
+  @@index([empregadorId])
+  @@index([profissionalId])
 }
 
 model SafetyEvent {

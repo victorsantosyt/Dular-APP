@@ -3,7 +3,7 @@ import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import type { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
 import { useFocusEffect } from "@react-navigation/native";
-import { AppIcon, DEmptyState, DErrorState, DLoadingState, DScreen } from "@/components/ui";
+import { AppIcon, AvaliacaoModal, DEmptyState, DErrorState, DLoadingState, DScreen } from "@/components/ui";
 import {
   acionarSosMontador,
   cancelarServicoMontador,
@@ -39,9 +39,16 @@ export default function MontadorDetalheServico({ route, navigation }: Props) {
   const checkinAlertRef = useRef(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [cancelOpen, setCancelOpen] = useState(false);
+  const [avaliarOpen, setAvaliarOpen] = useState(false);
+  // Flag local otimista até o refetch da lista trazer `avaliacaoEmpregador`.
+  const [avaliouLocal, setAvaliouLocal] = useState(false);
   const servico = servicos.find((item) => item.id === route.params.servicoId);
   const status = upperStatus(servico?.status);
   const encerrado = isStatusEncerrado(status);
+  // CONFIRMADO/FINALIZADO liberam a avaliação do montador → empregador.
+  const jaAvaliouEmpregador = avaliouLocal || Boolean(servico?.avaliacaoEmpregador);
+  const podeAvaliarEmpregador =
+    ["CONFIRMADO", "FINALIZADO"].includes(status) && !jaAvaliouEmpregador;
 
   // Polling on focus para capturar a confirmação da outra parte. Usa refetch
   // (refresh silencioso) — NÃO reload — para não acionar o DLoadingState e piscar
@@ -259,12 +266,22 @@ export default function MontadorDetalheServico({ route, navigation }: Props) {
               </View>
             ) : null}
             {encerrado && !isCanceladoOuRecusado ? (
-              <View style={[styles.statusInfo, { backgroundColor: colors.successSoft }]}>
-                <AppIcon name="CheckCircle" size={16} color={colors.success} />
-                <Text style={[styles.statusInfoText, { color: colors.success }]}>
-                  Serviço finalizado.
-                </Text>
-              </View>
+              <>
+                <View style={[styles.statusInfo, { backgroundColor: colors.successSoft }]}>
+                  <AppIcon name="CheckCircle" size={16} color={colors.success} />
+                  <Text style={[styles.statusInfoText, { color: colors.success }]}>
+                    {jaAvaliouEmpregador ? "Avaliação enviada. Obrigado!" : "Serviço finalizado."}
+                  </Text>
+                </View>
+                {podeAvaliarEmpregador ? (
+                  <Pressable
+                    onPress={() => setAvaliarOpen(true)}
+                    style={[styles.sosButton, { backgroundColor: profileTheme.primary }]}
+                  >
+                    <Text style={styles.sosText}>Avaliar empregador</Text>
+                  </Pressable>
+                ) : null}
+              </>
             ) : null}
 
             {!encerrado ? (
@@ -283,6 +300,22 @@ export default function MontadorDetalheServico({ route, navigation }: Props) {
         onClose={() => setCancelOpen(false)}
         onConfirm={confirmarCancelamento}
       />
+
+      {servico ? (
+        <AvaliacaoModal
+          visible={avaliarOpen}
+          servicoId={servico.id}
+          nomeAvaliado={servico.empregador?.nome ?? "Empregador"}
+          endpoint={`/api/servicos/${servico.id}/avaliar-empregador`}
+          onClose={() => setAvaliarOpen(false)}
+          onSucesso={() => {
+            setAvaliarOpen(false);
+            setAvaliouLocal(true);
+            refetch();
+            Alert.alert("Avaliação enviada", "Obrigado por avaliar o empregador.");
+          }}
+        />
+      ) : null}
     </DScreen>
   );
 }

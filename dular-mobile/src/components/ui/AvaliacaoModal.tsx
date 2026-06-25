@@ -23,6 +23,11 @@ export interface AvaliacaoModalProps {
   nomeAvaliado: string;
   onClose: () => void;
   onSucesso: () => void;
+  /**
+   * Rota de avaliação. Default = empregador→profissional (`/avaliar`).
+   * O profissional avaliando o empregador passa `/avaliar-empregador`.
+   */
+  endpoint?: string;
 }
 
 export default function AvaliacaoModal({
@@ -31,6 +36,7 @@ export default function AvaliacaoModal({
   nomeAvaliado,
   onClose,
   onSucesso,
+  endpoint,
 }: AvaliacaoModalProps) {
   const [nota, setNota] = useState(0);
   const [comentario, setComentario] = useState("");
@@ -43,7 +49,7 @@ export default function AvaliacaoModal({
       // O backend (avaliarServicoSchema) exige as quatro dimensões como
       // inteiros 1–5. Este modal usa uma nota única (estrelas), então
       // replicamos o valor nas quatro dimensões para satisfazer o contrato.
-      await api.post(`/api/servicos/${servicoId}/avaliar`, {
+      await api.post(endpoint ?? `/api/servicos/${servicoId}/avaliar`, {
         notaGeral: nota,
         pontualidade: nota,
         qualidade: nota,

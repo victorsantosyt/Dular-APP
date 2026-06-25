@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  Alert,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -26,10 +27,13 @@ import { DularBadge } from "@/components/DularBadge";
 import { MotivoModal } from "@/components/MotivoModal";
 import { AvaliacaoModal, DAvatar } from "@/components/ui";
 import { formatPrice } from "@/utils/formatPrice";
+import { parseDataServico } from "@/utils/formatters";
 import { isStatusEncerrado } from "@/utils/servicoStatus";
 import { colors, radius, shadow, spacing, typography } from "@/theme/tokens";
 
-const formatDate = (v: string | number | Date) => new Date(v).toLocaleDateString("pt-BR");
+// Data do serviço é meia-noite UTC — normaliza p/ não deslizar o dia (fuso).
+const formatDate = (v: string | number | Date) =>
+  parseDataServico(v)?.toLocaleDateString("pt-BR") ?? "--";
 const statusUp = (s: any) => String(s ?? "").toUpperCase();
 
 function fmtReagendamento(svc: Servico) {
@@ -319,6 +323,20 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
     }
   }, [confirming, svc, statusRaw, fetchAtual]);
 
+  // No passo de liberação (CONCLUIDO → CONFIRMADO), pergunta sobre o PAGAMENTO
+  // pela ótica do empregador (quem paga). O passo anterior (AGUARDANDO →
+  // CONCLUIDO) apenas confirma que o profissional terminou, sem essa pergunta.
+  const onConfirmarPressed = useCallback(() => {
+    if (confirmarRecebimento) {
+      Alert.alert("Pagamento", "Você já realizou o pagamento ao profissional?", [
+        { text: "Ainda não", style: "cancel" },
+        { text: "Sim, já paguei", onPress: () => { void onConfirmar(); } },
+      ]);
+      return;
+    }
+    void onConfirmar();
+  }, [confirmarRecebimento, onConfirmar]);
+
   const onCancelarComMotivo = useCallback(
     async (motivo: string, observacao: string) => {
       if (!svc || busyRef.current) return;
@@ -573,10 +591,10 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
               confirming
                 ? "Confirmando..."
                 : confirmarRecebimento
-                  ? "Confirmar recebimento"
+                  ? "Confirmar pagamento"
                   : "Confirmar finalização"
             }
-            onPress={onConfirmar}
+            onPress={onConfirmarPressed}
             loading={confirming}
             disabled={confirming}
           />

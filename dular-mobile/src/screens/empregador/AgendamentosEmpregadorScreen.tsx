@@ -99,8 +99,11 @@ function categoriaLabel(categoria?: string | null) {
 
 function formatDateLabel(value?: string | null) {
   if (!value) return "Data a combinar";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Data a combinar";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "Data a combinar";
+  // A data é gravada como meia-noite UTC; lemos os componentes em UTC para não
+  // deslizar o dia em fuso negativo (Brasil, UTC-3).
+  const date = new Date(parsed.getUTCFullYear(), parsed.getUTCMonth(), parsed.getUTCDate());
   return date.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
 }
 

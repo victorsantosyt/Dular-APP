@@ -290,6 +290,14 @@ export function AgendamentosDiaristaScreen() {
     if (activeFilter === "amanha") {
       return sourceData.filter((item) => item.data === "Amanhã");
     }
+    if (activeFilter === "hoje") {
+      // "Hoje" = solicitações ativas: chegaram, foram aceitas, em andamento ou
+      // aguardando confirmação. Finalizadas saem (ficam na aba "Concluídos");
+      // canceladas/recusadas nem chegam a esta lista.
+      return sourceData.filter(
+        (item) => item.status !== "finalizado" && item.status !== "cancelado",
+      );
+    }
     return sourceData;
   }, [sourceData, activeFilter]);
 

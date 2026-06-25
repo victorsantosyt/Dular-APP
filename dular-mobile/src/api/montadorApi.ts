@@ -52,6 +52,8 @@ export type MontadorServico = {
   precoFinal?: number | null;
   valorEstimado?: number | null;
   empregador?: EmpregadorResumo | null;
+  // Avaliação profissional→empregador. Presença = o montador já avaliou.
+  avaliacaoEmpregador?: { id: string } | null;
 };
 
 type MontadorServicoWire = Omit<MontadorServico, "empregador"> & {

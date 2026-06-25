@@ -3,7 +3,7 @@ import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import type { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
 import { useFocusEffect } from "@react-navigation/native";
-import { AppIcon, AvaliacaoModal, DEmptyState, DErrorState, DLoadingState, DScreen } from "@/components/ui";
+import { AppIcon, AvaliacaoModal, DAvatar, DEmptyState, DErrorState, DLoadingState, DScreen } from "@/components/ui";
 import {
   acionarSosMontador,
   cancelarServicoMontador,
@@ -23,6 +23,7 @@ import {
   formatDateTime,
   formatValorServico,
   labelServico,
+  labelSubcategoria,
   localResumo,
   statusLabel,
   upperStatus,
@@ -43,6 +44,8 @@ export default function MontadorDetalheServico({ route, navigation }: Props) {
   // Flag local otimista até o refetch da lista trazer `avaliacaoEmpregador`.
   const [avaliouLocal, setAvaliouLocal] = useState(false);
   const servico = servicos.find((item) => item.id === route.params.servicoId);
+  const empregadorNome = servico?.empregador?.nome?.trim() || "Empregador";
+  const empregadorIniciais = empregadorNome.split(/\s+/).map((w) => w[0]).join("").slice(0, 2).toUpperCase();
   const status = upperStatus(servico?.status);
   const encerrado = isStatusEncerrado(status);
   // CONFIRMADO/FINALIZADO liberam a avaliação do montador → empregador.
@@ -168,23 +171,32 @@ export default function MontadorDetalheServico({ route, navigation }: Props) {
       ) : (
         <>
           <View style={[styles.hero, { borderColor: profileTheme.border }]}>
-            <View style={[styles.heroIcon, { backgroundColor: profileTheme.primarySoft }]}>
-              <AppIcon name="CalendarCheck" size={24} color={profileTheme.primary} />
-            </View>
             <View style={styles.heroText}>
-              <Text style={styles.serviceTitle}>{labelServico(servico)}</Text>
-              <Text style={styles.serviceSub}>{statusLabel(servico.status)}</Text>
-              <Pressable onPress={copiarNumeroServico} hitSlop={8} style={styles.numeroRow}>
-                <Text style={styles.numeroText}>Serviço #{servico.id.slice(0, 6).toUpperCase()}</Text>
-                <AppIcon name="Copy" size={13} color={colors.textMuted} />
-              </Pressable>
+              <Text style={styles.serviceTitle} numberOfLines={1}>{empregadorNome}</Text>
+              <View style={styles.subRow}>
+                <AppIcon name="UserRound" size={13} color={colors.textMuted} strokeWidth={2.3} />
+                <Text style={styles.serviceSub}>Empregador</Text>
+              </View>
+              <View style={styles.numeroLine}>
+                <Pressable onPress={copiarNumeroServico} hitSlop={8} style={styles.numeroRow}>
+                  <Text style={styles.numeroText}>Serviço #{servico.id.slice(0, 6).toUpperCase()}</Text>
+                  <AppIcon name="Copy" size={13} color={colors.textMuted} />
+                </Pressable>
+                <View style={[styles.statusPill, { backgroundColor: profileTheme.primarySoft }]}>
+                  <Text style={[styles.statusPillText, { color: profileTheme.primary }]} numberOfLines={1}>
+                    {statusLabel(servico.status)}
+                  </Text>
+                </View>
+              </View>
             </View>
+            <DAvatar size="md" uri={servico.empregador?.avatarUrl ?? undefined} initials={empregadorIniciais} />
           </View>
 
           <View style={styles.card}>
+            <Info label="Serviço" value={labelServico(servico)} />
+            <Info label="Categoria" value={labelSubcategoria(servico)} />
             <Info label="Data e horário" value={formatDateTime(servico)} />
             <Info label="Endereço" value={localResumo(servico, true)} />
-            <Info label="Empregador" value={servico.empregador?.nome ?? "Não informado"} />
             <Info label="Valor" value={formatValorServico(servico.precoFinal ?? servico.valorEstimado)} />
             <Info label="Observações" value={servico.observacoes || "Sem observações adicionais."} />
           </View>
@@ -418,17 +430,37 @@ const styles = StyleSheet.create({
   serviceSub: {
     ...typography.bodySm,
     color: colors.textSecondary,
-    marginTop: 2,
+  },
+  subRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    marginTop: 3,
+  },
+  numeroLine: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+    marginTop: 8,
   },
   numeroRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    marginTop: 6,
   },
   numeroText: {
     ...typography.caption,
     color: colors.textMuted,
+    fontWeight: "700",
+  },
+  statusPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: radius.pill,
+  },
+  statusPillText: {
+    ...typography.caption,
     fontWeight: "700",
   },
   card: {

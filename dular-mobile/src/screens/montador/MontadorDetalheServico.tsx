@@ -101,6 +101,13 @@ export default function MontadorDetalheServico({ route, navigation }: Props) {
       setActionLoading(null);
     }
   };
+  // Pergunta sobre o pagamento (ótica do profissional, quem recebe) antes de finalizar.
+  const perguntarPagamentoEFinalizar = () => {
+    Alert.alert("Pagamento", "Você já recebeu o pagamento?", [
+      { text: "Ainda não", style: "cancel" },
+      { text: "Sim, já recebi", onPress: () => { void finalizarServico(); } },
+    ]);
+  };
   const confirmarCancelamento = async (motivo: string, observacao: string) => {
     if (!servico) return;
     try {
@@ -187,7 +194,7 @@ export default function MontadorDetalheServico({ route, navigation }: Props) {
                   accent={profileTheme.primary}
                   soft={profileTheme.primarySoft}
                   filled
-                  onPress={finalizarServico}
+                  onPress={perguntarPagamentoEFinalizar}
                 />
               ) : null}
               {canOpenChat(servico) ? (

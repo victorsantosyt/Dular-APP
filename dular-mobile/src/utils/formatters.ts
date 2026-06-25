@@ -16,15 +16,25 @@ export function mapStatus(status: string): string {
   return map[status] ?? status.toLowerCase();
 }
 
+/**
+ * A data do serviço é gravada como meia-noite UTC ("2026-06-24T00:00:00Z").
+ * Exibi-la com `new Date(...)` em fuso negativo (Brasil, UTC-3) desliza o dia
+ * (mostra o anterior/seguinte). Este helper lê os componentes em UTC e remonta
+ * no dia de calendário LOCAL correto. Retorna null se inválida.
+ *
+ * Use SOMENTE para datas-só (data agendada do serviço). NÃO use para instantes
+ * reais (createdAt, finalizadoEm) — esses devem manter o horário local.
+ */
+export function parseDataServico(value?: string | number | Date | null): Date | null {
+  if (value === undefined || value === null || value === "") return null;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return new Date(parsed.getUTCFullYear(), parsed.getUTCMonth(), parsed.getUTCDate());
+}
+
 export function formatDate(dateStr?: string): string {
-  if (!dateStr) return "--";
-  const parsed = new Date(dateStr);
-  if (Number.isNaN(parsed.getTime())) return "--";
-  // O backend grava a data do serviço como meia-noite UTC ("2026-06-24T00:00:00Z").
-  // Exibir com `new Date(...)` em fuso negativo (Brasil, UTC-3) deslizava o dia
-  // (mostrava o anterior/seguinte). Lemos os componentes em UTC para recuperar o
-  // dia de calendário escolhido e comparamos por dia local, sem deslocamento.
-  const date = new Date(parsed.getUTCFullYear(), parsed.getUTCMonth(), parsed.getUTCDate());
+  const date = parseDataServico(dateStr);
+  if (!date) return "--";
   const agora = new Date();
   const hoje = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate());
   const diffDays = Math.round((date.getTime() - hoje.getTime()) / 86_400_000);

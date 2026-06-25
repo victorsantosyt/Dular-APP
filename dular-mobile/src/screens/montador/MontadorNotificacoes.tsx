@@ -15,7 +15,13 @@ export function MontadorNotificacoes() {
     <NotificacoesView
       theme={theme}
       onVoltar={() => navigation.goBack()}
-      onOpenChat={(servicoId) => navigation.navigate("MontadorChat", { servicoId })}
+      onOpenChat={(servicoId) =>
+        navigation.navigate("MontadorChat", {
+          roomId: servicoId,
+          servicoId,
+          nomeUsuario: "Empregador",
+        })
+      }
       onOpenServico={(servicoId) => navigation.navigate("MontadorDetalheSolicitacao", { servicoId })}
     />
   );

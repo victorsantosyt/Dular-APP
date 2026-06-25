@@ -19,6 +19,7 @@ type AnyFn = (...args: any[]) => any;
 export type MockPrisma = {
   user: { findUnique: AnyFn; findFirst: AnyFn; update: AnyFn; count: AnyFn; create: AnyFn; upsert: AnyFn };
   servico: { findUnique: AnyFn; count: AnyFn; create: AnyFn };
+  avaliacaoEmpregador: { findUnique: AnyFn; create: AnyFn };
   incidentReport: { create: AnyFn };
   incidentAttachment: { create: AnyFn };
   chatRoom: { upsert: AnyFn };
@@ -61,6 +62,10 @@ export function createMockPrisma(): MockPrisma {
       findUnique: notMocked("servico.findUnique"),
       count: notMocked("servico.count"),
       create: notMocked("servico.create"),
+    },
+    avaliacaoEmpregador: {
+      findUnique: notMocked("avaliacaoEmpregador.findUnique"),
+      create: notMocked("avaliacaoEmpregador.create"),
     },
     incidentReport: { create: notMocked("incidentReport.create") },
     incidentAttachment: { create: notMocked("incidentAttachment.create") },

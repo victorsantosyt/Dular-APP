@@ -23,6 +23,7 @@ import { DButton } from "@/components/DButton";
 import { DularBadge } from "@/components/DularBadge";
 import { MotivoModal } from "@/components/MotivoModal";
 import { SafeScoreBadge } from "@/components/SafeScoreBadge";
+import { AvaliacaoModal } from "@/components/ui";
 import { useSeguranca } from "@/hooks/useSeguranca";
 import { formatPrice } from "@/utils/formatPrice";
 import { isStatusEncerrado } from "@/utils/servicoStatus";
@@ -100,6 +101,10 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
   const [loading, setLoading] = useState(false);
   const [recusarOpen, setRecusarOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
+  const [avaliarOpen, setAvaliarOpen] = useState(false);
+  // Flag local otimista: cobre a janela entre enviar a avaliação e o refetch
+  // da lista trazer `avaliacaoEmpregador`.
+  const [avaliouLocal, setAvaliouLocal] = useState(false);
   const [clienteScore, setClienteScore] = useState<{
     faixa: string;
     cor: string;
@@ -290,6 +295,10 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
     );
   }
 
+  // Após o serviço liberar (CONFIRMADO) ou finalizar (FINALIZADO), a diarista
+  // avalia o empregador. `avaliacaoEmpregador` vem de /api/servicos/minhas.
+  const jaAvaliouEmpregador = avaliouLocal || Boolean((svc as any)?.avaliacaoEmpregador);
+
   return (
     <SafeAreaView style={s.safe} edges={["top", "left", "right", "bottom"]}>
       <ScrollView
@@ -465,13 +474,27 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
               </View>
             </>
           )}
-          {svc.status.toUpperCase() === "CONFIRMADO" && (
-            <View style={s.paidCard}>
-              <Ionicons name="checkmark-circle" size={20} color={colors.success} />
-              <Text style={s.paidText}>Pagamento liberado ✓</Text>
-            </View>
-          )}
-          {["CONCLUIDO","CONCLUÍDO","FINALIZADO"].includes(svc.status.toUpperCase()) && (
+          {/* CONFIRMADO (pagamento liberado) e FINALIZADO (empregador já
+              avaliou) liberam a avaliação da diarista → empregador. */}
+          {["CONFIRMADO", "FINALIZADO"].includes(svc.status.toUpperCase()) &&
+            (jaAvaliouEmpregador ? (
+              <View style={s.doneCard}>
+                <Ionicons name="checkmark-circle" size={24} color={colors.green} />
+                <Text style={s.doneText}>Avaliação enviada. Obrigada!</Text>
+              </View>
+            ) : (
+              <>
+                <View style={s.paidCard}>
+                  <Ionicons name="checkmark-circle" size={20} color={colors.success} />
+                  <Text style={s.paidText}>Pagamento liberado ✓</Text>
+                </View>
+                <DButton tint={theme.primary}
+                  title="Avaliar empregador"
+                  onPress={() => setAvaliarOpen(true)}
+                />
+              </>
+            ))}
+          {["CONCLUIDO","CONCLUÍDO"].includes(svc.status.toUpperCase()) && (
             <View style={s.doneCard}>
               <Ionicons name="checkmark-circle" size={24} color={colors.green} />
               <Text style={s.doneText}>Serviço finalizado. Obrigada!</Text>
@@ -503,6 +526,20 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
         confirmLabel="Cancelar serviço"
         onClose={() => setCancelOpen(false)}
         onConfirm={confirmarCancelamento}
+      />
+
+      <AvaliacaoModal
+        visible={avaliarOpen}
+        servicoId={svc.id}
+        nomeAvaliado={svc.cliente?.nome ?? "Empregador"}
+        endpoint={`/api/servicos/${svc.id}/avaliar-empregador`}
+        onClose={() => setAvaliarOpen(false)}
+        onSucesso={() => {
+          setAvaliarOpen(false);
+          setAvaliouLocal(true);
+          void reloadFromList();
+          Alert.alert("Avaliação enviada", "Obrigada por avaliar o empregador.");
+        }}
       />
     </SafeAreaView>
   );

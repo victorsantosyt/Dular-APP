@@ -69,6 +69,19 @@ export async function GET(req: Request) {
             createdAt: true,
           },
         },
+        // Avaliação profissional → empregador. O profissional usa a presença
+        // deste objeto para saber se já avaliou (esconde o CTA "Avaliar").
+        avaliacaoEmpregador: {
+          select: {
+            id: true,
+            notaGeral: true,
+            pontualidade: true,
+            qualidade: true,
+            comunicacao: true,
+            comentario: true,
+            createdAt: true,
+          },
+        },
       },
     });
 

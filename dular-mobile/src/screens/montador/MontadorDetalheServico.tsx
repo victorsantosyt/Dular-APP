@@ -210,7 +210,13 @@ export default function MontadorDetalheServico({ route, navigation }: Props) {
                   icon="MessageCircle"
                   accent={profileTheme.primary}
                   soft={profileTheme.primarySoft}
-                  onPress={() => navigation.navigate("MontadorChat", { servicoId: servico.id })}
+                  onPress={() =>
+                    navigation.navigate("MontadorChat", {
+                      roomId: servico.id,
+                      servicoId: servico.id,
+                      nomeUsuario: servico.empregador?.nome ?? "Empregador",
+                    })
+                  }
                 />
               ) : null}
               {!encerrado ? (

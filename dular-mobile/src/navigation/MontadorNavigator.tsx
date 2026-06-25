@@ -12,7 +12,8 @@ import MontadorNotificacoes from "@/screens/montador/MontadorNotificacoes";
 import MontadorDetalheSolicitacao from "@/screens/montador/MontadorDetalheSolicitacao";
 import MontadorDetalheServico from "@/screens/montador/MontadorDetalheServico";
 import CarteiraScreen from "@/screens/montador/CarteiraScreen";
-import ChatScreen from "@/screens/chat/ChatScreen";
+import { ChatAbertoScreen } from "@/screens/shared/ChatAbertoScreen";
+import type { ChatAbertoParams } from "@/screens/shared/ChatAbertoScreen";
 import VerificacaoDocs from "@/screens/perfil/VerificacaoDocs";
 import SafeScoreScreen from "@/screens/perfil/SafeScoreScreen";
 import SosFlowScreen from "@/screens/perfil/SosFlowScreen";
@@ -35,7 +36,7 @@ export type MontadorTabParamList = {
   MontadorNotificacoes: undefined;
   MontadorDetalheSolicitacao: { servicoId: string };
   MontadorDetalheServico: { servicoId: string };
-  MontadorChat: { servicoId: string };
+  MontadorChat: ChatAbertoParams;
   Carteira: { from?: keyof MontadorTabParamList } | undefined;
   VerificacaoDocs: undefined;
   SafeScore: undefined;
@@ -90,7 +91,7 @@ export function MontadorNavigator() {
       <RootStack.Screen name="MontadorNotificacoes" component={MontadorNotificacoes} />
       <RootStack.Screen name="MontadorDetalheSolicitacao" component={MontadorDetalheSolicitacao} />
       <RootStack.Screen name="MontadorDetalheServico" component={MontadorDetalheServico} />
-      <RootStack.Screen name="MontadorChat" component={ChatScreen} />
+      <RootStack.Screen name="MontadorChat" component={ChatAbertoScreen} />
       <RootStack.Screen name="Carteira" component={CarteiraScreen} />
       <RootStack.Screen name="VerificacaoDocs" component={VerificacaoDocs} />
       <RootStack.Screen name="SafeScore" component={SafeScoreScreen} />

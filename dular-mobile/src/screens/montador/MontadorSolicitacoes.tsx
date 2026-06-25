@@ -248,7 +248,11 @@ export default function MontadorSolicitacoes() {
       Alert.alert("Chat bloqueado", "O chat completo libera depois que a solicitação for aceita.");
       return;
     }
-    navigation.navigate("MontadorChat", { servicoId: servico.id });
+    navigation.navigate("MontadorChat", {
+      roomId: servico.id,
+      servicoId: servico.id,
+      nomeUsuario: servico.empregador?.nome ?? "Empregador",
+    });
   };
 
   return (

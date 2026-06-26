@@ -19,12 +19,16 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { AppIcon } from "@/components/ui";
+import { EspecialidadeOptionCard } from "@/components/EspecialidadeOptionCard";
 import { atualizarPerfilMontador } from "@/api/montadorApi";
 import { useAuth } from "@/stores/authStore";
+import { useProfileTheme } from "@/hooks/useProfileTheme";
 import { MONTADOR_ESPECIALIDADES, type MontadorEspecialidadeId } from "@/types/montador";
-import { colors, radius, shadows, spacing, typography } from "@/theme";
+import { colors, radius, spacing, typography } from "@/theme";
 
 export function MontadorEspecialidadesGateScreen() {
+  // Cor por gênero do perfil (rosa/verde), não o roxo genérico.
+  const theme = useProfileTheme("MONTADOR");
   const setUser = useAuth((state) => state.setUser);
   const [selected, setSelected] = useState<MontadorEspecialidadeId[]>([]);
   const [saving, setSaving] = useState(false);
@@ -60,7 +64,7 @@ export function MontadorEspecialidadesGateScreen() {
     <SafeAreaView style={s.safe} edges={["top", "left", "right"]}>
       <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
         <View style={s.titleBlock}>
-          <Text style={s.title}>Quais serviços você oferece?</Text>
+          <Text style={[s.title, { color: theme.primaryDark }]}>Quais serviços você oferece?</Text>
           <Text style={s.subtitle}>
             Marque tudo que você realmente faz. Você só recebe pedidos dos serviços
             selecionados — pode ajustar depois no seu perfil.
@@ -68,36 +72,16 @@ export function MontadorEspecialidadesGateScreen() {
         </View>
 
         <View style={s.options}>
-          {MONTADOR_ESPECIALIDADES.map((item) => {
-            const active = selectedSet.has(item.id);
-            return (
-              <Pressable
-                key={item.id}
-                onPress={() => toggle(item.id)}
-                disabled={saving}
-                style={({ pressed }) => [
-                  s.optionCard,
-                  active && s.optionCardActive,
-                  pressed && s.pressed,
-                ]}
-              >
-                <View style={[s.optionIcon, active && s.optionIconActive]}>
-                  <AppIcon
-                    name="Wrench"
-                    size={22}
-                    color={active ? colors.white : colors.primary}
-                    strokeWidth={2.4}
-                  />
-                </View>
-                <View style={s.optionText}>
-                  <Text style={s.optionTitle}>{item.label}</Text>
-                </View>
-                <View style={[s.checkCircle, active && s.checkCircleActive]}>
-                  {active ? <AppIcon name="Check" size={16} color={colors.white} strokeWidth={3} /> : null}
-                </View>
-              </Pressable>
-            );
-          })}
+          {MONTADOR_ESPECIALIDADES.map((item) => (
+            <EspecialidadeOptionCard
+              key={item.id}
+              label={item.label}
+              active={selectedSet.has(item.id)}
+              disabled={saving}
+              onPress={() => toggle(item.id)}
+              theme={theme}
+            />
+          ))}
         </View>
 
         <View style={s.noteRow}>
@@ -112,6 +96,7 @@ export function MontadorEspecialidadesGateScreen() {
           disabled={!canContinue}
           style={({ pressed }) => [
             s.primaryButton,
+            { backgroundColor: theme.primary },
             !canContinue && s.primaryButtonDisabled,
             pressed && canContinue && s.pressed,
           ]}
@@ -160,56 +145,6 @@ const s = StyleSheet.create({
   },
   options: {
     gap: spacing.md,
-  },
-  optionCard: {
-    minHeight: 72,
-    borderRadius: radius.lg,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    padding: spacing.md,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-    ...shadows.soft,
-  },
-  optionCardActive: {
-    borderColor: colors.primary,
-    backgroundColor: colors.lavenderSoft,
-  },
-  optionIcon: {
-    width: 46,
-    height: 46,
-    borderRadius: 16,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.lavender,
-  },
-  optionIconActive: {
-    backgroundColor: colors.primary,
-  },
-  optionText: {
-    flex: 1,
-    gap: 4,
-  },
-  optionTitle: {
-    ...typography.bodyMedium,
-    color: colors.textPrimary,
-    fontWeight: "700",
-  },
-  checkCircle: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.surface,
-  },
-  checkCircleActive: {
-    borderColor: colors.primary,
-    backgroundColor: colors.primary,
   },
   noteRow: {
     flexDirection: "row",

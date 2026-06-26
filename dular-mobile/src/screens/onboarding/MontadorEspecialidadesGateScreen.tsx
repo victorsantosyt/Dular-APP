@@ -21,10 +21,13 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { AppIcon } from "@/components/ui";
 import { atualizarPerfilMontador } from "@/api/montadorApi";
 import { useAuth } from "@/stores/authStore";
+import { useProfileTheme } from "@/hooks/useProfileTheme";
 import { MONTADOR_ESPECIALIDADES, type MontadorEspecialidadeId } from "@/types/montador";
 import { colors, radius, shadows, spacing, typography } from "@/theme";
 
 export function MontadorEspecialidadesGateScreen() {
+  // Cor por gênero do perfil (rosa/verde), não o roxo genérico.
+  const theme = useProfileTheme("MONTADOR");
   const setUser = useAuth((state) => state.setUser);
   const [selected, setSelected] = useState<MontadorEspecialidadeId[]>([]);
   const [saving, setSaving] = useState(false);
@@ -60,7 +63,7 @@ export function MontadorEspecialidadesGateScreen() {
     <SafeAreaView style={s.safe} edges={["top", "left", "right"]}>
       <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
         <View style={s.titleBlock}>
-          <Text style={s.title}>Quais serviços você oferece?</Text>
+          <Text style={[s.title, { color: theme.primaryDark }]}>Quais serviços você oferece?</Text>
           <Text style={s.subtitle}>
             Marque tudo que você realmente faz. Você só recebe pedidos dos serviços
             selecionados — pode ajustar depois no seu perfil.
@@ -78,21 +81,28 @@ export function MontadorEspecialidadesGateScreen() {
                 style={({ pressed }) => [
                   s.optionCard,
                   active && s.optionCardActive,
+                  active && { borderColor: theme.primary, backgroundColor: theme.primarySoft },
                   pressed && s.pressed,
                 ]}
               >
-                <View style={[s.optionIcon, active && s.optionIconActive]}>
+                <View
+                  style={[
+                    s.optionIcon,
+                    { backgroundColor: theme.primarySoft },
+                    active && { backgroundColor: theme.primary },
+                  ]}
+                >
                   <AppIcon
                     name="Wrench"
                     size={22}
-                    color={active ? colors.white : colors.primary}
+                    color={active ? colors.white : theme.primary}
                     strokeWidth={2.4}
                   />
                 </View>
                 <View style={s.optionText}>
                   <Text style={s.optionTitle}>{item.label}</Text>
                 </View>
-                <View style={[s.checkCircle, active && s.checkCircleActive]}>
+                <View style={[s.checkCircle, active && s.checkCircleActive, active && { borderColor: theme.primary, backgroundColor: theme.primary }]}>
                   {active ? <AppIcon name="Check" size={16} color={colors.white} strokeWidth={3} /> : null}
                 </View>
               </Pressable>
@@ -112,6 +122,7 @@ export function MontadorEspecialidadesGateScreen() {
           disabled={!canContinue}
           style={({ pressed }) => [
             s.primaryButton,
+            { backgroundColor: theme.primary },
             !canContinue && s.primaryButtonDisabled,
             pressed && canContinue && s.pressed,
           ]}

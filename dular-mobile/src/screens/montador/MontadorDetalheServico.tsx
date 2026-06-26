@@ -231,12 +231,19 @@ export default function MontadorDetalheServico({ route, navigation }: Props) {
                   }
                 />
               ) : null}
-              {!encerrado ? (
+              {["ACEITO", "INICIADO", "EM_ANDAMENTO"].includes(status) ? (
                 <ActionButton
-                  label={checkInLoading ? "Registrando…" : checkInRealizado ? "Check-in feito" : "Fazer check-in"}
+                  label={
+                    checkInLoading
+                      ? "Registrando check-in…"
+                      : checkInRealizado
+                        ? "Check-in realizado"
+                        : "Fazer check-in"
+                  }
                   icon={checkInRealizado ? "CheckCircle" : "MapPin"}
                   accent={profileTheme.primary}
                   soft={profileTheme.primarySoft}
+                  disabled={checkInRealizado}
                   onPress={fazerCheckIn}
                 />
               ) : null}
@@ -355,6 +362,7 @@ function ActionButton({
   soft,
   onPress,
   filled = false,
+  disabled = false,
 }: {
   label: string;
   icon: React.ComponentProps<typeof AppIcon>["name"];
@@ -363,16 +371,19 @@ function ActionButton({
   onPress: () => void;
   /** Card preenchido (cor cheia, conteúdo branco) para destacar o CTA principal. */
   filled?: boolean;
+  disabled?: boolean;
 }) {
   const contentColor = filled ? colors.white : accent;
   return (
     <Pressable
       onPress={onPress}
+      disabled={disabled}
       style={({ pressed }) => [
         styles.actionCard,
         filled
           ? { backgroundColor: accent, borderColor: accent }
           : { backgroundColor: soft, borderColor: accent + "22" },
+        disabled && styles.actionCardDisabled,
         pressed && styles.pressed,
       ]}
     >
@@ -514,6 +525,9 @@ const styles = StyleSheet.create({
     ...typography.caption,
     fontWeight: "700",
     textAlign: "center",
+  },
+  actionCardDisabled: {
+    opacity: 0.5,
   },
   sosButton: {
     minHeight: 50,

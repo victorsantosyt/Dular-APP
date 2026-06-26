@@ -124,20 +124,25 @@ function especialidadeLabel(id: string) {
   return ESPECIALIDADE_LABELS[id as MontadorEspecialidadeId] ?? id;
 }
 
-function centsToInput(value?: number | string | null) {
-  // Decimal do backend chega como string no JSON ("12000"); coage p/ número,
-  // senão o campo de preço fica vazio ao reabrir a tela.
-  const cents = typeof value === "string" ? (value.trim() ? Number(value) : NaN) : value;
-  if (typeof cents !== "number" || !Number.isFinite(cents)) return "";
-  return (cents / 100).toFixed(2).replace(".", ",");
+/** Máscara de moeda BR: trata a entrada como CENTAVOS e formata "1.234,56".
+ *  Aceita número (centavos do backend) ou texto já mascarado (re-extrai os
+ *  dígitos). Vazio → "". Tipar só dígitos no teclado já formata — sem precisar
+ *  de "." nem "," e sem ambiguidade de separador decimal. */
+function maskMoneyBR(raw: string | number | null | undefined): string {
+  const digits = String(raw ?? "").replace(/\D/g, "");
+  if (!digits) return "";
+  const cents = parseInt(digits, 10);
+  const reais = Math.floor(cents / 100);
+  const cc = String(cents % 100).padStart(2, "0");
+  const reaisStr = String(reais).replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  return `${reaisStr},${cc}`;
 }
 
-function inputToCents(value: string) {
-  const normalized = value.replace(/\./g, "").replace(",", ".").trim();
-  if (!normalized) return null;
-  const number = Number(normalized);
-  if (!Number.isFinite(number) || number < 0) return NaN;
-  return Math.round(number * 100);
+/** Texto mascarado → centavos (inteiro). Vazio → null. */
+function maskedToCents(masked: string): number | null {
+  const digits = masked.replace(/\D/g, "");
+  if (!digits) return null;
+  return parseInt(digits, 10);
 }
 
 /** Monta o form de preços por especialidade a partir do perfil. */
@@ -149,7 +154,7 @@ function buildPrecosForm(
   for (const id of especialidades) {
     const p = precos?.[id];
     form[id] = p
-      ? { preco: p.preco != null ? centsToInput(p.preco) : "", aCombinar: p.aCombinar }
+      ? { preco: p.preco != null ? maskMoneyBR(p.preco) : "", aCombinar: p.aCombinar }
       : { preco: "", aCombinar: true };
   }
   return form;
@@ -845,7 +850,7 @@ export default function MontadorPerfil() {
         precos[id] = { preco: null, aCombinar: true };
         continue;
       }
-      const cents = inputToCents(row.preco);
+      const cents = maskedToCents(row.preco);
       if (cents == null || Number.isNaN(cents) || cents <= 0) {
         setFormError(`Informe um valor para "${especialidadeLabel(id)}" ou marque "a combinar".`);
         return;
@@ -1217,8 +1222,8 @@ export default function MontadorPerfil() {
                     <Field
                       label="Valor em R$"
                       value={row.preco}
-                      onChangeText={(preco) => setPrecoRow(id, { preco })}
-                      keyboardType="decimal-pad"
+                      onChangeText={(preco) => setPrecoRow(id, { preco: maskMoneyBR(preco) })}
+                      keyboardType="number-pad"
                       placeholder="Ex.: 150,00"
                     />
                   ) : null}

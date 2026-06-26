@@ -20,6 +20,7 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import * as ImagePicker from "expo-image-picker";
 import { AppIcon, DErrorState, DLoadingState, DScreen } from "@/components/ui";
+import { EspecialidadeOptionCard } from "@/components/EspecialidadeOptionCard";
 import { LocationPermissionCard } from "@/components/location/LocationPermissionCard";
 import { salvarLocalizacaoAtual } from "@/api/localizacaoApi";
 import {
@@ -1096,24 +1097,16 @@ export default function MontadorPerfil() {
 
       <FloatingCard visible={modal === "especialidades"} title="Especialidades" subtitle="Selecione os tipos de serviço que você atende." theme={profileTheme} onClose={() => setModal(null)}>
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalScroll}>
-          <View style={styles.tagsWrap}>
-            {MONTADOR_ESPECIALIDADES.map((item) => {
-              const selected = especialidadesForm.includes(item.id);
-              return (
-                <Pressable
-                  key={item.id}
-                  onPress={() => toggleEspecialidade(item.id)}
-                  style={[
-                    styles.tag,
-                    selected
-                      ? { backgroundColor: profileTheme.primary, borderColor: profileTheme.primary }
-                      : { backgroundColor: colors.surface, borderColor: profileTheme.border },
-                  ]}
-                >
-                  <Text style={[styles.tagText, selected ? styles.tagTextActive : { color: colors.textSecondary }]}>{item.label}</Text>
-                </Pressable>
-              );
-            })}
+          <View style={styles.especialidadesList}>
+            {MONTADOR_ESPECIALIDADES.map((item) => (
+              <EspecialidadeOptionCard
+                key={item.id}
+                label={item.label}
+                active={especialidadesForm.includes(item.id)}
+                onPress={() => toggleEspecialidade(item.id)}
+                theme={profileTheme}
+              />
+            ))}
           </View>
           {formError ? <Text style={styles.errorText}>{formError}</Text> : null}
           <ModalActions saving={saving} theme={profileTheme} onCancel={() => setModal(null)} onSave={saveEspecialidades} />
@@ -1654,23 +1647,8 @@ const styles = StyleSheet.create({
     ...typography.caption,
     fontWeight: "500",
   },
-  tagsWrap: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-  },
-  tag: {
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-  },
-  tagText: {
-    ...typography.caption,
-    fontWeight: "800",
-  },
-  tagTextActive: {
-    color: colors.white,
+  especialidadesList: {
+    gap: spacing.md,
   },
   switchRow: {
     flexDirection: "row",

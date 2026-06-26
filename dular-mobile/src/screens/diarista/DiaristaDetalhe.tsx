@@ -538,6 +538,7 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
         servicoId={svc.id}
         nomeAvaliado={svc.cliente?.nome ?? "Empregador"}
         endpoint={`/api/servicos/${svc.id}/avaliar-empregador`}
+        accent={theme.primary}
         onClose={() => setAvaliarOpen(false)}
         onSucesso={() => {
           setAvaliarOpen(false);

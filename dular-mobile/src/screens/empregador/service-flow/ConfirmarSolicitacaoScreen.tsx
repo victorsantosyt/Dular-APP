@@ -32,7 +32,9 @@ export function ConfirmarSolicitacaoScreen() {
   // marcou essa opção (não mais forçado por categoria). Prioriza o valor que o
   // empregador escolheu na tabela de intensidades.
   function resolvePrecoLabel(): string {
-    if (isMontador) return "A orçar";
+    // Montador: valor da especialidade escolhida (ou "a combinar"), definido
+    // ao selecionar o serviço a partir dos preços do profissional.
+    if (isMontador) return draft.precoEstimadoLabel ?? "A combinar";
     if (draft.precoInfo?.valorACombinar) return "A combinar";
     if (draft.valorSelecionado != null) {
       return `R$ ${draft.valorSelecionado.toFixed(2).replace(".", ",")}`;

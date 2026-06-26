@@ -30,6 +30,8 @@ export type PrecoInfo = {
   babaHora: number | null;
   cozinheiraBase: number | null;
   valorACombinar: boolean;
+  /** Montador: preço por especialidade { [id]: { preco(centavos)|null, aCombinar } }. */
+  precosEspecialidades?: Record<string, { preco: number | null; aCombinar: boolean }>;
 };
 
 export type ServiceDraft = {

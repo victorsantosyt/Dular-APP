@@ -39,7 +39,7 @@ const EMPREGADOR_ITEMS: Item[] = [
 const DIARISTA_ITEMS: Item[] = [
   { id: "home",     label: "Início",    icon: "Home"          },
   { id: "search",   label: "Agenda",    icon: "Calendar"      },
-  { id: "new",      label: "Serviços",  icon: "Plus"          },
+  { id: "new",      label: "Serviços",  icon: "BriefcaseBusiness" },
   { id: "messages", label: "Mensagens", icon: "MessageCircle" },
   { id: "profile",  label: "Perfil",    icon: "User"          },
 ];

@@ -19,3 +19,13 @@
 .codex/
 **backup_pre_baseline.sql
 **claude.md
+CLAUDE.md
+
+# Documentação interna (auditorias, levantamentos, docs de teste/QA) — fica
+# só local; não sobe pro GitHub.
+/auditoria/
+/LEVANTAMENTO_*.md
+/dular_subagente.md
+/web/docs/SECURITY-FASE-1B-TESTS.md
+/web/docs/SECURITY-TESTING.md
+/web/docs/T-17-MATRIZ-QA.md

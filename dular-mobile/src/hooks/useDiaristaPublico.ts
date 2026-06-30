@@ -46,6 +46,9 @@ export interface DiaristaPublico {
   anosExperiencia: number | null;
   precoBabaHora: string | number | null;
   precoCozinheiraBase: string | number | null;
+  precoPassadeira: string | number | null;
+  precoLavadeira: string | number | null;
+  precoCuidadora: string | number | null;
   taxaMinima: string | number | null;
   cobraDeslocamento: boolean;
   valorACombinar: boolean;
@@ -108,6 +111,9 @@ interface DiaristaPerfilResponse {
     anosExperiencia?: number | null;
     precoBabaHora?: string | number | null;
     precoCozinheiraBase?: string | number | null;
+    precoPassadeira?: string | number | null;
+    precoLavadeira?: string | number | null;
+    precoCuidadora?: string | number | null;
     taxaMinima?: string | number | null;
     cobraDeslocamento?: boolean;
     valorACombinar?: boolean;
@@ -199,6 +205,9 @@ export function useDiaristaPublico(diaristaId: string): UseDiaristaPublicoReturn
                 anosExperiencia: perfil.anosExperiencia ?? null,
                 precoBabaHora: perfil.precoBabaHora ?? null,
                 precoCozinheiraBase: perfil.precoCozinheiraBase ?? null,
+                precoPassadeira: perfil.precoPassadeira ?? null,
+                precoLavadeira: perfil.precoLavadeira ?? null,
+                precoCuidadora: perfil.precoCuidadora ?? null,
                 taxaMinima: perfil.taxaMinima ?? null,
                 cobraDeslocamento: perfil.cobraDeslocamento ?? false,
                 valorACombinar,
@@ -238,6 +247,9 @@ export function useDiaristaPublico(diaristaId: string): UseDiaristaPublicoReturn
           anosExperiencia: perfil?.anosExperiencia ?? null,
           precoBabaHora: perfil?.precoBabaHora ?? null,
           precoCozinheiraBase: perfil?.precoCozinheiraBase ?? null,
+          precoPassadeira: perfil?.precoPassadeira ?? null,
+          precoLavadeira: perfil?.precoLavadeira ?? null,
+          precoCuidadora: perfil?.precoCuidadora ?? null,
           taxaMinima: perfil?.taxaMinima ?? null,
           cobraDeslocamento: perfil?.cobraDeslocamento ?? false,
           valorACombinar,

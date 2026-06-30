@@ -245,6 +245,21 @@ function inputToDecimalString(value: string): string | null {
 }
 
 /**
+ * Máscara de moeda BR: trata a entrada como CENTAVOS e formata "1.234,56".
+ * Digitar só números já formata — sem precisar de "." nem ",". Os parsers
+ * (toCents/inputToDecimalString) já consomem esse formato.
+ */
+function maskMoneyBR(raw: string | number | null | undefined): string {
+  const digits = String(raw ?? "").replace(/\D/g, "");
+  if (!digits) return "";
+  const cents = parseInt(digits, 10);
+  const reais = Math.floor(cents / 100);
+  const cc = String(cents % 100).padStart(2, "0");
+  const reaisStr = String(reais).replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  return `${reaisStr},${cc}`;
+}
+
+/**
  * Decimal (string|number) → input "120,50".
  */
 function decimalToInput(value: string | number | null | undefined): string {
@@ -335,6 +350,9 @@ export default function DiaristaPerfil({ onLogout }: Props) {
     pesada: "",
     babaHora: "",
     cozinheiraBase: "",
+    passadeira: "",
+    lavadeira: "",
+    cuidadora: "",
     taxaMinima: "",
     cobraDeslocamento: false,
     valorACombinar: false,
@@ -479,7 +497,16 @@ export default function DiaristaPerfil({ onLogout }: Props) {
   // profissional oferece. O modal de Preços mostra um botão por categoria e a
   // tabela só da categoria selecionada.
   const categoriasPreco = useMemo<ServicoOferecido[]>(
-    () => servicosOferecidos.filter((c) => c === "DIARISTA" || c === "BABA" || c === "COZINHEIRA"),
+    () =>
+      servicosOferecidos.filter(
+        (c) =>
+          c === "DIARISTA" ||
+          c === "BABA" ||
+          c === "COZINHEIRA" ||
+          c === "PASSADEIRA" ||
+          c === "LAVADEIRA" ||
+          c === "CUIDADORA",
+      ),
     [servicosOferecidos],
   );
   // Acordeão: categoria atualmente expandida no modal de Preços (null = todas
@@ -645,12 +672,15 @@ export default function DiaristaPerfil({ onLogout }: Props) {
         }
         case "precos":
           setPrecosForm({
-            leve: centsToInput(profile?.precoLeve ?? null),
-            medio: centsToInput(profile?.precoMedio ?? null),
-            pesada: centsToInput(profile?.precoPesada ?? null),
-            babaHora: decimalToInput(profile?.precoBabaHora ?? null),
-            cozinheiraBase: decimalToInput(profile?.precoCozinheiraBase ?? null),
-            taxaMinima: decimalToInput(profile?.taxaMinima ?? null),
+            leve: maskMoneyBR(centsToInput(profile?.precoLeve ?? null)),
+            medio: maskMoneyBR(centsToInput(profile?.precoMedio ?? null)),
+            pesada: maskMoneyBR(centsToInput(profile?.precoPesada ?? null)),
+            babaHora: maskMoneyBR(decimalToInput(profile?.precoBabaHora ?? null)),
+            cozinheiraBase: maskMoneyBR(decimalToInput(profile?.precoCozinheiraBase ?? null)),
+            passadeira: maskMoneyBR(decimalToInput(profile?.precoPassadeira ?? null)),
+            lavadeira: maskMoneyBR(decimalToInput(profile?.precoLavadeira ?? null)),
+            cuidadora: maskMoneyBR(decimalToInput(profile?.precoCuidadora ?? null)),
+            taxaMinima: maskMoneyBR(decimalToInput(profile?.taxaMinima ?? null)),
             cobraDeslocamento: profile?.cobraDeslocamento ?? false,
             valorACombinar: profile?.valorACombinar ?? false,
             observacao: profile?.observacaoPreco ?? "",
@@ -922,11 +952,17 @@ export default function DiaristaPerfil({ onLogout }: Props) {
 
     const ofereceBaba = servicosOferecidos.includes("BABA");
     const ofereceCozinheira = servicosOferecidos.includes("COZINHEIRA");
+    const oferecePassadeira = servicosOferecidos.includes("PASSADEIRA");
+    const ofereceLavadeira = servicosOferecidos.includes("LAVADEIRA");
+    const ofereceCuidadora = servicosOferecidos.includes("CUIDADORA");
 
     const babaHora = ofereceBaba ? inputToDecimalString(precosForm.babaHora) : null;
     const cozinheiraBase = ofereceCozinheira
       ? inputToDecimalString(precosForm.cozinheiraBase)
       : null;
+    const precoPassadeira = oferecePassadeira ? inputToDecimalString(precosForm.passadeira) : null;
+    const precoLavadeira = ofereceLavadeira ? inputToDecimalString(precosForm.lavadeira) : null;
+    const precoCuidadora = ofereceCuidadora ? inputToDecimalString(precosForm.cuidadora) : null;
     const taxaMinima = inputToDecimalString(precosForm.taxaMinima);
 
     try {
@@ -949,6 +985,9 @@ export default function DiaristaPerfil({ onLogout }: Props) {
         observacaoPreco: observacao || null,
         precoBabaHora: babaHora,
         precoCozinheiraBase: cozinheiraBase,
+        precoPassadeira,
+        precoLavadeira,
+        precoCuidadora,
         taxaMinima,
       };
       await updatePrecosCompletos(patchPayload);
@@ -967,6 +1006,9 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                 ofereceDiarista && pesada != null ? pesada : prev.precoPesada,
               precoBabaHora: babaHora,
               precoCozinheiraBase: cozinheiraBase,
+              precoPassadeira,
+              precoLavadeira,
+              precoCuidadora,
               taxaMinima,
               cobraDeslocamento: precosForm.cobraDeslocamento,
               valorACombinar: false,
@@ -1865,31 +1907,31 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                                   <Text style={s.modalLabel}>Limpeza leve (R$)</Text>
                                   <TextInput
                                     value={precosForm.leve}
-                                    onChangeText={(v) => setPrecosForm((cur) => ({ ...cur, leve: v }))}
+                                    onChangeText={(v) => setPrecosForm((cur) => ({ ...cur, leve: maskMoneyBR(v) }))}
                                     placeholder="Ex.: 120,00"
                                     placeholderTextColor={colors.textMuted}
                                     style={s.modalInput}
-                                    keyboardType="decimal-pad"
+                                    keyboardType="number-pad"
                                   />
 
                                   <Text style={s.modalLabel}>Limpeza média (R$) — opcional</Text>
                                   <TextInput
                                     value={precosForm.medio}
-                                    onChangeText={(v) => setPrecosForm((cur) => ({ ...cur, medio: v }))}
+                                    onChangeText={(v) => setPrecosForm((cur) => ({ ...cur, medio: maskMoneyBR(v) }))}
                                     placeholder="Ex.: 160,00"
                                     placeholderTextColor={colors.textMuted}
                                     style={s.modalInput}
-                                    keyboardType="decimal-pad"
+                                    keyboardType="number-pad"
                                   />
 
                                   <Text style={s.modalLabel}>Limpeza pesada (R$)</Text>
                                   <TextInput
                                     value={precosForm.pesada}
-                                    onChangeText={(v) => setPrecosForm((cur) => ({ ...cur, pesada: v }))}
+                                    onChangeText={(v) => setPrecosForm((cur) => ({ ...cur, pesada: maskMoneyBR(v) }))}
                                     placeholder="Ex.: 200,00"
                                     placeholderTextColor={colors.textMuted}
                                     style={s.modalInput}
-                                    keyboardType="decimal-pad"
+                                    keyboardType="number-pad"
                                   />
                                 </>
                               ) : null}
@@ -1899,11 +1941,11 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                                   <Text style={s.modalLabel}>Preço por hora (R$)</Text>
                                   <TextInput
                                     value={precosForm.babaHora}
-                                    onChangeText={(v) => setPrecosForm((cur) => ({ ...cur, babaHora: v }))}
+                                    onChangeText={(v) => setPrecosForm((cur) => ({ ...cur, babaHora: maskMoneyBR(v) }))}
                                     placeholder="Ex.: 35,00"
                                     placeholderTextColor={colors.textMuted}
                                     style={s.modalInput}
-                                    keyboardType="decimal-pad"
+                                    keyboardType="number-pad"
                                   />
                                 </>
                               ) : null}
@@ -1913,11 +1955,53 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                                   <Text style={s.modalLabel}>Preço base (R$)</Text>
                                   <TextInput
                                     value={precosForm.cozinheiraBase}
-                                    onChangeText={(v) => setPrecosForm((cur) => ({ ...cur, cozinheiraBase: v }))}
+                                    onChangeText={(v) => setPrecosForm((cur) => ({ ...cur, cozinheiraBase: maskMoneyBR(v) }))}
                                     placeholder="Ex.: 180,00"
                                     placeholderTextColor={colors.textMuted}
                                     style={s.modalInput}
-                                    keyboardType="decimal-pad"
+                                    keyboardType="number-pad"
+                                  />
+                                </>
+                              ) : null}
+
+                              {c === "PASSADEIRA" ? (
+                                <>
+                                  <Text style={s.modalLabel}>Preço base (R$)</Text>
+                                  <TextInput
+                                    value={precosForm.passadeira}
+                                    onChangeText={(v) => setPrecosForm((cur) => ({ ...cur, passadeira: maskMoneyBR(v) }))}
+                                    placeholder="Ex.: 90,00"
+                                    placeholderTextColor={colors.textMuted}
+                                    style={s.modalInput}
+                                    keyboardType="number-pad"
+                                  />
+                                </>
+                              ) : null}
+
+                              {c === "LAVADEIRA" ? (
+                                <>
+                                  <Text style={s.modalLabel}>Preço base (R$)</Text>
+                                  <TextInput
+                                    value={precosForm.lavadeira}
+                                    onChangeText={(v) => setPrecosForm((cur) => ({ ...cur, lavadeira: maskMoneyBR(v) }))}
+                                    placeholder="Ex.: 100,00"
+                                    placeholderTextColor={colors.textMuted}
+                                    style={s.modalInput}
+                                    keyboardType="number-pad"
+                                  />
+                                </>
+                              ) : null}
+
+                              {c === "CUIDADORA" ? (
+                                <>
+                                  <Text style={s.modalLabel}>Preço base (R$)</Text>
+                                  <TextInput
+                                    value={precosForm.cuidadora}
+                                    onChangeText={(v) => setPrecosForm((cur) => ({ ...cur, cuidadora: maskMoneyBR(v) }))}
+                                    placeholder="Ex.: 150,00"
+                                    placeholderTextColor={colors.textMuted}
+                                    style={s.modalInput}
+                                    keyboardType="number-pad"
                                   />
                                 </>
                               ) : null}
@@ -1932,12 +2016,12 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                   <TextInput
                     value={precosForm.taxaMinima}
                     onChangeText={(v) =>
-                      setPrecosForm((cur) => ({ ...cur, taxaMinima: v }))
+                      setPrecosForm((cur) => ({ ...cur, taxaMinima: maskMoneyBR(v) }))
                     }
                     placeholder="Ex.: 80,00"
                     placeholderTextColor={colors.textMuted}
                     style={s.modalInput}
-                    keyboardType="decimal-pad"
+                    keyboardType="number-pad"
                   />
 
                   <View style={s.toggleRow}>

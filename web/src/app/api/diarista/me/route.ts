@@ -26,6 +26,9 @@ const ALLOWED_PATCH_FIELDS = [
   "precoPesada",
   "precoBabaHora",
   "precoCozinheiraBase",
+  "precoPassadeira",
+  "precoLavadeira",
+  "precoCuidadora",
   "taxaMinima",
   "cobraDeslocamento",
   "valorACombinar",
@@ -62,6 +65,9 @@ const INT_REQUIRED_FIELDS: ReadonlySet<AllowedField> = new Set([
 const DECIMAL_NULLABLE_FIELDS: ReadonlySet<AllowedField> = new Set([
   "precoBabaHora",
   "precoCozinheiraBase",
+  "precoPassadeira",
+  "precoLavadeira",
+  "precoCuidadora",
   "taxaMinima",
 ]);
 
@@ -180,6 +186,9 @@ const PROFILE_SELECT = {
   anosExperiencia: true,
   precoBabaHora: true,
   precoCozinheiraBase: true,
+  precoPassadeira: true,
+  precoLavadeira: true,
+  precoCuidadora: true,
   taxaMinima: true,
   cobraDeslocamento: true,
   valorACombinar: true,

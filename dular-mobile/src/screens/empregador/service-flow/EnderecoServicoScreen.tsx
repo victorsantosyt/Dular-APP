@@ -120,8 +120,8 @@ export function EnderecoServicoScreen() {
         <StepHeader
           title="Endereço do serviço"
           subtitle="Confirme onde o atendimento deve acontecer."
-          step={3}
-          total={5}
+          step={4}
+          total={6}
           onBack={() => navigation.goBack()}
           theme={flowTheme}
         />

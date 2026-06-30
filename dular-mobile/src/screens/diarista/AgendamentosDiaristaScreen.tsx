@@ -28,6 +28,8 @@ type Agendamento = {
   avaliacao: string;
   localizacao: string;
   servico: string;
+  /** Rótulo já resolvido com a categoria/intensidade quando houver. */
+  servicoLabel: string;
   /** Categoria/subtipo bruto (ex.: FAXINA_PESADA) — define a intensidade. */
   categoria?: string | null;
   data: string;
@@ -201,7 +203,7 @@ function AgendamentoDiaristaCard({
         />
         <View style={styles.cardTopInfo}>
           <Text style={styles.clientName} numberOfLines={1}>{agendamento.nomeCliente}</Text>
-          <Text style={styles.clientSub} numberOfLines={1}>{servicoCompleto(agendamento)}</Text>
+          <Text style={styles.clientSub} numberOfLines={1}>{agendamento.servicoLabel || servicoCompleto(agendamento)}</Text>
         </View>
         <DBadge type={badge.type} label={badge.label} />
       </View>

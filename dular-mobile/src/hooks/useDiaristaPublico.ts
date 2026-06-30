@@ -46,6 +46,7 @@ export interface DiaristaPublico {
   anosExperiencia: number | null;
   precoBabaHora: string | number | null;
   precoCozinheiraBase: string | number | null;
+  precoCuidadoraHora: string | number | null;
   precoPassadeira: string | number | null;
   precoLavadeira: string | number | null;
   precoCuidadora: string | number | null;
@@ -111,6 +112,7 @@ interface DiaristaPerfilResponse {
     anosExperiencia?: number | null;
     precoBabaHora?: string | number | null;
     precoCozinheiraBase?: string | number | null;
+    precoCuidadoraHora?: string | number | null;
     precoPassadeira?: string | number | null;
     precoLavadeira?: string | number | null;
     precoCuidadora?: string | number | null;
@@ -205,6 +207,7 @@ export function useDiaristaPublico(diaristaId: string): UseDiaristaPublicoReturn
                 anosExperiencia: perfil.anosExperiencia ?? null,
                 precoBabaHora: perfil.precoBabaHora ?? null,
                 precoCozinheiraBase: perfil.precoCozinheiraBase ?? null,
+                precoCuidadoraHora: perfil.precoCuidadoraHora ?? null,
                 precoPassadeira: perfil.precoPassadeira ?? null,
                 precoLavadeira: perfil.precoLavadeira ?? null,
                 precoCuidadora: perfil.precoCuidadora ?? null,
@@ -247,6 +250,7 @@ export function useDiaristaPublico(diaristaId: string): UseDiaristaPublicoReturn
           anosExperiencia: perfil?.anosExperiencia ?? null,
           precoBabaHora: perfil?.precoBabaHora ?? null,
           precoCozinheiraBase: perfil?.precoCozinheiraBase ?? null,
+          precoCuidadoraHora: perfil?.precoCuidadoraHora ?? null,
           precoPassadeira: perfil?.precoPassadeira ?? null,
           precoLavadeira: perfil?.precoLavadeira ?? null,
           precoCuidadora: perfil?.precoCuidadora ?? null,

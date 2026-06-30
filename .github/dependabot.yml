@@ -72,6 +72,10 @@ updates:
       - dependency-name: "expo-*"
         update-types: ["version-update:semver-major", "version-update:semver-minor"]
 
+      # @shopify/flash-list é bundledNativeModule do SDK54 (pina 2.0.2).
+      # 2.3.2 quebra o app — atualizar só via `expo install` / upgrade de SDK.
+      - dependency-name: "@shopify/flash-list"
+
       # react / react-native / @types/react também são acoplados ao SDK.
       # SDK54 = react 19.1.0 + react-native 0.81 (ver tabela do SDK e
       # bundledNativeModules); react 19.2.x só entra no SDK55. O Dependabot

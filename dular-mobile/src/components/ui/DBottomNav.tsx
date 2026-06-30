@@ -112,12 +112,14 @@ function TabItem({
             <View style={s.centerIconSurface}>
               <AppIcon name={item.icon} size={24} color={selectedColor} strokeWidth={2.4} />
             </View>
-            {badge && badge > 0 ? (
-              <View style={s.centerBadge}>
-                <Text style={s.badgeText}>{badge > 9 ? "9+" : badge}</Text>
-              </View>
-            ) : null}
           </LinearGradient>
+          {/* Badge FORA do LinearGradient: o botão (círculo) recortava metade do
+              número. No wrapper Animated (sem overflow) ele aparece inteiro. */}
+          {badge && badge > 0 ? (
+            <View style={s.centerBadge}>
+              <Text style={s.badgeText}>{badge > 9 ? "9+" : badge}</Text>
+            </View>
+          ) : null}
         </Animated.View>
         <Text style={[s.label, s.centerLabel, { color: selectedColor }]} numberOfLines={1}>{item.label}</Text>
       </Pressable>

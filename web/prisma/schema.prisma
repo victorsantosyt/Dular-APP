@@ -376,6 +376,11 @@ model MontadorPerfil {
   observacaoPreco   String?
   valorACombinar    Boolean  @default(true)
 
+  // Preço por especialidade (substitui precoBase global na UI; precoBase/taxaMinima
+  // ficam no banco por compat, sem uso). Formato:
+  //   { [especialidadeId]: { preco: number(centavos)|null, aCombinar: boolean } }
+  precosEspecialidades Json?
+
   documentoFrente String?
   documentoVerso  String?
   selfieDoc       String?

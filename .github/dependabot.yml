@@ -75,21 +75,19 @@ updates:
       # react / react-native / @types/react também são acoplados ao SDK.
       # SDK54 = react 19.1.0 + react-native 0.81 (ver tabela do SDK e
       # bundledNativeModules); react 19.2.x só entra no SDK55. O Dependabot
-      # subiu react 19.1.0→19.2.7 e @types/react ~19.1.10→~19.2.17 (commit
-      # f1606b9), causando crash em runtime: "Incompatible React versions:
-      # react 19.2.7 / react-native-renderer 19.1.0" (o renderer vem dentro
-      # do react-native 0.81 e exige match exato). Os react-native-* da Expo
-      # (safe-area-context, screens, svg, etc.) também são bundled e devem
-      # subir só via `expo install`. Bloqueia major/minor; patch e alertas de
-      # SEGURANÇA seguem abertos.
+      # subiu react 19.1.0→19.1.8 (patch!) e react-native 0.81.5→0.81.6 —
+      # react-native 0.81.6 exige react@^19.1.4, quebrando npm ci (ERESOLVE).
+      # O renderer do RN exige match exato de versão com react, então qualquer
+      # bump autônomo quebra runtime. Bloqueia major/minor/patch; apenas alertas
+      # de SEGURANÇA seguem abertos.
       - dependency-name: "react"
-        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+        update-types: ["version-update:semver-major", "version-update:semver-minor", "version-update:semver-patch"]
       - dependency-name: "@types/react"
-        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+        update-types: ["version-update:semver-major", "version-update:semver-minor", "version-update:semver-patch"]
       - dependency-name: "react-native"
-        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+        update-types: ["version-update:semver-major", "version-update:semver-minor", "version-update:semver-patch"]
       - dependency-name: "react-native-*"
-        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+        update-types: ["version-update:semver-major", "version-update:semver-minor", "version-update:semver-patch"]
 
   # ---------- GITHUB ACTIONS ----------
   # Mantém os pinned actions atualizados (actions/checkout, setup-node).

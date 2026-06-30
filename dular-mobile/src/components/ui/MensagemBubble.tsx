@@ -1,11 +1,15 @@
-import { StyleSheet, Text, View } from "react-native";
+import { Image, Linking, Pressable, StyleSheet, Text, View } from "react-native";
+import { AppIcon } from "@/components/ui/AppIcon";
 import { shadow } from "@/utils/platform";
 import type { Mensagem } from "@/hooks/useChat";
+import { useDularColors } from "@/hooks/useDularColors";
 import { colors, radius, spacing, typography } from "@/theme/tokens";
 
 export interface MensagemBubbleProps {
   mensagem: Mensagem;
   isOwn: boolean;
+  /** Cor da bolha própria (identidade de gênero). Default: roxo. */
+  accent?: string;
 }
 
 function formatTime(isoString: string): string {
@@ -15,24 +19,93 @@ function formatTime(isoString: string): string {
   });
 }
 
-export function MensagemBubble({ mensagem, isOwn }: MensagemBubbleProps) {
+function abrirLocalizacao(content: string) {
+  try {
+    const { lat, lng } = JSON.parse(content) as { lat: number; lng: number };
+    void Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`);
+  } catch {
+    /* conteúdo inválido — ignora */
+  }
+}
+
+/** Dois checks sobrepostos (✓✓), na cor recebida. */
+function DoubleCheck({ color }: { color: string }) {
+  return (
+    <View style={styles.checkRow}>
+      <AppIcon name="Check" size={12} color={color} strokeWidth={2.6} />
+      <View style={styles.checkOverlap}>
+        <AppIcon name="Check" size={12} color={color} strokeWidth={2.6} />
+      </View>
+    </View>
+  );
+}
+
+/**
+ * Recibo (estilo WhatsApp), só nas mensagens enviadas por mim. 4 estados:
+ * - Otimista (id `temp-*`/`enviando`): relógio translúcido
+ * - Falhou (`status === "erro"`): texto "Falha ao enviar"
+ * - Enviado (sem deliveredAt): um check translúcido
+ * - Entregue (deliveredAt, sem readAt): ✓✓ translúcido
+ * - Lido (readAt): ✓✓ branco sólido
+ *
+ * Cores via tema (useDularColors) — sem hex. Como a bolha própria é sólida com
+ * accent, os checks usam branco: translúcido (enviado/entregue) vs sólido (lido)
+ * para garantir contraste (substitui o "cinza vs azul" do fundo claro).
+ */
+function MessageStatus({ mensagem }: { mensagem: Mensagem }) {
+  const c = useDularColors();
+  const isOptimistic = mensagem.id.startsWith("temp-") || mensagem.status === "enviando";
+
+  if (mensagem.status === "erro") {
+    return <Text style={[styles.statusErro, { color: c.error }]}>Falha ao enviar</Text>;
+  }
+  if (isOptimistic) {
+    return <AppIcon name="Clock" size={11} color={c.whiteAlpha70} strokeWidth={2.4} />;
+  }
+  if (mensagem.readAt) {
+    return <DoubleCheck color={c.white} />;
+  }
+  if (mensagem.deliveredAt) {
+    return <DoubleCheck color={c.whiteAlpha70} />;
+  }
+  return <AppIcon name="Check" size={12} color={c.whiteAlpha70} strokeWidth={2.4} />;
+}
+
+export function MensagemBubble({ mensagem, isOwn, accent }: MensagemBubbleProps) {
+  const ownBg = isOwn ? [styles.bubbleOwn, accent ? { backgroundColor: accent } : null] : null;
+  const isImage = mensagem.tipo === "IMAGE";
+
   return (
     <View style={[styles.row, isOwn ? styles.rowOwn : styles.rowOther]}>
-      <View style={[styles.bubble, isOwn ? styles.bubbleOwn : styles.bubbleOther]}>
-        <Text style={[styles.texto, isOwn ? styles.textoOwn : styles.textoOther]}>
-          {mensagem.texto}
-        </Text>
-
-        <Text style={[styles.time, isOwn ? styles.timeOwn : styles.timeOther]}>
-          {formatTime(mensagem.criadaEm)}
-        </Text>
-
-        {isOwn && mensagem.status === "enviando" && (
-          <Text style={styles.statusEnviando}>...</Text>
+      <View style={[styles.bubble, isOwn ? ownBg : styles.bubbleOther, isImage && styles.bubbleImage]}>
+        {mensagem.tipo === "IMAGE" ? (
+          <Image source={{ uri: mensagem.texto }} style={styles.image} resizeMode="cover" />
+        ) : mensagem.tipo === "LOCATION" ? (
+          <Pressable
+            onPress={() => abrirLocalizacao(mensagem.texto)}
+            style={({ pressed }) => [styles.locationRow, pressed && { opacity: 0.8 }]}
+          >
+            <AppIcon name="MapPin" size={18} color={isOwn ? colors.white : colors.primary} strokeWidth={2.3} />
+            <Text style={[styles.texto, isOwn ? styles.textoOwn : styles.textoOther, styles.locationText]}>
+              Ver localização no mapa
+            </Text>
+          </Pressable>
+        ) : (
+          <Text style={[styles.texto, isOwn ? styles.textoOwn : styles.textoOther]}>
+            {mensagem.texto}
+          </Text>
         )}
-        {isOwn && mensagem.status === "erro" && (
-          <Text style={styles.statusErro}>Falha ao enviar</Text>
-        )}
+
+        <View style={[styles.metaRow, isImage && styles.metaRowOnImage]}>
+          <Text style={[styles.time, isOwn ? styles.timeOwn : styles.timeOther]}>
+            {formatTime(mensagem.criadaEm)}
+          </Text>
+          {isOwn ? (
+            <View style={styles.statusWrap}>
+              <MessageStatus mensagem={mensagem} />
+            </View>
+          ) : null}
+        </View>
       </View>
     </View>
   );
@@ -68,6 +141,52 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: RADIUS_CORNER,
     ...shadow(2),
   },
+  bubbleImage: {
+    padding: 3,
+    overflow: "hidden",
+  },
+  image: {
+    width: 220,
+    height: 220,
+    borderRadius: RADIUS_BUBBLE - 3,
+    backgroundColor: colors.background,
+  },
+  locationRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  locationText: {
+    textDecorationLine: "underline",
+  },
+  metaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-end",
+    gap: 4,
+    marginTop: spacing.xs,
+  },
+  metaRowOnImage: {
+    position: "absolute",
+    right: 8,
+    bottom: 8,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    backgroundColor: "rgba(0,0,0,0.35)",
+    marginTop: 0,
+  },
+  statusWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  checkRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  checkOverlap: {
+    marginLeft: -6,
+  },
   texto: {
     ...typography.body,
   },
@@ -79,7 +198,6 @@ const styles = StyleSheet.create({
   },
   time: {
     ...typography.caption,
-    marginTop: spacing.xs,
     textAlign: "right",
   },
   timeOwn: {
@@ -88,15 +206,8 @@ const styles = StyleSheet.create({
   timeOther: {
     color: colors.textMuted,
   },
-  statusEnviando: {
-    ...typography.caption,
-    color: colors.white,
-    opacity: 0.6,
-    textAlign: "right",
-  },
   statusErro: {
     ...typography.caption,
-    color: colors.error,
     textAlign: "right",
   },
 });

@@ -28,12 +28,17 @@ export function ConfirmarSolicitacaoScreen() {
   const flowTheme = getServiceFlowTheme(draft.tipo);
   const isMontador = draft.tipo === "MONTADOR";
 
-  // Rótulo de preço exibido na tela de confirmação.
-  // `precoEstimadoLabel` já vem resolvido por nicho do perfil público (ex.:
-  // "R$ 130,00", "A partir de…" ou "A combinar" quando não há valor definido).
-  // Nunca exibe número fixo hardcoded.
+  // Valor final exibido na confirmação. "A combinar" SÓ quando a profissional
+  // marcou essa opção (não mais forçado por categoria). Prioriza o valor que o
+  // empregador escolheu na tabela de intensidades.
   function resolvePrecoLabel(): string {
-    if (isMontador) return "A orçar";
+    // Montador: valor da especialidade escolhida (ou "a combinar"), definido
+    // ao selecionar o serviço a partir dos preços do profissional.
+    if (isMontador) return draft.precoEstimadoLabel ?? "A combinar";
+    if (draft.precoInfo?.valorACombinar) return "A combinar";
+    if (draft.valorSelecionado != null) {
+      return `R$ ${draft.valorSelecionado.toFixed(2).replace(".", ",")}`;
+    }
     if (draft.precoEstimadoLabel) return draft.precoEstimadoLabel;
     return "A combinar";
   }
@@ -152,12 +157,18 @@ export function ConfirmarSolicitacaoScreen() {
     }
 
     return [
-      { label: "Serviço", value: SERVICE_LABELS[draft.categoria], icon: "BriefcaseBusiness" as const },
+      {
+        label: "Serviço",
+        value: draft.intensidadeLabel
+          ? `${SERVICE_LABELS[draft.categoria]} · ${draft.intensidadeLabel}`
+          : SERVICE_LABELS[draft.categoria],
+        icon: "BriefcaseBusiness" as const,
+      },
       { label: "Data e horário", value: `${formatDate(draft.dataISO)} às ${draft.horario || "--:--"}`, icon: "Calendar" as const },
       { label: "Endereço", value: address, icon: "MapPin" as const },
       { label: "Observações", value: draft.observacoes || "Nenhuma observação adicionada.", icon: "FileText" as const },
     ];
-  }, [address, draft, isMontador]);
+  }, [address, draft, isMontador, precoLabel]);
 
   return (
     <SafeAreaView style={flowStyles.screen}>

@@ -5,7 +5,6 @@ import { useNavigation } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import { AppIcon, DAvatar, DBadge, DButton, DCard } from "@/components/ui";
 import { colors, radius, spacing, typography } from "@/theme";
-import { useAuth } from "@/stores/authStore";
 import { useGenderTheme } from "@/hooks/useProfileTheme";
 import type { ProfileTheme } from "@/theme/profileTheme";
 import type { DiaristaTabParamList } from "@/navigation/DiaristaNavigator";
@@ -15,7 +14,13 @@ import { useMensagens } from "@/hooks/useMensagens";
 
 type Navigation = BottomTabNavigationProp<DiaristaTabParamList>;
 type Filtro = "hoje" | "amanha" | "semana" | "pendentes" | "confirmados" | "concluidos";
-type StatusAgendamento = "pendente" | "confirmado" | "andamento" | "finalizado" | "cancelado";
+type StatusAgendamento =
+  | "pendente"
+  | "confirmado"
+  | "andamento"
+  | "aguardando"
+  | "finalizado"
+  | "cancelado";
 
 type Agendamento = {
   id: string;
@@ -25,12 +30,36 @@ type Agendamento = {
   servico: string;
   /** Rótulo já resolvido com a categoria/intensidade quando houver. */
   servicoLabel: string;
+  /** Categoria/subtipo bruto (ex.: FAXINA_PESADA) — define a intensidade. */
+  categoria?: string | null;
   data: string;
   hora: string;
   preco: string;
   status: StatusAgendamento;
   avatarUrl?: string;
 };
+
+// Intensidade/subtipo legível para o card (FAXINA_PESADA → "Limpeza pesada").
+const CATEGORIA_LABEL: Record<string, string> = {
+  FAXINA_LEVE: "Limpeza leve",
+  FAXINA_MEDIA: "Limpeza média",
+  FAXINA_PESADA: "Limpeza pesada",
+  FAXINA_COMPLETA: "Limpeza completa",
+  BABA_DIURNA: "Babá diurna",
+  BABA_NOTURNA: "Babá noturna",
+  BABA_INTEGRAL: "Babá integral",
+  COZINHEIRA_DIARIA: "Cozinha diária",
+  COZINHEIRA_EVENTO: "Cozinha para evento",
+  PASSA_ROUPA_BASICO: "Passar roupa — básico",
+  PASSA_ROUPA_COMPLETO: "Passar roupa — completo",
+};
+
+/** Rótulo do serviço: a categoria/intensidade quando houver (ex.: "Limpeza
+ *  pesada"), senão o tipo (ex.: "Limpeza"). */
+function servicoCompleto(a: Agendamento): string {
+  if (a.categoria && CATEGORIA_LABEL[a.categoria]) return CATEGORIA_LABEL[a.categoria];
+  return a.servico;
+}
 
 const FILTROS: { label: string; value: Filtro }[] = [
   { label: "Hoje", value: "hoje" },
@@ -89,6 +118,8 @@ function statusCardStyle(status: StatusAgendamento, accentColor: string) {
       return { borderColor: accentColor, borderWidth: 1.5 };
     case "andamento":
       return styles.statusAndamento;
+    case "aguardando":
+      return styles.statusAndamento;
     case "finalizado":
       return styles.statusFinalizado;
     case "cancelado":
@@ -107,6 +138,8 @@ function statusBadgeMeta(status: StatusAgendamento): {
       return { label: "Confirmado", type: "success" };
     case "andamento":
       return { label: "Em andamento", type: "info" };
+    case "aguardando":
+      return { label: "Aguardando confirmação", type: "warning" };
     case "finalizado":
       return { label: "Finalizado", type: "default" };
     case "cancelado":
@@ -170,7 +203,7 @@ function AgendamentoDiaristaCard({
         />
         <View style={styles.cardTopInfo}>
           <Text style={styles.clientName} numberOfLines={1}>{agendamento.nomeCliente}</Text>
-          <Text style={styles.clientSub} numberOfLines={1}>{agendamento.servicoLabel}</Text>
+          <Text style={styles.clientSub} numberOfLines={1}>{agendamento.servicoLabel || servicoCompleto(agendamento)}</Text>
         </View>
         <DBadge type={badge.type} label={badge.label} />
       </View>
@@ -222,6 +255,7 @@ function AgendamentoDiaristaCard({
           <DButton
             variant="ghost"
             size="sm"
+            labelStyle={{ color: colors.warning }}
             label="Detalhes"
             onPress={() => navigation.navigate("DetalheServico", { id: agendamento.id })}
           />
@@ -233,9 +267,7 @@ function AgendamentoDiaristaCard({
 
 export function AgendamentosDiaristaScreen() {
   const navigation = useNavigation<Navigation>();
-  const { user } = useAuth();
   const theme = useGenderTheme("DIARISTA");
-  const firstName = (user?.nome || "Diarista").trim().split(/\s+/)[0];
   const [activeFilter, setActiveFilter] = useState<Filtro>("hoje");
   const { agendamentos: realAgendamentos, loading, error, refetch } = useAgendamentosDiarista();
   const { rooms } = useMensagens();
@@ -260,6 +292,14 @@ export function AgendamentosDiaristaScreen() {
     if (activeFilter === "amanha") {
       return sourceData.filter((item) => item.data === "Amanhã");
     }
+    if (activeFilter === "hoje") {
+      // "Hoje" = solicitações ativas: chegaram, foram aceitas, em andamento ou
+      // aguardando confirmação. Finalizadas saem (ficam na aba "Concluídos");
+      // canceladas/recusadas nem chegam a esta lista.
+      return sourceData.filter(
+        (item) => item.status !== "finalizado" && item.status !== "cancelado",
+      );
+    }
     return sourceData;
   }, [sourceData, activeFilter]);
 
@@ -268,7 +308,7 @@ export function AgendamentosDiaristaScreen() {
       <View style={styles.content}>
         <View style={styles.header}>
           <View style={styles.headerText}>
-            <Text style={styles.greeting}>Olá, {firstName}</Text>
+            <Text style={styles.greeting}>Agenda</Text>
             <Text style={styles.subtitle}>Seus agendamentos</Text>
           </View>
           <Pressable
@@ -353,8 +393,7 @@ const styles = StyleSheet.create({
     paddingRight: spacing.md,
   },
   greeting: {
-    ...typography.title,
-    fontWeight: "700",
+    ...typography.h2,
     color: colors.textPrimary,
   },
   subtitle: {

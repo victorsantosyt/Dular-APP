@@ -63,6 +63,7 @@ export type DiaristaProfileMe = {
   precoCuidadoraHora: string | number | null;
   precoPassadeira: string | number | null;
   precoLavadeira: string | number | null;
+  precoCuidadora: string | number | null;
   taxaMinima: string | number | null;
   cobraDeslocamento: boolean;
   valorACombinar: boolean;
@@ -112,6 +113,7 @@ export async function patchDiaristaPerfil(payload: {
   precoCuidadoraHora?: string | number | null;
   precoPassadeira?: string | number | null;
   precoLavadeira?: string | number | null;
+  precoCuidadora?: string | number | null;
   taxaMinima?: string | number | null;
   cobraDeslocamento?: boolean;
   valorACombinar?: boolean;
@@ -141,6 +143,7 @@ export async function updatePrecosCompletos(payload: {
   precoCuidadoraHora?: string | number | null;
   precoPassadeira?: string | number | null;
   precoLavadeira?: string | number | null;
+  precoCuidadora?: string | number | null;
   taxaMinima?: string | number | null;
   cobraDeslocamento?: boolean;
   valorACombinar?: boolean;

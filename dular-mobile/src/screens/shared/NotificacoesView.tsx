@@ -174,7 +174,13 @@ export function NotificacoesView({ theme, onVoltar, onOpenChat, onOpenServico }:
   const { notificacoes, loading, marcarComoLida, marcarTodasComoLidas } = useNotificacoes();
   const [activeTab, setActiveTab] = useState<NotificationTab>("todas");
 
-  const notifications = useMemo<UINotification[]>(() => notificacoes.map(fromRemote), [notificacoes]);
+  // Mensagens de chat NÃO entram na tela de Notificações — elas aparecem como
+  // contagem no card da conversa (tela de Mensagens). Aqui filtramos na origem
+  // para não afetar contadores nem o "marcar todas como lidas".
+  const notifications = useMemo<UINotification[]>(
+    () => notificacoes.map(fromRemote).filter((n) => !(n.type && CHAT_TYPES.has(n.type))),
+    [notificacoes],
+  );
   const unreadCount = notifications.filter((item) => item.unread).length;
   const filtered = useMemo(() => {
     if (activeTab === "nao_lidas") return notifications.filter((item) => item.unread);
@@ -208,23 +214,17 @@ export function NotificacoesView({ theme, onVoltar, onOpenChat, onOpenServico }:
 
   return (
     <DScreen scroll withBottomPadding backgroundColor={theme.background} contentContainerStyle={styles.scroll}>
+      {/* Header: sair (esq) · "Notificações" (centro) · sino (dir), alinhados. */}
       <View style={styles.header}>
-        <Pressable onPress={onVoltar} hitSlop={12} style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}>
+        <Pressable onPress={onVoltar} hitSlop={12} style={({ pressed }) => [styles.headerSide, pressed && styles.pressed]}>
           <AppIcon name="ArrowLeft" size={23} color={theme.primary} strokeWidth={2.4} />
         </Pressable>
-        <View style={[styles.headerIcon, { backgroundColor: theme.primarySoft }]}>
-          <AppIcon name="Bell" size={21} color={theme.primary} strokeWidth={2.4} />
-        </View>
         <Text style={styles.title} numberOfLines={1}>
           Notificações
         </Text>
-        <Pressable
-          onPress={markAllAsRead}
-          disabled={unreadCount === 0}
-          style={({ pressed }) => [styles.markButton, pressed && styles.pressed, unreadCount === 0 && styles.disabled]}
-        >
-          <Text style={[styles.markText, { color: theme.primary }]}>Marcar todas como lidas</Text>
-        </Pressable>
+        <View style={styles.headerSide}>
+          <AppIcon name="Bell" size={22} color={theme.primary} strokeWidth={2.4} />
+        </View>
       </View>
 
       <NotificationTabs
@@ -234,6 +234,16 @@ export function NotificacoesView({ theme, onVoltar, onOpenChat, onOpenServico }:
         soft={theme.primarySoft}
         onChange={setActiveTab}
       />
+
+      {/* "Marcar todas como lidas" logo abaixo da barra de abas. */}
+      <Pressable
+        onPress={markAllAsRead}
+        disabled={unreadCount === 0}
+        style={({ pressed }) => [styles.markRow, pressed && styles.pressed, unreadCount === 0 && styles.disabled]}
+      >
+        <AppIcon name="CheckCircle" size={15} color={theme.primary} strokeWidth={2.3} />
+        <Text style={[styles.markText, { color: theme.primary }]}>Marcar todas como lidas</Text>
+      </Pressable>
 
       {loading && notifications.length === 0 ? (
         <DLoadingState text="Carregando notificações" color={theme.primary} />
@@ -260,12 +270,19 @@ export default NotificacoesView;
 
 const styles = StyleSheet.create({
   scroll: { gap: 14 },
-  header: { minHeight: 52, flexDirection: "row", alignItems: "center", gap: 10 },
-  backButton: { width: 32, height: 38, alignItems: "center", justifyContent: "center" },
-  headerIcon: { width: 46, height: 46, borderRadius: 23, alignItems: "center", justifyContent: "center" },
-  title: { flex: 1, color: colors.textPrimary, fontSize: 22, lineHeight: 27, fontWeight: "700", letterSpacing: 0 },
-  markButton: { maxWidth: 92, alignItems: "flex-end" },
-  markText: { fontSize: 11, lineHeight: 14, fontWeight: "700", textAlign: "right" },
+  header: { minHeight: 52, flexDirection: "row", alignItems: "center" },
+  headerSide: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
+  title: {
+    flex: 1,
+    color: colors.textPrimary,
+    fontSize: 22,
+    lineHeight: 27,
+    fontWeight: "700",
+    letterSpacing: 0,
+    textAlign: "center",
+  },
+  markRow: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 6, paddingHorizontal: 2 },
+  markText: { fontSize: 12, lineHeight: 15, fontWeight: "700" },
   disabled: { opacity: 0.45 },
   tabs: {
     minHeight: 44,

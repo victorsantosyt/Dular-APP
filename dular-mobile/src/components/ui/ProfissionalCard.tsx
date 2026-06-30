@@ -27,7 +27,7 @@ export type ProfissionalCardData = {
   userId: string;
   tipo: "DIARISTA" | "MONTADOR";
   nome: string;
-  /** Categoria principal (Diarista, Faxineira, Babá, …, Montador). */
+  /** Categoria principal (Diarista, Babá, …, Montador). */
   categoria: string;
   categoriaIcon: AppIconName;
   /** Cor oficial da categoria (Design System) — ícone/label do badge. */

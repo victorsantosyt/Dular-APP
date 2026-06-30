@@ -16,6 +16,7 @@ export async function GET(req: Request, { params }: Params) {
         diarista: { select: { id: true, nome: true, telefone: true, avatarUrl: true } },
         montador: { select: { id: true, nome: true, telefone: true, avatarUrl: true } },
         avaliacao: true,
+        avaliacaoEmpregador: true,
         // Data de finalização sem migration: último evento de finalização.
         eventos: {
           where: { toStatus: { in: ["CONCLUIDO", "CONFIRMADO", "FINALIZADO"] } },

@@ -16,6 +16,11 @@ export const dynamic = "force-dynamic";
 
 const centsSchema = z.number().int().min(0).max(10_000_000).nullable().optional();
 
+const especialidadePrecoSchema = z.object({
+  preco: z.number().int().min(0).max(10_000_000).nullable().optional(),
+  aCombinar: z.boolean(),
+});
+
 const patchSchema = z.object({
   nome: z.string().trim().min(2).max(120).optional(),
   telefone: z.string().trim().max(30).nullable().optional(),
@@ -38,6 +43,8 @@ const patchSchema = z.object({
   cobraDeslocamento: z.boolean().optional(),
   observacaoPreco: z.string().trim().max(300).nullable().optional(),
   valorACombinar: z.boolean().optional(),
+  // Preço por especialidade: { [especialidadeId]: { preco|null, aCombinar } }
+  precosEspecialidades: z.record(z.string(), especialidadePrecoSchema).optional(),
   ativo: z.boolean().optional(),
   portfolioFotos: z.array(z.string().trim().min(5).max(500)).max(12).optional(),
 });
@@ -88,6 +95,7 @@ async function buildMontadorMeResponse(userId: string) {
       cobraDeslocamento: true,
       observacaoPreco: true,
       valorACombinar: true,
+      precosEspecialidades: true,
       documentoFrente: true,
       documentoVerso: true,
       selfieDoc: true,
@@ -267,6 +275,7 @@ export async function PATCH(req: Request) {
     if (data.cobraDeslocamento !== undefined) profileData.cobraDeslocamento = data.cobraDeslocamento;
     if (data.observacaoPreco !== undefined) profileData.observacaoPreco = data.observacaoPreco?.trim() || null;
     if (data.valorACombinar !== undefined) profileData.valorACombinar = data.valorACombinar;
+    if (data.precosEspecialidades !== undefined) profileData.precosEspecialidades = data.precosEspecialidades;
     if (data.ativo !== undefined) profileData.ativo = data.ativo;
     if (data.portfolioFotos !== undefined) profileData.portfolioFotos = cleanStringArray(data.portfolioFotos, 12);
 

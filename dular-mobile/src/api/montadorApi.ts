@@ -101,6 +101,8 @@ export type MontadorPerfilCompletude = {
   };
 };
 
+export type EspecialidadePreco = { preco: number | null; aCombinar: boolean };
+
 export type MontadorPerfilProfissional = {
   id: string;
   userId: string;
@@ -124,6 +126,8 @@ export type MontadorPerfilProfissional = {
   cobraDeslocamento: boolean;
   observacaoPreco?: string | null;
   valorACombinar: boolean;
+  /** Preço por especialidade: { [id]: { preco(centavos)|null, aCombinar } }. */
+  precosEspecialidades?: Record<string, EspecialidadePreco> | null;
   documentoFrente?: string | null;
   documentoVerso?: string | null;
   selfieDoc?: string | null;
@@ -181,6 +185,7 @@ export type AtualizarPerfilMontadorPayload = {
   cobraDeslocamento?: boolean;
   observacaoPreco?: string | null;
   valorACombinar?: boolean;
+  precosEspecialidades?: Record<string, EspecialidadePreco>;
   ativo?: boolean;
   portfolioFotos?: string[];
 };

@@ -51,6 +51,14 @@ function opcoesDeValor(categoria: ServiceCategory, p?: PrecoInfo): OpcaoValor[] 
   return [];
 }
 
+/** Preço do montador para uma especialidade: valor em REAIS ou "A combinar". */
+function precoEspecialidade(id: string, p?: PrecoInfo): { label: string; valor: number | null } {
+  const e = p?.precosEspecialidades?.[id];
+  if (!e || e.aCombinar || e.preco == null) return { label: "A combinar", valor: null };
+  const reais = e.preco / 100;
+  return { label: `R$ ${reais.toFixed(2).replace(".", ",")}`, valor: reais };
+}
+
 export function SolicitarServicoScreen() {
   const navigation = useNavigation<Navigation>();
   const { draft, updateDraft, resetDraft } = useServiceFlow();
@@ -182,26 +190,31 @@ export function SolicitarServicoScreen() {
         />
         <ScrollView contentContainerStyle={s.list} scrollEnabled={false}>
           {isMontador
-            ? MONTADOR_ESPECIALIDADES.map((especialidade) => (
-                <ServiceOptionCard
-                  key={especialidade.id}
-                  title={especialidade.label}
-                  subtitle="Serviço técnico residencial"
-                  icon={especialidade.icon}
-                  selected={draft.especialidadeId === especialidade.id}
-                  theme={flowTheme}
-                  onPress={() =>
-                    updateDraft({
-                      categoria: "montador",
-                      tipo: "MONTADOR",
-                      tipoProfissional: "MONTADOR",
-                      especialidadeId: especialidade.id,
-                      especialidadeLabel: especialidade.label,
-                      categoriaBackend: especialidade.categoriaBackend,
-                    })
-                  }
-                />
-              ))
+            ? MONTADOR_ESPECIALIDADES.map((especialidade) => {
+                const preco = precoEspecialidade(especialidade.id, draft.precoInfo);
+                return (
+                  <ServiceOptionCard
+                    key={especialidade.id}
+                    title={especialidade.label}
+                    subtitle={preco.label}
+                    icon={especialidade.icon}
+                    selected={draft.especialidadeId === especialidade.id}
+                    theme={flowTheme}
+                    onPress={() =>
+                      updateDraft({
+                        categoria: "montador",
+                        tipo: "MONTADOR",
+                        tipoProfissional: "MONTADOR",
+                        especialidadeId: especialidade.id,
+                        especialidadeLabel: especialidade.label,
+                        categoriaBackend: especialidade.categoriaBackend,
+                        precoEstimadoLabel: preco.label,
+                        valorSelecionado: preco.valor ?? undefined,
+                      })
+                    }
+                  />
+                );
+              })
             : categoriaOptions.map((cat) => (
                 <ServiceOptionCard
                   key={cat.key}

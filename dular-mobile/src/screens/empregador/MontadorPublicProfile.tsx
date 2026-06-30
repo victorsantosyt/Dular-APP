@@ -165,6 +165,19 @@ export default function MontadorPublicProfile() {
       tipoInicial: "MONTADOR",
       profissionalId,
       profissionalNome: nome,
+      // Leva os preços por especialidade pro fluxo — o empregador vê o valor
+      // de cada serviço (ou "a combinar") já na escolha da especialidade.
+      precoInfo: {
+        leve: null,
+        medio: null,
+        pesada: null,
+        babaHora: null,
+        cozinheiraBase: null,
+        valorACombinar: false,
+        precosEspecialidades:
+          (montador as { precosEspecialidades?: Record<string, { preco: number | null; aCombinar: boolean }> } | null)
+            ?.precosEspecialidades ?? undefined,
+      },
     });
   };
 

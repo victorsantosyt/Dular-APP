@@ -37,6 +37,10 @@ export async function GET(req: Request) {
         categoria: true,
         data: true,
         turno: true,
+        reagendamentoData: true,
+        reagendamentoTurno: true,
+        reagendamentoPor: true,
+        reagendamentoEm: true,
         cidade: true,
         uf: true,
         bairro: true,
@@ -55,6 +59,19 @@ export async function GET(req: Request) {
         diarista: { select: { id: true, nome: true, telefone: true, avatarUrl: true } },
         montador: { select: { id: true, nome: true, telefone: true, avatarUrl: true } },
         avaliacao: {
+          select: {
+            id: true,
+            notaGeral: true,
+            pontualidade: true,
+            qualidade: true,
+            comunicacao: true,
+            comentario: true,
+            createdAt: true,
+          },
+        },
+        // Avaliação profissional → empregador. O profissional usa a presença
+        // deste objeto para saber se já avaliou (esconde o CTA "Avaliar").
+        avaliacaoEmpregador: {
           select: {
             id: true,
             notaGeral: true,

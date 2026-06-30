@@ -1,10 +1,11 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigation } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import type { MontadorTabParamList } from "@/navigation/MontadorNavigator";
 import {
   ActivityIndicator,
   Alert,
+  Image,
   KeyboardAvoidingView,
   Modal,
   Pressable,
@@ -17,27 +18,35 @@ import {
   type KeyboardTypeOptions,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import * as ImagePicker from "expo-image-picker";
 import { AppIcon, DErrorState, DLoadingState, DScreen } from "@/components/ui";
+import { EspecialidadeOptionCard } from "@/components/EspecialidadeOptionCard";
 import { LocationPermissionCard } from "@/components/location/LocationPermissionCard";
 import { salvarLocalizacaoAtual } from "@/api/localizacaoApi";
 import {
   MONTADOR_ESPECIALIDADES,
+  adicionarFotoPortfolio,
   atualizarPerfilMontador,
   carregarPerfilMontador,
+  removerFotoPortfolio,
   type AtualizarPerfilMontadorPayload,
   type MontadorEspecialidadeId,
   type MontadorPerfilMe,
 } from "@/api/montadorApi";
+import { uploadAvatarDataUrl } from "@/api/perfilApi";
 import { useMontadorServicos } from "@/hooks/useMontadorServicos";
 import { useCurrentRegion, type CurrentRegion } from "@/hooks/useCurrentRegion";
 import { useProfileTheme } from "@/hooks/useProfileTheme";
 import { useAuth } from "@/stores/authStore";
+import { requestLocationWithAddress } from "@/lib/location";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { colors, radius, shadows, spacing, typography } from "@/theme";
 import type { ProfileTheme } from "@/theme/profileTheme";
 import { platformSelect } from "@/utils/platform";
+import { VerifiedBadge } from "@/components/ui/VerifiedBadge";
 import { firstName, formatMoneyFromCents, upperStatus } from "./montadorUtils";
 
-type ModalType = "dados" | "especialidades" | "area" | "precos" | "portfolio" | "documentos" | null;
+type ModalType = "dados" | "especialidades" | "area" | "precos" | "portfolio" | "avaliacoes" | null;
 
 type MontadorNavigation = BottomTabNavigationProp<MontadorTabParamList>;
 
@@ -104,13 +113,8 @@ type AreaForm = {
   atendeTodaCidade: boolean;
 };
 
-type PrecosForm = {
-  valorACombinar: boolean;
-  precoBase: string;
-  taxaMinima: string;
-  cobraDeslocamento: boolean;
-  observacaoPreco: string;
-};
+type PrecoRow = { preco: string; aCombinar: boolean };
+type PrecosForm = Record<string, PrecoRow>;
 
 const ESPECIALIDADE_LABELS = Object.fromEntries(
   MONTADOR_ESPECIALIDADES.map((item) => [item.id, item.label]),
@@ -120,17 +124,40 @@ function especialidadeLabel(id: string) {
   return ESPECIALIDADE_LABELS[id as MontadorEspecialidadeId] ?? id;
 }
 
-function centsToInput(value?: number | null) {
-  if (typeof value !== "number" || !Number.isFinite(value)) return "";
-  return (value / 100).toFixed(2).replace(".", ",");
+/** Máscara de moeda BR: trata a entrada como CENTAVOS e formata "1.234,56".
+ *  Aceita número (centavos do backend) ou texto já mascarado (re-extrai os
+ *  dígitos). Vazio → "". Tipar só dígitos no teclado já formata — sem precisar
+ *  de "." nem "," e sem ambiguidade de separador decimal. */
+function maskMoneyBR(raw: string | number | null | undefined): string {
+  const digits = String(raw ?? "").replace(/\D/g, "");
+  if (!digits) return "";
+  const cents = parseInt(digits, 10);
+  const reais = Math.floor(cents / 100);
+  const cc = String(cents % 100).padStart(2, "0");
+  const reaisStr = String(reais).replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  return `${reaisStr},${cc}`;
 }
 
-function inputToCents(value: string) {
-  const normalized = value.replace(/\./g, "").replace(",", ".").trim();
-  if (!normalized) return null;
-  const number = Number(normalized);
-  if (!Number.isFinite(number) || number < 0) return NaN;
-  return Math.round(number * 100);
+/** Texto mascarado → centavos (inteiro). Vazio → null. */
+function maskedToCents(masked: string): number | null {
+  const digits = masked.replace(/\D/g, "");
+  if (!digits) return null;
+  return parseInt(digits, 10);
+}
+
+/** Monta o form de preços por especialidade a partir do perfil. */
+function buildPrecosForm(
+  especialidades: string[],
+  precos?: Record<string, { preco: number | null; aCombinar: boolean }> | null,
+): PrecosForm {
+  const form: PrecosForm = {};
+  for (const id of especialidades) {
+    const p = precos?.[id];
+    form[id] = p
+      ? { preco: p.preco != null ? maskMoneyBR(p.preco) : "", aCombinar: p.aCombinar }
+      : { preco: "", aCombinar: true };
+  }
+  return form;
 }
 
 function splitBairros(value: string) {
@@ -195,6 +222,42 @@ function Row({
     </Pressable>
   );
 }
+
+function ToggleRow({
+  icon,
+  title,
+  subtitle,
+  theme,
+  value,
+  onValueChange,
+}: {
+  icon: React.ComponentProps<typeof AppIcon>["name"];
+  title: string;
+  subtitle?: string;
+  theme: ProfileTheme;
+  value: boolean;
+  onValueChange: (value: boolean) => void;
+}) {
+  return (
+    <View style={[styles.row, { borderBottomColor: theme.border }]}>
+      <View style={[styles.rowIcon, { backgroundColor: theme.primarySoft }]}>
+        <AppIcon name={icon} size={18} color={theme.primary} />
+      </View>
+      <View style={styles.rowText}>
+        <Text style={styles.rowTitle}>{title}</Text>
+        {subtitle ? <Text style={styles.rowSub} numberOfLines={2}>{subtitle}</Text> : null}
+      </View>
+      <Switch
+        value={value}
+        onValueChange={onValueChange}
+        trackColor={{ false: colors.border, true: theme.primarySoft }}
+        thumbColor={value ? theme.primary : colors.textMuted}
+      />
+    </View>
+  );
+}
+
+const GEO_KEY = "@dular:montador_geo_enabled";
 
 function FloatingCard({
   visible,
@@ -289,6 +352,23 @@ function ModalActions({
   );
 }
 
+function StarRow({ value, size = 14, color }: { value: number; size?: number; color: string }) {
+  const filled = Math.round(value);
+  return (
+    <View style={styles.starRow}>
+      {[1, 2, 3, 4, 5].map((i) => (
+        <AppIcon key={i} name="Star" size={size} color={i <= filled ? color : colors.border} strokeWidth={2} />
+      ))}
+    </View>
+  );
+}
+
+function formatReviewDate(iso: string) {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" });
+}
+
 export default function MontadorPerfil() {
   const profileTheme = useProfileTheme("MONTADOR");
   const navigation = useNavigation<MontadorNavigation>();
@@ -307,23 +387,30 @@ export default function MontadorPerfil() {
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
   const [modal, setModal] = useState<ModalType>(null);
   const [areaCoords, setAreaCoords] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [avatarLocal, setAvatarLocal] = useState<string | null>(null);
+  const [avatarRemote, setAvatarRemote] = useState<string | null>(null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [portfolio, setPortfolio] = useState<string[]>([]);
+  const [portfolioBusy, setPortfolioBusy] = useState(false);
+  const [geoEnabled, setGeoEnabled] = useState(true);
+  const [showVisivelCard, setShowVisivelCard] = useState(false);
+  const busyRef = useRef(false);
+  const prevVerificadoRef = useRef<boolean | null>(null);
 
   const [dadosForm, setDadosForm] = useState<DadosForm>({ nome: "", telefone: "", bio: "", anosExperiencia: "" });
   const [especialidadesForm, setEspecialidadesForm] = useState<MontadorEspecialidadeId[]>([]);
   const [areaForm, setAreaForm] = useState<AreaForm>({ cidade: "", estado: "", bairros: "", raioAtendimentoKm: "", ativo: true, atendeTodaCidade: false });
-  const [precosForm, setPrecosForm] = useState<PrecosForm>({
-    valorACombinar: true,
-    precoBase: "",
-    taxaMinima: "",
-    cobraDeslocamento: false,
-    observacaoPreco: "",
-  });
+  const [precosForm, setPrecosForm] = useState<PrecosForm>({});
 
   const ganhos = useMemo(() => totalGanhos(agenda), [agenda]);
 
   const perfil = profile?.perfil;
   const user = profile?.user;
   const nome = firstName(user?.nome ?? authUser?.nome);
+  const avatarUri = avatarLocal ?? avatarRemote ?? user?.avatarUrl ?? authUser?.avatarUrl ?? null;
+  const avaliacoesItens = perfil?.avaliacoes?.itens ?? [];
+  const avaliacoesMedia = perfil?.avaliacoes?.media ?? perfil?.rating ?? 0;
+  const avaliacoesTotal = perfil?.avaliacoes?.total ?? 0;
   const progresso = perfil?.completude.progresso ?? 0;
   const completo = Boolean(perfil?.completude.completo);
   const verificado = Boolean(perfil?.verificado);
@@ -335,11 +422,18 @@ export default function MontadorPerfil() {
   const areaResumo = perfil?.cidade && perfil.estado
     ? `${perfil.cidade}, ${perfil.estado}${perfil.bairros.length ? ` • ${perfil.bairros.length} bairro(s)` : ""}`
     : "Defina cidade, UF e bairros";
-  const precoResumo = perfil?.valorACombinar
-    ? "Valor a combinar"
-    : perfil?.precoBase
-      ? formatMoneyFromCents(perfil.precoBase)
-      : "Configure preço ou valor a combinar";
+  const precoResumo = (() => {
+    const esps = perfil?.especialidades ?? [];
+    if (esps.length === 0) return "Selecione especialidades primeiro";
+    const precos = perfil?.precosEspecialidades ?? {};
+    const comValor = esps.filter((id) => {
+      const p = precos[id];
+      return p && !p.aCombinar && p.preco != null;
+    }).length;
+    if (comValor === 0) return "Todos a combinar";
+    if (comValor === esps.length) return `${comValor} serviço(s) com valor`;
+    return `${comValor} c/ valor · ${esps.length - comValor} a combinar`;
+  })();
 
   // T-18.5: separar cadastro, documentos enviados e visibilidade.
   // Backend retorna verificacaoStatus do MontadorPerfil ("APROVADO" |
@@ -402,13 +496,7 @@ export default function MontadorPerfil() {
       atendeTodaCidade: next.perfil.atendeTodaCidade,
     });
     setAreaCoords(null);
-    setPrecosForm({
-      valorACombinar: next.perfil.valorACombinar,
-      precoBase: centsToInput(next.perfil.precoBase),
-      taxaMinima: centsToInput(next.perfil.taxaMinima),
-      cobraDeslocamento: next.perfil.cobraDeslocamento,
-      observacaoPreco: next.perfil.observacaoPreco ?? "",
-    });
+    setPrecosForm(buildPrecosForm(next.perfil.especialidades ?? [], next.perfil.precosEspecialidades));
   };
 
   const applyProfile = (next: MontadorPerfilMe) => {
@@ -429,23 +517,63 @@ export default function MontadorPerfil() {
     }));
   };
 
-  const loadProfile = async (mode: "initial" | "refresh" = "initial") => {
+  const loadProfile = async (mode: "initial" | "refresh" | "silent" = "initial") => {
     try {
       if (mode === "initial") setLoading(true);
       if (mode === "refresh") setRefreshing(true);
-      setError(null);
+      if (mode !== "silent") setError(null);
       const next = await carregarPerfilMontador();
       applyProfile(next);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Falha ao carregar perfil do montador.");
+      // "silent" = re-busca ao focar a tela: não derruba a UI com erro,
+      // mantém os dados já exibidos.
+      if (mode !== "silent") setError(err instanceof Error ? err.message : "Falha ao carregar perfil do montador.");
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (mode === "initial") setLoading(false);
+      if (mode === "refresh") setRefreshing(false);
     }
   };
 
   useEffect(() => {
     void loadProfile("initial");
+  }, []);
+
+  // Re-busca o perfil sempre que a tela ganha foco (voltar de VerificacaoDocs,
+  // troca de aba ou após aprovação no backend), evitando status defasado — ex.:
+  // continuar mostrando "incompleto"/"enviar documentos" mesmo já verificado.
+  useEffect(() => {
+    const unsubscribe = navigation.addListener("focus", () => {
+      void loadProfile("silent");
+    });
+    return unsubscribe;
+  }, [navigation]);
+
+  // Card "Perfil visível" é transitório: ao detectar a transição para verificado
+  // (false -> true), mostra por ~20s e some, deixando o perfil limpo. Se o perfil
+  // já carrega verificado (sem transição), o card não aparece.
+  useEffect(() => {
+    const prev = prevVerificadoRef.current;
+    prevVerificadoRef.current = verificado;
+    if (prev === false && verificado === true) {
+      setShowVisivelCard(true);
+      const timer = setTimeout(() => setShowVisivelCard(false), 20000);
+      return () => clearTimeout(timer);
+    }
+  }, [verificado]);
+
+  // Mantém a lista local do portfólio em sincronia com o perfil carregado.
+  useEffect(() => {
+    setPortfolio(profile?.perfil?.portfolioFotos ?? []);
+  }, [profile?.perfil?.portfolioFotos]);
+
+  // Geolocalização: preferência local persistida.
+  useEffect(() => {
+    AsyncStorage.getItem(GEO_KEY)
+      .then((value) => {
+        if (value === "0") setGeoEnabled(false);
+        if (value === "1") setGeoEnabled(true);
+      })
+      .catch(() => undefined);
   }, []);
 
   const openModal = (type: Exclude<ModalType, null>) => {
@@ -490,6 +618,113 @@ export default function MontadorPerfil() {
       bio: dadosForm.bio || null,
       anosExperiencia,
     }, "Dados profissionais salvos.");
+  };
+
+  // ── Avatar ─────────────────────────────────────────────────────────────────
+  const pickAvatar = async () => {
+    if (busyRef.current) return;
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("Permissão necessária", "Permita o acesso às fotos para escolher seu avatar.");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.82,
+      base64: true,
+    });
+    if (result.canceled) return;
+    const asset = result.assets?.[0];
+    if (!asset?.uri || !asset.base64) return;
+
+    setAvatarLocal(asset.uri);
+    setAvatarUploading(true);
+    busyRef.current = true;
+    try {
+      const mime = (asset as { mimeType?: string }).mimeType ?? "image/jpeg";
+      const dataUrl = `data:${mime};base64,${asset.base64}`;
+      const uploaded = await uploadAvatarDataUrl(dataUrl);
+      const finalUrl = uploaded?.user?.avatarUrl ?? dataUrl;
+      setAvatarRemote(finalUrl);
+      setUser((u) => (u ? { ...u, avatarUrl: finalUrl ?? u.avatarUrl } : u));
+    } catch (e) {
+      setAvatarLocal(null);
+      Alert.alert("Erro", e instanceof Error ? e.message : "Falha ao atualizar a foto.");
+    } finally {
+      setAvatarUploading(false);
+      busyRef.current = false;
+    }
+  };
+
+  // ── Portfólio (upload real → S3) ─────────────────────────────────────────────
+  const adicionarPortfolio = async (source: "camera" | "gallery") => {
+    if (portfolioBusy) return;
+    if (source === "camera") {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("Permissão necessária", "Permita o acesso à câmera para tirar a foto.");
+        return;
+      }
+    } else {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("Permissão necessária", "Permita o acesso às fotos para anexar.");
+        return;
+      }
+    }
+    const result =
+      source === "camera"
+        ? await ImagePicker.launchCameraAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.7, base64: true })
+        : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.7, base64: true });
+    if (result.canceled) return;
+    const asset = result.assets?.[0];
+    if (!asset?.base64) return;
+    const mime = (asset as { mimeType?: string }).mimeType ?? "image/jpeg";
+    const dataUrl = `data:${mime};base64,${asset.base64}`;
+    setPortfolioBusy(true);
+    try {
+      const updated = await adicionarFotoPortfolio(dataUrl);
+      setPortfolio(updated);
+      setProfile((prev) => (prev ? { ...prev, perfil: { ...prev.perfil, portfolioFotos: updated } } : prev));
+    } catch (e) {
+      Alert.alert("Erro", e instanceof Error ? e.message : "Não foi possível enviar a foto.");
+    } finally {
+      setPortfolioBusy(false);
+    }
+  };
+
+  const escolherFontePortfolio = () => {
+    if (portfolioBusy) return;
+    Alert.alert("Adicionar foto", "Escolha a origem da foto.", [
+      { text: "Tirar foto", onPress: () => void adicionarPortfolio("camera") },
+      { text: "Galeria", onPress: () => void adicionarPortfolio("gallery") },
+      { text: "Cancelar", style: "cancel" },
+    ]);
+  };
+
+  const removerPortfolio = (index: number) => {
+    if (portfolioBusy) return;
+    Alert.alert("Remover foto", "Remover esta foto do portfólio?", [
+      { text: "Cancelar", style: "cancel" },
+      {
+        text: "Remover",
+        style: "destructive",
+        onPress: async () => {
+          setPortfolioBusy(true);
+          try {
+            const updated = await removerFotoPortfolio(index);
+            setPortfolio(updated);
+            setProfile((prev) => (prev ? { ...prev, perfil: { ...prev.perfil, portfolioFotos: updated } } : prev));
+          } catch (e) {
+            Alert.alert("Erro", e instanceof Error ? e.message : "Não foi possível remover a foto.");
+          } finally {
+            setPortfolioBusy(false);
+          }
+        },
+      },
+    ]);
   };
 
   const saveEspecialidades = () => {
@@ -595,30 +830,59 @@ export default function MontadorPerfil() {
     applyDetectedRegion(detected, "add");
   };
 
+  const setPrecoRow = (id: string, partial: Partial<PrecoRow>) =>
+    setPrecosForm((prev) => ({
+      ...prev,
+      [id]: { ...(prev[id] ?? { preco: "", aCombinar: true }), ...partial },
+    }));
+
   const savePrecos = () => {
-    const precoBase = inputToCents(precosForm.precoBase);
-    const taxaMinima = inputToCents(precosForm.taxaMinima);
-    if (Number.isNaN(precoBase) || Number.isNaN(taxaMinima)) {
-      setFormError("Informe valores válidos.");
+    const esps = perfil?.especialidades ?? [];
+    if (esps.length === 0) {
+      setFormError("Selecione suas especialidades antes de definir os preços.");
       return;
     }
-    if (!precosForm.valorACombinar && !precoBase && !taxaMinima) {
-      setFormError("Informe um preço base, taxa mínima ou marque valor a combinar.");
-      return;
+    // Um valor por especialidade oferecida — ou "a combinar".
+    const precos: Record<string, { preco: number | null; aCombinar: boolean }> = {};
+    for (const id of esps) {
+      const row = precosForm[id] ?? { preco: "", aCombinar: true };
+      if (row.aCombinar) {
+        precos[id] = { preco: null, aCombinar: true };
+        continue;
+      }
+      const cents = maskedToCents(row.preco);
+      if (cents == null || Number.isNaN(cents) || cents <= 0) {
+        setFormError(`Informe um valor para "${especialidadeLabel(id)}" ou marque "a combinar".`);
+        return;
+      }
+      precos[id] = { preco: cents, aCombinar: false };
     }
-    void saveProfile({
-      valorACombinar: precosForm.valorACombinar,
-      precoBase,
-      taxaMinima,
-      cobraDeslocamento: precosForm.cobraDeslocamento,
-      observacaoPreco: precosForm.observacaoPreco || null,
-    }, "Preços salvos.");
+    void saveProfile({ precosEspecialidades: precos }, "Preços salvos.");
   };
 
   const toggleEspecialidade = (id: MontadorEspecialidadeId) => {
     setEspecialidadesForm((current) =>
       current.includes(id) ? current.filter((item) => item !== id) : [...current, id],
     );
+  };
+
+  const handleGeoToggle = async (value: boolean) => {
+    setGeoEnabled(value);
+    AsyncStorage.setItem(GEO_KEY, value ? "1" : "0").catch(() => undefined);
+    if (!value) return;
+    try {
+      const { address } = await requestLocationWithAddress();
+      const addr = address as
+        | { city?: string | null; subregion?: string | null; region?: string | null; region_code?: string | null }
+        | null;
+      const cidade = addr?.city || addr?.subregion || "Localização";
+      const uf = addr?.region_code || addr?.region || "";
+      Alert.alert("Localização ativada", `${cidade}${uf ? "/" + uf : ""}`);
+    } catch (e) {
+      Alert.alert("Localização", e instanceof Error ? e.message : "Não foi possível obter sua localização.");
+      setGeoEnabled(false);
+      AsyncStorage.setItem(GEO_KEY, "0").catch(() => undefined);
+    }
   };
 
   const sairDaConta = () => {
@@ -660,11 +924,21 @@ export default function MontadorPerfil() {
       </View>
 
       <LinearGradient colors={profileTheme.gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
-        <View style={styles.avatar}>
-          <AppIcon name="UserRound" size={34} color={colors.white} strokeWidth={2.1} />
-        </View>
+        <Pressable onPress={pickAvatar} disabled={avatarUploading} style={styles.avatar}>
+          {avatarUri ? (
+            <Image source={{ uri: avatarUri }} style={styles.avatarImg} />
+          ) : (
+            <AppIcon name="UserRound" size={34} color={colors.white} strokeWidth={2.1} />
+          )}
+          <View style={[styles.cameraBadge, { backgroundColor: profileTheme.primary }]}>
+            <AppIcon name={avatarUploading ? "Clock" : "Camera"} size={13} color={colors.white} />
+          </View>
+        </Pressable>
         <View style={styles.heroText}>
-          <Text style={styles.name}>{nome}</Text>
+          <View style={styles.nameRow}>
+            <Text style={styles.name}>{nome}</Text>
+            {verificado ? <VerifiedBadge size={18} /> : null}
+          </View>
           <Text style={styles.role}>Montador profissional</Text>
           <View style={styles.heroBadges}>
             <View style={styles.badge}><Text style={styles.badgeText}>{perfil.rating > 0 ? perfil.rating.toFixed(1) : "Sem avaliações"}</Text></View>
@@ -690,9 +964,10 @@ export default function MontadorPerfil() {
         </View>
       ) : null}
 
-      {/* T-18.5: separar cadastro / docs / visibilidade. Espelha o padrão da
-          Profissional de Casa (T-18.4). A barra superior já mostra
-          progresso de cadastro; este card comunica o passo seguinte. */}
+      {/* Status do perfil. O caso VISIVEL é transitório: o card "Perfil visível"
+          aparece ~20s após a aprovação e some, deixando o perfil limpo. Os demais
+          casos (incompleto/aguardando/reprovado) seguem como CTA persistente. */}
+      {statusCardCaseMontador !== "VISIVEL" || showVisivelCard ? (
       <View
         style={[
           styles.ctaCard,
@@ -743,7 +1018,7 @@ export default function MontadorPerfil() {
                 styles.ctaButton,
                 {
                   backgroundColor:
-                    statusCardCaseMontador === "REPROVADO" ? colors.danger : profileTheme.primary,
+                    statusCardCaseMontador === "REPROVADO" ? colors.danger : colors.warning,
                 },
               ]}
             >
@@ -752,6 +1027,7 @@ export default function MontadorPerfil() {
           ) : null}
         </View>
       </View>
+      ) : null}
 
       {savedMessage ? (
         <View style={[styles.savedCard, { borderColor: profileTheme.border }]}>
@@ -766,18 +1042,40 @@ export default function MontadorPerfil() {
         <Row icon="MapPin" title="Área de atendimento" subtitle={areaResumo} theme={profileTheme} onPress={() => openModal("area")} />
         <Row icon="Wallet" title="Preços" subtitle={precoResumo} theme={profileTheme} onPress={() => openModal("precos")} />
         <Row icon="Camera" title="Portfólio" subtitle={perfil.portfolioFotos.length ? `${perfil.portfolioFotos.length} foto(s)` : "Sem fotos no portfólio"} theme={profileTheme} onPress={() => openModal("portfolio")} />
-        <Row icon="Star" title="Avaliações" subtitle={perfil.avaliacoes?.total ? `${perfil.avaliacoes.total} avaliação(ões)` : "Sem avaliações ainda"} theme={profileTheme} onPress={() => openModal("portfolio")} />
-        <Row icon="CreditCard" title="Carteira/Ganhos" subtitle={formatMoneyFromCents(ganhos)} theme={profileTheme} onPress={() => Alert.alert("Carteira", "Carteira do montador será conectada ao backend.")} />
+        <Row icon="Star" title="Avaliações" subtitle={perfil.avaliacoes?.total ? `${perfil.avaliacoes.total} avaliação(ões)` : "Sem avaliações ainda"} theme={profileTheme} onPress={() => openModal("avaliacoes")} />
+        <Row icon="CreditCard" title="Carteira/Ganhos" subtitle={formatMoneyFromCents(ganhos)} theme={profileTheme} onPress={() => navigation.navigate("Carteira", { from: "MontadorPerfil" })} />
+      </Section>
+
+      <Section title="Endereço" borderColor={profileTheme.border}>
+        <Row
+          icon="MapPin"
+          title="Endereço"
+          subtitle="Seu endereço residencial"
+          theme={profileTheme}
+          onPress={() =>
+            navigation.navigate("MeusEnderecos", {
+              role: "MONTADOR",
+              accentColor: profileTheme.primary,
+              accentSoft: profileTheme.primarySoft,
+            })
+          }
+        />
       </Section>
 
       <Section title="Documentos e segurança" borderColor={profileTheme.border}>
-        <Row icon="FileText" title="Documentos/verificação" subtitle={perfil.verificacaoStatus === "APROVADO" ? "Documentos aprovados" : "Documentos pendentes"} theme={profileTheme} onPress={() => openModal("documentos")} />
-        <Row icon="ShieldCheck" title="Segurança/SafeScore" subtitle={perfil.safeScore?.faixa ?? "SafeScore em análise"} theme={profileTheme} onPress={() => openModal("documentos")} />
+        <Row icon="FileText" title="Documentos" subtitle={perfil.verificacaoStatus === "APROVADO" ? "Verificado" : perfil.verificacaoStatus === "PENDENTE" ? "Em análise" : "Enviar documento"} theme={profileTheme} onPress={() => navigation.navigate("VerificacaoDocs")} />
+        <Row icon="ShieldCheck" title="SafeScore" subtitle={perfil.safeScore?.faixa ?? "SafeScore em análise"} theme={profileTheme} onPress={() => navigation.navigate("SafeScore")} />
+        <Row icon="AlertTriangle" title="SOS / Emergência" subtitle="Reportar incidente com prioridade" theme={profileTheme} danger onPress={() => navigation.navigate("SosFlow")} />
       </Section>
 
-      <Section title="Suporte e termos" borderColor={profileTheme.border}>
-        <Row icon="HelpCircle" title="Suporte" subtitle="Fale com o Dular" theme={profileTheme} onPress={() => Alert.alert("Suporte", "Atendimento será conectado em breve.")} />
-        <Row icon="FileText" title="Termos" subtitle="Termos e políticas da plataforma" theme={profileTheme} onPress={() => Alert.alert("Termos", "Termos serão exibidos em breve.")} />
+      <Section title="Preferências" borderColor={profileTheme.border}>
+        <ToggleRow icon="MapPin" title="Geolocalização" subtitle="Melhorar sugestões e área perto de você" theme={profileTheme} value={geoEnabled} onValueChange={handleGeoToggle} />
+      </Section>
+
+      <Section title="Conta, suporte e termos" borderColor={profileTheme.border}>
+        <Row icon="Shield" title="Privacidade" subtitle="Controle seus dados" theme={profileTheme} onPress={() => navigation.navigate("Privacidade")} />
+        <Row icon="HelpCircle" title="Suporte" subtitle="Fale com o Dular" theme={profileTheme} onPress={() => navigation.navigate("Suporte")} />
+        <Row icon="FileText" title="Termos" subtitle="Termos e políticas da plataforma" theme={profileTheme} onPress={() => navigation.navigate("Termos")} />
         <Row icon="LogOut" title="Sair" subtitle="Encerrar sessão da conta" theme={profileTheme} danger onPress={sairDaConta} />
       </Section>
 
@@ -791,6 +1089,20 @@ export default function MontadorPerfil() {
         >
           <Field label="Nome profissional" value={dadosForm.nome} onChangeText={(nomeValue) => setDadosForm((prev) => ({ ...prev, nome: nomeValue }))} />
           <Field label="Telefone" value={dadosForm.telefone} onChangeText={(telefone) => setDadosForm((prev) => ({ ...prev, telefone }))} keyboardType="phone-pad" />
+          {/* Gênero — SOMENTE LEITURA (fonte: authUser.genero, definido no cadastro) */}
+          <View style={styles.field}>
+            <Text style={styles.fieldLabel}>Gênero</Text>
+            <View style={styles.readonlyBox}>
+              <Text style={styles.readonlyValue}>
+                {authUser?.genero === "FEMININO"
+                  ? "Feminino"
+                  : authUser?.genero === "MASCULINO"
+                    ? "Masculino"
+                    : "Não informado"}
+              </Text>
+            </View>
+            <Text style={styles.readonlyHint}>Definido no cadastro — não editável aqui.</Text>
+          </View>
           <Field label="Apresentação" value={dadosForm.bio} onChangeText={(bio) => setDadosForm((prev) => ({ ...prev, bio }))} multiline placeholder="Conte sua experiência, tipo de montagem que atende e diferenciais." />
           <Field label="Anos de experiência" value={dadosForm.anosExperiencia} onChangeText={(anosExperiencia) => setDadosForm((prev) => ({ ...prev, anosExperiencia }))} keyboardType="number-pad" />
           {formError ? <Text style={styles.errorText}>{formError}</Text> : null}
@@ -800,24 +1112,16 @@ export default function MontadorPerfil() {
 
       <FloatingCard visible={modal === "especialidades"} title="Especialidades" subtitle="Selecione os tipos de serviço que você atende." theme={profileTheme} onClose={() => setModal(null)}>
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalScroll}>
-          <View style={styles.tagsWrap}>
-            {MONTADOR_ESPECIALIDADES.map((item) => {
-              const selected = especialidadesForm.includes(item.id);
-              return (
-                <Pressable
-                  key={item.id}
-                  onPress={() => toggleEspecialidade(item.id)}
-                  style={[
-                    styles.tag,
-                    selected
-                      ? { backgroundColor: profileTheme.primary, borderColor: profileTheme.primary }
-                      : { backgroundColor: colors.surface, borderColor: profileTheme.border },
-                  ]}
-                >
-                  <Text style={[styles.tagText, selected ? styles.tagTextActive : { color: colors.textSecondary }]}>{item.label}</Text>
-                </Pressable>
-              );
-            })}
+          <View style={styles.especialidadesList}>
+            {MONTADOR_ESPECIALIDADES.map((item) => (
+              <EspecialidadeOptionCard
+                key={item.id}
+                label={item.label}
+                active={especialidadesForm.includes(item.id)}
+                onPress={() => toggleEspecialidade(item.id)}
+                theme={profileTheme}
+              />
+            ))}
           </View>
           {formError ? <Text style={styles.errorText}>{formError}</Text> : null}
           <ModalActions saving={saving} theme={profileTheme} onCancel={() => setModal(null)} onSave={saveEspecialidades} />
@@ -893,51 +1197,103 @@ export default function MontadorPerfil() {
           automaticallyAdjustKeyboardInsets
           contentContainerStyle={[styles.modalScroll, styles.modalKeyboardScroll]}
         >
-          <View style={styles.switchRow}>
-            <View style={styles.switchText}>
-              <Text style={styles.switchTitle}>Valor a combinar</Text>
-              <Text style={styles.switchSubtitle}>Use quando o preço depender da avaliação do serviço</Text>
-            </View>
-            <Switch value={precosForm.valorACombinar} onValueChange={(valorACombinar) => setPrecosForm((prev) => ({ ...prev, valorACombinar }))} trackColor={{ false: colors.border, true: profileTheme.primarySoft }} thumbColor={precosForm.valorACombinar ? profileTheme.primary : colors.textMuted} />
-          </View>
-          <Field label="Preço base em R$" value={precosForm.precoBase} onChangeText={(precoBase) => setPrecosForm((prev) => ({ ...prev, precoBase }))} keyboardType="decimal-pad" placeholder="Ex.: 120,00" />
-          <Field label="Taxa mínima em R$" value={precosForm.taxaMinima} onChangeText={(taxaMinima) => setPrecosForm((prev) => ({ ...prev, taxaMinima }))} keyboardType="decimal-pad" placeholder="Ex.: 80,00" />
-          <View style={styles.switchRow}>
-            <View style={styles.switchText}>
-              <Text style={styles.switchTitle}>Cobra deslocamento</Text>
-              <Text style={styles.switchSubtitle}>Informe detalhes na observação de preço</Text>
-            </View>
-            <Switch value={precosForm.cobraDeslocamento} onValueChange={(cobraDeslocamento) => setPrecosForm((prev) => ({ ...prev, cobraDeslocamento }))} trackColor={{ false: colors.border, true: profileTheme.primarySoft }} thumbColor={precosForm.cobraDeslocamento ? profileTheme.primary : colors.textMuted} />
-          </View>
-          <Field label="Observação de preço" value={precosForm.observacaoPreco} onChangeText={(observacaoPreco) => setPrecosForm((prev) => ({ ...prev, observacaoPreco }))} multiline placeholder="Ex.: Valor pode variar conforme tamanho do móvel e local." />
+          {(perfil?.especialidades ?? []).length === 0 ? (
+            <Text style={styles.precoHint}>
+              Selecione suas especialidades primeiro para definir o valor de cada serviço.
+            </Text>
+          ) : (
+            (perfil?.especialidades ?? []).map((id) => {
+              const row = precosForm[id] ?? { preco: "", aCombinar: true };
+              return (
+                <View key={id} style={styles.precoCard}>
+                  <View style={styles.precoCardHeader}>
+                    <Text style={styles.precoCardLabel}>{especialidadeLabel(id)}</Text>
+                    <View style={styles.precoCombinarRow}>
+                      <Text style={styles.precoCombinarText}>A combinar</Text>
+                      <Switch
+                        value={row.aCombinar}
+                        onValueChange={(aCombinar) => setPrecoRow(id, { aCombinar })}
+                        trackColor={{ false: colors.border, true: profileTheme.primarySoft }}
+                        thumbColor={row.aCombinar ? profileTheme.primary : colors.textMuted}
+                      />
+                    </View>
+                  </View>
+                  {!row.aCombinar ? (
+                    <Field
+                      label="Valor em R$"
+                      value={row.preco}
+                      onChangeText={(preco) => setPrecoRow(id, { preco: maskMoneyBR(preco) })}
+                      keyboardType="number-pad"
+                      placeholder="Ex.: 150,00"
+                    />
+                  ) : null}
+                </View>
+              );
+            })
+          )}
           {formError ? <Text style={styles.errorText}>{formError}</Text> : null}
           <ModalActions saving={saving} theme={profileTheme} onCancel={() => setModal(null)} onSave={savePrecos} />
         </ScrollView>
       </FloatingCard>
 
-      <FloatingCard visible={modal === "portfolio"} title="Portfólio e avaliações" subtitle="Uploads avançados entram em uma etapa posterior." theme={profileTheme} onClose={() => setModal(null)}>
-        <View style={[styles.emptyCard, { borderColor: profileTheme.border }]}>
-          <AppIcon name="Camera" size={24} color={profileTheme.primary} />
-          <Text style={styles.emptyTitle}>{perfil.portfolioFotos.length ? "Fotos cadastradas" : "Sem fotos no portfólio"}</Text>
-          <Text style={styles.emptyText}>Adicione fotos de montagens, reparos e acabamentos quando o upload estiver disponível.</Text>
-          <Pressable onPress={() => Alert.alert("Portfólio", "Upload de fotos será conectado em breve.")} style={[styles.primaryButton, { backgroundColor: profileTheme.primary }]}>
-            <Text style={styles.primaryButtonText}>Adicionar foto</Text>
-          </Pressable>
-        </View>
-        <View style={[styles.emptyCard, { borderColor: profileTheme.border }]}>
-          <AppIcon name="Star" size={24} color={profileTheme.primary} />
-          <Text style={styles.emptyTitle}>Avaliações</Text>
-          <Text style={styles.emptyText}>{perfil.avaliacoes?.total ? `${perfil.avaliacoes.total} avaliação(ões) recebida(s).` : "Você ainda não recebeu avaliações."}</Text>
-        </View>
+      <FloatingCard visible={modal === "portfolio"} title="Portfólio" subtitle="Mostre fotos dos seus melhores trabalhos (até 12)." theme={profileTheme} onClose={() => setModal(null)}>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalScroll}>
+          <View style={styles.portfolioGrid}>
+            {portfolio.map((uri, index) => (
+              <View key={`${uri}-${index}`} style={styles.portfolioItem}>
+                <Image source={{ uri }} style={styles.portfolioImg} />
+                <Pressable onPress={() => removerPortfolio(index)} disabled={portfolioBusy} hitSlop={8} style={styles.portfolioRemove}>
+                  <AppIcon name="XCircle" size={20} color={colors.white} />
+                </Pressable>
+              </View>
+            ))}
+            {portfolio.length < 12 ? (
+              <Pressable onPress={escolherFontePortfolio} disabled={portfolioBusy} style={[styles.portfolioAdd, { borderColor: profileTheme.border }]}>
+                {portfolioBusy ? (
+                  <ActivityIndicator color={profileTheme.primary} />
+                ) : (
+                  <>
+                    <AppIcon name="Camera" size={22} color={profileTheme.primary} />
+                    <Text style={styles.portfolioAddText}>Adicionar</Text>
+                  </>
+                )}
+              </Pressable>
+            ) : null}
+          </View>
+          {portfolio.length === 0 ? (
+            <Text style={styles.emptyText}>Você ainda não adicionou fotos. Toque em “Adicionar” para enviar pela câmera ou galeria.</Text>
+          ) : null}
+          <Text style={styles.readonlyHint}>{portfolio.length}/12 fotos</Text>
+        </ScrollView>
       </FloatingCard>
 
-      <FloatingCard visible={modal === "documentos"} title="Documentos e segurança" subtitle="Acompanhe sua verificação e SafeScore." theme={profileTheme} onClose={() => setModal(null)}>
-        <View style={[styles.emptyCard, { borderColor: profileTheme.border }]}>
-          <AppIcon name="ShieldCheck" size={24} color={profileTheme.primary} />
-          <Text style={styles.emptyTitle}>{perfil.verificacaoStatus === "APROVADO" ? "Verificação aprovada" : "Documentos pendentes"}</Text>
-          <Text style={styles.emptyText}>Status: {perfil.verificacaoStatus}. O envio de documentos será conectado ao fluxo de verificação.</Text>
-          <Text style={styles.emptyText}>SafeScore: {perfil.safeScore?.faixa ?? "Em análise"}</Text>
-        </View>
+      <FloatingCard visible={modal === "avaliacoes"} title="Avaliações" subtitle="O que os clientes disseram sobre os seus serviços." theme={profileTheme} onClose={() => setModal(null)}>
+        {avaliacoesItens.length > 0 ? (
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalScroll}>
+            <View style={[styles.ratingSummary, { borderColor: profileTheme.border }]}>
+              <Text style={[styles.ratingScore, { color: profileTheme.primary }]}>{avaliacoesMedia.toFixed(1)}</Text>
+              <View style={styles.ratingSummaryInfo}>
+                <StarRow value={avaliacoesMedia} size={16} color={profileTheme.primary} />
+                <Text style={styles.ratingSummaryText}>{avaliacoesTotal} avaliação(ões)</Text>
+              </View>
+            </View>
+            {avaliacoesItens.map((item) => (
+              <View key={item.id} style={[styles.reviewCard, { borderColor: profileTheme.border }]}>
+                <View style={styles.reviewHeader}>
+                  <StarRow value={item.notaGeral} size={14} color={profileTheme.primary} />
+                  <Text style={styles.reviewDate}>{formatReviewDate(item.createdAt)}</Text>
+                </View>
+                {item.comentario ? <Text style={styles.reviewComment}>{item.comentario}</Text> : null}
+              </View>
+            ))}
+          </ScrollView>
+        ) : (
+          <View style={[styles.emptyCard, { borderColor: profileTheme.border }]}>
+            <AppIcon name="Star" size={24} color={profileTheme.primary} />
+            <Text style={styles.emptyTitle}>Sem avaliações ainda</Text>
+            <Text style={styles.emptyText}>Você ainda não recebeu avaliações. Conclua serviços para começar a recebê-las.</Text>
+          </View>
+        )}
       </FloatingCard>
     </DScreen>
   );
@@ -977,11 +1333,81 @@ const styles = StyleSheet.create({
     backgroundColor: colors.whiteAlpha20,
     borderWidth: 1,
     borderColor: colors.glassBorder,
+    position: "relative",
+  },
+  avatarImg: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+  },
+  cameraBadge: {
+    position: "absolute",
+    right: -1,
+    bottom: 2,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 3,
+    borderColor: colors.white,
+  },
+  starRow: {
+    flexDirection: "row",
+    gap: 2,
+  },
+  ratingSummary: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    padding: 14,
+    backgroundColor: colors.background,
+  },
+  ratingScore: {
+    ...typography.h2,
+    fontWeight: "800",
+  },
+  ratingSummaryInfo: {
+    gap: 4,
+  },
+  ratingSummaryText: {
+    color: colors.textSecondary,
+    ...typography.caption,
+    fontWeight: "600",
+  },
+  reviewCard: {
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    padding: 14,
+    gap: 8,
+    backgroundColor: colors.background,
+  },
+  reviewHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  reviewDate: {
+    color: colors.textMuted,
+    ...typography.caption,
+    fontWeight: "500",
+  },
+  reviewComment: {
+    color: colors.textPrimary,
+    ...typography.bodySm,
+    fontWeight: "500",
   },
   heroText: {
     flex: 1,
     minWidth: 0,
     gap: 5,
+  },
+  nameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
   },
   name: {
     ...typography.h3,
@@ -1203,23 +1629,64 @@ const styles = StyleSheet.create({
     minHeight: 96,
     textAlignVertical: "top",
   },
-  tagsWrap: {
+  readonlyBox: {
+    minHeight: 46,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.background,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    justifyContent: "center",
+  },
+  readonlyValue: {
+    color: colors.textPrimary,
+    ...typography.bodySm,
+    fontWeight: "600",
+  },
+  readonlyHint: {
+    color: colors.textMuted,
+    ...typography.caption,
+    fontWeight: "500",
+  },
+  especialidadesList: {
+    gap: spacing.md,
+  },
+  precoHint: {
+    ...typography.bodySm,
+    color: colors.textSecondary,
+    fontWeight: "500",
+    lineHeight: 20,
+  },
+  precoCard: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.lg,
+    backgroundColor: colors.surface,
+    padding: 12,
+    gap: 10,
+  },
+  precoCardHeader: {
     flexDirection: "row",
-    flexWrap: "wrap",
+    alignItems: "center",
+    justifyContent: "space-between",
     gap: 8,
   },
-  tag: {
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
+  precoCardLabel: {
+    ...typography.bodyMedium,
+    color: colors.textPrimary,
+    fontWeight: "700",
+    flexShrink: 1,
   },
-  tagText: {
+  precoCombinarRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  precoCombinarText: {
     ...typography.caption,
-    fontWeight: "800",
-  },
-  tagTextActive: {
-    color: colors.white,
+    color: colors.textSecondary,
+    fontWeight: "600",
   },
   switchRow: {
     flexDirection: "row",
@@ -1283,6 +1750,50 @@ const styles = StyleSheet.create({
   errorText: {
     color: colors.danger,
     ...typography.caption,
+    fontWeight: "700",
+  },
+  portfolioGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  portfolioItem: {
+    width: "31%",
+    aspectRatio: 1,
+    borderRadius: radius.md,
+    overflow: "hidden",
+    position: "relative",
+    backgroundColor: colors.background,
+  },
+  portfolioImg: {
+    width: "100%",
+    height: "100%",
+  },
+  portfolioRemove: {
+    position: "absolute",
+    top: 4,
+    right: 4,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  portfolioAdd: {
+    width: "31%",
+    aspectRatio: 1,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderStyle: "dashed",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    backgroundColor: colors.background,
+  },
+  portfolioAddText: {
+    ...typography.caption,
+    color: colors.textSecondary,
     fontWeight: "700",
   },
   emptyCard: {

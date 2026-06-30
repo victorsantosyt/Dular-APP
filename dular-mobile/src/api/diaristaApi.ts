@@ -60,10 +60,27 @@ export type DiaristaProfileMe = {
   // Decimais vêm como string do Prisma — aceitamos string | number para robustez
   precoBabaHora: string | number | null;
   precoCozinheiraBase: string | number | null;
+  precoPassadeira: string | number | null;
+  precoLavadeira: string | number | null;
+  precoCuidadora: string | number | null;
   taxaMinima: string | number | null;
   cobraDeslocamento: boolean;
   valorACombinar: boolean;
   observacaoPreco: string | null;
+  // Avaliações recebidas (paridade com o montador). Opcional por robustez.
+  avaliacoes?: {
+    media: number;
+    total: number;
+    itens: Array<{
+      id: string;
+      notaGeral: number;
+      pontualidade: number;
+      qualidade: number;
+      comunicacao: number;
+      comentario: string | null;
+      createdAt: string;
+    }>;
+  };
 };
 
 export async function getDiaristaPerfilMe(): Promise<DiaristaProfileMe | null> {
@@ -92,6 +109,9 @@ export async function patchDiaristaPerfil(payload: {
   anosExperiencia?: number | null;
   precoBabaHora?: string | number | null;
   precoCozinheiraBase?: string | number | null;
+  precoPassadeira?: string | number | null;
+  precoLavadeira?: string | number | null;
+  precoCuidadora?: string | number | null;
   taxaMinima?: string | number | null;
   cobraDeslocamento?: boolean;
   valorACombinar?: boolean;
@@ -118,6 +138,9 @@ export async function updatePrecosCompletos(payload: {
   precoPesada?: number;
   precoBabaHora?: string | number | null;
   precoCozinheiraBase?: string | number | null;
+  precoPassadeira?: string | number | null;
+  precoLavadeira?: string | number | null;
+  precoCuidadora?: string | number | null;
   taxaMinima?: string | number | null;
   cobraDeslocamento?: boolean;
   valorACombinar?: boolean;

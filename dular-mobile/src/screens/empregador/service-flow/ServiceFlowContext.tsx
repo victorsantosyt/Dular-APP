@@ -1,7 +1,14 @@
 import React, { createContext, ReactNode, useContext, useMemo, useState } from "react";
 import type { ServiceFlowTipo } from "@/theme/serviceFlowTheme";
 
-export type ServiceCategory = "baba" | "cozinheira" | "diarista" | "montador";
+export type ServiceCategory =
+  | "baba"
+  | "cozinheira"
+  | "diarista"
+  | "montador"
+  | "cuidadora"
+  | "passadeira"
+  | "lavadeira";
 
 /**
  * Tipo do profissional alvo da contratação. Derivado da categoria escolhida —
@@ -14,6 +21,19 @@ export type ServiceCategory = "baba" | "cozinheira" | "diarista" | "montador";
  */
 export type TipoProfissional = ServiceFlowTipo;
 
+/** Preços do profissional carregados no fluxo, para montar a tabela de valores
+ *  por intensidade. leve/medio/pesada em CENTAVOS; baba/cozinheira em REAIS. */
+export type PrecoInfo = {
+  leve: number | null;
+  medio: number | null;
+  pesada: number | null;
+  babaHora: number | null;
+  cozinheiraBase: number | null;
+  valorACombinar: boolean;
+  /** Montador: preço por especialidade { [id]: { preco(centavos)|null, aCombinar } }. */
+  precosEspecialidades?: Record<string, { preco: number | null; aCombinar: boolean }>;
+};
+
 export type ServiceDraft = {
   categoria: ServiceCategory;
   tipo: ServiceFlowTipo;
@@ -22,9 +42,22 @@ export type ServiceDraft = {
    *  guardamos o id para envio na confirmação. Opcional. */
   profissionalId?: string;
   profissionalNome?: string;
+  /** Serviços que a profissional selecionada oferece (ServicoOferecido[]).
+   *  Usado para a tela "Escolha o serviço" listar só o que ela faz. */
+  servicosOferecidosProf?: string[];
+  /** Preços do profissional para a tabela de valores por intensidade. */
+  precoInfo?: PrecoInfo;
+  /** Valor escolhido pelo empregador (em REAIS) na tabela de intensidades. */
+  valorSelecionado?: number;
+  /** Rótulo da intensidade escolhida (ex.: "Limpeza pesada"). */
+  intensidadeLabel?: string;
   especialidadeId?: string;
   especialidadeLabel?: string;
   categoriaBackend?: string;
+  /** Rótulo de preço estimado vindo do perfil público do profissional.
+   *  Ex.: "a partir de R$ 80,00 (leve)" ou "A combinar". Nunca um número
+   *  fixo hardcoded — se ausente, exibe "A combinar". */
+  precoEstimadoLabel?: string;
   dataISO: string;
   horario: string;
   /** Endereço do atendimento. cidade/uf/bairro são pré-preenchidos a partir
@@ -77,6 +110,9 @@ export const SERVICE_LABELS: Record<ServiceCategory, string> = {
   cozinheira: "Cozinheira",
   diarista: "Diarista",
   montador: "Montador",
+  cuidadora: "Cuidadora",
+  passadeira: "Passadeira",
+  lavadeira: "Lavadeira",
 };
 
 const ServiceFlowContext = createContext<ServiceFlowContextValue | null>(null);
@@ -89,6 +125,13 @@ type Props = {
   initialTipo?: ServiceFlowTipo;
   initialProfissionalId?: string;
   initialProfissionalNome?: string;
+  /** Rótulo de preço já formatado vindo do perfil público — repassado direto
+   *  ao draft inicial sem transformação. */
+  initialPrecoEstimadoLabel?: string;
+  /** Serviços oferecidos pela profissional (do perfil público). */
+  initialServicosOferecidos?: string[];
+  /** Preços do profissional (do perfil público) para a tabela de valores. */
+  initialPrecoInfo?: PrecoInfo;
 };
 
 export function ServiceFlowProvider({
@@ -97,6 +140,9 @@ export function ServiceFlowProvider({
   initialTipo,
   initialProfissionalId,
   initialProfissionalNome,
+  initialPrecoEstimadoLabel,
+  initialServicosOferecidos,
+  initialPrecoInfo,
 }: Props) {
   const [draft, setDraft] = useState<ServiceDraft>(() => {
     if (!initialCategoria && !initialTipo && !initialProfissionalId) return INITIAL_DRAFT;
@@ -114,6 +160,9 @@ export function ServiceFlowProvider({
       tipoProfissional: tipo,
       ...(initialProfissionalId ? { profissionalId: initialProfissionalId } : {}),
       ...(initialProfissionalNome ? { profissionalNome: initialProfissionalNome } : {}),
+      ...(initialPrecoEstimadoLabel ? { precoEstimadoLabel: initialPrecoEstimadoLabel } : {}),
+      ...(initialServicosOferecidos?.length ? { servicosOferecidosProf: initialServicosOferecidos } : {}),
+      ...(initialPrecoInfo ? { precoInfo: initialPrecoInfo } : {}),
     };
   });
 

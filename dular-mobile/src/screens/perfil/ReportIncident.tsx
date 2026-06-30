@@ -16,7 +16,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { api } from "@/lib/api";
 import { apiMsg } from "@/utils/apiMsg";
 import { useAuth } from "@/stores/authStore";
-import { AppIcon, type AppIconName } from "@/components/ui";
+import { useProfileTheme } from "@/hooks/useProfileTheme";
+import { AppIcon, BackCircleButton, type AppIconName } from "@/components/ui";
 import { PaperPlane3DIcon, SOSIcon } from "@/assets/icons";
 import { colors, radius, shadow, spacing, typography } from "@/theme/tokens";
 
@@ -136,6 +137,11 @@ export default function ReportIncident({ route }: any) {
   const nav = useNavigation<any>();
   const user = useAuth((s) => s.user);
   const role = useAuth((s) => s.role ?? s.user?.role);
+  // Acento por gênero (rosa/verde/roxo). O vermelho permanece como identidade
+  // de emergência/denúncia; o acento liga a tela ao perfil do usuário.
+  const theme = useProfileTheme(role);
+  // Stack real (#103): volta para a tela de origem (perfil / onde abriu).
+  const voltarPerfil = () => nav.goBack();
 
   const serviceId = route?.params?.serviceId ?? route?.params?.servicoId ?? "";
   const initialReportedUserId = route?.params?.reportedUserId ?? "";
@@ -238,7 +244,7 @@ export default function ReportIncident({ route }: any) {
         anonimo,
       });
       Alert.alert("Denúncia enviada", "Nossa equipe vai analisar o caso.", [
-        { text: "OK", onPress: () => nav.goBack() },
+        { text: "OK", onPress: voltarPerfil },
       ]);
     } catch (e: any) {
       setToast(apiMsg(e, "Falha ao registrar denúncia."));
@@ -250,11 +256,9 @@ export default function ReportIncident({ route }: any) {
   return (
     <SafeAreaView style={s.safe} edges={["top", "left", "right"]}>
       <View style={s.header}>
-        <Pressable onPress={() => nav.goBack()} hitSlop={10}>
-          <AppIcon name="ArrowLeft" size={26} color={colors.foreground} />
-        </Pressable>
+        <View style={{ width: 42 }} />
         <Text style={s.headerTitle}>Relatar incidente</Text>
-        <View style={{ width: 26 }} />
+        <BackCircleButton onPress={voltarPerfil} color={theme.icon} borderColor={theme.border} />
       </View>
 
       <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
@@ -273,7 +277,7 @@ export default function ReportIncident({ route }: any) {
 
         {resolvingUser ? (
           <View style={s.infoBox}>
-            <ActivityIndicator color={colors.primary} />
+            <ActivityIndicator color={theme.primary} />
             <Text style={s.infoText}>Carregando dados do serviço...</Text>
           </View>
         ) : resolveError ? (
@@ -291,7 +295,7 @@ export default function ReportIncident({ route }: any) {
                 <Image source={{ uri: user.avatarUrl }} style={s.avatar} />
               ) : (
                 <View style={s.avatarFallbackMuted}>
-                  <Text style={s.avatarMutedText}>{initials(user?.nome ?? "")}</Text>
+                  <Text style={[s.avatarMutedText, { color: theme.primary }]}>{initials(user?.nome ?? "")}</Text>
                 </View>
               )}
               <View style={{ flex: 1 }}>
@@ -424,7 +428,7 @@ export default function ReportIncident({ route }: any) {
               onPress={() => setAnonimo((v) => !v)}
               style={({ pressed }) => [s.checkRow, pressed && s.pressed]}
             >
-              <View style={[s.checkbox, anonimo && s.checkboxActive]}>
+              <View style={[s.checkbox, anonimo && { backgroundColor: theme.primary, borderColor: theme.primary }]}>
                 {anonimo ? <AppIcon name="CheckCircle" size={14} color={colors.white} /> : null}
               </View>
               <Text style={s.checkText}>Desejo que meu nome seja mantido em sigilo</Text>
@@ -747,10 +751,6 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: colors.card,
-  },
-  checkboxActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
   },
   checkText: {
     flex: 1,

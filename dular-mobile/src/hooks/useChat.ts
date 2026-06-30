@@ -1,23 +1,46 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useFocusEffect } from "@react-navigation/native";
 import { api } from "@/lib/api";
+import { sendHeartbeat } from "@/api/heartbeatApi";
 import { useAuth } from "@/stores/authStore";
+
+export type MensagemTipo = "TEXT" | "IMAGE" | "LOCATION";
 
 export interface Mensagem {
   id: string;
   texto: string;
+  /** Tipo do conteúdo. TEXT = texto; IMAGE = data URL/URL; LOCATION = JSON {lat,lng}. */
+  tipo: MensagemTipo;
   autorId: string;
   criadaEm: string;
+  /** Timestamp ISO de quando a mensagem foi entregue ao destinatário; null = ainda não. */
+  deliveredAt: string | null;
+  /** Timestamp ISO de quando o destinatário leu a mensagem; null = ainda não lida. */
+  readAt: string | null;
   status?: "enviando" | "enviado" | "erro";
+}
+
+export interface OutroUsuario {
+  nome: string;
+  avatarUrl: string | null;
+  role: string | null;
+  /** Última presença (heartbeat) do outro usuário; null = nunca visto. */
+  lastSeenAt: string | null;
 }
 
 export interface UseChatReturn {
   mensagens: Mensagem[];
   /** Status do serviço associado a essa sala. Usado para bloquear envio quando arquivado. */
   servicoStatus: string | null;
+  /** Outro participante da conversa (nome, foto, papel) — vindo do GET da sala. */
+  outroUsuario: OutroUsuario | null;
+  /** Tipo do serviço da sala (BABA, MONTADOR, FAXINA…). */
+  servicoTipo: string | null;
   loading: boolean;
   error: string | null;
   enviar: (texto: string) => Promise<void>;
+  /** Envia foto (IMAGE, content = data URL) ou localização (LOCATION, content = JSON {lat,lng}). */
+  enviarMidia: (tipo: "IMAGE" | "LOCATION", content: string) => Promise<void>;
   refetch: () => void;
 }
 
@@ -25,20 +48,28 @@ const POLL_INTERVAL = 8_000;
 
 type RawMessage = {
   id: string;
+  type?: string;
   content?: string;
   texto?: string;
   senderId?: string;
   autorId?: string;
   createdAt?: string;
   criadaEm?: string;
+  deliveredAt?: string | null;
+  readAt?: string | null;
 };
 
 function normalize(raw: RawMessage): Mensagem {
+  const tipoUp = String(raw.type ?? "TEXT").toUpperCase();
+  const tipo: MensagemTipo = tipoUp === "IMAGE" || tipoUp === "LOCATION" ? tipoUp : "TEXT";
   return {
     id: raw.id,
     texto: raw.content ?? raw.texto ?? "",
+    tipo,
     autorId: raw.senderId ?? raw.autorId ?? "",
     criadaEm: raw.createdAt ?? raw.criadaEm ?? new Date().toISOString(),
+    deliveredAt: raw.deliveredAt ?? null,
+    readAt: raw.readAt ?? null,
     status: "enviado",
   };
 }
@@ -68,6 +99,8 @@ export function useChat(roomId: string): UseChatReturn {
   const userId = useAuth((state) => state.user?.id) ?? "";
   const [mensagens, setMensagens] = useState<Mensagem[]>([]);
   const [servicoStatus, setServicoStatus] = useState<string | null>(null);
+  const [outroUsuario, setOutroUsuario] = useState<OutroUsuario | null>(null);
+  const [servicoTipo, setServicoTipo] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const isFirstFetch = useRef(true);
@@ -80,6 +113,16 @@ export function useChat(roomId: string): UseChatReturn {
       mountedRef.current = false;
     };
   }, []);
+
+  // Heartbeat de presença: enquanto a conversa está aberta, marca lastSeenAt a
+  // cada 30s (e imediatamente ao abrir). Silencioso e local a este hook — sem
+  // presença global. Intervalo separado do polling de mensagens (8s).
+  useEffect(() => {
+    if (!roomId) return;
+    void sendHeartbeat();
+    const interval = setInterval(() => void sendHeartbeat(), 30_000);
+    return () => clearInterval(interval);
+  }, [roomId]);
 
   const fetchMensagens = useCallback(async () => {
     if (!roomId) {
@@ -95,11 +138,24 @@ export function useChat(roomId: string): UseChatReturn {
       const sorted = rawList
         .map(normalize)
         .sort((a, b) => new Date(a.criadaEm).getTime() - new Date(b.criadaEm).getTime());
-      // Backend retorna `{ room: { servico: { status, ... } }, messages: [...] }`
+      // Backend retorna `{ room: { servico: { status, tipo }, other: {...} }, messages }`
       const status: string | null = res.data?.room?.servico?.status ?? null;
+      const tipo: string | null = res.data?.room?.servico?.tipo ?? null;
+      const other = res.data?.room?.other ?? null;
       if (mountedRef.current) {
         setMensagens(sorted);
         setServicoStatus(status);
+        setServicoTipo(tipo);
+        setOutroUsuario(
+          other
+            ? {
+                nome: other.nome ?? "",
+                avatarUrl: other.avatarUrl ?? null,
+                role: other.role ?? null,
+                lastSeenAt: other.lastSeenAt ?? null,
+              }
+            : null,
+        );
         setError(null);
       }
     } catch (err) {
@@ -138,8 +194,11 @@ export function useChat(roomId: string): UseChatReturn {
       const tempMsg: Mensagem = {
         id: tempId,
         texto,
+        tipo: "TEXT",
         autorId: userId,
         criadaEm: new Date().toISOString(),
+        deliveredAt: null,
+        readAt: null,
         status: "enviando",
       };
 
@@ -168,5 +227,46 @@ export function useChat(roomId: string): UseChatReturn {
     [roomId, userId],
   );
 
-  return { mensagens, servicoStatus, loading, error, enviar, refetch };
+  const enviarMidia = useCallback(
+    async (tipo: "IMAGE" | "LOCATION", content: string) => {
+      if (!roomId) return;
+      const tempId = `temp-${Date.now()}`;
+      const tempMsg: Mensagem = {
+        id: tempId,
+        texto: content,
+        tipo,
+        autorId: userId,
+        criadaEm: new Date().toISOString(),
+        deliveredAt: null,
+        readAt: null,
+        status: "enviando",
+      };
+      setMensagens((prev) => [...prev, tempMsg]);
+
+      try {
+        // O endpoint /messages aceita discriminated union { type, content }
+        // (TEXT/IMAGE/LOCATION). IMAGE = data URL (mesmo padrão do avatar).
+        const res = await api.post(`/api/chat/${roomId}/messages`, { type: tipo, content });
+        const msgPayload = (res.data && typeof res.data === "object" && "message" in res.data
+          ? (res.data as { message?: RawMessage }).message
+          : (res.data as RawMessage)) as RawMessage | undefined;
+
+        if (msgPayload?.id) {
+          const normalized = { ...normalize(msgPayload), status: "enviado" as const };
+          setMensagens((prev) => prev.map((m) => (m.id === tempId ? normalized : m)));
+        } else {
+          setMensagens((prev) =>
+            prev.map((m) => (m.id === tempId ? { ...m, status: "enviado" } : m)),
+          );
+        }
+      } catch {
+        setMensagens((prev) =>
+          prev.map((m) => (m.id === tempId ? { ...m, status: "erro" } : m)),
+        );
+      }
+    },
+    [roomId, userId],
+  );
+
+  return { mensagens, servicoStatus, outroUsuario, servicoTipo, loading, error, enviar, enviarMidia, refetch };
 }

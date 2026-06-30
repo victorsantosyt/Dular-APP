@@ -38,6 +38,10 @@ export type MontadorServico = {
   subcategoria?: string | null;
   data?: string | Date | null;
   turno?: string | null;
+  reagendamentoData?: string | Date | null;
+  reagendamentoTurno?: string | null;
+  reagendamentoPor?: string | null;
+  reagendamentoEm?: string | Date | null;
   bairro?: string | null;
   cidade?: string | null;
   uf?: string | null;
@@ -48,6 +52,8 @@ export type MontadorServico = {
   precoFinal?: number | null;
   valorEstimado?: number | null;
   empregador?: EmpregadorResumo | null;
+  // Avaliação profissional→empregador. Presença = o montador já avaliou.
+  avaliacaoEmpregador?: { id: string } | null;
 };
 
 type MontadorServicoWire = Omit<MontadorServico, "empregador"> & {
@@ -95,6 +101,8 @@ export type MontadorPerfilCompletude = {
   };
 };
 
+export type EspecialidadePreco = { preco: number | null; aCombinar: boolean };
+
 export type MontadorPerfilProfissional = {
   id: string;
   userId: string;
@@ -118,6 +126,8 @@ export type MontadorPerfilProfissional = {
   cobraDeslocamento: boolean;
   observacaoPreco?: string | null;
   valorACombinar: boolean;
+  /** Preço por especialidade: { [id]: { preco(centavos)|null, aCombinar } }. */
+  precosEspecialidades?: Record<string, EspecialidadePreco> | null;
   documentoFrente?: string | null;
   documentoVerso?: string | null;
   selfieDoc?: string | null;
@@ -175,6 +185,7 @@ export type AtualizarPerfilMontadorPayload = {
   cobraDeslocamento?: boolean;
   observacaoPreco?: string | null;
   valorACombinar?: boolean;
+  precosEspecialidades?: Record<string, EspecialidadePreco>;
   ativo?: boolean;
   portfolioFotos?: string[];
 };
@@ -235,6 +246,15 @@ export async function cancelarServicoMontador(
   return res.data;
 }
 
+export async function proporReagendamento(
+  servicoId: string,
+  data: string,
+  turno: "MANHA" | "TARDE",
+) {
+  const res = await api.post(`/api/servicos/${servicoId}/reagendar`, { data, turno });
+  return res.data;
+}
+
 export async function carregarPerfilMontador(): Promise<MontadorPerfilMe> {
   const res = await api.get<MontadorPerfilMe>("/api/montador/me");
   return res.data;
@@ -260,4 +280,17 @@ export async function acionarSosMontador(servicoId: string, mensagem?: string) {
     mensagem: mensagem ?? "SOS acionado pelo montador no aplicativo.",
   });
   return res.data;
+}
+
+// ── Portfólio (upload real no S3) ────────────────────────────────────────────
+// As fotos são enviadas como data URL; o backend sobe pro S3, guarda a key e
+// devolve a lista já com URLs assinadas para exibição.
+export async function adicionarFotoPortfolio(dataUrl: string): Promise<string[]> {
+  const res = await api.post("/api/montador/portfolio", { dataUrl });
+  return Array.isArray(res.data?.portfolioFotos) ? res.data.portfolioFotos : [];
+}
+
+export async function removerFotoPortfolio(index: number): Promise<string[]> {
+  const res = await api.delete(`/api/montador/portfolio?index=${index}`);
+  return Array.isArray(res.data?.portfolioFotos) ? res.data.portfolioFotos : [];
 }

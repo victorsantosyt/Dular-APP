@@ -11,21 +11,27 @@ export function isSolicitacaoPendente(servico: MontadorServico) {
 
 export function isServicoNaAgenda(servico: MontadorServico) {
   const status = upperStatus(servico.status);
-  return ["ACEITO", "CONFIRMADO", "EM_ANDAMENTO", "FINALIZADO", "CONCLUIDO"].includes(status);
+  return ["ACEITO", "CONFIRMADO", "EM_ANDAMENTO", "AGUARDANDO_FINALIZACAO", "FINALIZADO", "CONCLUIDO"].includes(status);
 }
 
 export function canOpenChat(servico: MontadorServico) {
   const status = upperStatus(servico.status);
-  return ["ACEITO", "CONFIRMADO", "EM_ANDAMENTO", "FINALIZADO", "CONCLUIDO"].includes(status);
+  // Chat aberto do aceite até a finalização. A partir de CONCLUIDO o serviço
+  // encerra e o chat some (também CONFIRMADO/FINALIZADO) — alinhado a diarista/empregador.
+  return ["ACEITO", "EM_ANDAMENTO", "AGUARDANDO_FINALIZACAO"].includes(status);
 }
 
 export function firstName(value?: string | null, fallback = "Montador") {
   return (value || "").trim().split(/\s+/)[0] || fallback;
 }
 
-export function formatMoneyFromCents(value?: number | null) {
-  if (typeof value !== "number" || !Number.isFinite(value)) return "A combinar";
-  return (value / 100).toLocaleString("pt-BR", {
+export function formatMoneyFromCents(value?: number | string | null) {
+  // precoBase/taxaMinima vêm do backend como Decimal, que o JSON serializa como
+  // string ("12000"). Sem coerção, o typeof falharia e mostraria "A combinar"
+  // mesmo com preço definido.
+  const cents = typeof value === "string" ? (value.trim() ? Number(value) : NaN) : value;
+  if (typeof cents !== "number" || !Number.isFinite(cents)) return "A combinar";
+  return (cents / 100).toLocaleString("pt-BR", {
     style: "currency",
     currency: "BRL",
   });
@@ -70,6 +76,17 @@ export function localResumo(servico: MontadorServico, full = false) {
   if (servico.endereco) return servico.endereco;
   const parts = [servico.bairro, servico.cidade, servico.uf].filter(Boolean);
   return parts.length ? parts.join(", ") : "Endereço liberado após aceite";
+}
+
+/**
+ * Formata o valor monetário de um serviço do montador.
+ * Retorna "A orçar" quando o valor não existe ou é zero — nunca exibe "R$ 0,00".
+ * Centralizado aqui para evitar divergência entre telas.
+ */
+export function formatValorServico(valor?: number | string | null): string {
+  const cents = typeof valor === "string" ? (valor.trim() ? Number(valor) : NaN) : valor;
+  if (typeof cents !== "number" || !Number.isFinite(cents) || cents <= 0) return "A orçar";
+  return (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
 export function statusLabel(statusValue: unknown) {

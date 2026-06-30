@@ -1,52 +1,48 @@
 /**
- * DiaristaCarteira — Painel de acompanhamento da diarista
+ * DiaristaCarteira — acompanhamento financeiro da diarista.
  *
- * Exibe:
- *  - total de serviços concluídos no mês
- *  - faturamento estimado do mês
- *  - lista dos últimos serviços concluídos (com valor)
- *
- * Sem função de carteira / pagamento. Apenas leitura.
+ * Mesma estrutura da Carteira do montador (hero "Ganhos totais" + métricas +
+ * histórico de serviços + nota), adaptada à fonte de dados da diarista
+ * (/api/servicos/minhas). Não é carteira transacional: só monitoramento, não
+ * movimenta valores nem realiza pagamentos.
  */
 
 import React, { useCallback, useMemo, useState } from "react";
-import {
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { useFocusEffect } from "@react-navigation/native";
-import { Ionicons } from "@expo/vector-icons";
-import { api } from "@/lib/api";
+import { StyleSheet, Text, View } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
+import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
+
+import { AppIcon, BackCircleButton, DEmptyState, DErrorState, DLoadingState, DScreen } from "@/components/ui";
 import { fetchServicosMinhas } from "@/api/sharedFetcher";
 import { useGenderTheme } from "@/hooks/useProfileTheme";
+import type { DiaristaTabParamList } from "@/navigation/DiaristaNavigator";
+import { colors, radius, shadows, spacing, typography } from "@/theme";
 
-import { colors, radius, shadow, spacing, typography } from "@/theme/tokens";
+type Navigation = BottomTabNavigationProp<DiaristaTabParamList>;
 
 const MONEY_UNIT = (process.env.EXPO_PUBLIC_MONEY_UNIT || "centavos").toLowerCase();
 const brl = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
-type ServicoConcluido = {
+const STATUS_CONCLUIDO = new Set(["FINALIZADO", "CONCLUIDO", "CONCLUÍDO", "PAGO", "FINALIZED", "DONE"]);
+const STATUS_A_RECEBER = new Set([
+  "ACEITA",
+  "ACEITO",
+  "CONFIRMADO",
+  "ANDAMENTO",
+  "EM_ANDAMENTO",
+  "AGENDADO",
+  "AGUARDANDO_FINALIZACAO",
+]);
+
+type ServicoCarteira = {
   id: string;
   titulo: string;
   cliente: string;
   dataISO: string;
   valor: number;
+  status: string;
 };
-
-const STATUS_CONCLUIDO = new Set([
-  "FINALIZADO",
-  "CONCLUIDO",
-  "CONCLUÍDO",
-  "CONFIRMADO",
-  "PAGO",
-  "FINALIZED",
-  "DONE",
-]);
 
 function toNumber(v: any) {
   const n = Number(v);
@@ -81,17 +77,35 @@ function isInCurrentMonth(iso: string) {
   return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
 }
 
-function mesAtualLabel() {
-  const m = new Date().toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
-  return m.charAt(0).toUpperCase() + m.slice(1);
+function formatDataServico(iso: string) {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "Data a combinar";
+  return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+type Badge = { label: string; color: string; soft: string };
+
+function statusBadge(status: string): Badge {
+  const s = status.toUpperCase();
+  if (STATUS_CONCLUIDO.has(s)) return { label: "Concluído", color: colors.success, soft: colors.successSoft };
+  if (s === "EM_ANDAMENTO" || s === "ANDAMENTO")
+    return { label: "Em andamento", color: colors.warning, soft: colors.warningSoft };
+  if (s === "AGUARDANDO_FINALIZACAO")
+    return { label: "Aguardando", color: colors.warning, soft: colors.warningSoft };
+  return { label: "Agendado", color: colors.textSecondary, soft: colors.background };
 }
 
 export default function DiaristaCarteira() {
+  const navigation = useNavigation<Navigation>();
+  const route = useRoute();
   const theme = useGenderTheme("DIARISTA");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [servicos, setServicos] = useState<ServicoConcluido[]>([]);
+  const [servicos, setServicos] = useState<ServicoCarteira[]>([]);
+
+  // Stack real (#103): volta para a tela de origem (push/goBack).
+  const voltar = () => navigation.goBack();
 
   const load = useCallback(async (isRefresh = false) => {
     try {
@@ -99,24 +113,20 @@ export default function DiaristaCarteira() {
       isRefresh ? setRefreshing(true) : setLoading(true);
 
       const data = await fetchServicosMinhas();
-      const lista = Array.isArray(data?.servicos)
-        ? data.servicos
-        : Array.isArray(data)
-          ? data
-          : [];
+      const lista = Array.isArray(data?.servicos) ? data.servicos : Array.isArray(data) ? data : [];
 
-      const concluidos: ServicoConcluido[] = (lista as any[])
-        .filter((s) => STATUS_CONCLUIDO.has(String(s?.status ?? "").toUpperCase()))
-        .map((s): ServicoConcluido => ({
+      const mapped: ServicoCarteira[] = (lista as any[])
+        .map((s): ServicoCarteira => ({
           id: String(s?.id ?? Math.random()),
           titulo: tituloServico(s),
           cliente: s?.cliente?.nome ?? s?.clienteNome ?? "Cliente",
           dataISO: getDataISO(s),
           valor: getValor(s),
+          status: String(s?.status ?? "").toUpperCase(),
         }))
         .sort((a, b) => +new Date(b.dataISO) - +new Date(a.dataISO));
 
-      setServicos(concluidos);
+      setServicos(mapped);
     } catch (e: any) {
       setError(e?.message ?? "Falha ao carregar dados.");
     } finally {
@@ -124,246 +134,311 @@ export default function DiaristaCarteira() {
     }
   }, []);
 
-  useFocusEffect(useCallback(() => { load(false); }, [load]));
+  useFocusEffect(useCallback(() => { void load(false); }, [load]));
 
-  const { totalMes, faturamentoMes, ultimos } = useMemo(() => {
-    const doMes = servicos.filter((s) => isInCurrentMonth(s.dataISO));
-    return {
-      totalMes: doMes.length,
-      faturamentoMes: doMes.reduce((acc, s) => acc + s.valor, 0),
-      ultimos: servicos.slice(0, 8),
-    };
+  const resumo = useMemo(() => {
+    const concluidos = servicos.filter((s) => STATUS_CONCLUIDO.has(s.status));
+    const pendentesReceber = servicos.filter((s) => STATUS_A_RECEBER.has(s.status));
+    const ganhosTotais = concluidos.reduce((sum, s) => sum + s.valor, 0);
+    const ganhosMes = concluidos.filter((s) => isInCurrentMonth(s.dataISO)).reduce((sum, s) => sum + s.valor, 0);
+    const ticketMedio = concluidos.length ? ganhosTotais / concluidos.length : 0;
+    const aReceber = pendentesReceber.reduce((sum, s) => sum + s.valor, 0);
+    const historico = [...concluidos, ...pendentesReceber].sort(
+      (a, b) => +new Date(b.dataISO) - +new Date(a.dataISO),
+    );
+    return { concluidos, ganhosTotais, ganhosMes, ticketMedio, aReceber, historico };
   }, [servicos]);
 
+  const metric = (label: string, value: string, hint?: string) => (
+    <View style={[styles.metric, { borderColor: theme.border }]}>
+      <Text style={styles.metricLabel}>{label}</Text>
+      <Text style={styles.metricValue}>{value}</Text>
+      {hint ? <Text style={styles.metricHint}>{hint}</Text> : null}
+    </View>
+  );
+
   return (
-    <SafeAreaView style={s.safe} edges={["top", "left", "right"]}>
-      <ScrollView
-        contentContainerStyle={s.scroll}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={theme.primary} />
-        }
-        showsVerticalScrollIndicator={false}
-      >
-        {/* ─── Cabeçalho ─── */}
-        <Text style={s.titulo}>Meu desempenho</Text>
-        <Text style={s.subtitulo}>{mesAtualLabel()}</Text>
+    <DScreen
+      scroll
+      withBottomPadding
+      backgroundColor={theme.background}
+      contentContainerStyle={styles.scroll}
+      refreshing={refreshing}
+      onRefresh={() => load(true)}
+      refreshTintColor={theme.primary}
+    >
+      <View style={styles.header}>
+        <Text style={styles.title}>Carteira</Text>
+        <BackCircleButton onPress={voltar} color={theme.icon} borderColor={theme.border} />
+      </View>
 
-        {/* ─── Métricas do mês ─── */}
-        <View style={s.metricsRow}>
-          <View style={s.metricCard}>
-            <View style={[s.metricIcon, { backgroundColor: theme.primarySoft }]}>
-              <Ionicons name="briefcase" size={20} color={theme.primary} />
-            </View>
-            <Text style={s.metricLabel}>Serviços no mês</Text>
-            <Text style={s.metricValue}>{loading ? "—" : totalMes}</Text>
-          </View>
-
-          <View style={s.metricCard}>
-            <View style={[s.metricIcon, { backgroundColor: theme.primarySoft }]}>
-              <Ionicons name="trending-up" size={20} color={theme.primary} />
-            </View>
-            <Text style={s.metricLabel}>Faturamento estimado</Text>
-            <Text style={s.metricValue}>{loading ? "—" : brl(faturamentoMes)}</Text>
-          </View>
-        </View>
-
-        {/* ─── Erro ─── */}
-        {error ? (
-          <View style={s.errorCard}>
-            <Text style={s.errorTitle}>Não foi possível carregar.</Text>
-            <Text style={s.errorSub}>{error}</Text>
-            <TouchableOpacity style={s.retryBtn} onPress={() => load(false)}>
-              <Text style={s.retryText}>Tentar novamente</Text>
-            </TouchableOpacity>
-          </View>
-        ) : null}
-
-        {/* ─── Últimos serviços concluídos ─── */}
-        <View style={s.sectionHead}>
-          <Text style={s.sectionTitle}>Últimos serviços concluídos</Text>
-        </View>
-
-        {loading ? (
-          <View style={s.skeleton} />
-        ) : ultimos.length === 0 ? (
-          <View style={s.emptyCard}>
-            <Ionicons name="checkmark-done-outline" size={22} color={colors.mutedForeground} />
-            <Text style={s.emptyText}>Nenhum serviço concluído ainda.</Text>
-          </View>
-        ) : (
-          ultimos.map((item) => (
-            <View key={item.id} style={s.itemCard}>
-              <View style={[s.itemIcon, { backgroundColor: theme.primarySoft }]}>
-                <Ionicons name="checkmark-circle" size={20} color={theme.primary} />
-              </View>
-
-              <View style={{ flex: 1, gap: 2 }}>
-                <Text style={s.itemTitle} numberOfLines={1}>{item.titulo}</Text>
-                <Text style={s.itemSub} numberOfLines={1}>
-                  {item.cliente} · {new Date(item.dataISO).toLocaleDateString("pt-BR")}
+      {loading ? (
+        <DLoadingState text="Carregando carteira" color={theme.primary} />
+      ) : error ? (
+        <DErrorState message={error} onRetry={() => load(false)} />
+      ) : (
+        <>
+          <LinearGradient
+            colors={theme.gradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.hero}
+          >
+            <View style={styles.heroRow}>
+              <View style={styles.heroText}>
+                <Text style={styles.heroKicker}>Ganhos totais</Text>
+                <Text style={styles.heroValue}>{brl(resumo.ganhosTotais)}</Text>
+                <Text style={styles.heroSub}>
+                  {resumo.concluidos.length > 0
+                    ? `${resumo.concluidos.length} serviço(s) concluído(s) no Dular.`
+                    : "Seus ganhos aparecem aqui após concluir serviços."}
                 </Text>
               </View>
-
-              <Text style={[s.itemValor, { color: theme.primary }]}>{brl(item.valor)}</Text>
+              <View style={styles.heroIcon}>
+                <AppIcon name="Wallet" size={30} color={colors.white} strokeWidth={2.1} />
+              </View>
             </View>
-          ))
-        )}
-      </ScrollView>
-    </SafeAreaView>
+          </LinearGradient>
+
+          <View style={styles.metricsGrid}>
+            {metric("Este mês", brl(resumo.ganhosMes))}
+            {metric("Ticket médio", brl(resumo.ticketMedio))}
+            {metric("A receber", brl(resumo.aReceber), "Serviços em andamento")}
+            {metric("Concluídos", String(resumo.concluidos.length), "Total de serviços")}
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Histórico de serviços</Text>
+            {resumo.historico.length > 0 ? (
+              <View style={[styles.sectionCard, { borderColor: theme.border }]}>
+                {resumo.historico.map((servico, index) => {
+                  const badge = statusBadge(servico.status);
+                  return (
+                    <View
+                      key={servico.id}
+                      style={[
+                        styles.histRow,
+                        { borderBottomColor: theme.border },
+                        index === resumo.historico.length - 1 && styles.histRowLast,
+                      ]}
+                    >
+                      <View style={[styles.histIcon, { backgroundColor: theme.primarySoft }]}>
+                        <AppIcon name="BrushCleaning" size={16} color={theme.primary} />
+                      </View>
+                      <View style={styles.histText}>
+                        <Text style={styles.histTitle} numberOfLines={1}>
+                          {servico.titulo}
+                        </Text>
+                        <Text style={styles.histSub} numberOfLines={1}>
+                          {servico.cliente} · {formatDataServico(servico.dataISO)}
+                        </Text>
+                      </View>
+                      <View style={styles.histRight}>
+                        <Text style={styles.histValue}>{brl(servico.valor)}</Text>
+                        <View style={[styles.histBadge, { backgroundColor: badge.soft }]}>
+                          <Text style={[styles.histBadgeText, { color: badge.color }]}>{badge.label}</Text>
+                        </View>
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            ) : (
+              <DEmptyState
+                icon="Wallet"
+                title="Sem movimentações ainda"
+                subtitle="Quando você concluir serviços, o histórico e os ganhos aparecem aqui."
+                accentColor={theme.primary}
+                softBg={theme.primarySoft}
+              />
+            )}
+          </View>
+
+          <View style={[styles.note, { borderColor: theme.border }]}>
+            <AppIcon name="Info" size={15} color={theme.primary} />
+            <Text style={styles.noteText}>
+              Acompanhamento financeiro do seu trabalho. Esta tela não movimenta valores nem realiza
+              pagamentos.
+            </Text>
+          </View>
+        </>
+      )}
+    </DScreen>
   );
 }
 
-const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.background },
+const styles = StyleSheet.create({
   scroll: {
-    paddingHorizontal: spacing.screenPadding,
-    paddingTop: 10,
-    paddingBottom: 120,
+    gap: 16,
   },
-
-  titulo: {
-    ...typography.h2,
+  header: {
+    minHeight: 48,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  title: {
+    color: colors.textPrimary,
+    fontSize: 24,
+    lineHeight: 29,
     fontWeight: "700",
-    color: colors.foreground,
-    letterSpacing: -0.4,
   },
-  subtitulo: {
-    ...typography.caption,
-    color: colors.mutedForeground,
-    fontWeight: "600",
-    marginTop: 2,
-    marginBottom: 14,
+  hero: {
+    borderRadius: radius.xl,
+    padding: 18,
+    minHeight: 128,
+    justifyContent: "center",
+    ...shadows.primaryButton,
   },
-
-  // Métricas
-  metricsRow: { flexDirection: "row", gap: 12 },
-  metricCard: {
+  heroRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 14,
+  },
+  heroText: {
     flex: 1,
-    backgroundColor: colors.card,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: 12,
-    gap: 6,
-    ...shadow.card,
+    minWidth: 0,
   },
-  metricIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 11,
-    backgroundColor: colors.secondary,
+  heroKicker: {
+    ...typography.caption,
+    color: colors.whiteAlpha80,
+    fontWeight: "700",
+  },
+  heroValue: {
+    marginTop: 6,
+    fontSize: 30,
+    lineHeight: 36,
+    color: colors.white,
+    fontWeight: "700",
+  },
+  heroSub: {
+    ...typography.bodySm,
+    color: colors.whiteAlpha85,
+    marginTop: 4,
+  },
+  heroIcon: {
+    width: 60,
+    height: 60,
+    borderRadius: 22,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 4,
+    backgroundColor: colors.whiteAlpha20,
+    borderWidth: 1,
+    borderColor: colors.glassBorder,
+  },
+  metricsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  metric: {
+    flexGrow: 1,
+    flexBasis: "47%",
+    minHeight: 80,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    padding: 14,
+    justifyContent: "center",
+    gap: 3,
   },
   metricLabel: {
     ...typography.caption,
-    color: colors.mutedForeground,
-    fontWeight: "600",
+    color: colors.textSecondary,
+    fontWeight: "700",
   },
   metricValue: {
-    ...typography.title,
-    fontWeight: "700",
-    color: colors.foreground,
-    letterSpacing: -0.6,
+    color: colors.textPrimary,
+    fontSize: 18,
+    lineHeight: 23,
+    fontWeight: "800",
   },
-
-  // Seção
-  sectionHead: { marginTop: 22, marginBottom: 12 },
+  metricHint: {
+    fontSize: 11,
+    color: colors.textMuted,
+    fontWeight: "500",
+  },
+  section: {
+    gap: spacing.sm,
+  },
   sectionTitle: {
+    color: colors.textPrimary,
     ...typography.bodyMedium,
     fontWeight: "700",
-    color: colors.foreground,
-    letterSpacing: -0.2,
+    paddingHorizontal: 2,
   },
-
-  // Item
-  skeleton: {
-    height: 96,
-    borderRadius: radius.lg,
-    backgroundColor: colors.card,
-    opacity: 0.55,
-  },
-  emptyCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    backgroundColor: colors.muted,
-    borderRadius: radius.lg,
-    padding: 12,
-  },
-  emptyText: {
-    ...typography.bodySm,
-    color: colors.mutedForeground,
-    fontWeight: "600",
-  },
-  itemCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    backgroundColor: colors.card,
-    borderRadius: radius.lg,
+  sectionCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: colors.border,
-    padding: 12,
-    marginBottom: 8,
-    ...shadow.card,
+    overflow: "hidden",
+    ...shadows.soft,
   },
-  itemIcon: {
+  histRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+  },
+  histRowLast: {
+    borderBottomWidth: 0,
+  },
+  histIcon: {
     width: 34,
     height: 34,
-    borderRadius: 11,
-    backgroundColor: colors.secondary,
+    borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
   },
-  itemTitle: {
-    ...typography.bodySmMedium,
-    fontWeight: "700",
-    color: colors.foreground,
+  histText: {
+    flex: 1,
+    minWidth: 0,
+    gap: 3,
   },
-  itemSub: {
-    ...typography.caption,
-    color: colors.mutedForeground,
-    fontWeight: "500",
-  },
-  itemValor: {
-    ...typography.bodySmMedium,
-    fontWeight: "700",
-    color: colors.foreground,
-  },
-
-  // Erro
-  errorCard: {
-    marginTop: 16,
-    backgroundColor: colors.card,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: 14,
-    gap: 8,
-  },
-  errorTitle: {
-    ...typography.bodySmMedium,
-    fontWeight: "700",
-    color: colors.destructive,
-  },
-  errorSub: {
-    ...typography.caption,
-    color: colors.mutedForeground,
-    fontWeight: "500",
-  },
-  retryBtn: {
-    marginTop: 4,
-    height: 38,
-    borderRadius: radius.btn,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.foreground,
-  },
-  retryText: {
-    color: colors.card,
+  histTitle: {
+    color: colors.textPrimary,
     ...typography.bodySm,
     fontWeight: "700",
+  },
+  histSub: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    fontWeight: "500",
+  },
+  histRight: {
+    alignItems: "flex-end",
+    gap: 5,
+  },
+  histValue: {
+    color: colors.textPrimary,
+    ...typography.bodySm,
+    fontWeight: "800",
+  },
+  histBadge: {
+    borderRadius: radius.pill,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  histBadgeText: {
+    fontSize: 10,
+    fontWeight: "800",
+  },
+  note: {
+    flexDirection: "row",
+    gap: 8,
+    alignItems: "flex-start",
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    padding: 12,
+    backgroundColor: colors.surface,
+  },
+  noteText: {
+    flex: 1,
+    ...typography.caption,
+    color: colors.textSecondary,
+    fontWeight: "500",
   },
 });

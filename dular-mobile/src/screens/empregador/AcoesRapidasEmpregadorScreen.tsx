@@ -12,6 +12,7 @@ import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import { AppIcon, type AppIconName, DScreenHeader } from "@/components/ui";
 import { colors, radius, shadows, spacing, typography } from "@/theme";
 import type { EmpregadorTabParamList } from "@/navigation/EmpregadorNavigator";
+import { goToTab } from "@/navigation/navHelpers";
 
 type Navigation = BottomTabNavigationProp<EmpregadorTabParamList>;
 
@@ -20,6 +21,8 @@ type AcaoRapida = {
   icon: AppIconName;
   label: string;
   description: string;
+  /** "danger" destaca a ação (ex.: SOS) com a cor de emergência. */
+  tone?: "default" | "danger";
   onPress: (navigation: Navigation) => void;
 };
 
@@ -29,14 +32,14 @@ const ACOES: AcaoRapida[] = [
     icon: "Search",
     label: "Buscar profissional",
     description: "Encontre diaristas, montadores, babás e cozinheiras.",
-    onPress: (navigation) => navigation.navigate("Buscar"),
+    onPress: (navigation) => goToTab(navigation, "EmpregadorTabs", "Buscar"),
   },
   {
     key: "agendamentos",
     icon: "Calendar",
     label: "Meus agendamentos",
     description: "Acompanhe os serviços ativos e pedidos em andamento.",
-    onPress: (navigation) => navigation.navigate("Agendamentos"),
+    onPress: (navigation) => goToTab(navigation, "EmpregadorTabs", "Agendamentos"),
   },
   {
     key: "favoritos",
@@ -64,22 +67,36 @@ const ACOES: AcaoRapida[] = [
     icon: "User",
     label: "Perfil",
     description: "Edite seus dados pessoais e preferências.",
-    onPress: (navigation) => navigation.navigate("Perfil"),
+    onPress: (navigation) => goToTab(navigation, "EmpregadorTabs", "Perfil"),
+  },
+  {
+    key: "sos",
+    icon: "AlertTriangle",
+    label: "SOS / Emergência",
+    description: "Acione ajuda e registre uma ocorrência com urgência.",
+    tone: "danger",
+    onPress: (navigation) => navigation.navigate("SosFlow"),
   },
 ];
 
 function AcaoCard({ item }: { item: AcaoRapida }) {
   const navigation = useNavigation<Navigation>();
+  const danger = item.tone === "danger";
   return (
     <Pressable
       onPress={() => item.onPress(navigation)}
-      style={({ pressed }) => [s.card, pressed && { opacity: 0.85 }]}
+      style={({ pressed }) => [s.card, danger && s.cardDanger, pressed && { opacity: 0.85 }]}
     >
-      <View style={s.iconWrap}>
-        <AppIcon name={item.icon} size={22} color={colors.primary} strokeWidth={2.1} />
+      <View style={[s.iconWrap, danger && s.iconWrapDanger]}>
+        <AppIcon
+          name={item.icon}
+          size={22}
+          color={danger ? colors.danger : colors.primary}
+          strokeWidth={2.1}
+        />
       </View>
       <View style={s.cardText}>
-        <Text style={s.cardLabel} numberOfLines={1}>
+        <Text style={[s.cardLabel, danger && s.cardLabelDanger]} numberOfLines={1}>
           {item.label}
         </Text>
         <Text style={s.cardDesc} numberOfLines={2}>
@@ -160,6 +177,16 @@ const s = StyleSheet.create({
     backgroundColor: colors.lavenderSoft,
     alignItems: "center",
     justifyContent: "center",
+  },
+  cardDanger: {
+    borderColor: colors.danger,
+    backgroundColor: colors.dangerSoft,
+  },
+  iconWrapDanger: {
+    backgroundColor: colors.surface,
+  },
+  cardLabelDanger: {
+    color: colors.dangerDark,
   },
   cardText: {
     flex: 1,

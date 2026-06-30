@@ -30,15 +30,15 @@ async function registerForPushNotifications(): Promise<string | null> {
     });
   }
 
-  const { status: existingStatus } = await Notifications.getPermissionsAsync();
-  let finalStatus = existingStatus;
+  const { granted: alreadyGranted } = await Notifications.getPermissionsAsync();
+  let isGranted = alreadyGranted;
 
-  if (existingStatus !== "granted") {
-    const { status } = await Notifications.requestPermissionsAsync();
-    finalStatus = status;
+  if (!isGranted) {
+    const { granted } = await Notifications.requestPermissionsAsync();
+    isGranted = granted;
   }
 
-  if (finalStatus !== "granted") {
+  if (!isGranted) {
     return null;
   }
 

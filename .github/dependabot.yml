@@ -57,6 +57,40 @@ updates:
       # Resolver no upgrade major do Expo.
       - dependency-name: "uuid"
 
+      # Pacotes expo-* são acoplados à versão do Expo SDK (expo@~54 / SDK54),
+      # via bundledNativeModules. O Dependabot não entende esse acoplamento e
+      # abre PRs subindo-os para a linha "56.x" (ex.: expo-notifications@56,
+      # expo-location@56, expo-font@56), incompatível com o SDK54 — o que quebra
+      # o CI em dois pontos: `npm ci` falha com EUSAGE (package.json/lock fora de
+      # sync) e `tsc` falha (TS2339: o tipo perde `.status`). Já recorreu 2x
+      # (commits e602310 e c6d45ed). Atualizar SEMPRE via `expo install` /
+      # upgrade de SDK, nunca individualmente.
+      # Bloqueia só version-updates major/minor (os bumps bogus são todos major);
+      # alertas de SEGURANÇA seguem abertos, conforme a política deste arquivo.
+      - dependency-name: "expo"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "expo-*"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+
+      # react / react-native / @types/react também são acoplados ao SDK.
+      # SDK54 = react 19.1.0 + react-native 0.81 (ver tabela do SDK e
+      # bundledNativeModules); react 19.2.x só entra no SDK55. O Dependabot
+      # subiu react 19.1.0→19.2.7 e @types/react ~19.1.10→~19.2.17 (commit
+      # f1606b9), causando crash em runtime: "Incompatible React versions:
+      # react 19.2.7 / react-native-renderer 19.1.0" (o renderer vem dentro
+      # do react-native 0.81 e exige match exato). Os react-native-* da Expo
+      # (safe-area-context, screens, svg, etc.) também são bundled e devem
+      # subir só via `expo install`. Bloqueia major/minor; patch e alertas de
+      # SEGURANÇA seguem abertos.
+      - dependency-name: "react"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "@types/react"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "react-native"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "react-native-*"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+
   # ---------- GITHUB ACTIONS ----------
   # Mantém os pinned actions atualizados (actions/checkout, setup-node).
   - package-ecosystem: "github-actions"

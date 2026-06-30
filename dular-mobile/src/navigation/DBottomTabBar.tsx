@@ -1,7 +1,6 @@
 import React, { useCallback } from "react";
 import { StyleSheet, View } from "react-native";
 import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
-import { CommonActions } from "@react-navigation/native";
 import { DBottomNav } from "@/components/ui";
 import type { NavTab } from "@/components/ui/DBottomNav";
 import { useAuth } from "@/stores/authStore";
@@ -20,7 +19,10 @@ const ROUTE_BY_TAB: Record<Variant, Record<NavTab, string>> = {
   empregador: {
     home: "Home",
     search: "Buscar",
-    new: "SolicitarServico",
+    // O botão central abre "Solicitações" (lista de agendamentos do empregador).
+    // O flow de contratação (SolicitarServico) continua registrado e é acessado
+    // pelos botões "Contratar" dos perfis — só não é mais entry-point da barra.
+    new: "Agendamentos",
     messages: "Mensagens",
     profile: "Perfil",
   },
@@ -45,15 +47,10 @@ const TAB_BY_ROUTE: Record<Variant, Record<string, NavTab>> = {
   ) as Record<string, NavTab>,
 };
 
-TAB_BY_ROUTE.montador.MontadorDetalheSolicitacao = "new";
-TAB_BY_ROUTE.montador.MontadorDetalheServico = "search";
-TAB_BY_ROUTE.montador.MontadorChat = "messages";
-
-const HIDDEN_ROUTES: Record<Variant, Set<string>> = {
-  diarista: new Set(["ChatAberto"]),
-  empregador: new Set(["SolicitarServico", "ChatAberto", "Notificacoes", "MontadorPublicProfile"]),
-  montador: new Set(["MontadorChat"]),
-};
+// A bottom bar agora vive SÓ dentro do navigator de abas (5 abas reais). Telas
+// de detalhe/perfil/notificações são telas de stack ACIMA das abas e cobrem a
+// barra naturalmente — não há mais necessidade de esconder a barra por rota
+// (o antigo HIDDEN_ROUTES foi removido junto com a migração para stack real).
 
 type Props = BottomTabBarProps & {
   variant: Variant;
@@ -63,14 +60,13 @@ type Props = BottomTabBarProps & {
 
 export function DBottomTabBar({ state, navigation, variant, messagesBadge, requestsBadge }: Props) {
   const currentRoute = state.routes[state.index]?.name;
-  const shouldHide = !!currentRoute && HIDDEN_ROUTES[variant].has(currentRoute);
   const activeTab = TAB_BY_ROUTE[variant][currentRoute] ?? null;
   const user = useAuth((auth) => auth.user);
-  const selectedGenero = useAuth((auth) => auth.selectedGenero);
   const role = user?.role ?? (variant === "montador" ? "MONTADOR" : variant === "diarista" ? "DIARISTA" : "EMPREGADOR");
   const profileTheme = getProfileTheme({
     role,
-    genero: variant === "empregador" ? undefined : user?.genero ?? selectedGenero,
+    // FASE 4 — gênero só de user.genero; empregador não tematiza por gênero.
+    genero: variant === "empregador" ? undefined : user?.genero,
   });
 
   const handlePress = useCallback(
@@ -78,23 +74,10 @@ export function DBottomTabBar({ state, navigation, variant, messagesBadge, reque
       const target = ROUTE_BY_TAB[variant][tab];
       if (!target) return;
 
-      if (variant === "empregador" && target === "SolicitarServico") {
-        navigation.dispatch(
-          CommonActions.navigate({
-            name: target,
-            params: undefined,
-            merge: false,
-          }),
-        );
-        return;
-      }
-
       navigation.navigate(target as never);
     },
     [navigation, variant]
   );
-
-  if (shouldHide) return null;
 
   return (
     <View style={styles.floating} pointerEvents="box-none">

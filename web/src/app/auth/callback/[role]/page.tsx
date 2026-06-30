@@ -57,7 +57,7 @@ export default async function AuthCallbackPage({
 
   let user = await prisma.user.findUnique({
     where: { id: session.user.id },
-    select: { role: true, cpf: true, telefone: true },
+    select: { role: true, cpf: true, telefone: true, genero: true },
   });
 
   if (user?.role && user.role !== dbRole) {
@@ -68,15 +68,20 @@ export default async function AuthCallbackPage({
 
   user = await prisma.$transaction(async (tx) => {
     const isAssigningRole = !user?.role;
-    const needsUpdate = isAssigningRole;
+    // FASE 1 — gênero como atributo de conta: grava o gênero recebido do mobile
+    // sempre que a conta AINDA não tiver gênero, mesmo que a role já exista
+    // (contas antigas / primeiro login feito sem gênero). O backend é a fonte de
+    // verdade e um gênero já definido nunca é sobrescrito aqui.
+    const shouldBackfillGenero = !!generoValue && isMobile && !user?.genero;
+    const needsUpdate = isAssigningRole || shouldBackfillGenero;
     const nextUser = needsUpdate
       ? await tx.user.update({
           where: { id: session.user.id },
           data: {
-            role: finalRole,
-            ...(generoValue && isMobile ? { genero: generoValue } : {}),
+            ...(isAssigningRole ? { role: finalRole } : {}),
+            ...(shouldBackfillGenero ? { genero: generoValue } : {}),
           },
-          select: { role: true, cpf: true, telefone: true },
+          select: { role: true, cpf: true, telefone: true, genero: true },
         })
       : user;
 

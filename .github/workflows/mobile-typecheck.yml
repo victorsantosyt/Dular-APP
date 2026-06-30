@@ -30,7 +30,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           # fetch-depth: 0 é necessário para o `git diff BASE HEAD` da etapa
           # de detecção logo abaixo conseguir resolver ambos os SHAs.

@@ -15,6 +15,10 @@ async function getAvaliar() {
   const mod = await import("../../src/app/api/servicos/[id]/avaliar/route");
   return mod.POST;
 }
+async function getAvaliarEmpregador() {
+  const mod = await import("../../src/app/api/servicos/[id]/avaliar-empregador/route");
+  return mod.POST;
+}
 
 const DONO = "u-empregador-dono";
 const OUTRO = "u-empregador-outro";
@@ -169,5 +173,72 @@ describe("POST /api/servicos/[id]/avaliar — autorização", () => {
       params(SERVICO_ID),
     );
     assert.equal(res.status, 403);
+  });
+});
+
+describe("POST /api/servicos/[id]/avaliar-empregador — autorização", () => {
+  beforeEach(() => resetMockPrisma());
+
+  const AVALIACAO_BODY = {
+    notaGeral: 5,
+    pontualidade: 5,
+    qualidade: 5,
+    comunicacao: 5,
+  };
+
+  it("retorna 401 sem token", async () => {
+    const POST = await getAvaliarEmpregador();
+    const res = await POST(
+      jsonRequest("http://test/api/servicos/svc-1/avaliar-empregador", AVALIACAO_BODY),
+      params(SERVICO_ID),
+    );
+    assert.equal(res.status, 401);
+  });
+
+  it("retorna 403 para EMPREGADOR (só o profissional avalia o empregador)", async () => {
+    const POST = await getAvaliarEmpregador();
+    const res = await POST(
+      jsonRequest(
+        "http://test/api/servicos/svc-1/avaliar-empregador",
+        AVALIACAO_BODY,
+        makeAuthHeaders(DONO, "EMPREGADOR"),
+      ),
+      params(SERVICO_ID),
+    );
+    assert.equal(res.status, 403);
+  });
+
+  it("retorna 403 para profissional não vinculado ao serviço", async () => {
+    mockPrisma.servico.findUnique = async () => ({
+      ...servicoDoDono("CONFIRMADO"),
+      avaliacaoEmpregador: null,
+    });
+    const POST = await getAvaliarEmpregador();
+    const res = await POST(
+      jsonRequest(
+        "http://test/api/servicos/svc-1/avaliar-empregador",
+        AVALIACAO_BODY,
+        makeAuthHeaders("u-outro-diarista", "DIARISTA"),
+      ),
+      params(SERVICO_ID),
+    );
+    assert.equal(res.status, 403);
+  });
+
+  it("retorna 409 quando o profissional já avaliou o empregador", async () => {
+    mockPrisma.servico.findUnique = async () => ({
+      ...servicoDoDono("CONFIRMADO"),
+      avaliacaoEmpregador: { id: "aval-emp-1" },
+    });
+    const POST = await getAvaliarEmpregador();
+    const res = await POST(
+      jsonRequest(
+        "http://test/api/servicos/svc-1/avaliar-empregador",
+        AVALIACAO_BODY,
+        makeAuthHeaders("u-diarista-1", "DIARISTA"),
+      ),
+      params(SERVICO_ID),
+    );
+    assert.equal(res.status, 409);
   });
 });

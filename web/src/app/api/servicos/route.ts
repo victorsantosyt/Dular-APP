@@ -151,6 +151,9 @@ export async function POST(req: Request) {
         "MONTADOR_PINTURA",
         "MONTADOR_CARPINTARIA",
       ],
+      // Nichos novos sem subcategorias (serviço único, categoria nula).
+      LAVADEIRA: [],
+      CUIDADORA: [],
     };
     if (categoria && !CAT_BY_TIPO[tipo]?.includes(categoria)) {
       return NextResponse.json({ ok: false, error: "Categoria inválida para este tipo." }, { status: 400 });
@@ -233,9 +236,14 @@ export async function POST(req: Request) {
         );
       }
 
-      // Montador não tem precificação pré-cadastrada: usa 0 como sentinela
-      // "a orçar". O preço final é fechado após aceite/orçamento (fora do
-      // escopo deste fluxo — ver GAP T-07: orçamento de Montador).
+      // Opção A: propaga o preço base do perfil do montador para o serviço.
+      // `precoBase` é armazenado em CENTAVOS (Decimal) — mesmo contrato usado em
+      // /api/montadores/buscar. Quando o montador opera "a combinar"
+      // (valorACombinar=true) ou não definiu preço, mantém 0 como sentinela
+      // "a orçar" (preço fechado pós-aceite — GAP T-07).
+      const precoFinalMontador = montadorPerfil.valorACombinar
+        ? 0
+        : Math.max(0, Math.round(Number(montadorPerfil.precoBase ?? 0)));
       const servico = await prisma.servico.create({
         data: {
           status: "SOLICITADO",
@@ -251,7 +259,7 @@ export async function POST(req: Request) {
           temPet: false,
           quartos3Mais: false,
           banheiros2Mais: false,
-          precoFinal: 0,
+          precoFinal: precoFinalMontador,
           clientId: auth.userId,
           montadorId: profissionalId,
         },
@@ -349,9 +357,50 @@ export async function POST(req: Request) {
       }
     }
 
-    const bairroDb = await prisma.bairro.findUnique({
+    // P0-2: busca normalizada (remove acentos, lowercase, espaços extras,
+    // sufixos entre parênteses) para tolerar grafias equivalentes — espelha
+    // a função normalize() de /api/diaristas/buscar/route.ts.
+    function normalizarBairro(value: string): string {
+      return String(value ?? "")
+        .normalize("NFD")
+        .replace(/[̀-ͯ]/g, "")
+        .replace(/\([^)]*\)/g, "")
+        .replace(/\s+/g, " ")
+        .trim()
+        .toLowerCase();
+    }
+
+    const bairroNorm = normalizarBairro(bairro);
+    const cidadeNorm = normalizarBairro(cidade);
+    const ufNorm = normalizarBairro(uf);
+
+    // Primeiro tenta match exato (mais rápido, usa índice único).
+    let bairroDb = await prisma.bairro.findUnique({
       where: { nome_cidade_uf: { nome: bairro, cidade, uf } },
     });
+
+    // Se não encontrou, tenta match normalizado via findFirst (varredura
+    // filtrada por cidade/uf — o índice @@index([cidade, uf]) ainda reduz).
+    if (!bairroDb) {
+      const candidatos = await prisma.bairro.findMany({
+        where: { cidade, uf },
+        select: { id: true, nome: true, cidade: true, uf: true },
+      });
+      // Tenta também candidatos de cidade/uf normalizado se não achou com exato.
+      const todosNorm = candidatos.length === 0
+        ? await prisma.bairro.findMany({
+            select: { id: true, nome: true, cidade: true, uf: true },
+          })
+        : candidatos;
+
+      bairroDb = todosNorm.find(
+        (b) =>
+          normalizarBairro(b.nome) === bairroNorm &&
+          normalizarBairro(b.cidade) === cidadeNorm &&
+          normalizarBairro(b.uf) === ufNorm,
+      ) ?? null;
+    }
+
     if (!bairroDb) {
       return NextResponse.json({ ok: false, error: "Bairro não cadastrado." }, { status: 400 });
     }
@@ -381,6 +430,28 @@ export async function POST(req: Request) {
       );
     }
 
+    // P1-7: validar disponibilidade (Disponibilidade.diaSemana + turno).
+    // Só bloqueia se a diarista tiver ao menos um registro ativo cadastrado.
+    // Sem registros = "disponível sempre" (compatibilidade com perfis antigos).
+    const disponibilidades = await prisma.disponibilidade.findMany({
+      where: { diaristaId: prof.id, ativo: true },
+      select: { diaSemana: true, turno: true },
+    });
+    if (disponibilidades.length > 0) {
+      // diaSemana: 0=Domingo, 1=Segunda ... 6=Sábado (padrão JS getDay()).
+      const diaSemanaRequisitado = data.getDay();
+      const turnoRequisitado = turno; // "MANHA" | "TARDE"
+      const atende = disponibilidades.some(
+        (d) => d.diaSemana === diaSemanaRequisitado && d.turno === turnoRequisitado,
+      );
+      if (!atende) {
+        return NextResponse.json(
+          { ok: false, error: "Profissional não atende nesse dia/turno." },
+          { status: 400 },
+        );
+      }
+    }
+
     const activeBetweenDiarista = await findActiveServiceBetween(
       auth.userId,
       diaristaUserId,
@@ -401,16 +472,19 @@ export async function POST(req: Request) {
     // GAP-D3: `precoFinal` precisa refletir o nicho real do serviço.
     // Antes, sempre usava `precoLeve`, o que quebrava BABA e COZINHEIRA.
     //
-    // Convenção de unidades: TODOS os campos de preço estão em centavos.
-    // - precoLeve/Medio/Pesada são Int (centavos) por definição do schema.
-    // - precoBabaHora/precoCozinheiraBase são Decimal(10,2) mas o seed E2E
-    //   e o restante do app já gravam valores em centavos (ex.: 5000 = R$ 50,00).
-    //   Por segurança aplicamos Math.round(Number(...)) para coagir Decimal→Int.
+    // `precoFinal` é SEMPRE em CENTAVOS (Int) — é assim que o app exibe
+    // (formatPrice divide por 100). Convenção de origem dos campos:
+    // - precoLeve/Medio/Pesada: Int em CENTAVOS (schema) → usar direto.
+    // - precoBabaHora/precoCozinheiraBase: Decimal(10,2) em REAIS (o app grava
+    //   "35.00" = R$ 35,00) → multiplicar por 100 para virar centavos.
     //
     // Quando `valorACombinar=true`, registramos 0 como sentinela "a combinar"
     // (preço negociado externamente — mesma convenção usada para Montador).
+    // Nichos sem preço dedicado (Passadeira/Lavadeira/Cuidadora) são
+    // sempre "a combinar": precoFinal = 0 e sem exigência de preço configurado.
+    const tipoACombinar = ["PASSA_ROUPA", "LAVADEIRA", "CUIDADORA"].includes(tipo);
     let precoFinal = 0;
-    if (prof.valorACombinar) {
+    if (prof.valorACombinar || tipoACombinar) {
       precoFinal = 0;
     } else if (tipo === "FAXINA") {
       if (categoria === "FAXINA_PESADA") {
@@ -421,15 +495,14 @@ export async function POST(req: Request) {
         precoFinal = prof.precoLeve;
       }
     } else if (tipo === "BABA") {
-      precoFinal = Math.round(Number(prof.precoBabaHora ?? 0));
+      precoFinal = Math.round(Number(prof.precoBabaHora ?? 0) * 100);
     } else if (tipo === "COZINHEIRA") {
-      precoFinal = Math.round(Number(prof.precoCozinheiraBase ?? 0));
+      precoFinal = Math.round(Number(prof.precoCozinheiraBase ?? 0) * 100);
     } else {
-      // PASSA_ROUPA e outros: fallback ao precoLeve (comportamento legado).
       precoFinal = prof.precoLeve;
     }
 
-    if (!prof.valorACombinar && (!precoFinal || precoFinal <= 0)) {
+    if (!prof.valorACombinar && !tipoACombinar && (!precoFinal || precoFinal <= 0)) {
       return NextResponse.json(
         { ok: false, error: "Profissional sem preço configurado para este serviço." },
         { status: 400 },

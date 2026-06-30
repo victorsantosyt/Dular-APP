@@ -13,6 +13,8 @@ const sosSchema = z.object({
   lat: z.number().min(-90).max(90).optional(),
   lng: z.number().min(-180).max(180).optional(),
   mensagem: z.string().trim().max(500).optional(),
+  tipo: z.string().trim().max(80).optional(),
+  prioridade: z.string().trim().max(20).optional(),
 });
 
 export async function POST(req: Request) {
@@ -28,6 +30,12 @@ export async function POST(req: Request) {
     const lat = body.latitude ?? body.lat;
     const lng = body.longitude ?? body.lng;
     const mensagem = body.mensagem ?? "";
+    // meta estruturado: além da mensagem livre, guardamos tipo/prioridade para o
+    // acompanhamento de SOS (tela SafeScore) renderizar dados reais.
+    const meta: Record<string, string> = {};
+    if (mensagem) meta.mensagem = mensagem;
+    if (body.tipo) meta.tipo = body.tipo;
+    if (body.prioridade) meta.prioridade = body.prioridade;
 
     const service = serviceId
       ? await requireServiceParticipant(auth.userId, serviceId, {
@@ -36,15 +44,15 @@ export async function POST(req: Request) {
         })
       : null;
 
-    await prisma.$transaction(async (tx) => {
-      await tx.safetyEvent.create({
+    const eventoId = await prisma.$transaction(async (tx) => {
+      const evento = await tx.safetyEvent.create({
         data: {
           type: "SOS_SILENT",
           userId: auth.userId,
           serviceId: serviceId || null,
           lat: lat ?? null,
           lng: lng ?? null,
-          meta: mensagem ? { mensagem } : undefined,
+          meta: Object.keys(meta).length ? meta : undefined,
         },
       });
 
@@ -70,9 +78,10 @@ export async function POST(req: Request) {
           });
         }
       }
+      return evento.id;
     });
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, id: eventoId });
   } catch (e: any) {
     if (e?.message === "Unauthorized") {
       return NextResponse.json({ ok: false, error: "Não autorizado" }, { status: 401 });

@@ -18,6 +18,7 @@ import {
   canOpenChat,
   formatDateTime,
   formatMoneyFromCents,
+  formatValorServico,
   labelServico,
   labelSubcategoria,
   localResumo,
@@ -26,11 +27,12 @@ import {
 } from "./montadorUtils";
 
 type Navigation = BottomTabNavigationProp<MontadorTabParamList>;
-type Tab = "novas" | "aceitas" | "recusadas" | "expiradas";
+type Tab = "novas" | "aceitas" | "historico" | "recusadas" | "expiradas";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "novas", label: "Novas" },
   { id: "aceitas", label: "Aceitas" },
+  { id: "historico", label: "Histórico" },
   { id: "recusadas", label: "Recusadas" },
   { id: "expiradas", label: "Expiradas" },
 ];
@@ -38,7 +40,9 @@ const TABS: { id: Tab; label: string }[] = [
 function inTab(servico: MontadorServico, tab: Tab) {
   const status = upperStatus(servico.status);
   if (tab === "novas") return status === "SOLICITADO" || status === "PENDENTE";
-  if (tab === "aceitas") return ["ACEITO", "CONFIRMADO", "EM_ANDAMENTO", "FINALIZADO", "CONCLUIDO"].includes(status);
+  // Aceitas = serviços em andamento; concluídos vão para o Histórico.
+  if (tab === "aceitas") return ["ACEITO", "CONFIRMADO", "EM_ANDAMENTO"].includes(status);
+  if (tab === "historico") return status === "FINALIZADO" || status === "CONCLUIDO";
   if (tab === "recusadas") return status === "RECUSADO" || status === "CANCELADO";
   return status === "EXPIRADO";
 }
@@ -137,7 +141,7 @@ function SolicitacaoCard({
         <Text style={styles.infoLabel}>Serviço</Text>
         <Text style={styles.infoValue}>{labelServico(servico)}</Text>
         <Text style={styles.infoLabel}>Valor estimado</Text>
-        <Text style={styles.infoValue}>{formatMoneyFromCents(servico.valorEstimado ?? servico.precoFinal)}</Text>
+        <Text style={styles.infoValue}>{formatValorServico(servico.valorEstimado ?? servico.precoFinal)}</Text>
       </View>
 
       {servico.observacoes ? (
@@ -244,7 +248,11 @@ export default function MontadorSolicitacoes() {
       Alert.alert("Chat bloqueado", "O chat completo libera depois que a solicitação for aceita.");
       return;
     }
-    navigation.navigate("MontadorChat", { servicoId: servico.id });
+    navigation.navigate("MontadorChat", {
+      roomId: servico.id,
+      servicoId: servico.id,
+      nomeUsuario: servico.empregador?.nome ?? "Empregador",
+    });
   };
 
   return (

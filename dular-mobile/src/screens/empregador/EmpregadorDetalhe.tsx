@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  Alert,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -10,6 +11,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
+import * as Clipboard from "expo-clipboard";
 
 import { api } from "@/lib/api";
 import { fetchServicosMinhas } from "@/api/sharedFetcher";
@@ -18,17 +20,30 @@ import {
   aprovarServicoConcluido,
   cancelarServicoEmpregador,
   confirmarFinalizacaoEmpregador,
+  decidirReagendamento,
 } from "@/api/empregadorApi";
 import { DButton } from "@/components/DButton";
 import { DularBadge } from "@/components/DularBadge";
 import { MotivoModal } from "@/components/MotivoModal";
-import { AvaliacaoModal } from "@/components/ui";
+import { AvaliacaoModal, DAvatar } from "@/components/ui";
 import { formatPrice } from "@/utils/formatPrice";
+import { parseDataServico } from "@/utils/formatters";
 import { isStatusEncerrado } from "@/utils/servicoStatus";
 import { colors, radius, shadow, spacing, typography } from "@/theme/tokens";
 
-const formatDate = (v: string | number | Date) => new Date(v).toLocaleDateString("pt-BR");
+// Data do serviço é meia-noite UTC — normaliza p/ não deslizar o dia (fuso).
+const formatDate = (v: string | number | Date) =>
+  parseDataServico(v)?.toLocaleDateString("pt-BR") ?? "--";
 const statusUp = (s: any) => String(s ?? "").toUpperCase();
+
+function fmtReagendamento(svc: Servico) {
+  const d = svc.reagendamentoData ? new Date(svc.reagendamentoData) : null;
+  const dataLabel =
+    d && !Number.isNaN(d.getTime()) ? d.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }) : "—";
+  const t = statusUp(svc.reagendamentoTurno);
+  const turnoLabel = t === "MANHA" ? "Manhã" : t === "TARDE" ? "Tarde" : "";
+  return `${dataLabel}${turnoLabel ? " · " + turnoLabel : ""}`;
+}
 const FINAL = ["CONFIRMADO", "FINALIZADO", "FINALIZADO_CLIENTE", "PAGO", "AVALIADO"];
 const POLL_MS = 5000;
 
@@ -55,6 +70,54 @@ function statusVariant(st: string): "success" | "warning" | "neutral" | "danger"
   return "neutral";
 }
 
+// ── Rótulos do comprovante ────────────────────────────────────────────────────
+const TIPO_LABEL: Record<string, string> = {
+  FAXINA: "Diarista",
+  BABA: "Babá",
+  CUIDADORA: "Cuidadora",
+  COZINHEIRA: "Cozinheira",
+  PASSA_ROUPA: "Passadeira",
+  LAVADEIRA: "Lavadeira",
+  MONTADOR: "Montador",
+};
+function tipoLabel(t?: string | null) {
+  return TIPO_LABEL[statusUp(t)] ?? "Serviço";
+}
+function categoriaLabelFmt(c?: string | null) {
+  if (!c) return null;
+  return String(c)
+    .replace(/^MONTADOR_/, "")
+    .replace(/_/g, " ")
+    .toLowerCase()
+    .replace(/^\w/, (m) => m.toUpperCase());
+}
+function turnoLabel(t?: string | null) {
+  const v = statusUp(t);
+  return v === "MANHA" ? "Manhã" : v === "TARDE" ? "Tarde" : "A combinar";
+}
+function formatDateTime(v?: string | number | Date | null) {
+  if (!v) return null;
+  const d = new Date(v);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleString("pt-BR", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+// Linha rótulo → valor do comprovante.
+function RowKV({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={s.kvRow}>
+      <Text style={s.kvLabel}>{label}</Text>
+      <Text style={s.kvValue} numberOfLines={2}>{value}</Text>
+    </View>
+  );
+}
+
 export default function EmpregadorDetalhe({ route, navigation }: any) {
   const params = route.params as any;
   const servicoId: string = params.servicoId ?? params.servico?.id ?? "";
@@ -71,6 +134,8 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
   const [avaliacaoVisible, setAvaliacaoVisible] = useState(false);
   const [motivoVisible, setMotivoVisible] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [decidindoReag, setDecidindoReag] = useState(false);
+  const [finalizadoEm, setFinalizadoEm] = useState<string | null>(null);
   const busyRef = useRef(false);
 
   const fetchAtual = useCallback(async (silent = true) => {
@@ -95,6 +160,21 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
 
   useEffect(() => { fetchAtual(); }, [fetchAtual]);
 
+  // Data de finalização: vem do endpoint de detalhe ([id]) via último
+  // ServicoEvento de finalização (sem migration). Apenas leitura para o comprovante.
+  useEffect(() => {
+    if (!servicoId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await api.get(`/api/servicos/${servicoId}`);
+        const ev = (res.data?.servico?.eventos ?? [])[0];
+        if (!cancelled && ev?.createdAt) setFinalizadoEm(ev.createdAt);
+      } catch { /* silencioso — finalizadoEm fica null ("Não finalizado") */ }
+    })();
+    return () => { cancelled = true; };
+  }, [servicoId]);
+
   useFocusEffect(useCallback(() => {
     fetchAtual();
     const t = setInterval(() => fetchAtual(), POLL_MS);
@@ -116,7 +196,8 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
   const alreadyRated = useMemo(
     () => Boolean(
       (svc as any)?.__ratedByClient || (svc as any)?.avaliacaoCliente ||
-      (svc as any)?.notaCliente || statusRaw === "AVALIADO"
+      (svc as any)?.notaCliente || (svc as any)?.avaliacao ||
+      statusRaw === "AVALIADO" || statusRaw === "FINALIZADO"
     ),
     [svc, statusRaw]
   );
@@ -128,8 +209,10 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
     () => statusRaw === "AGUARDANDO_FINALIZACAO",
     [statusRaw]
   );
-  const finalizarPeloEmpregador = useMemo(
-    () => statusRaw === "EM_ANDAMENTO",
+  // CONCLUIDO = ambas as partes finalizaram; falta o empregador "confirmar
+  // recebimento" (→ CONFIRMADO, libera avaliação). Muda o rótulo do botão.
+  const confirmarRecebimento = useMemo(
+    () => ["CONCLUIDO", "CONCLUÍDO"].includes(statusRaw),
     [statusRaw]
   );
   const podeCancelar = useMemo(
@@ -156,9 +239,41 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
       setAvaliacaoVisible(true);
     }
   }, [podeAvaliar]);
+  // Chat disponível desde o aceite até a finalização (AGUARDANDO_FINALIZACAO).
+  // A partir de CONCLUIDO o serviço encerra e o chat some (também em
+  // CONFIRMADO/FINALIZADO/CANCELADO).
   const chatLiberado = useMemo(
-    () => ["ACEITO", "INICIADO", "EM_ANDAMENTO"].includes(statusRaw),
+    () => ["ACEITO", "INICIADO", "EM_ANDAMENTO", "AGUARDANDO_FINALIZACAO"].includes(statusRaw),
     [statusRaw]
+  );
+
+  const onDecidirReagendamento = useCallback(
+    async (aceitar: boolean) => {
+      if (decidindoReag || !svc) return;
+      setDecidindoReag(true);
+      try {
+        await decidirReagendamento(svc.id, aceitar);
+        setSvc((cur) => {
+          if (!cur) return cur;
+          const limpo = {
+            reagendamentoData: null,
+            reagendamentoTurno: null,
+            reagendamentoPor: null,
+            reagendamentoEm: null,
+          };
+          return aceitar
+            ? { ...cur, data: cur.reagendamentoData ?? cur.data, turno: (cur.reagendamentoTurno ?? cur.turno) as any, ...limpo }
+            : { ...cur, ...limpo };
+        });
+        setToast(aceitar ? "Reagendamento confirmado." : "Reagendamento recusado.");
+        void fetchAtual(true);
+      } catch (e: any) {
+        setToast(e?.response?.data?.error ?? "Falha ao responder o reagendamento.");
+      } finally {
+        setDecidindoReag(false);
+      }
+    },
+    [decidindoReag, svc, fetchAtual],
   );
 
   const onConfirmar = useCallback(async () => {
@@ -208,6 +323,20 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
     }
   }, [confirming, svc, statusRaw, fetchAtual]);
 
+  // No passo de liberação (CONCLUIDO → CONFIRMADO), pergunta sobre o PAGAMENTO
+  // pela ótica do empregador (quem paga). O passo anterior (AGUARDANDO →
+  // CONCLUIDO) apenas confirma que o profissional terminou, sem essa pergunta.
+  const onConfirmarPressed = useCallback(() => {
+    if (confirmarRecebimento) {
+      Alert.alert("Pagamento", "Você já realizou o pagamento ao profissional?", [
+        { text: "Ainda não", style: "cancel" },
+        { text: "Sim, já paguei", onPress: () => { void onConfirmar(); } },
+      ]);
+      return;
+    }
+    void onConfirmar();
+  }, [confirmarRecebimento, onConfirmar]);
+
   const onCancelarComMotivo = useCallback(
     async (motivo: string, observacao: string) => {
       if (!svc || busyRef.current) return;
@@ -236,8 +365,36 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
     );
   }
 
+  const prof = svc.montador ?? svc.diarista ?? null;
+  const avaliacao = (svc as {
+    avaliacao?: {
+      notaGeral: number;
+      pontualidade: number;
+      qualidade: number;
+      comunicacao: number;
+      comentario?: string | null;
+    } | null;
+  }).avaliacao ?? null;
+  const profIniciais = (prof?.nome ?? "?").slice(0, 2).toUpperCase();
+  const valorLabel = svc.precoFinal > 0 ? formatPrice(svc.precoFinal) : "A combinar";
+  const finalizadoLabel = formatDateTime(finalizadoEm) ?? "Não finalizado";
+  const categoria = categoriaLabelFmt(svc.categoria);
+
   return (
     <SafeAreaView style={s.safe} edges={["top", "bottom"]}>
+      {/* Voltar — stack real (PR #103); goBack() volta à origem exata. */}
+      <View style={s.topBar}>
+        <Pressable
+          onPress={() => navigation.goBack()}
+          hitSlop={10}
+          style={({ pressed }) => [s.backBtn, pressed && { opacity: 0.7 }]}
+        >
+          <Ionicons name="arrow-back" size={22} color={colors.primary} />
+        </Pressable>
+        <Text style={s.topBarTitle}>Comprovante</Text>
+        <View style={s.backBtn} />
+      </View>
+
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={s.scroll}
@@ -248,36 +405,89 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
           <View style={s.toast}><Text style={s.toastText}>{toast}</Text></View>
         ) : null}
 
-        {/* Título + status */}
-        <View style={s.titleRow}>
-          <Text style={s.title}>Serviço #{svc.id.slice(0, 6).toUpperCase()}</Text>
-          <DularBadge text={statusLabel(svc.status)} variant={statusVariant(svc.status)} />
+        {/* CABEÇALHO — protocolo + status */}
+        <View style={s.section}>
+          <Text style={s.sectionLabel}>Protocolo</Text>
+          <View style={s.protocoloRow}>
+            <Pressable
+              onPress={async () => {
+                await Clipboard.setStringAsync(svc.id);
+                setToast("Protocolo copiado.");
+              }}
+              hitSlop={8}
+              style={s.protocoloPress}
+            >
+              <Text style={s.protocolo}>#{svc.id.slice(0, 8).toUpperCase()}</Text>
+              <Ionicons name="copy-outline" size={15} color={colors.sub} />
+            </Pressable>
+            <DularBadge text={statusLabel(svc.status)} variant={statusVariant(svc.status)} />
+          </View>
         </View>
 
-        {/* Info card */}
+        {/* SERVIÇO */}
         <View style={s.card}>
-          <View style={s.infoRow}>
-            <Ionicons name="location-outline" size={15} color={colors.green} />
-            <Text style={s.infoText}>{svc.bairro} — {svc.cidade}/{svc.uf}</Text>
-          </View>
+          <Text style={s.sectionLabel}>Serviço</Text>
+          <RowKV label="Tipo" value={tipoLabel(svc.tipo)} />
+          {categoria ? (
+            <>
+              <View style={s.divider} />
+              <RowKV label="Categoria" value={categoria} />
+            </>
+          ) : null}
           <View style={s.divider} />
-          <View style={s.infoRow}>
-            <Ionicons name="cash-outline" size={15} color={colors.green} />
-            <Text style={[s.infoText, { fontWeight: "700", color: colors.greenDark }]}>
-              {formatPrice(svc.precoFinal)}
-            </Text>
-          </View>
-          <View style={s.divider} />
-          <View style={s.infoRow}>
-            <Ionicons name="person-outline" size={15} color={colors.green} />
-            <Text style={s.infoText}>Diarista: {svc.diarista?.nome ?? "Pendente"}</Text>
-          </View>
-          <View style={s.divider} />
-          <View style={s.infoRow}>
-            <Ionicons name="calendar-outline" size={15} color={colors.green} />
-            <Text style={s.infoText}>Criado em {formatDate(svc.createdAt)}</Text>
+          <RowKV label="Turno" value={turnoLabel(svc.turno)} />
+        </View>
+
+        {/* PROFISSIONAL */}
+        <View style={s.card}>
+          <Text style={s.sectionLabel}>Profissional</Text>
+          <View style={s.profRow}>
+            <DAvatar size="md" uri={prof?.avatarUrl ?? undefined} initials={profIniciais} />
+            <View style={{ flex: 1, gap: 2 }}>
+              <Text style={s.profNome}>{prof?.nome ?? "Aguardando profissional"}</Text>
+              {prof?.telefone ? <Text style={s.profTel}>{prof.telefone}</Text> : null}
+            </View>
           </View>
         </View>
+
+        {/* LOCAL */}
+        <View style={s.card}>
+          <Text style={s.sectionLabel}>Local</Text>
+          <View style={s.infoRow}>
+            <Ionicons name="location-outline" size={15} color={colors.green} />
+            <Text style={s.infoText}>{svc.bairro}, {svc.cidade} - {svc.uf}</Text>
+          </View>
+        </View>
+
+        {/* DATAS */}
+        <View style={s.card}>
+          <Text style={s.sectionLabel}>Datas</Text>
+          <RowKV label="Agendada" value={formatDate(svc.data)} />
+          <View style={s.divider} />
+          <RowKV label="Finalização" value={finalizadoLabel} />
+        </View>
+
+        {/* VALOR */}
+        <View style={s.card}>
+          <Text style={s.sectionLabel}>Valor</Text>
+          <Text style={s.valor}>{valorLabel}</Text>
+        </View>
+
+        {/* AVALIAÇÃO (só se houver) */}
+        {avaliacao ? (
+          <View style={s.card}>
+            <Text style={s.sectionLabel}>Avaliação</Text>
+            <View style={s.infoRow}>
+              <Ionicons name="star" size={16} color={colors.star} />
+              <Text style={[s.infoText, { fontWeight: "700" }]}>{avaliacao.notaGeral}/5</Text>
+            </View>
+            {avaliacao.comentario ? <Text style={s.comentario}>“{avaliacao.comentario}”</Text> : null}
+            <View style={s.divider} />
+            <RowKV label="Pontualidade" value={`${avaliacao.pontualidade}/5`} />
+            <RowKV label="Qualidade" value={`${avaliacao.qualidade}/5`} />
+            <RowKV label="Comunicação" value={`${avaliacao.comunicacao}/5`} />
+          </View>
+        ) : null}
 
         {/* Status CTA cards */}
         {["PENDENTE", "SOLICITADO"].includes(statusRaw) ? (
@@ -328,6 +538,34 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
           </View>
         ) : null}
 
+        {/* Proposta de reagendamento (pendente) */}
+        {svc.reagendamentoData && !isStatusEncerrado(statusRaw) ? (
+          <View style={s.card}>
+            <View style={s.infoRow}>
+              <Ionicons name="calendar-outline" size={16} color={colors.warning} />
+              <Text style={[s.infoText, { fontWeight: "700", color: colors.ink }]}>Proposta de reagendamento</Text>
+            </View>
+            <Text style={[s.infoText, { marginTop: 4 }]}>
+              O profissional propôs uma nova data: {fmtReagendamento(svc)}
+            </Text>
+            <View style={{ flexDirection: "row", gap: 10, marginTop: 12 }}>
+              <View style={{ flex: 1 }}>
+                <DButton
+                  title={decidindoReag ? "..." : "Recusar"}
+                  variant="outline"
+                  onPress={() => onDecidirReagendamento(false)}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <DButton
+                  title={decidindoReag ? "..." : "Confirmar"}
+                  onPress={() => onDecidirReagendamento(true)}
+                />
+              </View>
+            </View>
+          </View>
+        ) : null}
+
         {/* Chat */}
         {chatLiberado ? (
           <DButton
@@ -343,11 +581,20 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
           />
         ) : null}
 
-        {/* Confirmar finalização */}
-        {podeConfirmar || finalizarPeloEmpregador ? (
+        {/* Confirmação do empregador. Em AGUARDANDO_FINALIZACAO o profissional
+            já finalizou → "Confirmar finalização" (→ CONCLUIDO). Em CONCLUIDO
+            falta liberar a avaliação → "Confirmar recebimento" (→ CONFIRMADO).
+            Em EM_ANDAMENTO o empregador só acompanha (sem botão). */}
+        {podeConfirmar ? (
           <DButton
-            title={confirming ? "Confirmando..." : "Confirmar finalização"}
-            onPress={onConfirmar}
+            title={
+              confirming
+                ? "Confirmando..."
+                : confirmarRecebimento
+                  ? "Confirmar pagamento"
+                  : "Confirmar finalização"
+            }
+            onPress={onConfirmarPressed}
             loading={confirming}
             disabled={confirming}
           />
@@ -379,6 +626,9 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
             <Text style={s.cancelText}>{cancelling ? "Cancelando..." : "Cancelar serviço"}</Text>
           </Pressable>
         ) : null}
+
+        {/* RODAPÉ */}
+        <Text style={s.rodape}>Guarde este protocolo para suporte: {svc.id}</Text>
       </ScrollView>
 
       <MotivoModal
@@ -408,6 +658,63 @@ const s = StyleSheet.create({
   safe:    { flex: 1, backgroundColor: colors.bg },
   scroll:  { padding: spacing.screenPadding, gap: 12, paddingBottom: 48 },
   loading: { ...typography.sub, textAlign: "center", marginTop: 48 },
+
+  // ── Comprovante
+  topBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: spacing.screenPadding,
+    paddingVertical: 10,
+  },
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.stroke,
+  },
+  topBarTitle: { fontSize: 15, fontWeight: "800", color: colors.ink },
+  section: { gap: 6 },
+  sectionLabel: {
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 0.6,
+    textTransform: "uppercase",
+    color: colors.sub,
+  },
+  protocoloRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+  protocoloPress: { flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 1 },
+  protocolo: {
+    fontSize: 22,
+    lineHeight: 27,
+    fontWeight: "800",
+    color: colors.ink,
+    fontFamily: "monospace",
+    letterSpacing: 1,
+  },
+  kvRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  kvLabel: { fontSize: 12, fontWeight: "600", color: colors.sub },
+  kvValue: { fontSize: 14, fontWeight: "700", color: colors.ink, flexShrink: 1, textAlign: "right" },
+  profRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+  profNome: { fontSize: 15, fontWeight: "700", color: colors.ink },
+  profTel: { fontSize: 13, fontWeight: "500", color: colors.sub },
+  valor: { fontSize: 20, fontWeight: "800", color: colors.greenDark },
+  comentario: { fontSize: 13, fontWeight: "500", color: colors.ink, fontStyle: "italic" },
+  rodape: { fontSize: 11, fontWeight: "500", color: colors.sub, textAlign: "center", marginTop: 6 },
 
   toast: {
     padding: 12,

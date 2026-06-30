@@ -37,6 +37,7 @@ type ServicoEmpregador = {
   categoria?: string | null;
   data?: string | null;
   turno?: string | null;
+  reagendamentoData?: string | null;
   cidade?: string | null;
   uf?: string | null;
   bairro?: string | null;
@@ -74,6 +75,16 @@ function categoryInfo(servico: ServicoEmpregador) {
   if (tipo === "COZINHEIRA") {
     return { label: "Cozinheira", key: "cozinheira" as const, icon: "ChefHat" as const };
   }
+  // Nichos novos da profissional de casa — filtram sob "Diarista", rótulo/ícone próprios.
+  if (tipo === "PASSA_ROUPA") {
+    return { label: "Passadeira", key: "diarista" as const, icon: "Shirt" as const };
+  }
+  if (tipo === "LAVADEIRA") {
+    return { label: "Lavadeira", key: "diarista" as const, icon: "WashingMachine" as const };
+  }
+  if (tipo === "CUIDADORA") {
+    return { label: "Cuidadora", key: "diarista" as const, icon: "Heart" as const };
+  }
   return { label: "Diarista", key: "diarista" as const, icon: "BrushCleaning" as const };
 }
 
@@ -88,8 +99,11 @@ function categoriaLabel(categoria?: string | null) {
 
 function formatDateLabel(value?: string | null) {
   if (!value) return "Data a combinar";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Data a combinar";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "Data a combinar";
+  // A data é gravada como meia-noite UTC; lemos os componentes em UTC para não
+  // deslizar o dia em fuso negativo (Brasil, UTC-3).
+  const date = new Date(parsed.getUTCFullYear(), parsed.getUTCMonth(), parsed.getUTCDate());
   return date.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
 }
 
@@ -125,8 +139,11 @@ function mapServicoToAgendamento(servico: ServicoEmpregador): AgendamentoItem {
     nota: "--",
     experiencia: String(servico.status ?? "Pendente").replace(/_/g, " "),
     valor: formatMoney(servico.precoFinal),
+    precoFinalCentavos: typeof servico.precoFinal === "number" ? servico.precoFinal : 0,
+    statusRaw: String(servico.status ?? "").toUpperCase(),
     observacao: servico.observacoes,
     avatarUrl: profissional?.avatarUrl ?? undefined,
+    reagendamentoPendente: !!servico.reagendamentoData,
   };
 }
 
@@ -261,6 +278,13 @@ export function AgendamentosEmpregadorScreen() {
                   key={item.id}
                   item={item}
                   onDetails={() => navigation.navigate("EmpregadorDetalhe", { servicoId: item.id })}
+                  onChat={() =>
+                    navigation.navigate("ChatAberto", {
+                      roomId: item.id,
+                      servicoId: item.id,
+                      nomeUsuario: item.nome,
+                    })
+                  }
                 />
               ))
             )}

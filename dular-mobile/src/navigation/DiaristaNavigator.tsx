@@ -3,6 +3,7 @@ import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { DBottomTabBar } from "@/navigation/DBottomTabBar";
 import { useMensagens, totalNaoLidas } from "@/hooks/useMensagens";
+import { useAgendamentosDiarista } from "@/hooks/useAgendamentosDiarista";
 import { DiaristaHomeScreen } from "@/screens/diarista/DiaristaHomeScreen";
 import { AgendamentosDiaristaScreen } from "@/screens/diarista/AgendamentosDiaristaScreen";
 import { ServicosDiaristaScreen } from "@/screens/diarista/ServicosDiaristaScreen";
@@ -74,6 +75,10 @@ function DetalheServicoScreen(props: any) {
 function DiaristaTabs() {
   const { rooms } = useMensagens();
   const unreadMessages = totalNaoLidas(rooms);
+  // Badge de "Serviços" (aba "Novo"): conta solicitações pendentes, mesmo
+  // padrão do montador (useMontadorServicos.pendentes).
+  const { agendamentos } = useAgendamentosDiarista();
+  const pendentes = agendamentos.filter((a) => a.status === "pendente");
 
   return (
     <Tab.Navigator
@@ -82,6 +87,7 @@ function DiaristaTabs() {
           {...props}
           variant="diarista"
           messagesBadge={unreadMessages > 0 ? unreadMessages : undefined}
+          requestsBadge={pendentes.length > 0 ? pendentes.length : undefined}
         />
       )}
       screenOptions={{

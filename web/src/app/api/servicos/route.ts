@@ -480,23 +480,15 @@ export async function POST(req: Request) {
     //
     // Quando `valorACombinar=true`, registramos 0 como sentinela "a combinar"
     // (preço negociado externamente — mesma convenção usada para Montador).
-<<<<<<< HEAD
-    // Nichos sem subtipo (Faxineira/Cuidadora/Passadeira/Lavadeira): valor único
-    // por nicho, em REAIS (Decimal). Quando configurado, vira precoFinal; quando
-    // nulo, o nicho fica "a combinar" (precoFinal 0, sem exigência de preço).
+    // Nichos sem subtipo: valor único por nicho em REAIS (Decimal).
+    // Quando nulo, o nicho fica "a combinar" (precoFinal 0).
     const PRECO_NICHO_DECIMAL: Record<string, unknown> = {
-      CUIDADORA: prof.precoCuidadoraHora,
+      CUIDADORA: prof.precoCuidadora ?? prof.precoCuidadoraHora,
       PASSA_ROUPA: prof.precoPassadeira,
       LAVADEIRA: prof.precoLavadeira,
     };
     const temPrecoNicho = Object.prototype.hasOwnProperty.call(PRECO_NICHO_DECIMAL, tipo);
-    // "a combinar" = flag global OU nicho de valor único sem preço configurado.
     let aCombinar = prof.valorACombinar;
-=======
-    // Nichos sem preço dedicado (Passadeira/Lavadeira/Cuidadora) são
-    // sempre "a combinar": precoFinal = 0 e sem exigência de preço configurado.
-    const tipoACombinar = ["PASSA_ROUPA", "LAVADEIRA", "CUIDADORA"].includes(tipo);
->>>>>>> origin/main
     let precoFinal = 0;
     if (prof.valorACombinar) {
       precoFinal = 0;

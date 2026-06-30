@@ -54,6 +54,9 @@ export type ServiceDraft = {
   especialidadeId?: string;
   especialidadeLabel?: string;
   categoriaBackend?: string;
+  /** Preços por intensidade da diarista (centavos), vindos do perfil público.
+   *  Usados no passo "Escolha a intensidade" para exibir o valor de cada opção. */
+  precos?: { leve: number | null; medio: number | null; pesada: number | null };
   /** Rótulo de preço estimado vindo do perfil público do profissional.
    *  Ex.: "a partir de R$ 80,00 (leve)" ou "A combinar". Nunca um número
    *  fixo hardcoded — se ausente, exibe "A combinar". */
@@ -128,6 +131,8 @@ type Props = {
   /** Rótulo de preço já formatado vindo do perfil público — repassado direto
    *  ao draft inicial sem transformação. */
   initialPrecoEstimadoLabel?: string;
+  /** Preços por intensidade da diarista (centavos), vindos do perfil público. */
+  initialPrecos?: { leve: number | null; medio: number | null; pesada: number | null };
   /** Serviços oferecidos pela profissional (do perfil público). */
   initialServicosOferecidos?: string[];
   /** Preços do profissional (do perfil público) para a tabela de valores. */
@@ -141,6 +146,7 @@ export function ServiceFlowProvider({
   initialProfissionalId,
   initialProfissionalNome,
   initialPrecoEstimadoLabel,
+  initialPrecos,
   initialServicosOferecidos,
   initialPrecoInfo,
 }: Props) {
@@ -161,6 +167,7 @@ export function ServiceFlowProvider({
       ...(initialProfissionalId ? { profissionalId: initialProfissionalId } : {}),
       ...(initialProfissionalNome ? { profissionalNome: initialProfissionalNome } : {}),
       ...(initialPrecoEstimadoLabel ? { precoEstimadoLabel: initialPrecoEstimadoLabel } : {}),
+      ...(initialPrecos ? { precos: initialPrecos } : {}),
       ...(initialServicosOferecidos?.length ? { servicosOferecidosProf: initialServicosOferecidos } : {}),
       ...(initialPrecoInfo ? { precoInfo: initialPrecoInfo } : {}),
     };

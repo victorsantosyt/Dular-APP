@@ -63,7 +63,7 @@ import {
 } from "@/api/diaristaApi";
 import { apiMsg } from "@/utils/apiMsg";
 import { useAuth } from "@/stores/authStore";
-import { AppIcon, DButton, DCard } from "@/components/ui";
+import { AppIcon, type AppIconName, DButton, DCard } from "@/components/ui";
 import type { DiaristaTabParamList } from "@/navigation/DiaristaNavigator";
 import { radius, shadows, spacing, typography } from "@/theme";
 import { useDularColors } from "@/hooks/useDularColors";
@@ -268,6 +268,78 @@ function decimalToInput(value: string | number | null | undefined): string {
   return n.toFixed(2).replace(".", ",");
 }
 
+/**
+ * Configuração da tela "Valores por intensidade de serviço".
+ * Um card por nicho ofertado; cada card abre o formulário de valores do nicho.
+ * `key` aponta para um campo string de `precosForm`.
+ */
+type PrecoFieldKey =
+  | "leve"
+  | "medio"
+  | "pesada"
+  | "babaHora"
+  | "cozinheiraBase"
+  | "cuidadoraHora"
+  | "passadeira"
+  | "lavadeira";
+
+type PrecoNichoConfig = {
+  oferta: ServicoOferecido;
+  icon: AppIconName;
+  label: string;
+  hint: string;
+  campos: Array<{ key: PrecoFieldKey; label: string; placeholder: string }>;
+};
+
+const PRECO_NICHOS: PrecoNichoConfig[] = [
+  {
+    oferta: "DIARISTA",
+    icon: "BrushCleaning",
+    label: "Diarista",
+    hint: "Limpeza por intensidade",
+    campos: [
+      { key: "leve", label: "Limpeza leve (R$)", placeholder: "Ex.: 120,00" },
+      { key: "medio", label: "Limpeza média (R$) — opcional", placeholder: "Ex.: 160,00" },
+      { key: "pesada", label: "Limpeza pesada (R$)", placeholder: "Ex.: 200,00" },
+    ],
+  },
+  {
+    oferta: "BABA",
+    icon: "Baby",
+    label: "Babá",
+    hint: "Cuidado infantil",
+    campos: [{ key: "babaHora", label: "Valor por hora (R$)", placeholder: "Ex.: 35,00" }],
+  },
+  {
+    oferta: "CUIDADORA",
+    icon: "Heart",
+    label: "Cuidadora",
+    hint: "Cuidado a idosos/pessoas",
+    campos: [{ key: "cuidadoraHora", label: "Valor por hora (R$)", placeholder: "Ex.: 40,00" }],
+  },
+  {
+    oferta: "COZINHEIRA",
+    icon: "ChefHat",
+    label: "Cozinheira",
+    hint: "Preparo de refeições",
+    campos: [{ key: "cozinheiraBase", label: "Valor base (R$)", placeholder: "Ex.: 180,00" }],
+  },
+  {
+    oferta: "PASSADEIRA",
+    icon: "Shirt",
+    label: "Passadeira",
+    hint: "Passar roupa",
+    campos: [{ key: "passadeira", label: "Valor por hora (R$)", placeholder: "Ex.: 45,00" }],
+  },
+  {
+    oferta: "LAVADEIRA",
+    icon: "WashingMachine",
+    label: "Lavadeira",
+    hint: "Lavar roupa",
+    campos: [{ key: "lavadeira", label: "Valor por cesto/visita (R$)", placeholder: "Ex.: 50,00" }],
+  },
+];
+
 function joinBairros(bairros: string[]) {
   return bairros.join(", ");
 }
@@ -350,14 +422,17 @@ export default function DiaristaPerfil({ onLogout }: Props) {
     pesada: "",
     babaHora: "",
     cozinheiraBase: "",
+    cuidadoraHora: "",
+    cuidadora: "",
     passadeira: "",
     lavadeira: "",
-    cuidadora: "",
     taxaMinima: "",
     cobraDeslocamento: false,
     valorACombinar: false,
     observacao: "",
   });
+  // Qual card de nicho está aberto na tela "Valores por intensidade de serviço".
+  const [precoNichoAberto, setPrecoNichoAberto] = useState<ServicoOferecido | null>(null);
   const [disponibilidadeForm, setDisponibilidadeForm] = useState<{ dias: number[]; turnos: string[] }>({
     dias: [],
     turnos: [],
@@ -677,6 +752,7 @@ export default function DiaristaPerfil({ onLogout }: Props) {
             pesada: maskMoneyBR(centsToInput(profile?.precoPesada ?? null)),
             babaHora: maskMoneyBR(decimalToInput(profile?.precoBabaHora ?? null)),
             cozinheiraBase: maskMoneyBR(decimalToInput(profile?.precoCozinheiraBase ?? null)),
+            cuidadoraHora: maskMoneyBR(decimalToInput(profile?.precoCuidadoraHora ?? null)),
             passadeira: maskMoneyBR(decimalToInput(profile?.precoPassadeira ?? null)),
             lavadeira: maskMoneyBR(decimalToInput(profile?.precoLavadeira ?? null)),
             cuidadora: maskMoneyBR(decimalToInput(profile?.precoCuidadora ?? null)),
@@ -960,6 +1036,8 @@ export default function DiaristaPerfil({ onLogout }: Props) {
     const cozinheiraBase = ofereceCozinheira
       ? inputToDecimalString(precosForm.cozinheiraBase)
       : null;
+    // Nichos novos: valor único por nicho, gravado só quando ofertado.
+    const cuidadoraHora = ofereceCuidadora ? inputToDecimalString(precosForm.cuidadoraHora) : null;
     const precoPassadeira = oferecePassadeira ? inputToDecimalString(precosForm.passadeira) : null;
     const precoLavadeira = ofereceLavadeira ? inputToDecimalString(precosForm.lavadeira) : null;
     const precoCuidadora = ofereceCuidadora ? inputToDecimalString(precosForm.cuidadora) : null;
@@ -985,6 +1063,7 @@ export default function DiaristaPerfil({ onLogout }: Props) {
         observacaoPreco: observacao || null,
         precoBabaHora: babaHora,
         precoCozinheiraBase: cozinheiraBase,
+        precoCuidadoraHora: cuidadoraHora,
         precoPassadeira,
         precoLavadeira,
         precoCuidadora,
@@ -1006,6 +1085,7 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                 ofereceDiarista && pesada != null ? pesada : prev.precoPesada,
               precoBabaHora: babaHora,
               precoCozinheiraBase: cozinheiraBase,
+              precoCuidadoraHora: cuidadoraHora,
               precoPassadeira,
               precoLavadeira,
               precoCuidadora,
@@ -1880,7 +1960,7 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                       Tocar no card expande/recolhe a tabela de valores dela. */}
                   {categoriasPreco.length === 0 ? (
                     <Text style={s.modalSubtitle}>
-                      Escolha os serviços que você oferece em “O que você oferece” para definir os valores.
+                      Escolha os serviços que você oferece em "O que você oferece" para definir os valores.
                     </Text>
                   ) : (
                     categoriasPreco.map((c) => {
@@ -2426,6 +2506,49 @@ function makeStyles(colors: ThemeColors, theme: ProfileTheme) {
     modalInputMulti: {
       minHeight: 94,
       paddingTop: 12,
+    },
+    // ── "Valores por intensidade": card por nicho ─────────────────────────
+    precoNichoCard: {
+      borderRadius: radius.lg,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+      marginTop: 10,
+      overflow: "hidden",
+    },
+    precoNichoHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+      paddingHorizontal: 12,
+      paddingVertical: 12,
+    },
+    precoNichoIcon: {
+      width: 38,
+      height: 38,
+      borderRadius: 12,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    precoNichoTitle: {
+      color: colors.textPrimary,
+      fontSize: 15,
+      fontWeight: "800",
+    },
+    precoNichoHint: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      fontWeight: "500",
+      marginTop: 1,
+    },
+    precoNichoChevronOpen: {
+      transform: [{ rotate: "90deg" }],
+    },
+    precoNichoBody: {
+      paddingHorizontal: 12,
+      paddingBottom: 12,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
     },
     modalReadonly: {
       minHeight: 44,

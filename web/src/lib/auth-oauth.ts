@@ -42,6 +42,10 @@ async function findOrCreateOAuthUser(
 }
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  // Atrás de proxy reverso (ngrok), o host chega via X-Forwarded-Host. Sem isto,
+  // o NextAuth v5 rejeita a requisição (UntrustedHost) em produção e a geração
+  // do CSRF token falha. Equivale a AUTH_TRUST_HOST=true.
+  trustHost: true,
   providers: [
     Google({
       clientId: process.env.GOOGLE_CLIENT_ID!,

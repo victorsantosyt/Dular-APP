@@ -20,6 +20,7 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import * as ImagePicker from "expo-image-picker";
 import { AppIcon, DErrorState, DLoadingState, DScreen } from "@/components/ui";
+import { EspecialidadeOptionCard } from "@/components/EspecialidadeOptionCard";
 import { LocationPermissionCard } from "@/components/location/LocationPermissionCard";
 import { salvarLocalizacaoAtual } from "@/api/localizacaoApi";
 import {
@@ -42,6 +43,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { colors, radius, shadows, spacing, typography } from "@/theme";
 import type { ProfileTheme } from "@/theme/profileTheme";
 import { platformSelect } from "@/utils/platform";
+import { VerifiedBadge } from "@/components/ui/VerifiedBadge";
 import { firstName, formatMoneyFromCents, upperStatus } from "./montadorUtils";
 
 type ModalType = "dados" | "especialidades" | "area" | "precos" | "portfolio" | "avaliacoes" | null;
@@ -111,13 +113,8 @@ type AreaForm = {
   atendeTodaCidade: boolean;
 };
 
-type PrecosForm = {
-  valorACombinar: boolean;
-  precoBase: string;
-  taxaMinima: string;
-  cobraDeslocamento: boolean;
-  observacaoPreco: string;
-};
+type PrecoRow = { preco: string; aCombinar: boolean };
+type PrecosForm = Record<string, PrecoRow>;
 
 const ESPECIALIDADE_LABELS = Object.fromEntries(
   MONTADOR_ESPECIALIDADES.map((item) => [item.id, item.label]),
@@ -127,20 +124,40 @@ function especialidadeLabel(id: string) {
   return ESPECIALIDADE_LABELS[id as MontadorEspecialidadeId] ?? id;
 }
 
-function centsToInput(value?: number | string | null) {
-  // Decimal do backend chega como string no JSON ("12000"); coage p/ número,
-  // senão o campo de preço fica vazio ao reabrir a tela.
-  const cents = typeof value === "string" ? (value.trim() ? Number(value) : NaN) : value;
-  if (typeof cents !== "number" || !Number.isFinite(cents)) return "";
-  return (cents / 100).toFixed(2).replace(".", ",");
+/** Máscara de moeda BR: trata a entrada como CENTAVOS e formata "1.234,56".
+ *  Aceita número (centavos do backend) ou texto já mascarado (re-extrai os
+ *  dígitos). Vazio → "". Tipar só dígitos no teclado já formata — sem precisar
+ *  de "." nem "," e sem ambiguidade de separador decimal. */
+function maskMoneyBR(raw: string | number | null | undefined): string {
+  const digits = String(raw ?? "").replace(/\D/g, "");
+  if (!digits) return "";
+  const cents = parseInt(digits, 10);
+  const reais = Math.floor(cents / 100);
+  const cc = String(cents % 100).padStart(2, "0");
+  const reaisStr = String(reais).replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  return `${reaisStr},${cc}`;
 }
 
-function inputToCents(value: string) {
-  const normalized = value.replace(/\./g, "").replace(",", ".").trim();
-  if (!normalized) return null;
-  const number = Number(normalized);
-  if (!Number.isFinite(number) || number < 0) return NaN;
-  return Math.round(number * 100);
+/** Texto mascarado → centavos (inteiro). Vazio → null. */
+function maskedToCents(masked: string): number | null {
+  const digits = masked.replace(/\D/g, "");
+  if (!digits) return null;
+  return parseInt(digits, 10);
+}
+
+/** Monta o form de preços por especialidade a partir do perfil. */
+function buildPrecosForm(
+  especialidades: string[],
+  precos?: Record<string, { preco: number | null; aCombinar: boolean }> | null,
+): PrecosForm {
+  const form: PrecosForm = {};
+  for (const id of especialidades) {
+    const p = precos?.[id];
+    form[id] = p
+      ? { preco: p.preco != null ? maskMoneyBR(p.preco) : "", aCombinar: p.aCombinar }
+      : { preco: "", aCombinar: true };
+  }
+  return form;
 }
 
 function splitBairros(value: string) {
@@ -383,13 +400,7 @@ export default function MontadorPerfil() {
   const [dadosForm, setDadosForm] = useState<DadosForm>({ nome: "", telefone: "", bio: "", anosExperiencia: "" });
   const [especialidadesForm, setEspecialidadesForm] = useState<MontadorEspecialidadeId[]>([]);
   const [areaForm, setAreaForm] = useState<AreaForm>({ cidade: "", estado: "", bairros: "", raioAtendimentoKm: "", ativo: true, atendeTodaCidade: false });
-  const [precosForm, setPrecosForm] = useState<PrecosForm>({
-    valorACombinar: true,
-    precoBase: "",
-    taxaMinima: "",
-    cobraDeslocamento: false,
-    observacaoPreco: "",
-  });
+  const [precosForm, setPrecosForm] = useState<PrecosForm>({});
 
   const ganhos = useMemo(() => totalGanhos(agenda), [agenda]);
 
@@ -411,11 +422,18 @@ export default function MontadorPerfil() {
   const areaResumo = perfil?.cidade && perfil.estado
     ? `${perfil.cidade}, ${perfil.estado}${perfil.bairros.length ? ` • ${perfil.bairros.length} bairro(s)` : ""}`
     : "Defina cidade, UF e bairros";
-  const precoResumo = perfil?.valorACombinar
-    ? "Valor a combinar"
-    : perfil?.precoBase
-      ? formatMoneyFromCents(perfil.precoBase)
-      : "Configure preço ou valor a combinar";
+  const precoResumo = (() => {
+    const esps = perfil?.especialidades ?? [];
+    if (esps.length === 0) return "Selecione especialidades primeiro";
+    const precos = perfil?.precosEspecialidades ?? {};
+    const comValor = esps.filter((id) => {
+      const p = precos[id];
+      return p && !p.aCombinar && p.preco != null;
+    }).length;
+    if (comValor === 0) return "Todos a combinar";
+    if (comValor === esps.length) return `${comValor} serviço(s) com valor`;
+    return `${comValor} c/ valor · ${esps.length - comValor} a combinar`;
+  })();
 
   // T-18.5: separar cadastro, documentos enviados e visibilidade.
   // Backend retorna verificacaoStatus do MontadorPerfil ("APROVADO" |
@@ -478,13 +496,7 @@ export default function MontadorPerfil() {
       atendeTodaCidade: next.perfil.atendeTodaCidade,
     });
     setAreaCoords(null);
-    setPrecosForm({
-      valorACombinar: next.perfil.valorACombinar,
-      precoBase: centsToInput(next.perfil.precoBase),
-      taxaMinima: centsToInput(next.perfil.taxaMinima),
-      cobraDeslocamento: next.perfil.cobraDeslocamento,
-      observacaoPreco: next.perfil.observacaoPreco ?? "",
-    });
+    setPrecosForm(buildPrecosForm(next.perfil.especialidades ?? [], next.perfil.precosEspecialidades));
   };
 
   const applyProfile = (next: MontadorPerfilMe) => {
@@ -818,29 +830,34 @@ export default function MontadorPerfil() {
     applyDetectedRegion(detected, "add");
   };
 
+  const setPrecoRow = (id: string, partial: Partial<PrecoRow>) =>
+    setPrecosForm((prev) => ({
+      ...prev,
+      [id]: { ...(prev[id] ?? { preco: "", aCombinar: true }), ...partial },
+    }));
+
   const savePrecos = () => {
-    const usaCombinar = precosForm.valorACombinar;
-    // "Valor a combinar" e preço fixo são mutuamente exclusivos: ao combinar,
-    // não persistimos preço base/taxa (evita salvar os dois e a UI voltar a
-    // mostrar "Valor a combinar" mesmo com preço preenchido).
-    const precoBase = usaCombinar ? null : inputToCents(precosForm.precoBase);
-    const taxaMinima = usaCombinar ? null : inputToCents(precosForm.taxaMinima);
-    if (!usaCombinar && (Number.isNaN(precoBase) || Number.isNaN(taxaMinima))) {
-      setFormError("Informe valores válidos.");
+    const esps = perfil?.especialidades ?? [];
+    if (esps.length === 0) {
+      setFormError("Selecione suas especialidades antes de definir os preços.");
       return;
     }
-    if (!usaCombinar && !precoBase && !taxaMinima) {
-      setFormError("Informe um preço base, taxa mínima ou marque valor a combinar.");
-      return;
+    // Um valor por especialidade oferecida — ou "a combinar".
+    const precos: Record<string, { preco: number | null; aCombinar: boolean }> = {};
+    for (const id of esps) {
+      const row = precosForm[id] ?? { preco: "", aCombinar: true };
+      if (row.aCombinar) {
+        precos[id] = { preco: null, aCombinar: true };
+        continue;
+      }
+      const cents = maskedToCents(row.preco);
+      if (cents == null || Number.isNaN(cents) || cents <= 0) {
+        setFormError(`Informe um valor para "${especialidadeLabel(id)}" ou marque "a combinar".`);
+        return;
+      }
+      precos[id] = { preco: cents, aCombinar: false };
     }
-    void saveProfile({
-      valorACombinar: usaCombinar,
-      precoBase,
-      taxaMinima,
-      cobraDeslocamento: precosForm.cobraDeslocamento,
-      // Observação de preço acompanha o deslocamento; sem ele, não é persistida.
-      observacaoPreco: precosForm.cobraDeslocamento ? precosForm.observacaoPreco.trim() || null : null,
-    }, "Preços salvos.");
+    void saveProfile({ precosEspecialidades: precos }, "Preços salvos.");
   };
 
   const toggleEspecialidade = (id: MontadorEspecialidadeId) => {
@@ -920,7 +937,7 @@ export default function MontadorPerfil() {
         <View style={styles.heroText}>
           <View style={styles.nameRow}>
             <Text style={styles.name}>{nome}</Text>
-            {verificado ? <AppIcon name="ShieldCheck" size={16} color={colors.white} /> : null}
+            {verificado ? <VerifiedBadge size={18} /> : null}
           </View>
           <Text style={styles.role}>Montador profissional</Text>
           <View style={styles.heroBadges}>
@@ -1029,6 +1046,22 @@ export default function MontadorPerfil() {
         <Row icon="CreditCard" title="Carteira/Ganhos" subtitle={formatMoneyFromCents(ganhos)} theme={profileTheme} onPress={() => navigation.navigate("Carteira", { from: "MontadorPerfil" })} />
       </Section>
 
+      <Section title="Endereço" borderColor={profileTheme.border}>
+        <Row
+          icon="MapPin"
+          title="Endereço"
+          subtitle="Seu endereço residencial"
+          theme={profileTheme}
+          onPress={() =>
+            navigation.navigate("MeusEnderecos", {
+              role: "MONTADOR",
+              accentColor: profileTheme.primary,
+              accentSoft: profileTheme.primarySoft,
+            })
+          }
+        />
+      </Section>
+
       <Section title="Documentos e segurança" borderColor={profileTheme.border}>
         <Row icon="FileText" title="Documentos" subtitle={perfil.verificacaoStatus === "APROVADO" ? "Verificado" : perfil.verificacaoStatus === "PENDENTE" ? "Em análise" : "Enviar documento"} theme={profileTheme} onPress={() => navigation.navigate("VerificacaoDocs")} />
         <Row icon="ShieldCheck" title="SafeScore" subtitle={perfil.safeScore?.faixa ?? "SafeScore em análise"} theme={profileTheme} onPress={() => navigation.navigate("SafeScore")} />
@@ -1079,24 +1112,16 @@ export default function MontadorPerfil() {
 
       <FloatingCard visible={modal === "especialidades"} title="Especialidades" subtitle="Selecione os tipos de serviço que você atende." theme={profileTheme} onClose={() => setModal(null)}>
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalScroll}>
-          <View style={styles.tagsWrap}>
-            {MONTADOR_ESPECIALIDADES.map((item) => {
-              const selected = especialidadesForm.includes(item.id);
-              return (
-                <Pressable
-                  key={item.id}
-                  onPress={() => toggleEspecialidade(item.id)}
-                  style={[
-                    styles.tag,
-                    selected
-                      ? { backgroundColor: profileTheme.primary, borderColor: profileTheme.primary }
-                      : { backgroundColor: colors.surface, borderColor: profileTheme.border },
-                  ]}
-                >
-                  <Text style={[styles.tagText, selected ? styles.tagTextActive : { color: colors.textSecondary }]}>{item.label}</Text>
-                </Pressable>
-              );
-            })}
+          <View style={styles.especialidadesList}>
+            {MONTADOR_ESPECIALIDADES.map((item) => (
+              <EspecialidadeOptionCard
+                key={item.id}
+                label={item.label}
+                active={especialidadesForm.includes(item.id)}
+                onPress={() => toggleEspecialidade(item.id)}
+                theme={profileTheme}
+              />
+            ))}
           </View>
           {formError ? <Text style={styles.errorText}>{formError}</Text> : null}
           <ModalActions saving={saving} theme={profileTheme} onCancel={() => setModal(null)} onSave={saveEspecialidades} />
@@ -1172,53 +1197,40 @@ export default function MontadorPerfil() {
           automaticallyAdjustKeyboardInsets
           contentContainerStyle={[styles.modalScroll, styles.modalKeyboardScroll]}
         >
-          <View style={styles.switchRow}>
-            <View style={styles.switchText}>
-              <Text style={styles.switchTitle}>Valor a combinar</Text>
-              <Text style={styles.switchSubtitle}>Use quando o preço depender da avaliação do serviço</Text>
-            </View>
-            <Switch
-              value={precosForm.valorACombinar}
-              onValueChange={(valorACombinar) =>
-                // Mutuamente exclusivo com preço fixo: ao combinar, limpa os preços.
-                setPrecosForm((prev) => ({
-                  ...prev,
-                  valorACombinar,
-                  ...(valorACombinar ? { precoBase: "", taxaMinima: "" } : {}),
-                }))
-              }
-              trackColor={{ false: colors.border, true: profileTheme.primarySoft }}
-              thumbColor={precosForm.valorACombinar ? profileTheme.primary : colors.textMuted}
-            />
-          </View>
-          {!precosForm.valorACombinar ? (
-            <>
-              <Field label="Preço base em R$" value={precosForm.precoBase} onChangeText={(precoBase) => setPrecosForm((prev) => ({ ...prev, precoBase }))} keyboardType="decimal-pad" placeholder="Ex.: 120,00" />
-              <Field label="Taxa mínima em R$" value={precosForm.taxaMinima} onChangeText={(taxaMinima) => setPrecosForm((prev) => ({ ...prev, taxaMinima }))} keyboardType="decimal-pad" placeholder="Ex.: 80,00" />
-            </>
-          ) : null}
-          <View style={styles.switchRow}>
-            <View style={styles.switchText}>
-              <Text style={styles.switchTitle}>Cobra deslocamento</Text>
-              <Text style={styles.switchSubtitle}>Informe detalhes na observação de preço</Text>
-            </View>
-            <Switch
-              value={precosForm.cobraDeslocamento}
-              onValueChange={(cobraDeslocamento) =>
-                // Observação de preço só faz sentido com deslocamento; ao desligar, limpa.
-                setPrecosForm((prev) => ({
-                  ...prev,
-                  cobraDeslocamento,
-                  ...(cobraDeslocamento ? {} : { observacaoPreco: "" }),
-                }))
-              }
-              trackColor={{ false: colors.border, true: profileTheme.primarySoft }}
-              thumbColor={precosForm.cobraDeslocamento ? profileTheme.primary : colors.textMuted}
-            />
-          </View>
-          {precosForm.cobraDeslocamento ? (
-            <Field label="Observação de preço" value={precosForm.observacaoPreco} onChangeText={(observacaoPreco) => setPrecosForm((prev) => ({ ...prev, observacaoPreco }))} multiline placeholder="Ex.: Valor pode variar conforme tamanho do móvel e local." />
-          ) : null}
+          {(perfil?.especialidades ?? []).length === 0 ? (
+            <Text style={styles.precoHint}>
+              Selecione suas especialidades primeiro para definir o valor de cada serviço.
+            </Text>
+          ) : (
+            (perfil?.especialidades ?? []).map((id) => {
+              const row = precosForm[id] ?? { preco: "", aCombinar: true };
+              return (
+                <View key={id} style={styles.precoCard}>
+                  <View style={styles.precoCardHeader}>
+                    <Text style={styles.precoCardLabel}>{especialidadeLabel(id)}</Text>
+                    <View style={styles.precoCombinarRow}>
+                      <Text style={styles.precoCombinarText}>A combinar</Text>
+                      <Switch
+                        value={row.aCombinar}
+                        onValueChange={(aCombinar) => setPrecoRow(id, { aCombinar })}
+                        trackColor={{ false: colors.border, true: profileTheme.primarySoft }}
+                        thumbColor={row.aCombinar ? profileTheme.primary : colors.textMuted}
+                      />
+                    </View>
+                  </View>
+                  {!row.aCombinar ? (
+                    <Field
+                      label="Valor em R$"
+                      value={row.preco}
+                      onChangeText={(preco) => setPrecoRow(id, { preco: maskMoneyBR(preco) })}
+                      keyboardType="number-pad"
+                      placeholder="Ex.: 150,00"
+                    />
+                  ) : null}
+                </View>
+              );
+            })
+          )}
           {formError ? <Text style={styles.errorText}>{formError}</Text> : null}
           <ModalActions saving={saving} theme={profileTheme} onCancel={() => setModal(null)} onSave={savePrecos} />
         </ScrollView>
@@ -1637,23 +1649,44 @@ const styles = StyleSheet.create({
     ...typography.caption,
     fontWeight: "500",
   },
-  tagsWrap: {
+  especialidadesList: {
+    gap: spacing.md,
+  },
+  precoHint: {
+    ...typography.bodySm,
+    color: colors.textSecondary,
+    fontWeight: "500",
+    lineHeight: 20,
+  },
+  precoCard: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.lg,
+    backgroundColor: colors.surface,
+    padding: 12,
+    gap: 10,
+  },
+  precoCardHeader: {
     flexDirection: "row",
-    flexWrap: "wrap",
+    alignItems: "center",
+    justifyContent: "space-between",
     gap: 8,
   },
-  tag: {
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
+  precoCardLabel: {
+    ...typography.bodyMedium,
+    color: colors.textPrimary,
+    fontWeight: "700",
+    flexShrink: 1,
   },
-  tagText: {
+  precoCombinarRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  precoCombinarText: {
     ...typography.caption,
-    fontWeight: "800",
-  },
-  tagTextActive: {
-    color: colors.white,
+    color: colors.textSecondary,
+    fontWeight: "600",
   },
   switchRow: {
     flexDirection: "row",

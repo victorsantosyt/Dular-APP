@@ -23,6 +23,7 @@ import { DButton } from "@/components/DButton";
 import { DularBadge } from "@/components/DularBadge";
 import { MotivoModal } from "@/components/MotivoModal";
 import { SafeScoreBadge } from "@/components/SafeScoreBadge";
+import { AvaliacaoModal } from "@/components/ui";
 import { useSeguranca } from "@/hooks/useSeguranca";
 import { formatPrice } from "@/utils/formatPrice";
 import { isStatusEncerrado } from "@/utils/servicoStatus";
@@ -95,10 +96,15 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
   const params = route.params as any;
   const [svc, setSvc] = useState<Servico | null>(params.servico ?? null);
   const [loadingInit, setLoadingInit] = useState(!params.servico);
-  const servicoId: string = params.servicoId ?? params.servico?.id ?? "";
+  // Aceita tanto { servicoId } quanto { id } (o card da Agenda navega com `id`).
+  const servicoId: string = params.servicoId ?? params.id ?? params.servico?.id ?? "";
   const [loading, setLoading] = useState(false);
   const [recusarOpen, setRecusarOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
+  const [avaliarOpen, setAvaliarOpen] = useState(false);
+  // Flag local otimista: cobre a janela entre enviar a avaliação e o refetch
+  // da lista trazer `avaliacaoEmpregador`.
+  const [avaliouLocal, setAvaliouLocal] = useState(false);
   const [clienteScore, setClienteScore] = useState<{
     faixa: string;
     cor: string;
@@ -256,13 +262,42 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
     confirmarAceite();
   }
 
-  if (loadingInit || !svc) {
+  if (loadingInit) {
     return (
       <SafeAreaView style={s.safe} edges={["top", "bottom"]}>
         <Text style={{ ...typography.sub, textAlign: "center", marginTop: 48 }}>Carregando...</Text>
       </SafeAreaView>
     );
   }
+
+  // Carregou mas não achou o serviço → estado claro (não fica "Carregando…" eterno).
+  if (!svc) {
+    return (
+      <SafeAreaView style={s.safe} edges={["top", "bottom"]}>
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 24, gap: 14 }}>
+          <Text style={{ ...typography.sub, textAlign: "center" }}>
+            Não foi possível carregar este serviço. Volte e tente novamente.
+          </Text>
+          <Pressable
+            onPress={() => navigation.goBack()}
+            style={{
+              paddingHorizontal: 20,
+              paddingVertical: 10,
+              borderRadius: 999,
+              borderWidth: 1.4,
+              borderColor: theme.primary,
+            }}
+          >
+            <Text style={{ ...typography.bodySmMedium, color: theme.primary, fontWeight: "700" }}>Voltar</Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // Após o serviço liberar (CONFIRMADO) ou finalizar (FINALIZADO), a diarista
+  // avalia o empregador. `avaliacaoEmpregador` vem de /api/servicos/minhas.
+  const jaAvaliouEmpregador = avaliouLocal || Boolean((svc as any)?.avaliacaoEmpregador);
 
   return (
     <SafeAreaView style={s.safe} edges={["top", "left", "right", "bottom"]}>
@@ -370,9 +405,10 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
               />
             </>
           )}
-          {/* Chat disponível do aceite até AGUARDANDO_FINALIZACAO/CONCLUIDO —
-               só encerra em FINALIZADO/CANCELADO/RECUSADO. */}
-          {["ACEITO", "INICIADO", "EM_ANDAMENTO", "AGUARDANDO_FINALIZACAO", "CONCLUIDO", "CONCLUÍDO"].includes(svc.status.toUpperCase()) && (
+          {/* Chat disponível do aceite até a finalização (AGUARDANDO_FINALIZACAO).
+               A partir de CONCLUIDO/CONFIRMADO/FINALIZADO o serviço encerra e o
+               chat some (alinhado ao comprovante do empregador). */}
+          {["ACEITO", "INICIADO", "EM_ANDAMENTO", "AGUARDANDO_FINALIZACAO"].includes(svc.status.toUpperCase()) && (
             <DButton tint={theme.primary}
               title="Abrir chat"
               variant="outline"
@@ -399,7 +435,7 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
                 disabled={checkInRealizado}
                 onPress={() => { void fazerCheckIn(svc.id); }}
               />
-              <DButton tint={theme.primary}
+              <DButton tint={colors.warning}
                 title="Reportar problema"
                 variant="outline"
                 onPress={() => navigation.navigate("ReportIncident", { servicoId: svc.id })}
@@ -413,38 +449,64 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
                 loading={loading}
                 onPress={() => { void action("iniciar"); }}
               />
-              <DButton tint={theme.primary}
+              <DButton tint={colors.danger}
                 title="Cancelar serviço"
                 variant="outline"
                 onPress={() => setCancelOpen(true)}
               />
             </>
           )}
-          {/* Vale para EM_ANDAMENTO (1ª confirmação) e AGUARDANDO_FINALIZACAO
-              (quando o empregador confirmou primeiro — sem este caso a diarista
-              ficava sem botão e o serviço travava). Backend é idempotente. */}
-          {["INICIADO", "EM_ANDAMENTO", "AGUARDANDO_FINALIZACAO"].includes(svc.status.toUpperCase()) && !isStatusEncerrado(svc.status) && (
+          {/* Modelo profissional-finaliza-primeiro: a diarista finaliza em
+              EM_ANDAMENTO (→ AGUARDANDO_FINALIZACAO) e o empregador confirma
+              depois. Em AGUARDANDO ela apenas espera (botão desabilitado). */}
+          {["INICIADO", "EM_ANDAMENTO"].includes(svc.status.toUpperCase()) && !isStatusEncerrado(svc.status) && (
             <DButton tint={theme.primary}
-              title="Confirmar finalização"
+              title="Finalizar serviço"
               loading={loading}
-              onPress={() => { void confirmarFinalizacao(); }}
+              onPress={() =>
+                Alert.alert("Pagamento", "Você já recebeu o pagamento?", [
+                  { text: "Ainda não", style: "cancel" },
+                  { text: "Sim, já recebi", onPress: () => { void confirmarFinalizacao(); } },
+                ])
+              }
             />
           )}
           {svc.status.toUpperCase() === "AGUARDANDO_FINALIZACAO" && (
-            <View style={s.waitingCard}>
-              <Ionicons name="hourglass-outline" size={20} color={colors.warning} />
-              <Text style={s.waitingText}>
-                Confirme a finalização para concluir. Se já confirmou, aguarde a outra parte.
-              </Text>
-            </View>
+            <>
+              <DButton tint={theme.primary}
+                title="Aguardando confirmação"
+                disabled
+                onPress={() => {}}
+              />
+              <View style={s.waitingCard}>
+                <Ionicons name="hourglass-outline" size={20} color={colors.warning} />
+                <Text style={s.waitingText}>
+                  Você finalizou o serviço. Aguardando o cliente confirmar para concluir.
+                </Text>
+              </View>
+            </>
           )}
-          {svc.status.toUpperCase() === "CONFIRMADO" && (
-            <View style={s.paidCard}>
-              <Ionicons name="checkmark-circle" size={20} color={colors.success} />
-              <Text style={s.paidText}>Pagamento liberado ✓</Text>
-            </View>
-          )}
-          {["CONCLUIDO","CONCLUÍDO","FINALIZADO"].includes(svc.status.toUpperCase()) && (
+          {/* CONFIRMADO (pagamento liberado) e FINALIZADO (empregador já
+              avaliou) liberam a avaliação da diarista → empregador. */}
+          {["CONFIRMADO", "FINALIZADO"].includes(svc.status.toUpperCase()) &&
+            (jaAvaliouEmpregador ? (
+              <View style={s.doneCard}>
+                <Ionicons name="checkmark-circle" size={24} color={colors.green} />
+                <Text style={s.doneText}>Avaliação enviada. Obrigada!</Text>
+              </View>
+            ) : (
+              <>
+                <View style={s.paidCard}>
+                  <Ionicons name="checkmark-circle" size={20} color={colors.success} />
+                  <Text style={s.paidText}>Pagamento liberado ✓</Text>
+                </View>
+                <DButton tint={theme.primary}
+                  title="Avaliar empregador"
+                  onPress={() => setAvaliarOpen(true)}
+                />
+              </>
+            ))}
+          {["CONCLUIDO","CONCLUÍDO"].includes(svc.status.toUpperCase()) && (
             <View style={s.doneCard}>
               <Ionicons name="checkmark-circle" size={24} color={colors.green} />
               <Text style={s.doneText}>Serviço finalizado. Obrigada!</Text>
@@ -476,6 +538,21 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
         confirmLabel="Cancelar serviço"
         onClose={() => setCancelOpen(false)}
         onConfirm={confirmarCancelamento}
+      />
+
+      <AvaliacaoModal
+        visible={avaliarOpen}
+        servicoId={svc.id}
+        nomeAvaliado={svc.cliente?.nome ?? "Empregador"}
+        endpoint={`/api/servicos/${svc.id}/avaliar-empregador`}
+        accent={theme.primary}
+        onClose={() => setAvaliarOpen(false)}
+        onSucesso={() => {
+          setAvaliarOpen(false);
+          setAvaliouLocal(true);
+          void reloadFromList();
+          Alert.alert("Avaliação enviada", "Obrigada por avaliar o empregador.");
+        }}
       />
     </SafeAreaView>
   );

@@ -52,6 +52,8 @@ export type MontadorServico = {
   precoFinal?: number | null;
   valorEstimado?: number | null;
   empregador?: EmpregadorResumo | null;
+  // Avaliação profissional→empregador. Presença = o montador já avaliou.
+  avaliacaoEmpregador?: { id: string } | null;
 };
 
 type MontadorServicoWire = Omit<MontadorServico, "empregador"> & {
@@ -99,6 +101,8 @@ export type MontadorPerfilCompletude = {
   };
 };
 
+export type EspecialidadePreco = { preco: number | null; aCombinar: boolean };
+
 export type MontadorPerfilProfissional = {
   id: string;
   userId: string;
@@ -122,6 +126,8 @@ export type MontadorPerfilProfissional = {
   cobraDeslocamento: boolean;
   observacaoPreco?: string | null;
   valorACombinar: boolean;
+  /** Preço por especialidade: { [id]: { preco(centavos)|null, aCombinar } }. */
+  precosEspecialidades?: Record<string, EspecialidadePreco> | null;
   documentoFrente?: string | null;
   documentoVerso?: string | null;
   selfieDoc?: string | null;
@@ -179,6 +185,7 @@ export type AtualizarPerfilMontadorPayload = {
   cobraDeslocamento?: boolean;
   observacaoPreco?: string | null;
   valorACombinar?: boolean;
+  precosEspecialidades?: Record<string, EspecialidadePreco>;
   ativo?: boolean;
   portfolioFotos?: string[];
 };

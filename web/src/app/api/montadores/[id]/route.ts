@@ -39,6 +39,7 @@ export async function GET(_req: Request, { params }: Params) {
         cobraDeslocamento: true,
         observacaoPreco: true,
         valorACombinar: true,
+        precosEspecialidades: true,
         verificado: true,
         ativo: true,
         rating: true,

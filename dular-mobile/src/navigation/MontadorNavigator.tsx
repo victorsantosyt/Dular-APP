@@ -2,6 +2,7 @@ import React from "react";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { DBottomTabBar } from "@/navigation/DBottomTabBar";
+import { useMensagens, totalNaoLidas } from "@/hooks/useMensagens";
 import { MontadorHome } from "@/screens/montador/MontadorHome";
 import MontadorAgenda from "@/screens/montador/MontadorAgenda";
 import MontadorSolicitacoes from "@/screens/montador/MontadorSolicitacoes";
@@ -11,7 +12,8 @@ import MontadorNotificacoes from "@/screens/montador/MontadorNotificacoes";
 import MontadorDetalheSolicitacao from "@/screens/montador/MontadorDetalheSolicitacao";
 import MontadorDetalheServico from "@/screens/montador/MontadorDetalheServico";
 import CarteiraScreen from "@/screens/montador/CarteiraScreen";
-import ChatScreen from "@/screens/chat/ChatScreen";
+import { ChatAbertoScreen } from "@/screens/shared/ChatAbertoScreen";
+import type { ChatAbertoParams } from "@/screens/shared/ChatAbertoScreen";
 import VerificacaoDocs from "@/screens/perfil/VerificacaoDocs";
 import SafeScoreScreen from "@/screens/perfil/SafeScoreScreen";
 import SosFlowScreen from "@/screens/perfil/SosFlowScreen";
@@ -19,8 +21,9 @@ import ReportIncident from "@/screens/perfil/ReportIncident";
 import Suporte from "@/screens/perfil/Suporte";
 import Termos from "@/screens/perfil/Termos";
 import Privacidade from "@/screens/perfil/Privacidade";
+import { EnderecoEditRoute, type CadastroEnderecoParams } from "@/screens/shared/EnderecoEditRoute";
+import { MeusEnderecosScreen, type MeusEnderecosParams } from "@/screens/shared/MeusEnderecosScreen";
 import { useMontadorServicos } from "@/hooks/useMontadorServicos";
-import { useMensagens, totalNaoLidas } from "@/hooks/useMensagens";
 
 export type MontadorTabParamList = {
   // Container das abas reais.
@@ -33,7 +36,7 @@ export type MontadorTabParamList = {
   MontadorNotificacoes: undefined;
   MontadorDetalheSolicitacao: { servicoId: string };
   MontadorDetalheServico: { servicoId: string };
-  MontadorChat: { servicoId: string };
+  MontadorChat: ChatAbertoParams;
   Carteira: { from?: keyof MontadorTabParamList } | undefined;
   VerificacaoDocs: undefined;
   SafeScore: undefined;
@@ -42,6 +45,8 @@ export type MontadorTabParamList = {
   Suporte: undefined;
   Termos: undefined;
   Privacidade: undefined;
+  CadastroEndereco: CadastroEnderecoParams;
+  MeusEnderecos: MeusEnderecosParams;
 };
 
 const Tab = createBottomTabNavigator<MontadorTabParamList>();
@@ -86,7 +91,7 @@ export function MontadorNavigator() {
       <RootStack.Screen name="MontadorNotificacoes" component={MontadorNotificacoes} />
       <RootStack.Screen name="MontadorDetalheSolicitacao" component={MontadorDetalheSolicitacao} />
       <RootStack.Screen name="MontadorDetalheServico" component={MontadorDetalheServico} />
-      <RootStack.Screen name="MontadorChat" component={ChatScreen} />
+      <RootStack.Screen name="MontadorChat" component={ChatAbertoScreen} />
       <RootStack.Screen name="Carteira" component={CarteiraScreen} />
       <RootStack.Screen name="VerificacaoDocs" component={VerificacaoDocs} />
       <RootStack.Screen name="SafeScore" component={SafeScoreScreen} />
@@ -95,6 +100,8 @@ export function MontadorNavigator() {
       <RootStack.Screen name="Suporte" component={Suporte} />
       <RootStack.Screen name="Termos" component={Termos} />
       <RootStack.Screen name="Privacidade" component={Privacidade} />
+      <RootStack.Screen name="CadastroEndereco" component={EnderecoEditRoute} />
+      <RootStack.Screen name="MeusEnderecos" component={MeusEnderecosScreen} />
     </RootStack.Navigator>
   );
 }

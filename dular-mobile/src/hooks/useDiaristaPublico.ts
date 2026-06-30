@@ -49,6 +49,7 @@ export interface DiaristaPublico {
   precoCuidadoraHora: string | number | null;
   precoPassadeira: string | number | null;
   precoLavadeira: string | number | null;
+  precoCuidadora: string | number | null;
   taxaMinima: string | number | null;
   cobraDeslocamento: boolean;
   valorACombinar: boolean;
@@ -114,6 +115,7 @@ interface DiaristaPerfilResponse {
     precoCuidadoraHora?: string | number | null;
     precoPassadeira?: string | number | null;
     precoLavadeira?: string | number | null;
+    precoCuidadora?: string | number | null;
     taxaMinima?: string | number | null;
     cobraDeslocamento?: boolean;
     valorACombinar?: boolean;
@@ -208,6 +210,7 @@ export function useDiaristaPublico(diaristaId: string): UseDiaristaPublicoReturn
                 precoCuidadoraHora: perfil.precoCuidadoraHora ?? null,
                 precoPassadeira: perfil.precoPassadeira ?? null,
                 precoLavadeira: perfil.precoLavadeira ?? null,
+                precoCuidadora: perfil.precoCuidadora ?? null,
                 taxaMinima: perfil.taxaMinima ?? null,
                 cobraDeslocamento: perfil.cobraDeslocamento ?? false,
                 valorACombinar,
@@ -250,6 +253,7 @@ export function useDiaristaPublico(diaristaId: string): UseDiaristaPublicoReturn
           precoCuidadoraHora: perfil?.precoCuidadoraHora ?? null,
           precoPassadeira: perfil?.precoPassadeira ?? null,
           precoLavadeira: perfil?.precoLavadeira ?? null,
+          precoCuidadora: perfil?.precoCuidadora ?? null,
           taxaMinima: perfil?.taxaMinima ?? null,
           cobraDeslocamento: perfil?.cobraDeslocamento ?? false,
           valorACombinar,

@@ -61,6 +61,20 @@ export type Servico = {
   cliente?: Pick<Usuario, "id" | "nome" | "telefone" | "avatarUrl"> | null;
   diarista?: Pick<Usuario, "id" | "nome" | "telefone" | "avatarUrl"> | null;
   montador?: Pick<Usuario, "id" | "nome" | "telefone" | "avatarUrl"> | null;
+  // Avaliação empregador→profissional (existente).
+  avaliacao?: AvaliacaoResumo | null;
+  // Avaliação profissional→empregador (direção inversa). Presença = já avaliou.
+  avaliacaoEmpregador?: AvaliacaoResumo | null;
+};
+
+export type AvaliacaoResumo = {
+  id: string;
+  notaGeral: number;
+  pontualidade: number;
+  qualidade: number;
+  comunicacao: number;
+  comentario?: string | null;
+  createdAt: DateString;
 };
 
 // Sincronizar com schema.prisma se o modelo mudar

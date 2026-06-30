@@ -23,6 +23,10 @@ export type ConversationItem = {
   naoLidas?: number;
   /** Prévia da última mensagem (quando disponível). */
   ultimaMensagem?: string;
+  /** Prévia da última mensagem (estilo WhatsApp — alias de ultimaMensagem). */
+  lastMessage?: string;
+  /** Quantidade de mensagens não lidas (alias de naoLidas). */
+  unread?: number;
 };
 
 type MessagesTabsProps = {
@@ -77,18 +81,21 @@ type ConversationCardProps = {
 };
 
 export function ConversationCard({ item, onPress, accent = colors.primary, soft = colors.lavenderSoft }: ConversationCardProps) {
-  const naoLidas = item.naoLidas ?? 0;
+  const naoLidas = item.naoLidas ?? item.unread ?? 0;
   const unread = naoLidas > 0;
+  const hasUnread = unread;
+  const preview = (item.ultimaMensagem ?? item.lastMessage)?.trim() ? (item.ultimaMensagem ?? item.lastMessage)! : "Toque para conversar";
+
   return (
-    <DCard style={s.conversationCard}>
+    <DCard style={s.conversationCard} onPress={onPress}>
       <View style={s.avatarWrap}>
         <DAvatar size="lg" uri={item.avatarUrl} initials={item.initials} />
-        {unread ? <View style={[s.unreadDot, { backgroundColor: accent }]} /> : <OnlineDot />}
+        {hasUnread ? <View style={[s.unreadDot, { backgroundColor: accent }]} /> : <OnlineDot />}
       </View>
 
       <View style={s.cardMain}>
         <View style={s.nameRow}>
-          <Text style={[s.name, unread && s.nameUnread]} numberOfLines={1}>
+          <Text style={[s.name, hasUnread && s.nameUnread]} numberOfLines={1}>
             {item.nome}
           </Text>
           <VerifiedBadge />
@@ -99,33 +106,18 @@ export function ConversationCard({ item, onPress, accent = colors.primary, soft 
           <Text style={[s.categoryText, { color: accent }]}>{item.categoria}</Text>
         </View>
 
-        <Text style={s.location} numberOfLines={1}>
-          {item.localizacao}
+        <Text style={[s.preview, hasUnread && s.previewUnread]} numberOfLines={1}>
+          {preview}
         </Text>
-
-        <View style={s.stats}>
-          <View style={s.statItem}>
-            <AppIcon name="Star" size={13} color={colors.warning} strokeWidth={2.4} />
-            <Text style={s.statText}>{item.rating}</Text>
-          </View>
-          <View style={s.dotSeparator} />
-          <View style={s.statItem}>
-            <Text style={s.statText}>{item.experiencia}</Text>
-          </View>
-        </View>
       </View>
 
       <View style={s.rightCol}>
-        <Text style={[s.time, unread && { color: accent, fontWeight: "700" }]}>{item.horario}</Text>
-        {unread ? (
+        <Text style={[s.time, hasUnread && { color: accent, fontWeight: "700" }]}>{item.horario}</Text>
+        {hasUnread ? (
           <View style={[s.unreadBadge, { backgroundColor: accent }]}>
             <Text style={s.unreadBadgeText}>{naoLidas > 9 ? "9+" : naoLidas}</Text>
           </View>
         ) : null}
-        <Pressable onPress={onPress} style={({ pressed }) => [s.chatButton, pressed && { opacity: 0.82 }]}>
-          <AppIcon name="MessageCircle" size={15} color={colors.successDark} strokeWidth={2.4} />
-          <Text style={s.chatButtonText}>Conversar</Text>
-        </Pressable>
       </View>
     </DCard>
   );
@@ -264,56 +256,23 @@ const s = StyleSheet.create({
     ...typography.caption,
     fontWeight: "700",
   },
-  location: {
+  preview: {
     color: colors.textSecondary,
     ...typography.caption,
-    fontWeight: "400",
-    
+    fontWeight: "500",
+  },
+  previewUnread: {
+    color: colors.textPrimary,
+    fontWeight: "700",
   },
   time: {
     color: colors.textMuted,
     ...typography.caption,
-    fontWeight: "500",
+    fontWeight: "600",
     textAlign: "right",
   },
-  stats: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  statItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  statText: {
-    color: colors.textSecondary,
-    ...typography.caption,
-    fontWeight: "600",
-  },
-  dotSeparator: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: colors.lavenderStrong,
-  },
-  chatButton: {
-    minHeight: 32,
-    borderRadius: radius.md,
-    paddingHorizontal: 10,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 5,
-    backgroundColor: colors.successSoft,
-  },
-  chatButtonText: {
-    color: colors.successDark,
-    ...typography.caption,
-    fontWeight: "700",
-  },
   rightCol: {
-    width: 112,
+    width: 56,
     alignSelf: "stretch",
     alignItems: "flex-end",
     justifyContent: "space-between",

@@ -24,6 +24,10 @@ export interface ChatRoom {
     texto: string;
     criadaEm: string;
     lida: boolean;
+    /** Quem mandou (para prefixo "Você: " no card). */
+    senderId: string;
+    /** TEXT | IMAGE | LOCATION | SYSTEM. */
+    type: string;
   };
   naoLidas: number;
   atualizadaEm: string;
@@ -56,8 +60,14 @@ type RawRoom = {
   } | null;
   naoLidas?: number | null;
   ultimaMensagem?: {
+    /** Backend novo manda `content`; mantemos `texto` para compat. */
+    content?: string;
     texto?: string;
+    /** Backend novo manda `createdAt`; mantemos `criadaEm` para compat. */
+    createdAt?: string;
     criadaEm?: string;
+    senderId?: string;
+    type?: string;
     lida?: boolean;
   } | null;
 };
@@ -89,13 +99,18 @@ function normalizeRoom(raw: RawRoom): ChatRoom {
           local: raw.servico.local ?? null,
         }
       : undefined,
-    ultimaMensagem: raw.ultimaMensagem?.texto
-      ? {
-          texto: raw.ultimaMensagem.texto,
-          criadaEm: raw.ultimaMensagem.criadaEm ?? raw.createdAt ?? "",
-          lida: Boolean(raw.ultimaMensagem.lida),
-        }
-      : undefined,
+    ultimaMensagem: (() => {
+      const u = raw.ultimaMensagem;
+      const texto = u?.content ?? u?.texto ?? "";
+      if (!u || !texto) return undefined;
+      return {
+        texto,
+        criadaEm: u.createdAt ?? u.criadaEm ?? raw.createdAt ?? "",
+        lida: Boolean(u.lida),
+        senderId: u.senderId ?? "",
+        type: String(u.type ?? "TEXT").toUpperCase(),
+      };
+    })(),
     naoLidas: Math.max(0, Number(raw.naoLidas) || 0),
     atualizadaEm: raw.atualizadaEm ?? raw.createdAt ?? new Date().toISOString(),
   };

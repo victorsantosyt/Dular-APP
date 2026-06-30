@@ -56,7 +56,16 @@ export type EmpregadorTabParamList = {
    *  abre o flow no estado inicial. */
   SolicitarServico:
     | undefined
-    | { categoriaInicial?: ServiceCategory; tipoInicial?: TipoProfissional; profissionalId?: string; profissionalNome?: string; precoEstimadoLabel?: string; servicosOferecidos?: string[]; precoInfo?: PrecoInfo };
+    | {
+        categoriaInicial?: ServiceCategory;
+        tipoInicial?: TipoProfissional;
+        profissionalId?: string;
+        profissionalNome?: string;
+        precoEstimadoLabel?: string;
+        precos?: { leve: number | null; medio: number | null; pesada: number | null };
+        servicosOferecidos?: string[];
+        precoInfo?: PrecoInfo;
+      };
   Mensagens: undefined;
   Notificacoes: undefined;
   ChatAberto: ChatAbertoParams;

@@ -27,6 +27,9 @@ export type Notificacao = {
 
 type ListResponse = {
   ok?: boolean;
+  // O backend (GET /api/notificacoes) responde com a chave `notifications`.
+  // Mantemos `notificacoes`/`items` como fallback defensivo para qualquer
+  // versão antiga do backend, mas `notifications` é o contrato atual.
   notifications?: Notificacao[];
   notificacoes?: Notificacao[];
   items?: Notificacao[];

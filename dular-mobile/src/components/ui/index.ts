@@ -1,9 +1,12 @@
 export { AppIcon }         from "./AppIcon";
+export { BackCircleButton } from "./BackCircleButton";
 export { DButton }         from "./DButton";
 export { DCard }           from "./DCard";
 export { DBadge }          from "./DBadge";
 export { DAvatar }         from "./DAvatar";
 export { DBottomNav }      from "./DBottomNav";
+export { ProfissionalCard, formatValorDiarista, formatValorMontador } from "./ProfissionalCard";
+export type { ProfissionalCardData } from "./ProfissionalCard";
 export { DInput }          from "./DInput";
 export { DSectionHeader }  from "./DSectionHeader";
 export { DScreen }         from "./DScreen";

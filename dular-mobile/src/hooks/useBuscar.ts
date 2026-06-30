@@ -3,6 +3,7 @@ import { apiService, type ApiResponse } from "@/services/api";
 import { useAuth } from "@/stores/authStore";
 import type { BuscarMontadoresResponse, MontadorItem } from "@/types/montador";
 import type { ServicoOferecido } from "@/types/diarista";
+import { CATEGORIA_BY_KEY, type CategoriaKey } from "@/constants/categorias";
 
 export interface ApiDiarista {
   id: string;
@@ -15,10 +16,14 @@ export interface ApiDiarista {
   precoPesada: number;
   notaMedia: number;
   totalServicos: number;
+  // Coords da profissional — usados só na ordenação por proximidade (M5).
+  latitude?: number | null;
+  longitude?: number | null;
   user: {
     id: string;
     nome: string;
     telefone?: string | null;
+    avatarUrl?: string | null;
   };
 }
 
@@ -116,8 +121,8 @@ export function useBuscar() {
 }
 
 function serviceFromCategoria(categoria?: string): ServicoOferecido | null {
-  if (categoria === "diarista") return "DIARISTA";
-  if (categoria === "baba") return "BABA";
-  if (categoria === "cozinheira") return "COZINHEIRA";
-  return null;
+  if (!categoria) return null;
+  // Fonte única: key da categoria → nicho ofertado (servicosOferecidos).
+  const cat = CATEGORIA_BY_KEY[categoria as CategoriaKey];
+  return cat?.oferta ?? null;
 }

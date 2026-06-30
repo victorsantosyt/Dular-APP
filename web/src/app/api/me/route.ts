@@ -70,6 +70,7 @@ export async function GET(req: Request) {
             fotoUrl: true,
             verificacao: true,
             docUrl: true,
+            servicosOferecidos: true,
             precoLeve: true,
             precoMedio: true,
             precoPesada: true,
@@ -91,6 +92,9 @@ export async function GET(req: Request) {
           avatarUrl: profile?.fotoUrl ?? user.avatarUrl ?? null,
           verificacao: { status: mapVerificacao(profile?.verificacao) },
           docEnviado: Boolean(profile?.docUrl),
+          // Sem isto o gate "Quais serviços você oferece" reaparecia a cada login
+          // (o app recebia servicosOferecidos vazio e reabria o gate).
+          servicosOferecidos: profile?.servicosOferecidos ?? [],
           precoLeve: profile?.precoLeve ?? null,
           precoMedio: profile?.precoMedio ?? null,
           precoPesada: profile?.precoPesada ?? null,
@@ -263,7 +267,7 @@ export async function PUT(req: Request) {
     const auth = requireAuth(req);
     const body = await req.json();
 
-    const { nome, email, telefone, senhaAtual, novaSenha, bio, precoLeve, precoMedio, precoPesado, precoPesada } = body as {
+    const { nome, email, telefone, senhaAtual, novaSenha, bio, precoLeve, precoMedio, precoPesado, precoPesada, genero } = body as {
       nome?: string;
       email?: string;
       telefone?: string;
@@ -274,7 +278,18 @@ export async function PUT(req: Request) {
       precoMedio?: number;
       precoPesado?: number;
       precoPesada?: number;
+      genero?: "MASCULINO" | "FEMININO";
     };
+
+    // FASE 3 (gate de gênero) — backfill atômico: grava o gênero UMA única vez,
+    // quando a conta ainda não tem (genero: null). Nunca troca um gênero já
+    // definido (set once). Não afeta os demais campos deste handler.
+    if (genero === "MASCULINO" || genero === "FEMININO") {
+      await prisma.user.updateMany({
+        where: { id: auth.userId, genero: null },
+        data: { genero },
+      });
+    }
 
     const data: any = {};
     if (typeof nome === "string") data.nome = nome.trim();

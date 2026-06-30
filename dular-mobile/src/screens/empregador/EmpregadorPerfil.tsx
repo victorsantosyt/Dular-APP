@@ -23,6 +23,7 @@ import * as ImagePicker from "expo-image-picker";
 import { salvarLocalizacaoAtual } from "@/api/localizacaoApi";
 import { api } from "@/lib/api";
 import { uploadAvatarDataUrl } from "@/api/perfilApi";
+import { fetchEnderecos, type Endereco } from "@/api/enderecoApi";
 import { AppIcon, DButton, DCard, type AppIconName } from "@/components/ui";
 import { useCurrentRegion } from "@/hooks/useCurrentRegion";
 import { usePerfil } from "@/hooks/usePerfil";
@@ -31,7 +32,6 @@ import type { EmpregadorTabParamList } from "@/navigation/EmpregadorNavigator";
 import { useAuth } from "@/stores/authStore";
 import { radius, shadows, spacing } from "@/theme";
 import { useDularColors } from "@/hooks/useDularColors";
-import { useThemeStore } from "@/stores/useThemeStore";
 import { platformSelect } from "@/utils/platform";
 import {
   ProfileHeroCard,
@@ -100,8 +100,11 @@ function textValue(value?: string | null) {
   return clean ? clean : null;
 }
 
-function firstName(value?: string | null) {
-  return textValue(value)?.split(/\s+/)[0] ?? "Sem nome";
+// Nome + sobrenome (2 primeiros tokens). Ex.: "Victor Santos Silva" → "Victor Santos".
+function firstAndLastName(value?: string | null) {
+  const parts = textValue(value)?.split(/\s+/).filter(Boolean) ?? [];
+  if (parts.length === 0) return "Sem nome";
+  return parts.slice(0, 2).join(" ");
 }
 
 function formatMemberSince(value?: string | null) {
@@ -199,14 +202,13 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
   const navigation = useNavigation<Navigation>();
   const colors = useDularColors();
   const insets = useSafeAreaInsets();
-  const themeMode = useThemeStore((state) => state.mode);
-  const toggleTheme = useThemeStore((state) => state.toggleTheme);
   const s = useMemo(() => makeStyles(colors), [colors]);
   const setUser = useAuth((state) => state.setUser);
   const user = useAuth((state) => state.user);
   const { perfil, loading, saving, error, atualizar, refetch } = usePerfil();
   const { requestRegion } = useCurrentRegion();
   const busyRef = useRef(false);
+  const prevAprovadoRef = useRef<boolean | null>(null);
 
   const [geoEnabled, setGeoEnabled] = useState(false);
   const [geoSaving, setGeoSaving] = useState(false);
@@ -216,6 +218,8 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
   const [editTelefone, setEditTelefone] = useState("");
   const [avatarLocal, setAvatarLocal] = useState<string | null>(null);
   const [avatarUploading, setAvatarUploading] = useState(false);
+  const [showVisivelCard, setShowVisivelCard] = useState(false);
+  const [enderecos, setEnderecos] = useState<Endereco[] | null>(null);
 
   useEffect(() => {
     const backendEnabled = Boolean((perfil ?? user)?.localizacaoPermitida);
@@ -254,6 +258,17 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
   useFocusEffect(
     useCallback(() => {
       refetch();
+      let alive = true;
+      fetchEnderecos()
+        .then((list) => {
+          if (alive) setEnderecos(list);
+        })
+        .catch(() => {
+          if (alive) setEnderecos([]);
+        });
+      return () => {
+        alive = false;
+      };
     }, [refetch]),
   );
 
@@ -402,16 +417,6 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
     }
   };
 
-  const openWhatsApp = async () => {
-    const url = `https://wa.me/5565996203033?text=${encodeURIComponent("Olá! Preciso de suporte no app Dular.")}`;
-    const canOpen = await Linking.canOpenURL(url);
-    if (!canOpen) {
-      Alert.alert("WhatsApp", "Não foi possível abrir o WhatsApp.");
-      return;
-    }
-    await Linking.openURL(url);
-  };
-
   const handleLogout = () => {
     Alert.alert("Sair", "Encerrar sessão da conta?", [
       { text: "Cancelar", style: "cancel" },
@@ -430,7 +435,18 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
 
   const profileData = (perfil ?? user ?? null) as ProfileData | null;
   const heroLocation = profileLocation(profileData);
-  const hasLocation = Boolean(heroLocation);
+  // Hero usa o endereço CADASTRADO (bairro + cidade/UF) como fonte primária —
+  // dado limpo que o usuário digitou. Geolocalização vira fallback. Prefere o
+  // Residencial; senão o primeiro disponível.
+  const enderecoPrincipal = useMemo(() => {
+    if (!enderecos?.length) return null;
+    return enderecos.find((e) => e.tipo === "RESIDENCIAL") ?? enderecos[0];
+  }, [enderecos]);
+  const enderecoLocation = enderecoPrincipal
+    ? [enderecoPrincipal.bairro, `${enderecoPrincipal.cidade} - ${enderecoPrincipal.uf}`]
+        .filter(Boolean)
+        .join(", ")
+    : "";
   const locationIsEnabled = geoEnabled || profileData?.localizacaoPermitida === true;
   const verificationStatus = normalizeVerification(profileData);
   const completion = calculateProfileProgress(profileData, heroLocation);
@@ -448,6 +464,19 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
     return "VERIFICAR";
   }, [completion.completo, verificationStatus, hasDocEnviado]);
   const statusCopy = useMemo(() => statusCardCopy(statusCardCase), [statusCardCase]);
+
+  // Card de status "Perfil visível" é transitório: mostra ~20s na transição
+  // para VISIVEL e some, deixando o perfil limpo.
+  useEffect(() => {
+    const visivel = statusCardCase === "PODE_SOLICITAR";
+    const prev = prevAprovadoRef.current;
+    prevAprovadoRef.current = visivel;
+    if (prev === false && visivel === true) {
+      setShowVisivelCard(true);
+      const timer = setTimeout(() => setShowVisivelCard(false), 20000);
+      return () => clearTimeout(timer);
+    }
+  }, [statusCardCase]);
   const ctaLabel =
     statusCardCase === "REPROVADO"
       ? "Reenviar documentos"
@@ -485,15 +514,22 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
     user?.id,
     navigation,
   ]);
-  const displayName = firstName(profileData?.nome);
+  const displayName = firstAndLastName(profileData?.nome);
   const avatarUri = avatarLocal ?? profileData?.avatarUrl ?? null;
   const avatarFallback: ImageSourcePropType | null = null;
   const memberSince = formatMemberSince(profileData?.createdAt ?? profileData?.criadoEm);
   const telefoneText = textValue(profileData?.telefone) ?? "Não informado";
+  const generoText =
+    profileData?.genero === "FEMININO"
+      ? "Feminino"
+      : profileData?.genero === "MASCULINO"
+        ? "Masculino"
+        : "Não informado";
   const emailText = textValue(profileData?.email) ?? "Não informado";
   const roleText = roleLabel(profileData?.role);
   const createdAtText = memberSince || "Não informado";
-  const locationText = heroLocation || (locationIsEnabled ? "Localização ativada" : "Localização não informada");
+  const locationText =
+    enderecoLocation || heroLocation || (locationIsEnabled ? "Localização ativada" : "Localização não informada");
   const progressLabel = completion.completo ? "Perfil completo" : "Perfil incompleto";
   const progressTone = completion.completo ? colors.success : colors.warning;
   const progressSoft = completion.completo ? colors.successSoft : colors.warningSoft;
@@ -506,10 +542,6 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
   // banner de erro vira algo "inline" com retry, sem esconder o resto.
   const showInitialSpinner = loading && !perfil;
   const showErrorBanner = !loading && !!error && !perfil;
-
-  const openLocationCta = () => {
-    void saveCurrentLocation();
-  };
 
   return (
     <SafeAreaView style={s.safe} edges={["top", "left", "right"]}>
@@ -554,6 +586,7 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
                 hideMemberSinceIfEmpty
               />
 
+              {statusCardCase !== "PODE_SOLICITAR" || showVisivelCard ? (
               <ProfileSection title="Status do perfil">
                 {/* T-18.5: separa "cadastro completo" da "permissão para
                     solicitar serviço". A barra reflete só o cadastro básico;
@@ -628,78 +661,68 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
                   {!podeSolicitar ? (
                     <DButton
                       label={ctaLabel}
-                      variant="primary"
+                      variant="warning"
                       size="md"
                       onPress={() => navigation.navigate("VerificacaoDocs")}
                     />
                   ) : null}
                 </DCard>
               </ProfileSection>
-
-              <ProfileSection title="Dados da conta">
-                <DCard style={s.infoCard}>
-                  <InfoLine icon="Phone" label="Telefone" value={telefoneText} styles={s} colors={colors} />
-                  <InfoLine icon="FileText" label="Email" value={emailText} styles={s} colors={colors} />
-                  <InfoLine icon="User" label="Perfil" value={roleText} styles={s} colors={colors} />
-                  <InfoLine icon="Calendar" label="Criado em" value={createdAtText} styles={s} colors={colors} isLast />
-                </DCard>
-              </ProfileSection>
+              ) : null}
 
               <ProfileSection title="Conta">
                 <ProfileRow
+                  icon="UserRound"
+                  title="Dados da conta"
+                  subtitle="Foto, nome completo e telefone"
+                  onPress={() => navigation.navigate("DadosConta")}
+                />
+                <ProfileRow
                   icon="FileText"
-                  title="Enviar documentos"
-                  subtitle="Envie seus documentos"
+                  title="Documentos e verificação"
+                  subtitle={
+                    verificationStatus === "APROVADO" || verificationStatus === "VERIFICADO"
+                      ? "Verificado"
+                      : verificationStatus === "PENDENTE"
+                        ? "Em análise"
+                        : "Enviar documento"
+                  }
                   onPress={() => navigation.navigate("VerificacaoDocs")}
                 />
                 <ProfileRow
-                  icon="ShieldCheck"
-                  title="Verificação de perfil"
-                  subtitle={verificationText(verificationStatus)}
-                  onPress={() => Alert.alert("Verificação", "Status disponível na tela de documentos.")}
-                />
-                <ProfileRow
                   icon="User"
-                  title="Nome, telefone e foto"
+                  title="Nome e telefone"
                   subtitle="Edite suas informações pessoais"
                   onPress={openModal}
                 />
                 <ProfileRow
                   icon="MapPin"
-                  title={hasLocation ? "Endereço" : locationIsEnabled ? "Atualizar localização" : "Adicionar localização"}
-                  subtitle={
-                    hasLocation
-                      ? locationText
-                      : geoSaving
-                        ? "Buscando sua localização atual"
-                        : locationIsEnabled
-                          ? "Toque para buscar cidade e bairro atuais"
-                          : "Informe sua localização para melhorar buscas"
-                  }
-                  onPress={hasLocation ? () => Alert.alert("Endereço", locationText) : openLocationCta}
+                  title="Endereço"
+                  subtitle="Gerencie seus endereços cadastrados"
+                  onPress={() => navigation.navigate("MeusEnderecos", { role: "EMPREGADOR" })}
                   isLast
                 />
               </ProfileSection>
 
               <ProfileSection title="Segurança">
                 <ProfileRow
-                  icon="Lock"
-                  title="Alterar senha"
-                  subtitle="Segurança da conta"
-                  onPress={() => navigation.navigate("AlterarSenha")}
+                  icon="ShieldCheck"
+                  title="SafeScore"
+                  subtitle="Reputação e acompanhamento de segurança"
+                  onPress={() => navigation.navigate("SafeScore")}
                 />
                 <ProfileRow
                   icon="AlertTriangle"
                   title="Reportar incidente"
                   subtitle="Botão SOS"
                   danger
-                  onPress={() => navigation.navigate("ReportIncident")}
+                  onPress={() => navigation.navigate("SosFlow")}
                 />
                 <ProfileRow
-                  icon="MessageCircle"
-                  title="Suporte no WhatsApp"
-                  subtitle="Fale com a equipe"
-                  onPress={openWhatsApp}
+                  icon="HelpCircle"
+                  title="Suporte"
+                  subtitle="Fale com o Dular"
+                  onPress={() => navigation.navigate("Suporte")}
                   isLast
                 />
               </ProfileSection>
@@ -723,13 +746,6 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
                   subtitle={geoSaving ? "Atualizando localização..." : "Melhorar sugestões perto de você"}
                   value={geoEnabled}
                   onValueChange={handleGeoToggle}
-                />
-                <ProfileSwitchRow
-                  icon="Sparkles"
-                  title="Dark mode"
-                  subtitle="Tema escuro do app"
-                  value={themeMode === "dark"}
-                  onValueChange={toggleTheme}
                   isLast
                 />
               </ProfileSection>

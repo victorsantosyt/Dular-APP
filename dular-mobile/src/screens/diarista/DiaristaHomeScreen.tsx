@@ -4,16 +4,16 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import { AppIcon, type AppIconName, DAvatar, DBadge, DCard, DScreen, DSectionHeader } from "@/components/ui";
-import { Wallet3DIcon } from "@/assets/icons";
 import { colors, radius, shadows, spacing, typography } from "@/theme";
 import { useAuth } from "@/stores/authStore";
 import { useGenderTheme } from "@/hooks/useProfileTheme";
 import type { ProfileTheme } from "@/theme/profileTheme";
 import type { DiaristaTabParamList } from "@/navigation/DiaristaNavigator";
 import { getMyRestrictions, type UserRestriction } from "@/api/safeScoreApi";
-import { acionarSosDiarista } from "@/api/diaristaApi";
+import { acionarSosDiarista, getDiaristaPerfilMe, patchDiaristaPerfil } from "@/api/diaristaApi";
 import { useAgendamentosDiarista, type AgendamentoDiarista, type StatusDiarista } from "@/hooks/useAgendamentosDiarista";
 import { useMensagens } from "@/hooks/useMensagens";
+import { useNotificacoes } from "@/hooks/useNotificacoes";
 
 type Navigation = BottomTabNavigationProp<DiaristaTabParamList>;
 type BadgeType = "default" | "success" | "warning" | "error" | "info" | "accent";
@@ -25,6 +25,9 @@ const QUICK_ACTIONS: { id: QuickActionId; icon: AppIconName; label: string }[] =
   { id: "mensagens", icon: "MessageCircle", label: "Mensagens" },
   { id: "suporte", icon: "HelpCircle", label: "Suporte" },
 ];
+
+const brlFromCents = (cents: number) =>
+  (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
 function TopBar({
   firstName,
@@ -96,7 +99,7 @@ function AgendamentoItem({
       </View>
       <View style={styles.appointmentText}>
         <Text style={styles.appointmentFamily} numberOfLines={1}>{agendamento.nomeCliente}</Text>
-        <Text style={styles.appointmentType} numberOfLines={1}>{agendamento.servico}</Text>
+        <Text style={styles.appointmentType} numberOfLines={1}>{agendamento.servicoLabel}</Text>
         <View style={styles.appointmentLocationRow}>
           <AppIcon name="MapPin" size={12} color={colors.textSecondary} />
           <Text style={styles.appointmentLocation} numberOfLines={1}>{agendamento.localizacao}</Text>
@@ -137,13 +140,26 @@ export function DiaristaHomeScreen() {
   const profileTheme = useGenderTheme("DIARISTA");
   const { agendamentos, loading: agendamentosLoading, error: agendamentosError, refetch } = useAgendamentosDiarista();
   const { rooms } = useMensagens();
+  const { unreadCount } = useNotificacoes();
 
   const [restrictions, setRestrictions] = useState<UserRestriction[]>([]);
   const [sosLoading, setSosLoading] = useState(false);
+  const [online, setOnline] = useState(true);
+  const [onlineSaving, setOnlineSaving] = useState(false);
   const nextAgendamento = agendamentos[0];
   const unreadMessages = useMemo(
     () => rooms.reduce((total, room) => total + Math.max(0, Number(room.naoLidas) || 0), 0),
     [rooms],
+  );
+  // Ganhos totais (em centavos) = soma dos agendamentos finalizados. Espelha o
+  // card "Ganhos totais" da home do montador. `preco` é o precoFinal (centavos).
+  const finalizados = useMemo(
+    () => agendamentos.filter((a) => a.status === "finalizado"),
+    [agendamentos],
+  );
+  const ganhosTotais = useMemo(
+    () => finalizados.reduce((sum, a) => sum + (Number(a.preco) || 0), 0),
+    [finalizados],
   );
   const perfilPendente = !!user?.verificacao?.status && user.verificacao.status !== "APROVADO";
 
@@ -157,17 +173,48 @@ export function DiaristaHomeScreen() {
     loadRestrictions();
   }, [loadRestrictions]);
 
+  // Disponibilidade ("ativo") — carrega do perfil e permite alternar na home,
+  // espelhando o toggle rápido da home do montador.
+  useEffect(() => {
+    let alive = true;
+    getDiaristaPerfilMe()
+      .then((p) => {
+        if (alive && typeof p?.ativo === "boolean") setOnline(p.ativo);
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const alternarDisponibilidade = useCallback(async () => {
+    if (onlineSaving) return;
+    const next = !online;
+    setOnline(next); // otimista
+    setOnlineSaving(true);
+    try {
+      await patchDiaristaPerfil({ ativo: next });
+    } catch {
+      setOnline(!next); // reverte
+      Alert.alert("Disponibilidade", "Não foi possível atualizar sua disponibilidade agora.");
+    } finally {
+      setOnlineSaving(false);
+    }
+  }, [online, onlineSaving]);
+
   const handleRefresh = useCallback(() => {
     refetch();
     loadRestrictions();
   }, [refetch, loadRestrictions]);
 
+  const abrirCarteira = useCallback(() => navigation.navigate("Carteira", { from: "Home" }), [navigation]);
+
   const handleQuickAction = useCallback((action: QuickActionId) => {
     if (action === "agendamentos") navigation.navigate("Agendamentos");
-    if (action === "carteira") navigation.navigate("Carteira");
+    if (action === "carteira") abrirCarteira();
     if (action === "mensagens") navigation.navigate("Mensagens");
     if (action === "suporte") navigation.navigate("Suporte");
-  }, [navigation]);
+  }, [navigation, abrirCarteira]);
 
   const acionarSOS = useCallback(async () => {
     const servicoId = nextAgendamento?.id ?? agendamentos[0]?.id;
@@ -199,10 +246,10 @@ export function DiaristaHomeScreen() {
       <TopBar
         firstName={firstName}
         avatarUrl={user?.avatarUrl ?? undefined}
-        unreadMessages={unreadMessages}
+        unreadMessages={unreadCount}
         theme={profileTheme}
         onProfilePress={() => navigation.navigate("Perfil")}
-        onBellPress={() => navigation.navigate("Mensagens")}
+        onBellPress={() => navigation.navigate("Notificacoes")}
       />
 
       {restrictions.length > 0 && (() => {
@@ -219,32 +266,40 @@ export function DiaristaHomeScreen() {
         );
       })()}
 
-      {/* ── Carteira (hero) ── */}
+      {/* ── Carteira (hero "Ganhos totais", estilo Montador) ── */}
       <LinearGradient
         colors={profileTheme.gradient}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={styles.earningsCard}
+        style={styles.hero}
       >
-        <View style={styles.earningsBlob} />
-        <View style={styles.earningsTop}>
-          <View>
-            <View style={styles.earningsTitleRow}>
-              <Text style={styles.earningsLabel}>Carteira</Text>
-              <AppIcon name="Eye" size={15} color={colors.whiteAlpha80} strokeWidth={2.3} />
+        <View style={styles.heroContent}>
+          <View style={styles.heroTextBlock}>
+            <Text style={styles.heroKicker}>Ganhos totais</Text>
+            <Text style={styles.heroTitle}>{brlFromCents(ganhosTotais)}</Text>
+            <Text style={styles.heroSub}>
+              {finalizados.length > 0
+                ? `${finalizados.length} serviço(s) finalizado(s) no Dular.`
+                : "Seus ganhos aparecerão após finalizar serviços."}
+            </Text>
+          </View>
+          <Pressable
+            onPress={abrirCarteira}
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel="Abrir carteira"
+            style={({ pressed }) => [styles.walletIconWrap, pressed && styles.pressed]}
+          >
+            <AppIcon name="Wallet" size={34} color={colors.white} strokeWidth={2.1} />
+            <View style={styles.walletBadge}>
+              <AppIcon name="ChevronRight" size={13} color={profileTheme.primary} strokeWidth={2.6} />
             </View>
-            <Text style={styles.earningsPeriod}>Resumo financeiro</Text>
-            <Text style={styles.earningsValue}>Abrir carteira</Text>
-          </View>
-          <View style={styles.cardIconBox}>
-            <Wallet3DIcon size={44} />
-          </View>
+          </Pressable>
         </View>
-        <Pressable style={styles.detailsLinkWrap} onPress={() => navigation.navigate("Carteira")}>
-          <View style={styles.inlineLink}>
-            <Text style={styles.detailsLink}>Ver detalhes</Text>
-            <AppIcon name="ChevronRight" size={14} color={colors.whiteAlpha80} strokeWidth={2.4} />
-          </View>
+        <Pressable onPress={alternarDisponibilidade} disabled={onlineSaving} style={styles.availabilityButton}>
+          <Text style={styles.availabilityText}>
+            {onlineSaving ? "Salvando…" : online ? "Online · Ficar indisponível" : "Indisponível · Ficar online"}
+          </Text>
         </Pressable>
       </LinearGradient>
 
@@ -278,6 +333,7 @@ export function DiaristaHomeScreen() {
         <DSectionHeader
           title="Agendamentos de hoje"
           action="Ver todos"
+          actionColor={profileTheme.primary}
           onAction={() => navigation.navigate("Agendamentos")}
         />
         <View style={styles.divider} />
@@ -319,22 +375,6 @@ export function DiaristaHomeScreen() {
         </View>
       </View>
 
-      {/* ── Dica de hoje ── */}
-      <DCard style={styles.tipCard}>
-        <View style={[styles.tipIconBox, { backgroundColor: profileTheme.primarySoft }]}>
-          <AppIcon name="ShieldCheck" size={22} color={profileTheme.primary} />
-        </View>
-        <View style={styles.tipText}>
-          <Text style={styles.tipTitle}>Dica de hoje</Text>
-          <Text style={styles.tipSubtitle}>
-            Mantenha seu perfil sempre atualizado para receber mais agendamentos!
-          </Text>
-        </View>
-        <View style={[styles.cleaningTipBox, { backgroundColor: profileTheme.primarySoft }]}>
-          <AppIcon name="Sparkles" size={26} color={profileTheme.primary} strokeWidth={2.1} />
-        </View>
-      </DCard>
-
       {/* ── Meu desempenho ── */}
       <View style={styles.performanceSection}>
         <DSectionHeader title="Meu desempenho" style={styles.sectionHeaderRow} />
@@ -358,6 +398,22 @@ export function DiaristaHomeScreen() {
           </View>
         </View>
       </View>
+
+      {/* ── Dica de hoje ── */}
+      <DCard style={styles.tipCard}>
+        <View style={[styles.tipIconBox, { backgroundColor: profileTheme.primarySoft }]}>
+          <AppIcon name="ShieldCheck" size={22} color={profileTheme.primary} />
+        </View>
+        <View style={styles.tipText}>
+          <Text style={styles.tipTitle}>Dica de hoje</Text>
+          <Text style={styles.tipSubtitle}>
+            Mantenha seu perfil sempre atualizado para receber mais agendamentos!
+          </Text>
+        </View>
+        <View style={[styles.cleaningTipBox, { backgroundColor: profileTheme.primarySoft }]}>
+          <AppIcon name="Sparkles" size={26} color={profileTheme.primary} strokeWidth={2.1} />
+        </View>
+      </DCard>
     </DScreen>
   );
 }
@@ -423,70 +479,79 @@ const styles = StyleSheet.create({
     color: colors.white,
   },
 
-  // ── Carteira (hero) ──
-  earningsCard: {
+  // ── Carteira (hero "Ganhos totais", estilo Montador) ──
+  hero: {
     borderRadius: radius.xl,
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    position: "relative",
-    overflow: "hidden",
+    padding: 18,
+    minHeight: 144,
+    justifyContent: "space-between",
     ...shadows.primaryButton,
   },
-  earningsBlob: {
-    position: "absolute",
-    right: -40,
-    top: -40,
-    width: 160,
-    height: 160,
-    borderRadius: 80,
-    backgroundColor: colors.whiteAlpha08,
-  },
-  earningsTop: {
+  heroContent: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-  },
-  earningsTitleRow: {
-    flexDirection: "row",
-    gap: spacing.sm,
     alignItems: "center",
+    justifyContent: "space-between",
+    gap: 14,
   },
-  earningsLabel: {
-    ...typography.bodySmMedium,
-    fontWeight: "600",
-    color: colors.whiteAlpha90,
+  heroTextBlock: {
+    flex: 1,
+    minWidth: 0,
   },
-  earningsPeriod: {
+  heroKicker: {
     ...typography.caption,
-    color: colors.whiteAlpha70,
-    marginTop: 2,
-  },
-  earningsValue: {
-    ...typography.h2,
+    color: colors.whiteAlpha80,
     fontWeight: "700",
-    color: colors.white,
-    marginTop: 6,
   },
-  cardIconBox: {
-    width: 42,
-    height: 42,
-    borderRadius: 14,
-    backgroundColor: colors.whiteAlpha20,
+  heroTitle: {
+    marginTop: 6,
+    fontSize: 30,
+    lineHeight: 36,
+    color: colors.white,
+    fontWeight: "700",
+  },
+  heroSub: {
+    ...typography.bodySm,
+    color: colors.whiteAlpha85,
+    marginTop: 4,
+  },
+  walletIconWrap: {
+    width: 68,
+    height: 68,
+    borderRadius: 24,
     alignItems: "center",
     justifyContent: "center",
+    backgroundColor: colors.whiteAlpha20,
+    borderWidth: 1,
+    borderColor: colors.glassBorder,
+    position: "relative",
   },
-  detailsLinkWrap: {
-    alignSelf: "flex-end",
-    marginTop: 12,
-  },
-  detailsLink: {
-    ...typography.bodySm,
-    color: colors.whiteAlpha80,
-  },
-  inlineLink: {
-    flexDirection: "row",
+  walletBadge: {
+    position: "absolute",
+    right: -3,
+    bottom: -3,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: colors.white,
     alignItems: "center",
-    gap: 2,
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: colors.white,
+  },
+  availabilityButton: {
+    alignSelf: "flex-start",
+    borderRadius: radius.pill,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    backgroundColor: colors.whiteAlpha20,
+    borderWidth: 1,
+    borderColor: colors.glassBorder,
+    marginTop: 14,
+  },
+  availabilityText: {
+    ...typography.caption,
+    color: colors.white,
+    fontWeight: "700",
   },
 
   // ── Segurança / SOS grid ──

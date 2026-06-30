@@ -44,6 +44,7 @@ type User = {
   localizacaoPermitida?: boolean;
   localizacaoAtualizadaEm?: string | null;
   servicosOferecidos?: ServicoOferecido[];
+  especialidades?: string[];
   verificado?: boolean;
   docEnviado?: boolean;
   verificacao?: {
@@ -58,12 +59,10 @@ type AuthState = {
   token: string | null;
   role: Role | null;
   selectedRole: Role | null;
-  selectedGenero: Genero | null;
   servicosOferecidos: ServicoOferecido[];
   hydrated: boolean;
   isAuthenticated: boolean;
   setSelectedRole: (role: Role) => void;
-  setSelectedGenero: (genero: Genero) => void;
   setServicosOferecidos: (servicos: ServicoOferecido[]) => Promise<void>;
   setSession: (data: { token: string; role: Role; user?: User | null }) => Promise<void>;
   clearSession: () => Promise<void>;
@@ -114,12 +113,10 @@ export const useAuth = create<AuthState>((set, get) => ({
   token: null,
   role: null,
   selectedRole: null,
-  selectedGenero: null,
   servicosOferecidos: [],
   hydrated: false,
   isAuthenticated: false,
   setSelectedRole: (role) => set({ selectedRole: role }),
-  setSelectedGenero: (genero) => set({ selectedGenero: genero }),
   setServicosOferecidos: async (servicos) => {
     const normalized = normalizeServicosOferecidos(servicos);
     await AsyncStorage.setItem("servicosOferecidos", normalized.join(","));
@@ -134,7 +131,6 @@ export const useAuth = create<AuthState>((set, get) => ({
     await setAuthToken(token);
     await SecureStorage.saveToken(token);
 
-    const selectedGenero = get().selectedGenero;
     const selectedServicos = get().servicosOferecidos;
     const apiUser = await fetchSessionUser();
     const apiServicos = normalizeServicosOferecidos(apiUser?.servicosOferecidos);
@@ -149,7 +145,7 @@ export const useAuth = create<AuthState>((set, get) => ({
       ...(user ?? apiUser ?? { id: "", nome: "", role }),
       ...(apiUser ?? {}),
       role: (apiUser?.role ?? user?.role ?? role) as Role,
-      genero: apiUser?.genero ?? user?.genero ?? selectedGenero ?? null,
+      genero: apiUser?.genero ?? user?.genero ?? null,
       servicosOferecidos: reconciledServicos,
     };
 
@@ -167,7 +163,6 @@ export const useAuth = create<AuthState>((set, get) => ({
       token,
       role: reconciledUser.role ?? role,
       user: reconciledUser,
-      selectedGenero: reconciledUser.genero ?? selectedGenero,
       servicosOferecidos: reconciledUser.servicosOferecidos ?? selectedServicos,
       isAuthenticated: true,
     });
@@ -181,7 +176,7 @@ export const useAuth = create<AuthState>((set, get) => ({
     // próximo usuário (também garantido pelo ThemeScope forceLight, mas
     // limpar o store evita que o próximo login herde o dark mode anterior).
     useThemeStore.getState().setTheme("light");
-    set({ token: null, role: null, user: null, isAuthenticated: false, selectedRole: null, selectedGenero: null, servicosOferecidos: [] });
+    set({ token: null, role: null, user: null, isAuthenticated: false, selectedRole: null, servicosOferecidos: [] });
   },
 
   async hydrate() {
@@ -222,7 +217,7 @@ export const useAuth = create<AuthState>((set, get) => ({
       }
 
       await setAuthToken(token);
-      set({ token, role, user: userObj, selectedGenero: userObj?.genero ?? genero, servicosOferecidos: userObj?.servicosOferecidos ?? servicosOferecidos, hydrated: true, isAuthenticated: true });
+      set({ token, role, user: userObj, servicosOferecidos: userObj?.servicosOferecidos ?? servicosOferecidos, hydrated: true, isAuthenticated: true });
 
       void fetchSessionUser().then(async (apiUser) => {
         if (!apiUser) return;
@@ -240,7 +235,6 @@ export const useAuth = create<AuthState>((set, get) => ({
         set({
           role: nextUser.role,
           user: nextUser,
-          selectedGenero: nextUser.genero ?? genero,
           servicosOferecidos: nextServicos,
         });
       });

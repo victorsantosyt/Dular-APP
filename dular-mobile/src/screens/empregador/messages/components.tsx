@@ -19,29 +19,41 @@ export type ConversationItem = {
   horario: string;
   initials: string;
   avatarUrl?: string;
+  /** Prévia da última mensagem (estilo WhatsApp). */
+  lastMessage?: string;
+  /** Quantidade de mensagens não lidas. */
+  unread?: number;
 };
 
 type MessagesTabsProps = {
   activeTab: MessagesTab;
   onChange: (tab: MessagesTab) => void;
+  /** Cor de destaque (identidade de gênero). Default: empregador (roxo). */
+  accent?: string;
+  border?: string;
 };
 
-export function MessagesTabs({ activeTab, onChange }: MessagesTabsProps) {
+export function MessagesTabs({
+  activeTab,
+  onChange,
+  accent = colors.primary,
+  border = colors.lavenderDivider,
+}: MessagesTabsProps) {
   return (
-    <View style={s.tabsWrap}>
-      <TabPill label="Conversas" active={activeTab === "conversas"} onPress={() => onChange("conversas")} />
-      <TabPill label="Arquivadas" active={activeTab === "arquivadas"} onPress={() => onChange("arquivadas")} />
+    <View style={[s.tabsWrap, { borderColor: border }]}>
+      <TabPill label="Conversas" active={activeTab === "conversas"} accent={accent} onPress={() => onChange("conversas")} />
+      <TabPill label="Arquivadas" active={activeTab === "arquivadas"} accent={accent} onPress={() => onChange("arquivadas")} />
     </View>
   );
 }
 
-function TabPill({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+function TabPill({ label, active, accent, onPress }: { label: string; active: boolean; accent: string; onPress: () => void }) {
   const icon = label === "Conversas" ? "MessageCircle" : "Archive";
 
   return (
-    <Pressable onPress={onPress} style={[s.tabPill, active && s.tabPillActive]}>
-      <AppIcon name={icon} size={17} color={active ? colors.primary : colors.textMuted} strokeWidth={2.1} />
-      <Text style={[s.tabText, active && s.tabTextActive]}>{label}</Text>
+    <Pressable onPress={onPress} style={[s.tabPill, active && s.tabPillActive, active && { borderColor: accent }]}>
+      <AppIcon name={icon} size={17} color={active ? accent : colors.textMuted} strokeWidth={2.1} />
+      <Text style={[s.tabText, active && { color: accent, fontWeight: "600" }]}>{label}</Text>
     </Pressable>
   );
 }
@@ -59,61 +71,62 @@ export function OnlineDot() {
 type ConversationCardProps = {
   item: ConversationItem;
   onPress: () => void;
+  /** Cor de destaque (identidade de gênero). Default: empregador (roxo). */
+  accent?: string;
+  soft?: string;
 };
 
-export function ConversationCard({ item, onPress }: ConversationCardProps) {
+export function ConversationCard({ item, onPress, accent = colors.primary, soft = colors.lavenderSoft }: ConversationCardProps) {
+  const unread = item.unread ?? 0;
+  const hasUnread = unread > 0;
+  const preview = item.lastMessage?.trim() ? item.lastMessage : "Toque para conversar";
+
   return (
-    <DCard style={s.conversationCard}>
+    <DCard style={s.conversationCard} onPress={onPress}>
       <View style={s.avatarWrap}>
         <DAvatar size="lg" uri={item.avatarUrl} initials={item.initials} />
-        <OnlineDot />
+        {/* OnlineDot removido — Etapa 2 fará presença real (lastSeenAt no User). */}
       </View>
 
       <View style={s.cardMain}>
         <View style={s.nameRow}>
-          <Text style={s.name} numberOfLines={1}>
+          <Text style={[s.name, hasUnread && s.nameUnread]} numberOfLines={1}>
             {item.nome}
           </Text>
           <VerifiedBadge />
         </View>
 
-        <View style={s.categoryPill}>
-          <AppIcon name={item.categoriaIcon} size={11} color={colors.primary} strokeWidth={2.1} />
-          <Text style={s.categoryText}>{item.categoria}</Text>
+        <View style={[s.categoryPill, { backgroundColor: soft }]}>
+          <AppIcon name={item.categoriaIcon} size={11} color={accent} strokeWidth={2.1} />
+          <Text style={[s.categoryText, { color: accent }]}>{item.categoria}</Text>
         </View>
 
-        <Text style={s.location} numberOfLines={1}>
-          {item.localizacao}
+        <Text style={[s.preview, hasUnread && s.previewUnread]} numberOfLines={1}>
+          {preview}
         </Text>
-
-        <View style={s.stats}>
-          <View style={s.statItem}>
-            <AppIcon name="Star" size={13} color={colors.warning} strokeWidth={2.4} />
-            <Text style={s.statText}>{item.rating}</Text>
-          </View>
-          <View style={s.dotSeparator} />
-          <View style={s.statItem}>
-            <Text style={s.statText}>{item.experiencia}</Text>
-          </View>
-        </View>
       </View>
 
       <View style={s.rightCol}>
-        <Text style={s.time}>{item.horario}</Text>
-        <Pressable onPress={onPress} style={({ pressed }) => [s.chatButton, pressed && { opacity: 0.82 }]}>
-          <AppIcon name="MessageCircle" size={15} color={colors.successDark} strokeWidth={2.4} />
-          <Text style={s.chatButtonText}>Conversar</Text>
-        </Pressable>
+        <Text style={[s.time, hasUnread && { color: accent }]}>{item.horario}</Text>
+        {hasUnread ? (
+          <View style={[s.unreadBadge, { backgroundColor: accent }]}>
+            <Text style={s.unreadText}>{unread > 99 ? "99+" : unread}</Text>
+          </View>
+        ) : null}
       </View>
     </DCard>
   );
 }
 
-export function EmptyArchiveState() {
+export function EmptyArchiveState({
+  accent = colors.primary,
+  soft = colors.lavenderSoft,
+  border = colors.lavenderDivider,
+}: { accent?: string; soft?: string; border?: string } = {}) {
   return (
     <View style={s.emptyWrap}>
-      <View style={s.emptyIcon}>
-        <AppIcon name="MessageCircle" size={34} color={colors.primary} strokeWidth={1.7} />
+      <View style={[s.emptyIcon, { backgroundColor: soft, borderColor: border }]}>
+        <AppIcon name="MessageCircle" size={34} color={accent} strokeWidth={1.7} />
       </View>
       <Text style={s.emptyTitle}>Nenhuma conversa arquivada</Text>
       <Text style={s.emptySubtitle}>As conversas arquivadas aparecerão aqui.</Text>
@@ -211,56 +224,40 @@ const s = StyleSheet.create({
     ...typography.caption,
     fontWeight: "700",
   },
-  location: {
+  nameUnread: {
+    fontWeight: "800",
+  },
+  preview: {
     color: colors.textSecondary,
     ...typography.caption,
-    fontWeight: "400",
-    
+    fontWeight: "500",
+  },
+  previewUnread: {
+    color: colors.textPrimary,
+    fontWeight: "700",
   },
   time: {
     color: colors.textMuted,
     ...typography.caption,
-    fontWeight: "500",
+    fontWeight: "600",
     textAlign: "right",
   },
-  stats: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  statItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  statText: {
-    color: colors.textSecondary,
-    ...typography.caption,
-    fontWeight: "600",
-  },
-  dotSeparator: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: colors.lavenderStrong,
-  },
-  chatButton: {
-    minHeight: 32,
-    borderRadius: radius.md,
-    paddingHorizontal: 10,
-    flexDirection: "row",
+  unreadBadge: {
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    paddingHorizontal: 6,
     alignItems: "center",
     justifyContent: "center",
-    gap: 5,
-    backgroundColor: colors.successSoft,
   },
-  chatButtonText: {
-    color: colors.successDark,
-    ...typography.caption,
-    fontWeight: "700",
+  unreadText: {
+    color: colors.white,
+    fontSize: 11,
+    lineHeight: 14,
+    fontWeight: "800",
   },
   rightCol: {
-    width: 112,
+    width: 56,
     alignSelf: "stretch",
     alignItems: "flex-end",
     justifyContent: "space-between",

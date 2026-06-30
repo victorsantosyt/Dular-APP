@@ -5,10 +5,11 @@
  * Lógica de ações (aceitar/iniciar/concluir) preservada.
  */
 
-import { useEffect, useState } from "react";
-import { Alert, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import * as Clipboard from "expo-clipboard";
 
 import { api } from "@/lib/api";
 import { fetchServicosMinhas, fetchUserScore } from "@/api/sharedFetcher";
@@ -22,10 +23,13 @@ import { DButton } from "@/components/DButton";
 import { DularBadge } from "@/components/DularBadge";
 import { MotivoModal } from "@/components/MotivoModal";
 import { SafeScoreBadge } from "@/components/SafeScoreBadge";
+import { AvaliacaoModal } from "@/components/ui";
+import { useSeguranca } from "@/hooks/useSeguranca";
 import { formatPrice } from "@/utils/formatPrice";
 import { isStatusEncerrado } from "@/utils/servicoStatus";
 
 // ── Tokens ──────────────────────────────────────────────────────────────────
+import { useGenderTheme } from "@/hooks/useProfileTheme";
 import { colors, radius, shadow, spacing, typography } from "@/theme/tokens";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -57,16 +61,50 @@ function getServicoEndereco(servico: Servico | null | undefined) {
   return typeof endereco === "string" && endereco.trim() ? endereco.trim() : null;
 }
 
+// Rótulos do tipo/categoria do serviço (para a profissional saber o que foi
+// contratado — ex.: "Limpeza pesada").
+const TIPO_LABEL_DET: Record<string, string> = {
+  FAXINA: "Limpeza",
+  BABA: "Babá",
+  COZINHEIRA: "Cozinheira",
+  PASSA_ROUPA: "Passar roupa",
+  CUIDADORA: "Cuidadora",
+  LAVADEIRA: "Lavadeira",
+  MONTADOR: "Montador",
+};
+const CATEGORIA_LABEL_DET: Record<string, string> = {
+  FAXINA_LEVE: "Limpeza leve",
+  FAXINA_COMPLETA: "Limpeza completa",
+  FAXINA_PESADA: "Limpeza pesada",
+  BABA_DIURNA: "Babá diurna",
+  BABA_NOTURNA: "Babá noturna",
+  BABA_INTEGRAL: "Babá integral",
+  COZINHEIRA_DIARIA: "Cozinha diária",
+  COZINHEIRA_EVENTO: "Cozinha para evento",
+  PASSA_ROUPA_BASICO: "Passar roupa — básico",
+  PASSA_ROUPA_COMPLETO: "Passar roupa — completo",
+};
+function servicoLabel(s: Servico): string {
+  if (s.categoria && CATEGORIA_LABEL_DET[s.categoria]) return CATEGORIA_LABEL_DET[s.categoria];
+  return TIPO_LABEL_DET[s.tipo] ?? s.tipo;
+}
+
 // ── Componente ────────────────────────────────────────────────────────────────
 
 export default function DiaristaDetalhe({ route, navigation }: any) {
+  const theme = useGenderTheme("DIARISTA");
   const params = route.params as any;
   const [svc, setSvc] = useState<Servico | null>(params.servico ?? null);
   const [loadingInit, setLoadingInit] = useState(!params.servico);
-  const servicoId: string = params.servicoId ?? params.servico?.id ?? "";
+  // Aceita tanto { servicoId } quanto { id } (o card da Agenda navega com `id`).
+  const servicoId: string = params.servicoId ?? params.id ?? params.servico?.id ?? "";
   const [loading, setLoading] = useState(false);
   const [recusarOpen, setRecusarOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
+  const [avaliarOpen, setAvaliarOpen] = useState(false);
+  // Flag local otimista: cobre a janela entre enviar a avaliação e o refetch
+  // da lista trazer `avaliacaoEmpregador`.
+  const [avaliouLocal, setAvaliouLocal] = useState(false);
   const [clienteScore, setClienteScore] = useState<{
     faixa: string;
     cor: string;
@@ -74,6 +112,16 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
     totalServicos: number;
     verificado: boolean;
   } | null>(null);
+
+  // Check-in real de segurança (mesmo hook do montador): POST /api/seguranca/checkin.
+  const { checkInRealizado, checkInLoading, fazerCheckIn } = useSeguranca();
+  const checkinAlertRef = useRef(false);
+  useEffect(() => {
+    if (checkInRealizado && !checkinAlertRef.current) {
+      checkinAlertRef.current = true;
+      Alert.alert("Check-in realizado", "Seu check-in de segurança foi registrado.");
+    }
+  }, [checkInRealizado]);
 
   async function reloadFromList() {
     try {
@@ -214,13 +262,42 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
     confirmarAceite();
   }
 
-  if (loadingInit || !svc) {
+  if (loadingInit) {
     return (
       <SafeAreaView style={s.safe} edges={["top", "bottom"]}>
         <Text style={{ ...typography.sub, textAlign: "center", marginTop: 48 }}>Carregando...</Text>
       </SafeAreaView>
     );
   }
+
+  // Carregou mas não achou o serviço → estado claro (não fica "Carregando…" eterno).
+  if (!svc) {
+    return (
+      <SafeAreaView style={s.safe} edges={["top", "bottom"]}>
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 24, gap: 14 }}>
+          <Text style={{ ...typography.sub, textAlign: "center" }}>
+            Não foi possível carregar este serviço. Volte e tente novamente.
+          </Text>
+          <Pressable
+            onPress={() => navigation.goBack()}
+            style={{
+              paddingHorizontal: 20,
+              paddingVertical: 10,
+              borderRadius: 999,
+              borderWidth: 1.4,
+              borderColor: theme.primary,
+            }}
+          >
+            <Text style={{ ...typography.bodySmMedium, color: theme.primary, fontWeight: "700" }}>Voltar</Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // Após o serviço liberar (CONFIRMADO) ou finalizar (FINALIZADO), a diarista
+  // avalia o empregador. `avaliacaoEmpregador` vem de /api/servicos/minhas.
+  const jaAvaliouEmpregador = avaliouLocal || Boolean((svc as any)?.avaliacaoEmpregador);
 
   return (
     <SafeAreaView style={s.safe} edges={["top", "left", "right", "bottom"]}>
@@ -231,12 +308,28 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
 
         {/* ── Título + status ── */}
         <View style={s.titleRow}>
-          <Text style={s.title}>Serviço #{svc.id.slice(0, 6).toUpperCase()}</Text>
+          <Pressable
+            onPress={async () => {
+              await Clipboard.setStringAsync(`#${svc.id.slice(0, 6).toUpperCase()}`);
+              Alert.alert("Copiado", "Número do serviço copiado.");
+            }}
+            hitSlop={8}
+            style={{ flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 1 }}
+          >
+            <Text style={s.title}>Serviço #{svc.id.slice(0, 6).toUpperCase()}</Text>
+            <Ionicons name="copy-outline" size={16} color={colors.sub} />
+          </Pressable>
           <DularBadge text={statusLabel(svc.status)} variant={statusVariant(svc.status)} />
         </View>
 
         {/* ── Info card ── */}
         <View style={s.card}>
+          <InfoRow icon="briefcase-outline" label="Serviço">
+            <Text style={s.infoValue}>{servicoLabel(svc)}</Text>
+          </InfoRow>
+
+          <View style={s.divider} />
+
           <InfoRow icon="location-outline" label="Local">
             <Text style={s.infoValue}>{svc.bairro} — {svc.cidade}/{svc.uf}</Text>
           </InfoRow>
@@ -293,20 +386,23 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
         <View style={s.ctaBlock}>
           {svc.status === "SOLICITADO" && (
             <>
-              <DButton
+              <DButton tint={theme.primary}
                 title="Aceitar serviço"
                 loading={loading}
                 onPress={aceitarServico}
               />
-              <DButton
+              <DButton tint={theme.primary}
                 title="Recusar serviço"
                 variant="outline"
                 onPress={recusarServico}
               />
             </>
           )}
-          {["ACEITO", "INICIADO", "EM_ANDAMENTO"].includes(svc.status.toUpperCase()) && (
-            <DButton
+          {/* Chat disponível do aceite até a finalização (AGUARDANDO_FINALIZACAO).
+               A partir de CONCLUIDO/CONFIRMADO/FINALIZADO o serviço encerra e o
+               chat some (alinhado ao comprovante do empregador). */}
+          {["ACEITO", "INICIADO", "EM_ANDAMENTO", "AGUARDANDO_FINALIZACAO"].includes(svc.status.toUpperCase()) && (
+            <DButton tint={theme.primary}
               title="Abrir chat"
               variant="outline"
               onPress={() => navigation.navigate("ChatAberto", {
@@ -316,42 +412,94 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
               })}
             />
           )}
+          {["ACEITO", "INICIADO", "EM_ANDAMENTO"].includes(svc.status.toUpperCase()) &&
+            !isStatusEncerrado(svc.status) && (
+            <>
+              <DButton tint={theme.primary}
+                title={
+                  checkInLoading
+                    ? "Registrando check-in…"
+                    : checkInRealizado
+                      ? "Check-in realizado"
+                      : "Fazer check-in"
+                }
+                variant="outline"
+                loading={checkInLoading}
+                disabled={checkInRealizado}
+                onPress={() => { void fazerCheckIn(svc.id); }}
+              />
+              <DButton tint={colors.warning}
+                title="Reportar problema"
+                variant="outline"
+                onPress={() => navigation.navigate("ReportIncident", { servicoId: svc.id })}
+              />
+            </>
+          )}
           {svc.status === "ACEITO" && !isStatusEncerrado(svc.status) && (
             <>
-              <DButton
+              <DButton tint={theme.primary}
                 title="Iniciar serviço"
                 loading={loading}
                 onPress={() => { void action("iniciar"); }}
               />
-              <DButton
+              <DButton tint={colors.danger}
                 title="Cancelar serviço"
                 variant="outline"
                 onPress={() => setCancelOpen(true)}
               />
             </>
           )}
+          {/* Modelo profissional-finaliza-primeiro: a diarista finaliza em
+              EM_ANDAMENTO (→ AGUARDANDO_FINALIZACAO) e o empregador confirma
+              depois. Em AGUARDANDO ela apenas espera (botão desabilitado). */}
           {["INICIADO", "EM_ANDAMENTO"].includes(svc.status.toUpperCase()) && !isStatusEncerrado(svc.status) && (
-            <DButton
-              title="Confirmar finalização"
+            <DButton tint={theme.primary}
+              title="Finalizar serviço"
               loading={loading}
-              onPress={() => { void confirmarFinalizacao(); }}
+              onPress={() =>
+                Alert.alert("Pagamento", "Você já recebeu o pagamento?", [
+                  { text: "Ainda não", style: "cancel" },
+                  { text: "Sim, já recebi", onPress: () => { void confirmarFinalizacao(); } },
+                ])
+              }
             />
           )}
           {svc.status.toUpperCase() === "AGUARDANDO_FINALIZACAO" && (
-            <View style={s.waitingCard}>
-              <Ionicons name="hourglass-outline" size={20} color={colors.warning} />
-              <Text style={s.waitingText}>
-                Aguardando confirmação da outra parte.
-              </Text>
-            </View>
+            <>
+              <DButton tint={theme.primary}
+                title="Aguardando confirmação"
+                disabled
+                onPress={() => {}}
+              />
+              <View style={s.waitingCard}>
+                <Ionicons name="hourglass-outline" size={20} color={colors.warning} />
+                <Text style={s.waitingText}>
+                  Você finalizou o serviço. Aguardando o cliente confirmar para concluir.
+                </Text>
+              </View>
+            </>
           )}
-          {svc.status.toUpperCase() === "CONFIRMADO" && (
-            <View style={s.paidCard}>
-              <Ionicons name="checkmark-circle" size={20} color={colors.success} />
-              <Text style={s.paidText}>Pagamento liberado ✓</Text>
-            </View>
-          )}
-          {["CONCLUIDO","CONCLUÍDO","FINALIZADO"].includes(svc.status.toUpperCase()) && (
+          {/* CONFIRMADO (pagamento liberado) e FINALIZADO (empregador já
+              avaliou) liberam a avaliação da diarista → empregador. */}
+          {["CONFIRMADO", "FINALIZADO"].includes(svc.status.toUpperCase()) &&
+            (jaAvaliouEmpregador ? (
+              <View style={s.doneCard}>
+                <Ionicons name="checkmark-circle" size={24} color={colors.green} />
+                <Text style={s.doneText}>Avaliação enviada. Obrigada!</Text>
+              </View>
+            ) : (
+              <>
+                <View style={s.paidCard}>
+                  <Ionicons name="checkmark-circle" size={20} color={colors.success} />
+                  <Text style={s.paidText}>Pagamento liberado ✓</Text>
+                </View>
+                <DButton tint={theme.primary}
+                  title="Avaliar empregador"
+                  onPress={() => setAvaliarOpen(true)}
+                />
+              </>
+            ))}
+          {["CONCLUIDO","CONCLUÍDO"].includes(svc.status.toUpperCase()) && (
             <View style={s.doneCard}>
               <Ionicons name="checkmark-circle" size={24} color={colors.green} />
               <Text style={s.doneText}>Serviço finalizado. Obrigada!</Text>
@@ -384,6 +532,21 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
         onClose={() => setCancelOpen(false)}
         onConfirm={confirmarCancelamento}
       />
+
+      <AvaliacaoModal
+        visible={avaliarOpen}
+        servicoId={svc.id}
+        nomeAvaliado={svc.cliente?.nome ?? "Empregador"}
+        endpoint={`/api/servicos/${svc.id}/avaliar-empregador`}
+        accent={theme.primary}
+        onClose={() => setAvaliarOpen(false)}
+        onSucesso={() => {
+          setAvaliarOpen(false);
+          setAvaliouLocal(true);
+          void reloadFromList();
+          Alert.alert("Avaliação enviada", "Obrigada por avaliar o empregador.");
+        }}
+      />
     </SafeAreaView>
   );
 }
@@ -399,10 +562,12 @@ function InfoRow({
   label: string;
   children: React.ReactNode;
 }) {
+  // Acento decorativo segue o gênero do usuário (rosa/verde teal), não verde fixo.
+  const theme = useGenderTheme("DIARISTA");
   return (
     <View style={ir.row}>
-      <View style={ir.iconWrap}>
-        <Ionicons name={icon} size={16} color={colors.green} />
+      <View style={[ir.iconWrap, { backgroundColor: theme.primarySoft }]}>
+        <Ionicons name={icon} size={16} color={theme.primary} />
       </View>
       <View style={{ flex: 1 }}>
         <Text style={ir.label}>{label}</Text>

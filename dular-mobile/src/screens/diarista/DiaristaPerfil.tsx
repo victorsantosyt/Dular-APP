@@ -22,7 +22,6 @@ import {
   ImageSourcePropType,
   Keyboard,
   KeyboardAvoidingView,
-  Linking,
   Modal,
   Pressable,
   ScrollView,
@@ -46,15 +45,12 @@ import {
   type Me,
   type VerificacaoStatus,
 } from "@/api/perfilApi";
-import { getCatalogoServicos, type CatalogoTipo } from "@/api/catalogoApi";
 import {
   calcularCompletudeDiarista,
   decimalToNumber,
   formatCurrencyBRL,
   getDiaristaPerfilMe,
-  getHabilidades,
   patchDiaristaPerfil,
-  putHabilidades,
   updateAreaAtendimento,
   updateBairros,
   updateDisponibilidade,
@@ -64,18 +60,15 @@ import {
   type DiaristaProfileMe,
   type DiaristaCompletude,
   type DisponibilidadeSlot,
-  type HabilidadePayload,
 } from "@/api/diaristaApi";
 import { apiMsg } from "@/utils/apiMsg";
 import { useAuth } from "@/stores/authStore";
 import { AppIcon, DButton, DCard } from "@/components/ui";
-import { PERFIL_STACK_ROUTES } from "@/navigation/routes";
 import type { DiaristaTabParamList } from "@/navigation/DiaristaNavigator";
 import { radius, shadows, spacing, typography } from "@/theme";
 import { useDularColors } from "@/hooks/useDularColors";
 import { useGenderTheme } from "@/hooks/useProfileTheme";
 import type { ProfileTheme } from "@/theme/profileTheme";
-import { useThemeStore } from "@/stores/useThemeStore";
 import { platformSelect } from "@/utils/platform";
 import {
   ProfileHeroCard,
@@ -84,6 +77,7 @@ import {
   ProfileSwitchRow,
 } from "../empregador/profile/components";
 import type { ServicoOferecido } from "@/types/diarista";
+import { OFERTAS_DIARISTA } from "@/constants/categorias";
 
 type Props = { onLogout: () => void };
 type Navigation = BottomTabNavigationProp<DiaristaTabParamList>;
@@ -140,16 +134,8 @@ function statusCardCopy(
 }
 
 // ── Constantes domínio ───────────────────────────────────────────────────────
-const SERVICOS_OPTIONS: Array<{
-  id: ServicoOferecido;
-  title: string;
-  subtitle: string;
-  icon: React.ComponentProps<typeof AppIcon>["name"];
-}> = [
-  { id: "DIARISTA", title: "Diarista", subtitle: "Limpeza e organização", icon: "BrushCleaning" },
-  { id: "BABA", title: "Babá", subtitle: "Cuidados com crianças", icon: "Baby" },
-  { id: "COZINHEIRA", title: "Cozinheira", subtitle: "Preparo de refeições", icon: "ChefHat" },
-];
+// Opções de "O que você oferece" vêm da FONTE ÚNICA de categorias.
+const SERVICOS_OPTIONS = OFERTAS_DIARISTA;
 
 const DIAS_SEMANA: Array<{ idx: number; label: string }> = [
   { idx: 0, label: "Dom" },
@@ -172,8 +158,8 @@ type ModalType =
   | "servicos"
   | "area"
   | "precos"
-  | "habilidades"
-  | "disponibilidade";
+  | "disponibilidade"
+  | "avaliacoes";
 
 // ── Helpers de UI ────────────────────────────────────────────────────────────
 
@@ -186,6 +172,34 @@ function formatMemberSince(value?: string | null) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "—";
   return date.toLocaleDateString("pt-BR");
+}
+
+function formatReviewDate(value?: string | null) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+function StarRow({
+  value,
+  color,
+  emptyColor,
+  size = 14,
+}: {
+  value: number;
+  color: string;
+  emptyColor: string;
+  size?: number;
+}) {
+  const filled = Math.round(value);
+  return (
+    <View style={{ flexDirection: "row", gap: 2 }}>
+      {[1, 2, 3, 4, 5].map((i) => (
+        <AppIcon key={i} name="Star" size={size} color={i <= filled ? color : emptyColor} strokeWidth={2} />
+      ))}
+    </View>
+  );
 }
 
 function verificacaoSubtitle(status: VerificacaoStatus) {
@@ -209,6 +223,16 @@ function centsToInput(cents: number | null | undefined) {
 }
 
 /**
+ * precoLeve/Medio/Pesada são armazenados em CENTAVOS (Int). Para exibir como
+ * moeda, converte para reais (÷100) antes de formatar — senão R$100 viraria
+ * "R$ 10.000,00".
+ */
+function centsToBRL(cents: number | null | undefined): string | null {
+  if (cents == null || !Number.isFinite(cents) || cents <= 0) return null;
+  return formatCurrencyBRL(cents / 100);
+}
+
+/**
  * Converte input em formato "120,50" para string decimal "120.50" (formato API).
  * Retorna null para entrada vazia ou inválida.
  */
@@ -218,6 +242,21 @@ function inputToDecimalString(value: string): string | null {
   const n = Number(normalized);
   if (!Number.isFinite(n) || n <= 0) return null;
   return n.toFixed(2);
+}
+
+/**
+ * Máscara de moeda BR: trata a entrada como CENTAVOS e formata "1.234,56".
+ * Digitar só números já formata — sem precisar de "." nem ",". Os parsers
+ * (toCents/inputToDecimalString) já consomem esse formato.
+ */
+function maskMoneyBR(raw: string | number | null | undefined): string {
+  const digits = String(raw ?? "").replace(/\D/g, "");
+  if (!digits) return "";
+  const cents = parseInt(digits, 10);
+  const reais = Math.floor(cents / 100);
+  const cc = String(cents % 100).padStart(2, "0");
+  const reaisStr = String(reais).replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  return `${reaisStr},${cc}`;
 }
 
 /**
@@ -251,8 +290,6 @@ export default function DiaristaPerfil({ onLogout }: Props) {
   const colors = useDularColors();
   const theme = useGenderTheme("DIARISTA");
   const insets = useSafeAreaInsets();
-  const themeMode = useThemeStore((state) => state.mode);
-  const toggleTheme = useThemeStore((state) => state.toggleTheme);
   const s = useMemo(() => makeStyles(colors, theme), [colors, theme]);
   const setUser = useAuth((state) => state.setUser);
   const user = useAuth((state) => state.user);
@@ -285,8 +322,8 @@ export default function DiaristaPerfil({ onLogout }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [verificacao, setVerificacao] = useState<VerificacaoStatus>("NAO_ENVIADO");
-  const [catalogo, setCatalogo] = useState<CatalogoTipo[]>([]);
-  const [habilidades, setHabilidades] = useState<HabilidadePayload[]>([]);
+  const [showVisivelCard, setShowVisivelCard] = useState(false);
+  const prevAprovadoRef = useRef<boolean | null>(null);
 
   // Geo + dark mode
   const [geoEnabled, setGeoEnabled] = useState(true);
@@ -298,7 +335,7 @@ export default function DiaristaPerfil({ onLogout }: Props) {
   const [localizacaoLoading, setLocalizacaoLoading] = useState(false);
 
   // Formulários
-  const [dadosForm, setDadosForm] = useState({ nome: "", telefone: "", bio: "" });
+  const [dadosForm, setDadosForm] = useState({ nome: "", telefone: "", bio: "", anosExperiencia: "" });
   const [servicosDraft, setServicosDraft] = useState<ServicoOferecido[]>([]);
   const [areaForm, setAreaForm] = useState({
     cidade: "",
@@ -313,6 +350,9 @@ export default function DiaristaPerfil({ onLogout }: Props) {
     pesada: "",
     babaHora: "",
     cozinheiraBase: "",
+    passadeira: "",
+    lavadeira: "",
+    cuidadora: "",
     taxaMinima: "",
     cobraDeslocamento: false,
     valorACombinar: false,
@@ -372,11 +412,9 @@ export default function DiaristaPerfil({ onLogout }: Props) {
         setError(null);
         setLoading(true);
       }
-      const [meData, perfilData, cat, habs] = await Promise.all([
+      const [meData, perfilData] = await Promise.all([
         getMe(),
         getDiaristaPerfilMe(),
-        getCatalogoServicos(),
-        getHabilidades(),
       ]);
       if (!mountedRef.current) return;
 
@@ -399,8 +437,6 @@ export default function DiaristaPerfil({ onLogout }: Props) {
         }
       }
 
-      setCatalogo(cat?.tipos ?? []);
-      setHabilidades(Array.isArray(habs) ? habs : []);
     } catch (e: any) {
       if (mountedRef.current) setError(apiMsg(e, "Falha ao carregar perfil."));
     } finally {
@@ -457,6 +493,28 @@ export default function DiaristaPerfil({ onLogout }: Props) {
     [profile?.servicosOferecidos],
   );
 
+  // Categorias com tabela de valores própria (Diarista/Babá/Cozinheira) que a
+  // profissional oferece. O modal de Preços mostra um botão por categoria e a
+  // tabela só da categoria selecionada.
+  const categoriasPreco = useMemo<ServicoOferecido[]>(
+    () =>
+      servicosOferecidos.filter(
+        (c) =>
+          c === "DIARISTA" ||
+          c === "BABA" ||
+          c === "COZINHEIRA" ||
+          c === "PASSADEIRA" ||
+          c === "LAVADEIRA" ||
+          c === "CUIDADORA",
+      ),
+    [servicosOferecidos],
+  );
+  // Acordeão: categoria atualmente expandida no modal de Preços (null = todas
+  // recolhidas).
+  const [precoCatSel, setPrecoCatSel] = useState<ServicoOferecido | null>("DIARISTA");
+  const catLabelPreco = (c: ServicoOferecido) => SERVICOS_OPTIONS.find((o) => o.id === c)?.title ?? c;
+  const catIconPreco = (c: ServicoOferecido) => SERVICOS_OPTIONS.find((o) => o.id === c)?.icon ?? "Sparkles";
+
   const completude: DiaristaCompletude = useMemo(
     () => calcularCompletudeDiarista(profile, me?.nome ?? user?.nome ?? ""),
     [profile, me?.nome, user?.nome],
@@ -478,6 +536,19 @@ export default function DiaristaPerfil({ onLogout }: Props) {
     if (hasDocUrl && verificacao === "PENDENTE") return "AGUARDANDO";
     return "VERIFICAR";
   }, [completude.completo, verificacao, hasDocUrl]);
+
+  // Card de status "Perfil visível" é transitório: mostra ~20s na transição
+  // não-aprovado -> aprovado e some, deixando o perfil limpo.
+  useEffect(() => {
+    const aprovado = verificacao === "APROVADO";
+    const prev = prevAprovadoRef.current;
+    prevAprovadoRef.current = aprovado;
+    if (prev === false && aprovado === true) {
+      setShowVisivelCard(true);
+      const timer = setTimeout(() => setShowVisivelCard(false), 20000);
+      return () => clearTimeout(timer);
+    }
+  }, [verificacao]);
   const statusCopy = useMemo(() => statusCardCopy(statusCardCase), [statusCardCase]);
   // Para o badge do hero, distinguir "PENDENTE com docs" de "PENDENTE sem
   // docs". Sem docUrl, mapeamos para NAO_ENVIADO para o pill exibir
@@ -534,8 +605,8 @@ export default function DiaristaPerfil({ onLogout }: Props) {
 
   const precosResumo = useMemo(() => {
     if (profile?.valorACombinar) return "Valor a combinar";
-    const leve = formatCurrencyBRL(profile?.precoLeve ?? null);
-    const pesada = formatCurrencyBRL(profile?.precoPesada ?? null);
+    const leve = centsToBRL(profile?.precoLeve ?? null);
+    const pesada = centsToBRL(profile?.precoPesada ?? null);
     if (!leve && !pesada) return "Configure seus preços";
     return [leve && `Leve ${leve}`, pesada && `Pesada ${pesada}`].filter(Boolean).join(" • ");
   }, [profile?.valorACombinar, profile?.precoLeve, profile?.precoPesada]);
@@ -546,11 +617,6 @@ export default function DiaristaPerfil({ onLogout }: Props) {
       .map((id) => SERVICOS_OPTIONS.find((o) => o.id === id)?.title ?? id)
       .join(", ");
   }, [servicosOferecidos]);
-
-  const habilidadesResumo = useMemo(() => {
-    if (!habilidades.length) return "Adicione suas especialidades";
-    return `${habilidades.length} selecionada(s)`;
-  }, [habilidades.length]);
 
   const disponibilidadeResumo = useMemo(() => {
     const agenda = profile?.agenda ?? [];
@@ -584,6 +650,8 @@ export default function DiaristaPerfil({ onLogout }: Props) {
             nome: profile?.user?.nome ?? me?.nome ?? user?.nome ?? "",
             telefone: profile?.user?.telefone ?? me?.telefone ?? user?.telefone ?? "",
             bio: profile?.bio ?? "",
+            anosExperiencia:
+              profile?.anosExperiencia != null ? String(profile.anosExperiencia) : "",
           });
           break;
         case "servicos":
@@ -604,19 +672,21 @@ export default function DiaristaPerfil({ onLogout }: Props) {
         }
         case "precos":
           setPrecosForm({
-            leve: centsToInput(profile?.precoLeve ?? null),
-            medio: centsToInput(profile?.precoMedio ?? null),
-            pesada: centsToInput(profile?.precoPesada ?? null),
-            babaHora: decimalToInput(profile?.precoBabaHora ?? null),
-            cozinheiraBase: decimalToInput(profile?.precoCozinheiraBase ?? null),
-            taxaMinima: decimalToInput(profile?.taxaMinima ?? null),
+            leve: maskMoneyBR(centsToInput(profile?.precoLeve ?? null)),
+            medio: maskMoneyBR(centsToInput(profile?.precoMedio ?? null)),
+            pesada: maskMoneyBR(centsToInput(profile?.precoPesada ?? null)),
+            babaHora: maskMoneyBR(decimalToInput(profile?.precoBabaHora ?? null)),
+            cozinheiraBase: maskMoneyBR(decimalToInput(profile?.precoCozinheiraBase ?? null)),
+            passadeira: maskMoneyBR(decimalToInput(profile?.precoPassadeira ?? null)),
+            lavadeira: maskMoneyBR(decimalToInput(profile?.precoLavadeira ?? null)),
+            cuidadora: maskMoneyBR(decimalToInput(profile?.precoCuidadora ?? null)),
+            taxaMinima: maskMoneyBR(decimalToInput(profile?.taxaMinima ?? null)),
             cobraDeslocamento: profile?.cobraDeslocamento ?? false,
             valorACombinar: profile?.valorACombinar ?? false,
             observacao: profile?.observacaoPreco ?? "",
           });
-          break;
-        case "habilidades":
-          // catálogo já está carregado em `catalogo`; nada para inicializar
+          // Seleciona a 1ª categoria com tabela de valores (Diarista/Babá/Cozinheira).
+          setPrecoCatSel(categoriasPreco[0] ?? null);
           break;
         case "disponibilidade": {
           const dias = new Set<number>();
@@ -680,52 +750,34 @@ export default function DiaristaPerfil({ onLogout }: Props) {
     }
   };
 
-  // ── Habilidades ──────────────────────────────────────────────────────────
-  const toggleHabilidade = (tipo: string, categoria?: string | null) => {
-    const key = `${tipo}::${categoria ?? ""}`;
-    setHabilidades((prev) => {
-      const exists = prev.some((h) => `${h.tipo}::${h.categoria ?? ""}` === key);
-      return exists
-        ? prev.filter((h) => `${h.tipo}::${h.categoria ?? ""}` !== key)
-        : [...prev, { tipo, categoria: categoria ?? null }];
-    });
-  };
-
-  const salvarHabilidades = async () => {
-    if (saving) return;
-    try {
-      setSaving(true);
-      setFormError(null);
-      const updated = await putHabilidades(habilidades);
-      if (!mountedRef.current) return;
-      setHabilidades(Array.isArray(updated) ? updated : habilidades);
-      setModal(null);
-      setToast("Habilidades salvas.");
-    } catch (e: any) {
-      setFormError(apiMsg(e, "Falha ao salvar habilidades."));
-    } finally {
-      if (mountedRef.current) setSaving(false);
-    }
-  };
-
-  // ── Salvar: dados pessoais (nome/telefone/bio) ───────────────────────────
+  // ── Salvar: dados pessoais (nome/telefone/bio) + anos de experiência ──────
   const salvarDados = async () => {
     const nomeTrim = dadosForm.nome.trim();
     if (nomeTrim.length < 2) {
       setFormError("Informe seu nome completo.");
       return;
     }
+    const anosTrim = dadosForm.anosExperiencia.trim();
+    const anosExperiencia = anosTrim ? Number(anosTrim) : null;
+    if (anosExperiencia != null && (!Number.isInteger(anosExperiencia) || anosExperiencia < 0)) {
+      setFormError("Informe anos de experiência válidos.");
+      return;
+    }
     try {
       setSaving(true);
       setFormError(null);
-      // PATCH mínimo: só nome/telefone/bio em /api/me
+      // Nome/telefone/bio são do User → /api/me. Anos de experiência é do perfil
+      // da diarista → /api/diarista/me (mesma estrutura dos dados do montador).
       await updatePerfilBase({
         nome: nomeTrim,
         telefone: dadosForm.telefone.trim(),
         bio: dadosForm.bio.trim(),
       });
+      await patchDiaristaPerfil({ anosExperiencia });
       if (!mountedRef.current) return;
-      setProfile((prev) => (prev ? { ...prev, bio: dadosForm.bio.trim() || null } : prev));
+      setProfile((prev) =>
+        prev ? { ...prev, bio: dadosForm.bio.trim() || null, anosExperiencia } : prev,
+      );
       setUser((cur) =>
         cur
           ? {
@@ -900,11 +952,17 @@ export default function DiaristaPerfil({ onLogout }: Props) {
 
     const ofereceBaba = servicosOferecidos.includes("BABA");
     const ofereceCozinheira = servicosOferecidos.includes("COZINHEIRA");
+    const oferecePassadeira = servicosOferecidos.includes("PASSADEIRA");
+    const ofereceLavadeira = servicosOferecidos.includes("LAVADEIRA");
+    const ofereceCuidadora = servicosOferecidos.includes("CUIDADORA");
 
     const babaHora = ofereceBaba ? inputToDecimalString(precosForm.babaHora) : null;
     const cozinheiraBase = ofereceCozinheira
       ? inputToDecimalString(precosForm.cozinheiraBase)
       : null;
+    const precoPassadeira = oferecePassadeira ? inputToDecimalString(precosForm.passadeira) : null;
+    const precoLavadeira = ofereceLavadeira ? inputToDecimalString(precosForm.lavadeira) : null;
+    const precoCuidadora = ofereceCuidadora ? inputToDecimalString(precosForm.cuidadora) : null;
     const taxaMinima = inputToDecimalString(precosForm.taxaMinima);
 
     try {
@@ -927,6 +985,9 @@ export default function DiaristaPerfil({ onLogout }: Props) {
         observacaoPreco: observacao || null,
         precoBabaHora: babaHora,
         precoCozinheiraBase: cozinheiraBase,
+        precoPassadeira,
+        precoLavadeira,
+        precoCuidadora,
         taxaMinima,
       };
       await updatePrecosCompletos(patchPayload);
@@ -945,6 +1006,9 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                 ofereceDiarista && pesada != null ? pesada : prev.precoPesada,
               precoBabaHora: babaHora,
               precoCozinheiraBase: cozinheiraBase,
+              precoPassadeira,
+              precoLavadeira,
+              precoCuidadora,
               taxaMinima,
               cobraDeslocamento: precosForm.cobraDeslocamento,
               valorACombinar: false,
@@ -1030,17 +1094,6 @@ export default function DiaristaPerfil({ onLogout }: Props) {
       setProfile((prev) => (prev ? { ...prev, ativo: previous } : prev));
       setToast(apiMsg(e, "Falha ao atualizar visibilidade do perfil."));
     }
-  };
-
-  // ── Misc ─────────────────────────────────────────────────────────────────
-  const openWhats = async () => {
-    const url = `https://wa.me/5565999990000?text=${encodeURIComponent("Olá! Preciso de suporte no app Dular.")}`;
-    const ok = await Linking.canOpenURL(url);
-    if (!ok) {
-      Alert.alert("WhatsApp", "Não foi possível abrir o WhatsApp.");
-      return;
-    }
-    await Linking.openURL(url);
   };
 
   // Preenche cidade/UF/bairro do formulário Área usando a localização atual
@@ -1165,15 +1218,19 @@ export default function DiaristaPerfil({ onLogout }: Props) {
             <View style={s.headerSide} />
           </View>
 
-          {loading ? (
+          {/* Só bloqueia a tela inteira no PRIMEIRO carregamento (sem dados).
+              Em refocos (useFocusEffect → loadMe), `profile` já existe, então
+              mantemos o conteúdo na tela e atualizamos em background — sem a
+              "tela branca + spinner" a cada vez que se volta para o perfil. */}
+          {loading && !profile ? (
             <View style={s.centerCard}>
               <ActivityIndicator color={theme.primary} size="large" />
             </View>
-          ) : error ? (
+          ) : error && !profile ? (
             <DCard style={s.errorCard}>
               <Text style={s.errorTitle}>Não foi possível carregar.</Text>
               <Text style={s.errorText}>{error}</Text>
-              <DButton label="Tentar novamente" variant="secondary" onPress={() => { void loadMe(); }} />
+              <DButton flat tint={theme.primary} tintDark={theme.primaryDark} label="Tentar novamente" variant="secondary" onPress={() => { void loadMe(); }} />
             </DCard>
           ) : (
             <>
@@ -1200,6 +1257,7 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                   representa só cadastro básico; o texto e a CTA refletem o
                   estado real de visibilidade. */}
               <ProfileSection title="Status do perfil">
+                {statusCardCase !== "VISIVEL" || showVisivelCard ? (
                 <View style={s.statusCard}>
                   <View style={s.statusHeader}>
                     <View
@@ -1278,14 +1336,15 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                   ) : null}
                   <Text style={s.statusHint}>{statusCopy.text}</Text>
                   {verificacao !== "APROVADO" ? (
-                    <DButton
+                    <DButton flat tint={theme.primary} tintDark={theme.primaryDark}
                       label={verificationCtaLabel}
-                      variant="primary"
+                      variant="warning"
                       size="md"
                       onPress={() => navigation.navigate("VerificacaoDocs")}
                     />
                   ) : null}
                 </View>
+                ) : null}
                 <ProfileSwitchRow
                   accentColor={theme.primary}
                   accentSoft={theme.primarySoft}
@@ -1307,9 +1366,13 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                   icon="User"
                   title="Nome, telefone e apresentação"
                   subtitle={
-                    profile?.bio
-                      ? profile.bio.slice(0, 80) + (profile.bio.length > 80 ? "…" : "")
-                      : "Complete sua apresentação"
+                    profile?.anosExperiencia != null && profile.anosExperiencia > 0
+                      ? `${profile.anosExperiencia} ${profile.anosExperiencia === 1 ? "ano" : "anos"} de experiência${
+                          profile?.bio ? " · " + profile.bio.slice(0, 50) + (profile.bio.length > 50 ? "…" : "") : ""
+                        }`
+                      : profile?.bio
+                        ? profile.bio.slice(0, 80) + (profile.bio.length > 80 ? "…" : "")
+                        : "Complete sua apresentação"
                   }
                   onPress={() => openModal("dados")}
                 />
@@ -1340,18 +1403,49 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                 <ProfileRow
                   accentColor={theme.primary}
                   accentSoft={theme.primarySoft}
-                  icon="Star"
-                  title="Catálogo de serviços"
-                  subtitle={habilidadesResumo}
-                  onPress={() => openModal("habilidades")}
-                />
-                <ProfileRow
-                  accentColor={theme.primary}
-                  accentSoft={theme.primarySoft}
                   icon="Calendar"
                   title="Dias e turnos"
                   subtitle={disponibilidadeResumo}
                   onPress={() => openModal("disponibilidade")}
+                />
+                <ProfileRow
+                  accentColor={theme.primary}
+                  accentSoft={theme.primarySoft}
+                  icon="Star"
+                  title="Avaliações"
+                  subtitle={
+                    profile?.avaliacoes?.total
+                      ? `${profile.avaliacoes.total} avaliação(ões)`
+                      : "Sem avaliações ainda"
+                  }
+                  onPress={() => openModal("avaliacoes")}
+                />
+                <ProfileRow
+                  accentColor={theme.primary}
+                  accentSoft={theme.primarySoft}
+                  icon="CreditCard"
+                  title="Carteira / Ganhos"
+                  subtitle="Histórico e ganhos dos serviços"
+                  onPress={() => navigation.navigate("Carteira", { from: "Perfil" })}
+                  isLast
+                />
+              </ProfileSection>
+
+              {/* ── Endereço ────────────────────────────────────────────── */}
+              <ProfileSection title="Endereço">
+                <ProfileRow
+                  accentColor={theme.primary}
+                  accentSoft={theme.primarySoft}
+                  icon="MapPin"
+                  title="Endereço"
+                  subtitle="Seu endereço residencial"
+                  onPress={() =>
+                    navigation.navigate("MeusEnderecos", {
+                      role: "DIARISTA",
+                      accentColor: theme.primary,
+                      accentSoft: theme.primarySoft,
+                    })
+                  }
                   isLast
                 />
               </ProfileSection>
@@ -1362,15 +1456,15 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                   accentColor={theme.primary}
                   accentSoft={theme.primarySoft}
                   icon="FileText"
-                  title="Verificação de documentos"
+                  title="Documentos"
                   subtitle={
                     verificacao === "APROVADO"
-                      ? "Documentos aprovados"
+                      ? "Verificado"
                       : verificacao === "REPROVADO"
                         ? "Revise seus documentos"
                         : hasDocUrl
-                          ? "Aguardando análise dos documentos"
-                          : "Documentos pendentes"
+                          ? "Em análise"
+                          : "Enviar documento"
                   }
                   onPress={() => navigation.navigate("VerificacaoDocs")}
                 />
@@ -1378,11 +1472,9 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                   accentColor={theme.primary}
                   accentSoft={theme.primarySoft}
                   icon="ShieldCheck"
-                  title="Segurança e SafeScore"
-                  subtitle="Histórico e badges de segurança"
-                  onPress={() =>
-                    Alert.alert("SafeScore", "Seu SafeScore reflete histórico de comportamento na plataforma.")
-                  }
+                  title="SafeScore"
+                  subtitle="Reputação e acompanhamento de segurança"
+                  onPress={() => navigation.navigate("SafeScore")}
                 />
                 <ProfileRow
                   accentColor={theme.primary}
@@ -1391,9 +1483,7 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                   title="Reportar incidente"
                   subtitle="Botão SOS"
                   danger
-                  onPress={() =>
-                    (navigation as any).navigate(PERFIL_STACK_ROUTES.REPORT_INCIDENT)
-                  }
+                  onPress={() => navigation.navigate("SosFlow")}
                 />
                 <ProfileRow
                   accentColor={theme.primary}
@@ -1401,7 +1491,7 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                   icon="Shield"
                   title="Privacidade"
                   subtitle="Controle seus dados"
-                  onPress={() => (navigation as any).navigate(PERFIL_STACK_ROUTES.PRIVACIDADE)}
+                  onPress={() => navigation.navigate("Privacidade")}
                   isLast
                 />
               </ProfileSection>
@@ -1411,18 +1501,10 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                 <ProfileRow
                   accentColor={theme.primary}
                   accentSoft={theme.primarySoft}
-                  icon="Lock"
-                  title="Alterar senha"
-                  subtitle="Segurança da conta"
-                  onPress={() => (navigation as any).navigate(PERFIL_STACK_ROUTES.ALTERAR_SENHA)}
-                />
-                <ProfileRow
-                  accentColor={theme.primary}
-                  accentSoft={theme.primarySoft}
-                  icon="MessageCircle"
-                  title="Suporte no WhatsApp"
-                  subtitle="Fale com a equipe"
-                  onPress={openWhats}
+                  icon="HelpCircle"
+                  title="Suporte"
+                  subtitle="Fale com o Dular"
+                  onPress={() => navigation.navigate("Suporte")}
                 />
                 <ProfileRow
                   accentColor={theme.primary}
@@ -1430,7 +1512,7 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                   icon="FileText"
                   title="Termos de uso"
                   subtitle="Leia as regras da plataforma"
-                  onPress={() => (navigation as any).navigate(PERFIL_STACK_ROUTES.TERMOS)}
+                  onPress={() => navigation.navigate("Termos")}
                 />
                 <ProfileSwitchRow
                   accentColor={theme.primary}
@@ -1441,16 +1523,6 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                   subtitle="Melhorar sugestões perto de você"
                   value={geoEnabled}
                   onValueChange={handleGeoToggle}
-                />
-                <ProfileSwitchRow
-                  accentColor={theme.primary}
-                  accentSoft={theme.primarySoft}
-                  accentLight={theme.primaryLight}
-                  icon="Sparkles"
-                  title="Dark mode"
-                  subtitle="Tema escuro do app"
-                  value={themeMode === "dark"}
-                  onValueChange={toggleTheme}
                   isLast
                 />
               </ProfileSection>
@@ -1518,6 +1590,19 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                 keyboardType="phone-pad"
               />
 
+              {/* Gênero — SOMENTE LEITURA (fonte: user.genero, definido no cadastro) */}
+              <Text style={s.modalLabel}>Gênero</Text>
+              <View style={s.modalReadonly}>
+                <Text style={s.modalReadonlyValue}>
+                  {user?.genero === "FEMININO"
+                    ? "Feminino"
+                    : user?.genero === "MASCULINO"
+                      ? "Masculino"
+                      : "Não informado"}
+                </Text>
+              </View>
+              <Text style={s.modalReadonlyHint}>Definido no cadastro — não editável aqui.</Text>
+
               <Text style={s.modalLabel}>Apresentação</Text>
               <TextInput
                 value={dadosForm.bio}
@@ -1531,9 +1616,21 @@ export default function DiaristaPerfil({ onLogout }: Props) {
               />
               <Text style={s.charCount}>{dadosForm.bio.length}/300</Text>
 
+              <Text style={s.modalLabel}>Anos de experiência</Text>
+              <TextInput
+                value={dadosForm.anosExperiencia}
+                onChangeText={(v) =>
+                  setDadosForm((cur) => ({ ...cur, anosExperiencia: v.replace(/[^0-9]/g, "").slice(0, 2) }))
+                }
+                placeholder="Ex.: 5"
+                placeholderTextColor={colors.textMuted}
+                style={s.modalInput}
+                keyboardType="number-pad"
+              />
+
               {formError ? <Text style={s.errorText}>{formError}</Text> : null}
 
-              <DButton
+              <DButton flat tint={theme.primary} tintDark={theme.primaryDark}
                 label={saving ? "Salvando…" : "Salvar dados"}
                 onPress={salvarDados}
                 loading={saving}
@@ -1599,8 +1696,8 @@ export default function DiaristaPerfil({ onLogout }: Props) {
             {formError ? <Text style={s.errorText}>{formError}</Text> : null}
 
             <View style={s.modalActions}>
-              <DButton label="Cancelar" onPress={closeModal} variant="secondary" disabled={saving} style={{ flex: 1 }} />
-              <DButton
+              <DButton flat tint={theme.primary} tintDark={theme.primaryDark} label="Cancelar" onPress={closeModal} variant="secondary" disabled={saving} style={{ flex: 1 }} />
+              <DButton flat tint={theme.primary} tintDark={theme.primaryDark}
                 label={saving ? "Salvando…" : "Salvar"}
                 onPress={salvarServicos}
                 loading={saving}
@@ -1726,7 +1823,7 @@ export default function DiaristaPerfil({ onLogout }: Props) {
 
               {formError ? <Text style={s.errorText}>{formError}</Text> : null}
 
-              <DButton
+              <DButton flat tint={theme.primary} tintDark={theme.primaryDark}
                 label={saving ? "Salvando…" : "Salvar área"}
                 onPress={salvarArea}
                 loading={saving}
@@ -1779,82 +1876,152 @@ export default function DiaristaPerfil({ onLogout }: Props) {
 
               {!precosForm.valorACombinar ? (
                 <>
-                  {servicosOferecidos.includes("DIARISTA") ? (
-                    <>
-                      <Text style={s.modalLabel}>Diarista — Limpeza leve (R$)</Text>
-                      <TextInput
-                        value={precosForm.leve}
-                        onChangeText={(v) => setPrecosForm((cur) => ({ ...cur, leve: v }))}
-                        placeholder="Ex.: 120,00"
-                        placeholderTextColor={colors.textMuted}
-                        style={s.modalInput}
-                        keyboardType="decimal-pad"
-                      />
+                  {/* Acordeão: um card por categoria que a profissional oferece.
+                      Tocar no card expande/recolhe a tabela de valores dela. */}
+                  {categoriasPreco.length === 0 ? (
+                    <Text style={s.modalSubtitle}>
+                      Escolha os serviços que você oferece em “O que você oferece” para definir os valores.
+                    </Text>
+                  ) : (
+                    categoriasPreco.map((c) => {
+                      const aberto = precoCatSel === c;
+                      return (
+                        <View key={c} style={s.precoCatCard}>
+                          <Pressable
+                            onPress={() => setPrecoCatSel(aberto ? null : c)}
+                            style={s.precoCatHeader}
+                          >
+                            <View style={s.precoCatIcon}>
+                              <AppIcon name={catIconPreco(c)} size={18} color={theme.primary} strokeWidth={2.2} />
+                            </View>
+                            <Text style={s.precoCatTitle}>{catLabelPreco(c)}</Text>
+                            <View style={aberto ? s.precoCatChevronOpen : undefined}>
+                              <AppIcon name="ChevronRight" size={18} color={colors.textMuted} strokeWidth={2.2} />
+                            </View>
+                          </Pressable>
 
-                      <Text style={s.modalLabel}>Diarista — Limpeza média (R$) — opcional</Text>
-                      <TextInput
-                        value={precosForm.medio}
-                        onChangeText={(v) => setPrecosForm((cur) => ({ ...cur, medio: v }))}
-                        placeholder="Ex.: 160,00"
-                        placeholderTextColor={colors.textMuted}
-                        style={s.modalInput}
-                        keyboardType="decimal-pad"
-                      />
+                          {aberto ? (
+                            <View style={s.precoCatBody}>
+                              {c === "DIARISTA" ? (
+                                <>
+                                  <Text style={s.modalLabel}>Limpeza leve (R$)</Text>
+                                  <TextInput
+                                    value={precosForm.leve}
+                                    onChangeText={(v) => setPrecosForm((cur) => ({ ...cur, leve: maskMoneyBR(v) }))}
+                                    placeholder="Ex.: 120,00"
+                                    placeholderTextColor={colors.textMuted}
+                                    style={s.modalInput}
+                                    keyboardType="number-pad"
+                                  />
 
-                      <Text style={s.modalLabel}>Diarista — Limpeza pesada (R$)</Text>
-                      <TextInput
-                        value={precosForm.pesada}
-                        onChangeText={(v) => setPrecosForm((cur) => ({ ...cur, pesada: v }))}
-                        placeholder="Ex.: 200,00"
-                        placeholderTextColor={colors.textMuted}
-                        style={s.modalInput}
-                        keyboardType="decimal-pad"
-                      />
-                    </>
-                  ) : null}
+                                  <Text style={s.modalLabel}>Limpeza média (R$) — opcional</Text>
+                                  <TextInput
+                                    value={precosForm.medio}
+                                    onChangeText={(v) => setPrecosForm((cur) => ({ ...cur, medio: maskMoneyBR(v) }))}
+                                    placeholder="Ex.: 160,00"
+                                    placeholderTextColor={colors.textMuted}
+                                    style={s.modalInput}
+                                    keyboardType="number-pad"
+                                  />
 
-                  {servicosOferecidos.includes("BABA") ? (
-                    <>
-                      <Text style={s.modalLabel}>Babá — preço por hora (R$)</Text>
-                      <TextInput
-                        value={precosForm.babaHora}
-                        onChangeText={(v) =>
-                          setPrecosForm((cur) => ({ ...cur, babaHora: v }))
-                        }
-                        placeholder="Ex.: 35,00"
-                        placeholderTextColor={colors.textMuted}
-                        style={s.modalInput}
-                        keyboardType="decimal-pad"
-                      />
-                    </>
-                  ) : null}
+                                  <Text style={s.modalLabel}>Limpeza pesada (R$)</Text>
+                                  <TextInput
+                                    value={precosForm.pesada}
+                                    onChangeText={(v) => setPrecosForm((cur) => ({ ...cur, pesada: maskMoneyBR(v) }))}
+                                    placeholder="Ex.: 200,00"
+                                    placeholderTextColor={colors.textMuted}
+                                    style={s.modalInput}
+                                    keyboardType="number-pad"
+                                  />
+                                </>
+                              ) : null}
 
-                  {servicosOferecidos.includes("COZINHEIRA") ? (
-                    <>
-                      <Text style={s.modalLabel}>Cozinheira — preço base (R$)</Text>
-                      <TextInput
-                        value={precosForm.cozinheiraBase}
-                        onChangeText={(v) =>
-                          setPrecosForm((cur) => ({ ...cur, cozinheiraBase: v }))
-                        }
-                        placeholder="Ex.: 180,00"
-                        placeholderTextColor={colors.textMuted}
-                        style={s.modalInput}
-                        keyboardType="decimal-pad"
-                      />
-                    </>
-                  ) : null}
+                              {c === "BABA" ? (
+                                <>
+                                  <Text style={s.modalLabel}>Preço por hora (R$)</Text>
+                                  <TextInput
+                                    value={precosForm.babaHora}
+                                    onChangeText={(v) => setPrecosForm((cur) => ({ ...cur, babaHora: maskMoneyBR(v) }))}
+                                    placeholder="Ex.: 35,00"
+                                    placeholderTextColor={colors.textMuted}
+                                    style={s.modalInput}
+                                    keyboardType="number-pad"
+                                  />
+                                </>
+                              ) : null}
+
+                              {c === "COZINHEIRA" ? (
+                                <>
+                                  <Text style={s.modalLabel}>Preço base (R$)</Text>
+                                  <TextInput
+                                    value={precosForm.cozinheiraBase}
+                                    onChangeText={(v) => setPrecosForm((cur) => ({ ...cur, cozinheiraBase: maskMoneyBR(v) }))}
+                                    placeholder="Ex.: 180,00"
+                                    placeholderTextColor={colors.textMuted}
+                                    style={s.modalInput}
+                                    keyboardType="number-pad"
+                                  />
+                                </>
+                              ) : null}
+
+                              {c === "PASSADEIRA" ? (
+                                <>
+                                  <Text style={s.modalLabel}>Preço base (R$)</Text>
+                                  <TextInput
+                                    value={precosForm.passadeira}
+                                    onChangeText={(v) => setPrecosForm((cur) => ({ ...cur, passadeira: maskMoneyBR(v) }))}
+                                    placeholder="Ex.: 90,00"
+                                    placeholderTextColor={colors.textMuted}
+                                    style={s.modalInput}
+                                    keyboardType="number-pad"
+                                  />
+                                </>
+                              ) : null}
+
+                              {c === "LAVADEIRA" ? (
+                                <>
+                                  <Text style={s.modalLabel}>Preço base (R$)</Text>
+                                  <TextInput
+                                    value={precosForm.lavadeira}
+                                    onChangeText={(v) => setPrecosForm((cur) => ({ ...cur, lavadeira: maskMoneyBR(v) }))}
+                                    placeholder="Ex.: 100,00"
+                                    placeholderTextColor={colors.textMuted}
+                                    style={s.modalInput}
+                                    keyboardType="number-pad"
+                                  />
+                                </>
+                              ) : null}
+
+                              {c === "CUIDADORA" ? (
+                                <>
+                                  <Text style={s.modalLabel}>Preço base (R$)</Text>
+                                  <TextInput
+                                    value={precosForm.cuidadora}
+                                    onChangeText={(v) => setPrecosForm((cur) => ({ ...cur, cuidadora: maskMoneyBR(v) }))}
+                                    placeholder="Ex.: 150,00"
+                                    placeholderTextColor={colors.textMuted}
+                                    style={s.modalInput}
+                                    keyboardType="number-pad"
+                                  />
+                                </>
+                              ) : null}
+                            </View>
+                          ) : null}
+                        </View>
+                      );
+                    })
+                  )}
 
                   <Text style={s.modalLabel}>Taxa mínima (R$) — opcional</Text>
                   <TextInput
                     value={precosForm.taxaMinima}
                     onChangeText={(v) =>
-                      setPrecosForm((cur) => ({ ...cur, taxaMinima: v }))
+                      setPrecosForm((cur) => ({ ...cur, taxaMinima: maskMoneyBR(v) }))
                     }
                     placeholder="Ex.: 80,00"
                     placeholderTextColor={colors.textMuted}
                     style={s.modalInput}
-                    keyboardType="decimal-pad"
+                    keyboardType="number-pad"
                   />
 
                   <View style={s.toggleRow}>
@@ -1890,7 +2057,7 @@ export default function DiaristaPerfil({ onLogout }: Props) {
 
               {formError ? <Text style={s.errorText}>{formError}</Text> : null}
 
-              <DButton
+              <DButton flat tint={theme.primary} tintDark={theme.primaryDark}
                 label={saving ? "Salvando…" : "Salvar preços"}
                 onPress={salvarPrecos}
                 loading={saving}
@@ -1899,61 +2066,6 @@ export default function DiaristaPerfil({ onLogout }: Props) {
             </ScrollView>
           </View>
         </KeyboardAvoidingView>
-      </Modal>
-
-      {/* Modal Habilidades (F) */}
-      <Modal visible={modal === "habilidades"} animationType="fade" transparent onRequestClose={closeModal}>
-        <View style={s.floatOverlay}>
-          <View style={s.floatCardTall}>
-            <View style={s.modalHeader}>
-              <Text style={s.modalTitle}>Habilidades</Text>
-              <Pressable onPress={closeModal} hitSlop={12}>
-                <AppIcon name="XCircle" size={23} color={colors.textSecondary} />
-              </Pressable>
-            </View>
-
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 14 }}>
-              {catalogo.length === 0 ? (
-                <Text style={s.modalSubtitle}>Carregando catálogo…</Text>
-              ) : (
-                catalogo.map((t) => (
-                  <View key={t.tipo} style={{ gap: 6 }}>
-                    <Text style={s.catLabel}>{t.label}</Text>
-                    <View style={s.chips}>
-                      {t.categorias.map((c) => {
-                        const key = `${t.tipo}::${c.categoria}`;
-                        const active = habilidades.some(
-                          (h) => `${h.tipo}::${h.categoria ?? ""}` === key,
-                        );
-                        return (
-                          <Pressable
-                            key={c.categoria}
-                            onPress={() => toggleHabilidade(t.tipo, c.categoria)}
-                            style={[s.chip, active && s.chipOn]}
-                          >
-                            <Text style={[s.chipText, active && s.chipTextOn]}>{c.label}</Text>
-                          </Pressable>
-                        );
-                      })}
-                    </View>
-                  </View>
-                ))
-              )}
-            </ScrollView>
-
-            {formError ? <Text style={s.errorText}>{formError}</Text> : null}
-
-            <View style={s.modalActions}>
-              <DButton label="Cancelar" onPress={closeModal} variant="secondary" disabled={saving} style={{ flex: 1 }} />
-              <DButton
-                label={saving ? "Salvando…" : "Salvar"}
-                onPress={salvarHabilidades}
-                loading={saving}
-                style={{ flex: 1 }}
-              />
-            </View>
-          </View>
-        </View>
       </Modal>
 
       {/* Modal Disponibilidade (G) */}
@@ -2012,20 +2124,66 @@ export default function DiaristaPerfil({ onLogout }: Props) {
             {formError ? <Text style={s.errorText}>{formError}</Text> : null}
 
             <View style={s.modalActions}>
-              <DButton
+              <DButton flat tint={theme.primary} tintDark={theme.primaryDark}
                 label="Cancelar"
                 onPress={closeModal}
                 variant="secondary"
                 disabled={saving}
                 style={{ flex: 1 }}
               />
-              <DButton
+              <DButton flat tint={theme.primary} tintDark={theme.primaryDark}
                 label={saving ? "Salvando…" : "Salvar"}
                 onPress={salvarDisponibilidade}
                 loading={saving}
                 style={{ flex: 1 }}
               />
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal Avaliações (read-only) — paridade com o montador */}
+      <Modal visible={modal === "avaliacoes"} animationType="fade" transparent onRequestClose={closeModal}>
+        <View style={s.floatOverlay}>
+          <View style={s.floatCardTall}>
+            <View style={s.modalHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={s.modalTitle}>Avaliações</Text>
+                <Text style={s.modalSubtitle}>O que os clientes disseram sobre os seus serviços.</Text>
+              </View>
+              <Pressable onPress={closeModal} hitSlop={12}>
+                <AppIcon name="XCircle" size={23} color={colors.textSecondary} />
+              </Pressable>
+            </View>
+
+            {profile?.avaliacoes?.itens?.length ? (
+              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
+                <View style={s.ratingSummary}>
+                  <Text style={s.ratingScore}>{(profile.avaliacoes.media ?? 0).toFixed(1)}</Text>
+                  <View style={{ gap: 4 }}>
+                    <StarRow value={profile.avaliacoes.media ?? 0} size={16} color={theme.primary} emptyColor={theme.border} />
+                    <Text style={s.ratingSummaryText}>{profile.avaliacoes.total} avaliação(ões)</Text>
+                  </View>
+                </View>
+                {profile.avaliacoes.itens.map((item) => (
+                  <View key={item.id} style={s.reviewCard}>
+                    <View style={s.reviewHeader}>
+                      <StarRow value={item.notaGeral} color={theme.primary} emptyColor={theme.border} />
+                      <Text style={s.reviewDate}>{formatReviewDate(item.createdAt)}</Text>
+                    </View>
+                    {item.comentario ? <Text style={s.reviewComment}>{item.comentario}</Text> : null}
+                  </View>
+                ))}
+              </ScrollView>
+            ) : (
+              <View style={s.reviewEmpty}>
+                <AppIcon name="Star" size={26} color={theme.primary} />
+                <Text style={s.reviewEmptyTitle}>Sem avaliações ainda</Text>
+                <Text style={s.reviewEmptyText}>
+                  Você ainda não recebeu avaliações. Conclua serviços para começar a recebê-las.
+                </Text>
+              </View>
+            )}
           </View>
         </View>
       </Modal>
@@ -2269,6 +2427,27 @@ function makeStyles(colors: ThemeColors, theme: ProfileTheme) {
       minHeight: 94,
       paddingTop: 12,
     },
+    modalReadonly: {
+      minHeight: 44,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      borderColor: colors.border,
+      paddingHorizontal: spacing.md,
+      paddingVertical: 10,
+      backgroundColor: colors.background,
+      justifyContent: "center",
+    },
+    modalReadonlyValue: {
+      color: colors.textPrimary,
+      fontSize: 15,
+      fontWeight: "600",
+    },
+    modalReadonlyHint: {
+      marginTop: 4,
+      color: colors.textMuted,
+      fontSize: 12,
+      fontWeight: "500",
+    },
     charCount: {
       alignSelf: "flex-end",
       color: colors.textMuted,
@@ -2442,6 +2621,112 @@ function makeStyles(colors: ThemeColors, theme: ProfileTheme) {
     },
     chipTextOn: {
       color: colors.white,
+    },
+
+    // Acordeão de valores por categoria (modal Preços)
+    precoCatCard: {
+      borderRadius: radius.lg,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+      overflow: "hidden",
+      marginTop: spacing.sm,
+    },
+    precoCatHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+      paddingHorizontal: 12,
+      paddingVertical: 12,
+    },
+    precoCatIcon: {
+      width: 34,
+      height: 34,
+      borderRadius: 12,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: theme.primarySoft,
+    },
+    precoCatTitle: {
+      flex: 1,
+      ...typography.bodySm,
+      fontWeight: "800",
+      color: colors.textPrimary,
+    },
+    precoCatChevronOpen: {
+      transform: [{ rotate: "90deg" }],
+    },
+    precoCatBody: {
+      paddingHorizontal: 12,
+      paddingBottom: 12,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: colors.divider,
+    },
+
+    // Avaliações (read-only)
+    ratingSummary: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 14,
+      borderRadius: radius.lg,
+      borderWidth: 1,
+      borderColor: theme.border,
+      padding: 14,
+      backgroundColor: theme.primarySoft,
+    },
+    ratingScore: {
+      ...typography.h2,
+      fontWeight: "800",
+      color: theme.primary,
+    },
+    ratingSummaryText: {
+      color: colors.textSecondary,
+      ...typography.caption,
+      fontWeight: "600",
+    },
+    starRow: {
+      flexDirection: "row",
+      gap: 2,
+    },
+    reviewCard: {
+      borderRadius: radius.lg,
+      borderWidth: 1,
+      borderColor: theme.border,
+      padding: 14,
+      gap: 8,
+      backgroundColor: colors.background,
+    },
+    reviewHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+    },
+    reviewDate: {
+      color: colors.textMuted,
+      ...typography.caption,
+      fontWeight: "500",
+    },
+    reviewComment: {
+      color: colors.textPrimary,
+      ...typography.bodySm,
+      fontWeight: "500",
+    },
+    reviewEmpty: {
+      alignItems: "center",
+      gap: 8,
+      paddingVertical: 28,
+      paddingHorizontal: 12,
+    },
+    reviewEmptyTitle: {
+      color: colors.textPrimary,
+      ...typography.bodyMedium,
+      fontWeight: "700",
+    },
+    reviewEmptyText: {
+      color: colors.textSecondary,
+      ...typography.bodySm,
+      fontWeight: "500",
+      textAlign: "center",
     },
   });
 }

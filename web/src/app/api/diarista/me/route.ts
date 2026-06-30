@@ -26,6 +26,9 @@ const ALLOWED_PATCH_FIELDS = [
   "precoPesada",
   "precoBabaHora",
   "precoCozinheiraBase",
+  "precoPassadeira",
+  "precoLavadeira",
+  "precoCuidadora",
   "taxaMinima",
   "cobraDeslocamento",
   "valorACombinar",
@@ -62,6 +65,9 @@ const INT_REQUIRED_FIELDS: ReadonlySet<AllowedField> = new Set([
 const DECIMAL_NULLABLE_FIELDS: ReadonlySet<AllowedField> = new Set([
   "precoBabaHora",
   "precoCozinheiraBase",
+  "precoPassadeira",
+  "precoLavadeira",
+  "precoCuidadora",
   "taxaMinima",
 ]);
 
@@ -180,6 +186,9 @@ const PROFILE_SELECT = {
   anosExperiencia: true,
   precoBabaHora: true,
   precoCozinheiraBase: true,
+  precoPassadeira: true,
+  precoLavadeira: true,
+  precoCuidadora: true,
   taxaMinima: true,
   cobraDeslocamento: true,
   valorACombinar: true,
@@ -247,6 +256,26 @@ export async function GET(req: Request) {
       return NextResponse.json({ ok: false, error: "Perfil não encontrado." }, { status: 404 });
     }
 
+    // Avaliações recebidas pela profissional (paridade com /api/montador/me).
+    // Avaliacao.diaristaId aponta para o User.id da diarista.
+    const [avaliacoes, totalAvaliacoes] = await Promise.all([
+      prisma.avaliacao.findMany({
+        where: { diaristaId: auth.userId },
+        orderBy: { createdAt: "desc" },
+        take: 5,
+        select: {
+          id: true,
+          notaGeral: true,
+          pontualidade: true,
+          qualidade: true,
+          comunicacao: true,
+          comentario: true,
+          createdAt: true,
+        },
+      }),
+      prisma.avaliacao.count({ where: { diaristaId: auth.userId } }),
+    ]);
+
     const completude = getDiaristaProfileCompleteness({
       ativo: profile.ativo,
       bio: profile.bio,
@@ -269,7 +298,18 @@ export async function GET(req: Request) {
     });
 
     if (isDev) console.log(`[diarista/me GET] TOTAL: ${Date.now() - t0}ms`);
-    return NextResponse.json({ ok: true, profile, completude });
+    return NextResponse.json({
+      ok: true,
+      profile: {
+        ...profile,
+        avaliacoes: {
+          media: profile.notaMedia,
+          total: totalAvaliacoes,
+          itens: avaliacoes,
+        },
+      },
+      completude,
+    });
   } catch (error: unknown) {
     if (isDev) {
       const msg = error instanceof Error ? error.message : "unknown";

@@ -1,159 +1,33 @@
-import { useCallback, useState } from "react";
-import { FlatList, RefreshControl, StyleSheet, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import React from "react";
 import { useNavigation } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
-import { AppIcon } from "@/components/ui";
-import { ConversaCard, ConversaCardSkeleton } from "@/components/ui/ConversaCard";
-import { useMensagens } from "@/hooks/useMensagens";
-import type { ChatRoom } from "@/hooks/useMensagens";
 import { useGenderTheme } from "@/hooks/useProfileTheme";
-import { colors, spacing, typography } from "@/theme/tokens";
 import type { DiaristaTabParamList } from "@/navigation/DiaristaNavigator";
+import { MensagensView } from "@/screens/shared/MensagensView";
 
 type Navigation = BottomTabNavigationProp<DiaristaTabParamList>;
-
-const SKELETON_COUNT = 5;
-
-function EmptyState({ accentColor, softBg }: { accentColor: string; softBg: string }) {
-  return (
-    <View style={styles.emptyWrap}>
-      <View style={[styles.emptyIconWrap, { backgroundColor: softBg }]}>
-        <AppIcon name="MessageCircle" size={40} color={accentColor} strokeWidth={1.5} />
-      </View>
-      <Text style={styles.emptyTitle}>Nenhuma conversa ainda</Text>
-      <Text style={styles.emptySubtitle}>
-        Seus chats com clientes aparecem aqui
-      </Text>
-    </View>
-  );
-}
-
-function SkeletonList() {
-  return (
-    <>
-      {Array.from({ length: SKELETON_COUNT }).map((_, i) => (
-        <ConversaCardSkeleton key={i} />
-      ))}
-    </>
-  );
-}
 
 export function MensagensDiaristaScreen() {
   const navigation = useNavigation<Navigation>();
   const theme = useGenderTheme("DIARISTA");
-  const { rooms, loading, refetch } = useMensagens();
-  const [refreshing, setRefreshing] = useState(false);
-
-  const onRefresh = useCallback(() => {
-    setRefreshing(true);
-    refetch();
-    setTimeout(() => setRefreshing(false), 1200);
-  }, [refetch]);
-
-  const renderItem = useCallback(
-    ({ item }: { item: ChatRoom }) => (
-      <ConversaCard
-        room={item}
-        onPress={() =>
-          navigation.navigate("ChatAberto", {
-            roomId: item.servicoId,
-            servicoId: item.servicoId,
-            nomeUsuario: item.outroUsuario.nome,
-          })
-        }
-      />
-    ),
-    [navigation]
-  );
 
   return (
-    <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
-      <View style={styles.content}>
-        <View style={styles.header}>
-          <Text style={styles.title}>Mensagens</Text>
-        </View>
-
-        {loading ? (
-          <SkeletonList />
-        ) : (
-          <FlatList
-            data={rooms}
-            keyExtractor={(item) => item.id}
-            renderItem={renderItem}
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.listContent}
-            refreshControl={
-              <RefreshControl
-                refreshing={refreshing}
-                onRefresh={onRefresh}
-                tintColor={theme.primary}
-                colors={[theme.primary]}
-              />
-            }
-            ListEmptyComponent={<EmptyState accentColor={theme.primary} softBg={theme.primarySoft} />}
-          />
-        )}
-      </View>
-    </SafeAreaView>
+    <MensagensView
+      theme={theme}
+      infoTitle="Conversas dos seus serviços"
+      infoText="Converse com os clientes para combinar os detalhes do serviço."
+      onOpenChat={(item) =>
+        navigation.navigate("ChatAberto", {
+          roomId: item.servicoId,
+          servicoId: item.servicoId,
+          nomeUsuario: item.nome,
+          categoria: item.categoria,
+          categoriaIcon: item.categoriaIcon,
+          avatarUrl: item.avatarUrl,
+        })
+      }
+    />
   );
 }
 
 export default MensagensDiaristaScreen;
-
-const styles = StyleSheet.create({
-  safe: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  content: {
-    flex: 1,
-  },
-  header: {
-    paddingHorizontal: spacing.screenPadding,
-    paddingTop: 10,
-    paddingBottom: 14,
-  },
-  title: {
-    color: colors.textPrimary,
-    ...typography.h1,
-
-    fontWeight: "700",
-    letterSpacing: 0,
-  },
-  listContent: {
-    flexGrow: 1,
-    paddingBottom: 112,
-  },
-  emptyWrap: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: spacing.xl,
-    paddingTop: spacing.xxl,
-  },
-  emptyIconWrap: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: colors.lavender,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: spacing.lg,
-  },
-  emptyTitle: {
-    color: colors.textPrimary,
-    ...typography.bodyMedium,
-
-    fontWeight: "700",
-    textAlign: "center",
-  },
-  emptySubtitle: {
-    color: colors.textSecondary,
-    ...typography.caption,
-
-    fontWeight: "500",
-    textAlign: "center",
-    marginTop: spacing.sm,
-  },
-});

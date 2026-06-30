@@ -168,7 +168,6 @@ function LoginLogo() {
 export function LoginScreen() {
   const navigation = useNavigation<Navigation>();
   const preLoginRole = useAuthStore((state) => state.selectedRole);
-  const preLoginGenero = useAuthStore((state) => state.selectedGenero);
   const servicosOferecidos = useAuthStore((state) => state.servicosOferecidos);
   const setSession = useAuthStore((state) => state.setSession);
   const [loadingProvider, setLoadingProvider] = useState<Provider | null>(null);
@@ -183,33 +182,25 @@ export function LoginScreen() {
           : null;
 
   useEffect(() => {
+    // FASE 3 — gênero deixou de ser requisito pré-login. Só a role é exigida
+    // antes do OAuth; o gênero é coletado pós-login pelo GeneroGate quando faltar.
     if (!preLoginRole || !callbackRole) {
       navigation.replace("RoleSelect");
-      return;
     }
-    if (!preLoginGenero) {
-      navigation.replace("GeneroSelect");
-    }
-  }, [navigation, callbackRole, preLoginGenero, preLoginRole]);
+  }, [navigation, callbackRole, preLoginRole]);
 
   const handleBack = () => {
     if (navigation.canGoBack()) {
       navigation.goBack();
       return;
     }
-    navigation.replace("GeneroSelect");
+    navigation.replace("RoleSelect");
   };
 
   const handleOAuthLogin = async (provider: Provider) => {
     if (!callbackRole) {
       Alert.alert("Perfil obrigatório", "Escolha Empregador, Diarista ou Montador antes de fazer login.");
       navigation.replace("RoleSelect");
-      return;
-    }
-
-    if (!preLoginGenero) {
-      Alert.alert("Gênero obrigatório", "Escolha Homem ou Mulher antes de fazer login.");
-      navigation.replace("GeneroSelect");
       return;
     }
 
@@ -229,7 +220,9 @@ export function LoginScreen() {
 
     setLoadingProvider(provider);
     try {
-      const callbackPath = `/auth/callback/${callbackRole}?platform=mobile&genero=${preLoginGenero}`;
+      // FASE 5C — gênero não é mais coletado no pré-login; é definido pós-login
+      // pelo GeneroGate (backend é a fonte). O callback não recebe mais genero.
+      const callbackPath = `/auth/callback/${callbackRole}?platform=mobile`;
       const loginUrl = new URL(
         provider === "google" ? "/api/auth/mobile-google" : "/api/auth/signin/apple",
         API_BASE_URL,
@@ -286,13 +279,13 @@ export function LoginScreen() {
           onPress={handleBack}
           hitSlop={12}
           accessibilityRole="button"
-          accessibilityLabel="Voltar para escolha de gênero"
+          accessibilityLabel="Voltar para escolha de perfil"
           style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}
         >
           <AppIcon name="ArrowLeft" size={20} color={colors.primary} strokeWidth={2.5} />
         </Pressable>
         <View style={styles.headerCenter}>
-          <PageDots total={3} active={2} />
+          <PageDots total={2} active={1} />
         </View>
         <View style={styles.headerSpacer} />
       </View>

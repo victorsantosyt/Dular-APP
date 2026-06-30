@@ -13,7 +13,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useDularColors } from "@/hooks/useDularColors";
 import { radius, shadows } from "@/theme";
 
-type Variant = "primary" | "secondary" | "outline" | "accent" | "ghost" | "danger";
+type Variant = "primary" | "secondary" | "outline" | "accent" | "ghost" | "danger" | "warning";
 type Size = "sm" | "md" | "lg";
 type ThemeColors = ReturnType<typeof useDularColors>;
 
@@ -27,6 +27,18 @@ type Props = {
   icon?: ReactNode;
   style?: ViewStyle;
   labelStyle?: TextStyle;
+  /**
+   * Cor de acento opcional (identidade por gênero). Quando informada,
+   * sobrescreve o `colors.primary` base nas variantes primary/secondary/outline
+   * — usado p/ os perfis (rosa/verde) sem alterar o roxo padrão do empregador.
+   */
+  tint?: string;
+  tintDark?: string;
+  /**
+   * Botão "chapado": cor sólida única (sem gradiente) e cantos arredondados
+   * (radius.lg), igual aos botões das telas. Use nos perfis para padronizar.
+   */
+  flat?: boolean;
 };
 
 const sizeMap: Record<Size, { paddingVertical: number; paddingHorizontal: number; fontSize: number }> = {
@@ -45,6 +57,9 @@ export function DButton({
   icon,
   style,
   labelStyle,
+  tint,
+  tintDark,
+  flat,
 }: Props) {
   const colors = useDularColors();
   const scale = useRef(new Animated.Value(1)).current;
@@ -55,13 +70,15 @@ export function DButton({
     Animated.spring(scale, { toValue: 1, useNativeDriver: true, tension: 80, friction: 7 }).start();
 
   const sz = sizeMap[size];
-  const isGradient = variant === "primary" || variant === "accent";
+  // Modo "flat" desativa o gradiente (cor sólida) — primary/accent caem no
+  // caminho não-gradiente e ganham fundo sólido via flatStyle.
+  const isGradient = (variant === "primary" || variant === "accent") && !flat;
 
   const containerStyle: ViewStyle = {
     minHeight: 44,
     paddingVertical: sz.paddingVertical,
     paddingHorizontal: sz.paddingHorizontal,
-    borderRadius: radius.pill,
+    borderRadius: flat ? radius.lg : radius.pill,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
@@ -74,11 +91,11 @@ export function DButton({
   const renderInner = () => (
     <>
       {loading ? (
-        <ActivityIndicator size="small" color={textColorFor(variant, colors)} />
+        <ActivityIndicator size="small" color={textColorFor(variant, colors, tint)} />
       ) : (
         <>
           {icon ? <View>{icon}</View> : null}
-          <Text style={[textStyle, { color: textColorFor(variant, colors) }, labelStyle]}>{label}</Text>
+          <Text style={[textStyle, { color: textColorFor(variant, colors, tint) }, labelStyle]}>{label}</Text>
         </>
       )}
     </>
@@ -87,10 +104,10 @@ export function DButton({
   if (isGradient) {
     const gradient: [string, string] =
       variant === "primary"
-        ? [colors.primary, colors.primaryDark]
+        ? [tint ?? colors.primary, tintDark ?? tint ?? colors.primaryDark]
         : [colors.accent, colors.accentDark];
     return (
-      <Animated.View style={[{ transform: [{ scale }] }, gradientShadow(variant, colors), style]}>
+      <Animated.View style={[{ transform: [{ scale }] }, gradientShadow(variant, colors, tint), style]}>
         <Pressable
           onPress={onPress}
           onPressIn={onIn}
@@ -110,15 +127,20 @@ export function DButton({
     );
   }
 
-  const flat = flatStyle(variant, colors);
+  const flatVariantStyle = flatStyle(variant, colors, tint);
+  // flat + primary/accent ganham a sombra de botão (igual ao gradiente).
+  const flatShadow =
+    flat && (variant === "primary" || variant === "accent")
+      ? gradientShadow(variant, colors, tint)
+      : undefined;
   return (
-    <Animated.View style={[{ transform: [{ scale }] }, style]}>
+    <Animated.View style={[{ transform: [{ scale }] }, flatShadow, style]}>
       <Pressable
         onPress={onPress}
         onPressIn={onIn}
         onPressOut={onOut}
         disabled={disabled || loading}
-        style={[containerStyle, flat]}
+        style={[containerStyle, flatVariantStyle]}
       >
         {renderInner()}
       </Pressable>
@@ -126,39 +148,51 @@ export function DButton({
   );
 }
 
-function textColorFor(v: Variant, colors: ThemeColors): string {
+function textColorFor(v: Variant, colors: ThemeColors, tint?: string): string {
   switch (v) {
     case "primary":
     case "accent":
       return colors.white;
     case "secondary":
-      return colors.primary;
+      return tint ?? colors.primary;
     case "outline":
-      return colors.primary;
+      return tint ?? colors.primary;
     case "ghost":
       return colors.textSecondary;
     case "danger":
       return colors.error;
+    case "warning":
+      return colors.white;
   }
 }
 
-function flatStyle(v: Variant, colors: ThemeColors): ViewStyle {
+function flatStyle(v: Variant, colors: ThemeColors, tint?: string): ViewStyle {
   switch (v) {
+    case "primary":
+      // Usado só no modo flat (sem gradiente): fundo sólido na cor de acento.
+      return { backgroundColor: tint ?? colors.primary };
+    case "accent":
+      return { backgroundColor: colors.accent };
     case "secondary":
-      return { borderWidth: 1, borderColor: colors.lavenderSoft, backgroundColor: colors.lavenderSoft };
+      return tint
+        ? { borderWidth: 1, borderColor: tint, backgroundColor: "transparent" }
+        : { borderWidth: 1, borderColor: colors.lavenderSoft, backgroundColor: colors.lavenderSoft };
     case "outline":
-      return { borderWidth: 1.5, borderColor: colors.primary, backgroundColor: "transparent" };
+      return { borderWidth: 1.5, borderColor: tint ?? colors.primary, backgroundColor: "transparent" };
     case "ghost":
       return { backgroundColor: "transparent" };
     case "danger":
       return { borderWidth: 1.5, borderColor: colors.error, backgroundColor: "transparent" };
+    case "warning":
+      // Ação importante — cor de alerta âmbar (fundo cheio, texto branco).
+      return { backgroundColor: colors.warning };
     default:
       return {};
   }
 }
 
-function gradientShadow(v: Variant, colors: ThemeColors): ViewStyle {
-  const color = v === "primary" ? colors.primary : colors.accent;
+function gradientShadow(v: Variant, colors: ThemeColors, tint?: string): ViewStyle {
+  const color = v === "primary" ? tint ?? colors.primary : colors.accent;
   return {
     ...shadows.primaryButton,
     shadowColor: color,

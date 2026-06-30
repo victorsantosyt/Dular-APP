@@ -6,6 +6,9 @@ const CATEGORIA_TO_TIPO: Record<ServiceCategory, string | null> = {
   baba: "BABA",
   cozinheira: "COZINHEIRA",
   montador: "MONTADOR",
+  cuidadora: "CUIDADORA",
+  passadeira: "PASSA_ROUPA",
+  lavadeira: "LAVADEIRA",
 };
 
 function horarioParaTurno(horario: string): "MANHA" | "TARDE" {
@@ -62,6 +65,12 @@ export async function aprovarServicoConcluido(servicoId: string) {
   // Endpoint legado /confirmar: avança CONCLUIDO → CONFIRMADO (libera o
   // caminho de avaliação). Só o empregador participante pode chamar.
   const res = await api.post(`/api/servicos/${servicoId}/confirmar`);
+  return res.data;
+}
+
+// Reagendamento (com aprovação): o profissional propõe; o empregador decide.
+export async function decidirReagendamento(servicoId: string, aceitar: boolean) {
+  const res = await api.patch(`/api/servicos/${servicoId}/reagendar`, { aceitar });
   return res.data;
 }
 
@@ -158,7 +167,9 @@ export function prepararPayload(draft: DraftSlice): PrepareResult {
 
   const basePayload = {
     tipo,
-    categoria: isMontador ? draft.categoriaBackend : undefined,
+    // Subtipo do serviço: montador (especialidade) ou diarista (intensidade,
+    // ex.: FAXINA_LEVE). O backend valida contra CAT_BY_TIPO e calcula o preço.
+    categoria: draft.categoriaBackend ?? undefined,
     dataISO: draft.dataISO,
     turno: horarioParaTurno(draft.horario || "10:00"),
     cidade,

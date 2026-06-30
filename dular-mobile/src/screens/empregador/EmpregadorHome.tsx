@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  Alert,
   Image,
   Pressable,
   RefreshControl,
@@ -17,10 +18,18 @@ import { api } from "@/lib/api";
 import type { BuscarDiaristasResponse, DiaristaItem } from "@/types/diarista";
 import type { ServicoTipo, ServicoCategoria } from "@/types/servico";
 import { getCatalogoServicos, type CatalogoTipo } from "@/api/catalogoApi";
+import { CATEGORIAS, CATEGORIA_BY_KEY } from "@/constants/categorias";
+
+// Categorias em destaque na home (subconjunto da fonte única); demais em "Ver todos".
+const CATEGORIAS_HOME = CATEGORIAS.filter((c) =>
+  ["diarista", "montador", "baba", "cozinheira"].includes(c.key),
+);
 import { PILOT_MODE, PILOT } from "@/config/pilotConfig";
 import { useGeoDefaults } from "@/hooks/useGeoDefaults";
 import { useMensagens } from "@/hooks/useMensagens";
+import { useNotificacoes } from "@/hooks/useNotificacoes";
 import { usePaywallGuard } from "@/hooks/usePaywallGuard";
+import { useFavoritos } from "@/hooks/useFavoritos";
 import { useAuth } from "@/stores/authStore";
 import {
   AppIcon,
@@ -31,6 +40,9 @@ import {
   DSkeletonCard,
   DErrorState,
   DEmptyState,
+  ProfissionalCard,
+  formatValorDiarista,
+  type ProfissionalCardData,
 } from "@/components/ui";
 import { colors, radius, shadows, spacing, typography } from "@/theme";
 import { getProfileTheme } from "@/theme/profileTheme";
@@ -42,28 +54,54 @@ const HOME_EMPREGADOR_LOGO = require("../../../assets/images/home_empregador/hom
 
 // ─── Suggested professionals ──────────────────────────────────────────────────
 
-type ProfData = {
-  id: string;
-  nome: string;
-  anos: number;
-  bairro: string;
-  disponibilidade: string;
-  nota: number;
-  preco: number;
-  online: boolean;
-};
+const DIARISTA_CAT = CATEGORIA_BY_KEY.diarista;
 
-function diaristaToProf(item: DiaristaItem): ProfData {
+// Normaliza um item da busca para o card ÚNICO (ProfissionalCard). cidade/bairro
+// vêm da região buscada quando o item não carrega os próprios.
+function diaristaItemToCard(item: DiaristaItem, cidade: string, bairro: string): ProfissionalCardData {
+  const extra = item as DiaristaItem & {
+    fotoUrl?: string | null;
+    cidade?: string | null;
+    bairro?: string | null;
+    user: { avatarUrl?: string | null };
+  };
   return {
     id: item.user.id,
+    userId: item.user.id,
+    tipo: "DIARISTA",
     nome: item.user.nome,
-    anos: 3,
-    bairro: "Próxima de você",
-    disponibilidade: "Disponível",
+    categoria: DIARISTA_CAT.label,
+    categoriaIcon: DIARISTA_CAT.icon,
+    categoriaColor: DIARISTA_CAT.fg,
+    categoriaBg: DIARISTA_CAT.bg,
+    avatarUrl: extra.fotoUrl ?? extra.user?.avatarUrl ?? null,
+    cidade: extra.cidade ?? cidade ?? null,
+    bairro: extra.bairro ?? bairro ?? null,
+    valorLabel: formatValorDiarista(item.precoLeve),
     nota: item.notaMedia,
-    preco: item.precoLeve,
-    online: item.verificacao === "VERIFICADO",
   };
+}
+
+// ── Proximidade (M5) ──────────────────────────────────────────────────────────
+// Ordena os "Profissionais sugeridos" pela distância até a localização atual do
+// empregador, usando os coords já existentes da profissional (sem alterar a
+// ordenação global do endpoint). Sem coords → vai para o fim.
+function haversineKm(aLat: number, aLng: number, bLat: number, bLng: number): number {
+  const R = 6371;
+  const dLat = ((bLat - aLat) * Math.PI) / 180;
+  const dLng = ((bLng - aLng) * Math.PI) / 180;
+  const lat1 = (aLat * Math.PI) / 180;
+  const lat2 = (bLat * Math.PI) / 180;
+  const h =
+    Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
+function distanciaKm(item: DiaristaItem, origin: { lat: number; lng: number }): number {
+  const lat = item.latitude;
+  const lng = item.longitude;
+  if (typeof lat !== "number" || typeof lng !== "number") return Number.POSITIVE_INFINITY;
+  return haversineKm(origin.lat, origin.lng, lat, lng);
 }
 
 // ─── Quick Action Card ────────────────────────────────────────────────────────
@@ -84,75 +122,7 @@ function QuickActionCard({ icon, label, onPress }: QuickAction) {
   );
 }
 
-// ─── Professional Card ────────────────────────────────────────────────────────
-
-function SuggestedProfCard({
-  prof,
-  onPress,
-}: {
-  prof: ProfData;
-  onPress: () => void;
-}) {
-  const initials = prof.nome
-    .split(" ")
-    .map((w) => w[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
-
-  return (
-    <View style={s.profCard}>
-      {/* Avatar + online dot + rating pill */}
-      <View style={s.profAvatarCol}>
-        <View style={s.profAvatarWrap}>
-          <DAvatar size="lg" initials={initials} />
-          {prof.online && <View style={s.onlineDot} />}
-        </View>
-        <View style={s.ratingPill}>
-          <Text style={s.ratingPillStar}>★</Text>
-          <Text allowFontScaling={false} style={s.ratingPillText}>
-            {prof.nota.toFixed(1)}
-          </Text>
-        </View>
-      </View>
-
-      {/* Name / experience / location / availability */}
-      <View style={s.profInfo}>
-        <Text allowFontScaling={false} style={s.profName} numberOfLines={1}>
-          {prof.nome}
-        </Text>
-        <Text allowFontScaling={false} style={s.profYears}>
-          {prof.anos} anos de experiência
-        </Text>
-        <View style={s.profLocRow}>
-          <AppIcon name="MapPin" size={11} color={colors.textMuted} strokeWidth={2} />
-          <Text allowFontScaling={false} style={s.profLoc} numberOfLines={1}>
-            {prof.bairro}
-          </Text>
-        </View>
-        <View style={s.availPill}>
-          <Text allowFontScaling={false} style={s.availText}>
-            {prof.disponibilidade}
-          </Text>
-        </View>
-      </View>
-
-      {/* Price + Ver perfil button */}
-      <View style={s.profPriceCol}>
-        <View style={s.profPriceGroup}>
-          <Text allowFontScaling={false} style={s.profPriceLabel}>A partir de</Text>
-          <Text allowFontScaling={false} style={s.profPrice}>R$ {prof.preco}</Text>
-        </View>
-        <Pressable
-          style={({ pressed }) => [s.profViewBtn, pressed && { opacity: 0.75 }]}
-          onPress={onPress}
-        >
-          <Text allowFontScaling={false} style={s.profViewText}>Ver perfil</Text>
-        </Pressable>
-      </View>
-    </View>
-  );
-}
+// Card de profissional unificado: ver components/ui/ProfissionalCard.
 
 // ─── Categoria Card (grid "Quem você precisa hoje?") ─────────────────────────
 
@@ -161,12 +131,18 @@ function CategoriaCard({
   title,
   onPress,
   disabled,
+  color,
+  bg,
 }: {
   icon: AppIconName;
   title: string;
   onPress?: () => void;
   /** Mostra a tag "Em breve" e desabilita o toque. */
   disabled?: boolean;
+  /** Cor oficial da categoria (Design System) — aplicada ao ícone. */
+  color?: string;
+  /** Fundo suave oficial da categoria — aplicado ao wrap do ícone. */
+  bg?: string;
 }) {
   return (
     <Pressable
@@ -178,11 +154,17 @@ function CategoriaCard({
         !disabled && pressed && { opacity: 0.85 },
       ]}
     >
-      <View style={[s.catIconWrap, disabled && s.catIconWrapDisabled]}>
+      <View
+        style={[
+          s.catIconWrap,
+          !disabled && bg ? { backgroundColor: bg } : null,
+          disabled && s.catIconWrapDisabled,
+        ]}
+      >
         <AppIcon
           name={icon}
           size={24}
-          color={disabled ? colors.textMuted : colors.primary}
+          color={disabled ? colors.textMuted : color ?? colors.primary}
           strokeWidth={2.1}
         />
       </View>
@@ -206,6 +188,8 @@ export default function EmpregadorHome() {
   const geo = useGeoDefaults();
   const { verificar } = usePaywallGuard();
   const { rooms } = useMensagens();
+  const { unreadCount } = useNotificacoes();
+  const { isFavorito, toggle: toggleFavorito } = useFavoritos();
 
   const firstName = useMemo(() => {
     const nome = (user?.nome || "").trim();
@@ -335,10 +319,23 @@ export default function EmpregadorHome() {
     handleBuscarRef.current();
   }, [geo.loading]);
 
-  const profissionals: ProfData[] = useMemo(() => {
-    if (diaristas.length > 0) return diaristas.slice(0, 5).map(diaristaToProf);
-    return [];
-  }, [diaristas]);
+  const profissionals: ProfissionalCardData[] = useMemo(() => {
+    if (diaristas.length === 0) return [];
+    // M5: ordena por proximidade quando temos a localização atual do empregador;
+    // sem coords, mantém a ordem que o backend devolveu.
+    const ordered = coords
+      ? [...diaristas].sort((a, b) => distanciaKm(a, coords) - distanciaKm(b, coords))
+      : diaristas;
+    return ordered.slice(0, 5).map((d) => diaristaItemToCard(d, cidade, bairro));
+  }, [diaristas, cidade, bairro, coords]);
+
+  const handleToggleFavorito = async (item: ProfissionalCardData) => {
+    try {
+      await toggleFavorito(item.userId, item.tipo);
+    } catch {
+      Alert.alert("Não foi possível atualizar", "Tente novamente em instantes. Verifique sua conexão.");
+    }
+  };
 
   const quickActions: QuickAction[] = [
     { icon: "FileText",      label: "Solicitações",  onPress: () => navigation.navigate("Agendamentos") },
@@ -361,13 +358,17 @@ export default function EmpregadorHome() {
             />
           }
         >
-          {/* ── Header: greeting centered, bell absolutely right ── */}
+          {/* ── Header: avatar + saudação + sino (padrão Diarista/Montador) ── */}
           <View style={s.header}>
-            <View style={s.headerCenter}>
-              <Text allowFontScaling={false} style={s.greeting}>
+            <Pressable hitSlop={8} onPress={() => navigation.navigate("Perfil")} style={s.avatarRing}>
+              <DAvatar size="md" uri={user?.avatarUrl ?? undefined} initials={firstName.slice(0, 2)} online />
+            </Pressable>
+
+            <View style={s.headerGreeting}>
+              <Text allowFontScaling={false} style={s.greeting} numberOfLines={1}>
                 Olá, {firstName}! 👋
               </Text>
-              <Text allowFontScaling={false} style={s.greetingSub}>
+              <Text allowFontScaling={false} style={s.greetingSub} numberOfLines={1}>
                 O que vamos cuidar hoje?
               </Text>
             </View>
@@ -377,11 +378,11 @@ export default function EmpregadorHome() {
               style={s.notifBtn}
               onPress={() => navigation.navigate("Notificacoes")}
             >
-              <AppIcon name="Bell" size={20} color={colors.textSecondary} strokeWidth={2} />
-              {unreadMessages > 0 && (
+              <AppIcon name="Bell" size={20} color={EMPREGADOR_THEME.icon} strokeWidth={2.2} />
+              {unreadCount > 0 && (
                 <View style={s.notifBadge}>
                   <Text allowFontScaling={false} style={s.notifBadgeText}>
-                    {unreadMessages > 9 ? "9+" : unreadMessages}
+                    {unreadCount > 9 ? "9+" : unreadCount}
                   </Text>
                 </View>
               )}
@@ -424,6 +425,24 @@ export default function EmpregadorHome() {
               action="Ver todas"
               onAction={() => navigation.navigate("AcoesRapidas")}
             />
+            {/* SOS direto na Home (topo do bloco). Reutiliza a rota SosFlow. */}
+            <Pressable
+              onPress={() => navigation.navigate("SosFlow")}
+              style={({ pressed }) => [s.sosCard, pressed && { opacity: 0.85 }]}
+              accessibilityRole="button"
+              accessibilityLabel="SOS — acionar emergência"
+            >
+              <View style={s.sosIcon}>
+                <AppIcon name="AlertTriangle" size={22} color={colors.danger} strokeWidth={2.3} />
+              </View>
+              <View style={s.sosText}>
+                <Text allowFontScaling={false} style={s.sosTitle}>SOS / Emergência</Text>
+                <Text allowFontScaling={false} style={s.sosSub} numberOfLines={1}>
+                  Acione ajuda imediata em caso de emergência.
+                </Text>
+              </View>
+              <AppIcon name="ChevronRight" size={18} color={colors.dangerDark} strokeWidth={2.2} />
+            </Pressable>
             <View style={s.qaRow}>
               {quickActions.map((qa) => (
                 <QuickActionCard key={qa.label} {...qa} />
@@ -433,28 +452,23 @@ export default function EmpregadorHome() {
 
           {/* ── Categorias de profissional ── */}
           <View style={s.section}>
-            <DSectionHeader title="Quem você precisa hoje?" />
+            <DSectionHeader
+              title="Quem você precisa hoje?"
+              action="Ver todos"
+              actionColor={EMPREGADOR_THEME.primary}
+              onAction={() => navigation.navigate("CategoriasTodas")}
+            />
             <View style={s.catGrid}>
-              <CategoriaCard
-                icon="WashingMachine"
-                title="Diarista"
-                onPress={() => navigation.navigate("Buscar", { categoriaInicial: "diarista" })}
-              />
-              <CategoriaCard
-                icon="Wrench"
-                title="Montador"
-                onPress={() => navigation.navigate("Buscar", { categoriaInicial: "montador" })}
-              />
-              <CategoriaCard
-                icon="Baby"
-                title="Babá"
-                onPress={() => navigation.navigate("Buscar", { categoriaInicial: "baba" })}
-              />
-              <CategoriaCard
-                icon="ChefHat"
-                title="Cozinheira"
-                onPress={() => navigation.navigate("Buscar", { categoriaInicial: "cozinheira" })}
-              />
+              {CATEGORIAS_HOME.map((c) => (
+                <CategoriaCard
+                  key={c.key}
+                  icon={c.icon}
+                  title={c.label}
+                  color={c.fg}
+                  bg={c.bg}
+                  onPress={() => navigation.navigate("Buscar", { categoriaInicial: c.key })}
+                />
+              ))}
             </View>
           </View>
 
@@ -478,12 +492,14 @@ export default function EmpregadorHome() {
               />
             ) : (
               profissionals.map((prof) => (
-                <SuggestedProfCard
+                <ProfissionalCard
                   key={prof.id}
-                  prof={prof}
+                  data={prof}
+                  favorito={isFavorito(prof.userId, prof.tipo)}
+                  onToggleFavorito={() => handleToggleFavorito(prof)}
                   onPress={() =>
                     navigation.navigate("DiaristaProfile", {
-                      diaristaId: prof.id,
+                      diaristaId: prof.userId,
                       nome: prof.nome,
                     })
                   }
@@ -534,18 +550,22 @@ const s = StyleSheet.create({
   header: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
+    gap: spacing.md,
     paddingHorizontal: spacing.screenPadding,
     paddingTop: 10,
     paddingBottom: spacing.sm,
   },
-  headerCenter: {
-    alignItems: "center",
+  avatarRing: {
+    borderWidth: 2,
+    borderColor: EMPREGADOR_THEME.primary,
+    borderRadius: 999,
+    padding: 2,
+  },
+  headerGreeting: {
+    flex: 1,
     gap: 2,
   },
   notifBtn: {
-    position: "absolute",
-    right: spacing.screenPadding,
     width: 40,
     height: 40,
     borderRadius: 20,
@@ -553,8 +573,7 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: colors.border,
-    marginBottom: 6,
+    borderColor: EMPREGADOR_THEME.border,
     ...shadows.soft,
   },
   notifBadge: {
@@ -579,13 +598,10 @@ const s = StyleSheet.create({
     fontWeight: "700",
     color: colors.textPrimary,
     letterSpacing: -0.3,
-    textAlign: "right",
   },
   greetingSub: {
     ...typography.bodySm,
     color: colors.textMuted,
-    
-    textAlign: "right",
   },
 
   // ── Hero card
@@ -655,6 +671,40 @@ const s = StyleSheet.create({
     paddingHorizontal: spacing.screenPadding,
   },
 
+  // ── SOS (topo do bloco de Ações rápidas)
+  sosCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    backgroundColor: colors.dangerSoft,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: colors.danger,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  sosIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: colors.surface,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  sosText: {
+    flex: 1,
+    gap: 2,
+  },
+  sosTitle: {
+    ...typography.bodySmMedium,
+    fontWeight: "800",
+    color: colors.dangerDark,
+  },
+  sosSub: {
+    ...typography.caption,
+    color: colors.textSecondary,
+  },
+
   // ── Quick action cards
   qaRow: {
     flexDirection: "row",
@@ -689,134 +739,6 @@ const s = StyleSheet.create({
     color: colors.textPrimary,
     textAlign: "center",
     
-  },
-
-  // ── Professional card
-  profCard: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    backgroundColor: colors.surface,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: 12,
-    gap: 10,
-    ...shadows.card,
-  },
-  // Avatar column (left)
-  profAvatarCol: {
-    alignItems: "center",
-    gap: 6,
-  },
-  profAvatarWrap: {
-    position: "relative",
-  },
-  onlineDot: {
-    position: "absolute",
-    top: 0,
-    right: 0,
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: colors.success,
-    borderWidth: 2,
-    borderColor: colors.white,
-  },
-  ratingPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 2,
-    backgroundColor: colors.notification,
-    borderRadius: radius.pill,
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-  },
-  ratingPillStar: {
-    ...typography.caption,
-    color: colors.white,
-    
-  },
-  ratingPillText: {
-    ...typography.caption,
-    fontWeight: "700",
-    color: colors.white,
-    
-  },
-  // Info column (middle)
-  profInfo: {
-    flex: 1,
-    gap: 3,
-  },
-  profName: {
-    ...typography.bodySmMedium,
-    fontWeight: "700",
-    color: colors.textPrimary,
-    
-  },
-  profYears: {
-    ...typography.caption,
-    color: colors.textMuted,
-    
-    
-  },
-  profLocRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 3,
-    marginTop: 2,
-  },
-  profLoc: {
-    ...typography.caption,
-    color: colors.textMuted,
-    flex: 1,
-    
-  },
-  availPill: {
-    alignSelf: "flex-start",
-    backgroundColor: "#F3F4F6",
-    borderRadius: radius.pill,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 3,
-    marginTop: 4,
-  },
-  availText: {
-    ...typography.caption,
-    
-    color: colors.textSecondary,
-    
-  },
-  // Price + button column (right)
-  profPriceCol: {
-    alignItems: "flex-end",
-    justifyContent: "space-between",
-    alignSelf: "stretch",
-  },
-  profPriceGroup: {
-    alignItems: "flex-end",
-    gap: 1,
-  },
-  profPriceLabel: {
-    ...typography.caption,
-    color: colors.textMuted,
-    
-  },
-  profPrice: {
-    ...typography.bodyMedium,
-    fontWeight: "700",
-    color: colors.textPrimary,
-    
-  },
-  profViewBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: radius.pill,
-    backgroundColor: colors.primary,
-    alignItems: "center",
-  },
-  profViewText: {
-    ...typography.caption,
-    fontWeight: "700",
-    color: colors.white,
   },
 
   // ── Bottom banner

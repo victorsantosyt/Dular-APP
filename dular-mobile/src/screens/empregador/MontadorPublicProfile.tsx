@@ -1,36 +1,23 @@
 /**
- * MontadorPublicProfile — Visão pública do montador para o Empregador.
- *
- * Recebe `montadorId` (e opcionalmente `nome`) via route params, busca o
- * perfil no backend e exibe foto/nome/especialidades/bio + botão Contratar
- * que abre o service flow com tipo MONTADOR.
- *
- * Identidade visual: usa `getProfileTheme` com role MONTADOR + gênero do
- * próprio profissional (não do empregador logado) — verde/rosa conforme
- * o genero do montador.
+ * MontadorPublicProfile — tela "Ver Perfil" que o empregador abre ao tocar num
+ * card de MONTADOR. Usa o layout ÚNICO `PerfilPublicoLayout` (a mesma estrutura
+ * de todos os perfis públicos), preenchido com os dados do montador. Tema
+ * sempre EMPREGADOR (roxo lavanda).
  */
-import React, { useEffect, useMemo, useState } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { useEffect, useState } from "react";
+import { ActivityIndicator, Alert, StyleSheet, Text, View } from "react-native";
 import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import { api } from "@/lib/api";
-import { AppIcon, DAvatar, DButton } from "@/components/ui";
-import { useDularColors } from "@/hooks/useDularColors";
-import { getProfileTheme, type Genero } from "@/theme/profileTheme";
-import { radius, shadows, spacing, typography } from "@/theme";
+import { AppIcon, DButton } from "@/components/ui";
+import { getProfileTheme } from "@/theme/profileTheme";
+import { colors, radius, shadows, typography } from "@/theme";
 import type { EmpregadorTabParamList } from "@/navigation/EmpregadorNavigator";
 import { MONTADOR_ESPECIALIDADES, type MontadorItem } from "@/types/montador";
 import { isStatusEncerrado } from "@/utils/servicoStatus";
 import { useFavoritos } from "@/hooks/useFavoritos";
+import { PerfilPublicoLayout, type PerfilSection } from "@/screens/empregador/PerfilPublicoLayout";
+import { goToTab } from "@/navigation/navHelpers";
 
 type Navigation = BottomTabNavigationProp<EmpregadorTabParamList>;
 type RouteProps = RouteProp<EmpregadorTabParamList, "MontadorPublicProfile">;
@@ -47,11 +34,24 @@ const MONTADOR_LABELS = Object.fromEntries(
   MONTADOR_ESPECIALIDADES.map((item) => [item.id, item.label]),
 ) as Record<string, string>;
 
+const EMPREGADOR_THEME = getProfileTheme({ role: "EMPREGADOR" });
+
+function statusLabel(status?: string | null) {
+  const value = String(status ?? "").toUpperCase();
+  if (value === "PENDENTE" || value === "SOLICITADO") return "Aguardando aceite";
+  if (value === "ACEITO") return "Aceito";
+  if (value === "INICIADO" || value === "EM_ANDAMENTO") return "Em andamento";
+  if (value === "CONCLUIDO" || value === "CONCLUÍDO") return "Concluído";
+  if (value === "CONFIRMADO") return "Confirmado";
+  if (value === "FINALIZADO") return "Finalizado";
+  if (value === "CANCELADO") return "Cancelado";
+  if (value === "RECUSADO") return "Recusado";
+  return "Em acompanhamento";
+}
+
 export default function MontadorPublicProfile() {
   const navigation = useNavigation<Navigation>();
   const route = useRoute<RouteProps>();
-  const insets = useSafeAreaInsets();
-  const colors = useDularColors();
   const {
     montadorId,
     montadorUserId: routeMontadorUserId,
@@ -80,11 +80,7 @@ export default function MontadorPublicProfile() {
         setError(null);
         const res = await api.get<DetalheResponse>(`/api/montadores/${montadorId}`).catch(() => null);
         if (cancelled) return;
-        if (res?.data?.montador) {
-          setMontador(res.data.montador);
-        } else {
-          setMontador(null);
-        }
+        setMontador(res?.data?.montador ?? null);
       } catch (err) {
         if (cancelled) return;
         setError(err instanceof Error ? err.message : "Falha ao carregar perfil");
@@ -107,20 +103,11 @@ export default function MontadorPublicProfile() {
     try {
       await toggleFavorito(profissionalId, "MONTADOR");
     } catch {
-      Alert.alert(
-        "Não foi possível atualizar",
-        "Tente novamente em instantes. Verifique sua conexão.",
-      );
+      Alert.alert("Não foi possível atualizar", "Tente novamente em instantes. Verifique sua conexão.");
     }
   };
 
   const nome = montador?.user.nome ?? nomeParam ?? "Montador";
-  const genero: Genero = (montador?.user.genero ?? null) as Genero;
-  const theme = useMemo(
-    () => getProfileTheme({ role: "MONTADOR", genero }),
-    [genero],
-  );
-
   const especialidades = montador?.especialidades ?? especialidadesParam ?? [];
   const totalServicos = montador?.totalServicos ?? 0;
   const rating = montador?.rating ?? ratingParam ?? 0;
@@ -128,7 +115,7 @@ export default function MontadorPublicProfile() {
   const cidade = montador?.cidade ?? cidadeParam ?? "—";
   const estado = montador?.estado ?? estadoParam ?? "—";
   const bairros = montador?.bairros ?? [];
-  const precoLabel = montador?.precoLabel ?? (montador?.valorACombinar ? "A combinar" : "A combinar");
+  const precoLabel = montador?.precoLabel ?? "A combinar";
   const portfolioFotos = montador?.portfolioFotos ?? [];
   const safeScore = montador?.safeScore;
 
@@ -140,13 +127,10 @@ export default function MontadorPublicProfile() {
         cancelled = true;
       };
     }
-
     (async () => {
       try {
         setActiveService(null);
-        const res = await api.get<ServicoAtivoResponse>(
-          `/api/montadores/${profissionalId}/servico-ativo`,
-        );
+        const res = await api.get<ServicoAtivoResponse>(`/api/montadores/${profissionalId}/servico-ativo`);
         if (cancelled) return;
         const servico = res.data?.servico ?? res.data?.activeService ?? null;
         const hasActiveService = Boolean(res.data?.hasActiveService ?? servico) && !isStatusEncerrado(servico?.status);
@@ -159,23 +143,16 @@ export default function MontadorPublicProfile() {
         if (!cancelled) setActiveService({ hasActiveService: false });
       }
     })();
-
     return () => {
       cancelled = true;
     };
   }, [profissionalId]);
-
-  const styles = useMemo(
-    () => makeStyles({ theme, surface: colors.surface, textPrimary: colors.textPrimary, textSecondary: colors.textSecondary, textMuted: colors.textMuted, border: colors.border, background: colors.background }),
-    [theme, colors],
-  );
 
   const handleContratar = () => {
     if (montador && montador.profileCompleto === false) {
       Alert.alert("Montador indisponível", "Este perfil ainda não está completo para receber solicitações.");
       return;
     }
-
     if (!profissionalId) {
       Alert.alert(
         "Montador não identificado",
@@ -183,12 +160,24 @@ export default function MontadorPublicProfile() {
       );
       return;
     }
-
     navigation.navigate("SolicitarServico", {
       categoriaInicial: "montador",
       tipoInicial: "MONTADOR",
       profissionalId,
       profissionalNome: nome,
+      // Leva os preços por especialidade pro fluxo — o empregador vê o valor
+      // de cada serviço (ou "a combinar") já na escolha da especialidade.
+      precoInfo: {
+        leve: null,
+        medio: null,
+        pesada: null,
+        babaHora: null,
+        cozinheiraBase: null,
+        valorACombinar: false,
+        precosEspecialidades:
+          (montador as { precosEspecialidades?: Record<string, { preco: number | null; aCombinar: boolean }> } | null)
+            ?.precosEspecialidades ?? undefined,
+      },
     });
   };
 
@@ -197,454 +186,138 @@ export default function MontadorPublicProfile() {
       navigation.navigate("EmpregadorDetalhe", { servicoId: activeService.id });
       return;
     }
-    navigation.navigate("Agendamentos");
+    goToTab(navigation, "EmpregadorTabs", "Agendamentos");
   };
 
   if (loading) {
     return (
-      <View style={[styles.root, { paddingTop: insets.top + 12 }]}>
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color={theme.primary} />
-        </View>
+      <View style={s.loading}>
+        <ActivityIndicator size="large" color={EMPREGADOR_THEME.primary} />
       </View>
     );
   }
 
+  const locationLine =
+    cidade && cidade !== "—" ? `${cidade}${estado && estado !== "—" ? ` · ${estado}` : ""}` : null;
+
+  const sections: PerfilSection[] = [
+    { key: "sobre", kind: "text", label: "Sobre", text: montador?.bio, empty: "Sem descrição informada." },
+    {
+      key: "especialidades",
+      kind: "chips",
+      label: "Especialidades",
+      items: especialidades.map((e) => MONTADOR_LABELS[e] ?? e),
+      empty: "Especialidades não informadas.",
+    },
+    {
+      key: "area",
+      kind: "chips",
+      label: "Área de atendimento",
+      lead: [cidade, estado].filter((x) => x && x !== "—").join(", ") || "Localização a confirmar",
+      items: bairros.slice(0, 6),
+      empty: "Bairros não informados.",
+    },
+    {
+      key: "info",
+      kind: "infoGrid",
+      cells: [
+        { label: "Preço", value: precoLabel, hint: montador?.observacaoPreco },
+        {
+          label: "SafeScore",
+          value: safeScore?.faixa ?? "Em análise",
+          hint: verificado ? "Verificado" : "Verificação pendente",
+        },
+      ],
+    },
+    {
+      key: "portfolio",
+      kind: "text",
+      label: "Portfólio",
+      text: portfolioFotos.length > 0 ? `${portfolioFotos.length} foto(s) cadastrada(s).` : null,
+      empty: "Portfólio ainda não informado.",
+    },
+    {
+      key: "stats",
+      kind: "stats",
+      stats: [
+        { value: String(totalServicos), label: "Serviços" },
+        { value: String(montador?.anosExperiencia ?? "—"), label: "Anos de experiência" },
+      ],
+    },
+  ];
+
+  if (activeService?.hasActiveService) {
+    sections.push({
+      key: "activeService",
+      kind: "custom",
+      render: () => (
+        <View style={s.activeServiceCard}>
+          <View style={s.activeServiceIcon}>
+            <AppIcon name="Clock" size={20} color={EMPREGADOR_THEME.primary} strokeWidth={2.4} />
+          </View>
+          <View style={s.activeServiceText}>
+            <Text style={s.activeServiceTitle}>Você já tem uma solicitação com este montador.</Text>
+            <Text style={s.activeServiceSubtitle}>Status: {statusLabel(activeService.status)}</Text>
+          </View>
+          <DButton label="Acompanhar" variant="secondary" size="sm" onPress={handleAcompanharServico} />
+        </View>
+      ),
+    });
+  }
+
+  const footer =
+    activeService?.hasActiveService === false ? (
+      <DButton label="Contratar" variant="primary" size="lg" onPress={handleContratar} />
+    ) : undefined;
+
   return (
-    <SafeAreaView style={styles.root} edges={["top", "left", "right"]}>
-      <View style={styles.header}>
-        <Pressable
-          onPress={() => navigation.goBack()}
-          hitSlop={12}
-          style={({ pressed }) => [styles.backBtn, pressed && { opacity: 0.7 }]}
-        >
-          <AppIcon name="ArrowLeft" size={20} color={theme.primary} strokeWidth={2.5} />
-        </Pressable>
-        <Text style={styles.headerTitle}>Perfil do Montador</Text>
-        <Pressable
-          onPress={handleToggleFavorito}
-          disabled={!profissionalId}
-          hitSlop={12}
-          accessibilityRole="button"
-          accessibilityLabel={favorito ? "Remover dos favoritos" : "Adicionar aos favoritos"}
-          style={({ pressed }) => [styles.backBtn, pressed && { opacity: 0.7 }]}
-        >
-          <AppIcon
-            name="Heart"
-            size={20}
-            color={favorito ? colors.danger : colors.textMuted}
-            strokeWidth={favorito ? 2.6 : 2.2}
-          />
-        </Pressable>
-      </View>
-
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        {error ? (
-          <View style={styles.errorCard}>
-            <Text style={styles.errorText}>{error}</Text>
-          </View>
-        ) : null}
-
-        {/* Hero */}
-        <View style={[styles.hero, { borderColor: theme.border }]}>
-          <DAvatar
-            uri={montador?.fotoPerfil ?? montador?.user.avatarUrl ?? avatarUrlParam ?? undefined}
-            size="xl"
-            initials={nome.slice(0, 2).toUpperCase()}
-          />
-          <View style={styles.heroText}>
-            <Text style={styles.name} numberOfLines={1}>{nome}</Text>
-            <Text style={styles.role}>Montador profissional</Text>
-            <View style={styles.heroBadges}>
-              <View style={[styles.badge, { backgroundColor: theme.primarySoft }]}>
-                <AppIcon name="Star" size={12} color={theme.primary} strokeWidth={2.5} />
-                <Text style={[styles.badgeText, { color: theme.primary }]}>
-                  {rating > 0 ? rating.toFixed(1) : "Sem avaliações"}
-                </Text>
-              </View>
-              <View
-                style={[
-                  styles.badge,
-                  { backgroundColor: verificado ? theme.primarySoft : colors.warningSoft },
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.badgeText,
-                    { color: verificado ? theme.primary : colors.warningDark },
-                  ]}
-                >
-                  {verificado ? "Verificado" : "Verificação pendente"}
-                </Text>
-              </View>
-            </View>
-            <Text style={styles.locationLine}>
-              {cidade}{estado && estado !== "—" ? ` · ${estado}` : ""}
-            </Text>
-          </View>
-        </View>
-
-        {/* Bio */}
-        {montador?.bio ? (
-          <View style={[styles.card, { borderColor: theme.border }]}>
-            <Text style={styles.cardLabel}>Sobre</Text>
-            <Text style={styles.bio}>{montador.bio}</Text>
-          </View>
-        ) : null}
-
-        {/* Especialidades */}
-        <View style={[styles.card, { borderColor: theme.border }]}>
-          <Text style={styles.cardLabel}>Especialidades</Text>
-          {especialidades.length > 0 ? (
-            <View style={styles.chips}>
-              {especialidades.map((item) => (
-                <View
-                  key={item}
-                  style={[styles.chip, { backgroundColor: theme.primarySoft, borderColor: theme.border }]}
-                >
-                  <Text style={[styles.chipText, { color: theme.textAccent }]}>{MONTADOR_LABELS[item] ?? item}</Text>
-                </View>
-              ))}
-            </View>
-          ) : (
-            <Text style={styles.empty}>Especialidades não informadas.</Text>
-          )}
-        </View>
-
-        <View style={[styles.card, { borderColor: theme.border }]}>
-          <Text style={styles.cardLabel}>Área de atendimento</Text>
-          <Text style={styles.bio}>
-            {[cidade, estado].filter((item) => item && item !== "—").join(", ") || "Localização a confirmar"}
-          </Text>
-          {bairros.length > 0 ? (
-            <View style={styles.chips}>
-              {bairros.slice(0, 6).map((item) => (
-                <View key={item} style={[styles.chip, { backgroundColor: theme.primarySoft, borderColor: theme.border }]}>
-                  <Text style={[styles.chipText, { color: theme.textAccent }]}>{item}</Text>
-                </View>
-              ))}
-            </View>
-          ) : (
-            <Text style={styles.empty}>Bairros não informados.</Text>
-          )}
-        </View>
-
-        <View style={[styles.infoGrid, { borderColor: theme.border }]}>
-          <View style={styles.infoCell}>
-            <Text style={styles.cardLabel}>Preço</Text>
-            <Text style={[styles.infoValue, { color: theme.textAccent }]}>{precoLabel}</Text>
-            {montador?.observacaoPreco ? <Text style={styles.infoHint}>{montador.observacaoPreco}</Text> : null}
-          </View>
-          <View style={[styles.statDivider, { backgroundColor: theme.border }]} />
-          <View style={styles.infoCell}>
-            <Text style={styles.cardLabel}>SafeScore</Text>
-            <Text style={[styles.infoValue, { color: theme.textAccent }]}>{safeScore?.faixa ?? "Em análise"}</Text>
-            <Text style={styles.infoHint}>{verificado ? "Verificado" : "Verificação pendente"}</Text>
-          </View>
-        </View>
-
-        <View style={[styles.card, { borderColor: theme.border }]}>
-          <Text style={styles.cardLabel}>Portfólio</Text>
-          {portfolioFotos.length > 0 ? (
-            <Text style={styles.bio}>{portfolioFotos.length} foto(s) cadastrada(s).</Text>
-          ) : (
-            <Text style={styles.empty}>Portfólio ainda não informado.</Text>
-          )}
-        </View>
-
-        {/* Estatísticas */}
-        <View style={[styles.statsRow, { borderColor: theme.border }]}>
-          <View style={styles.statCell}>
-            <Text style={[styles.statValue, { color: theme.textAccent }]}>{totalServicos}</Text>
-            <Text style={styles.statLabel}>Serviços</Text>
-          </View>
-          <View style={[styles.statDivider, { backgroundColor: theme.border }]} />
-          <View style={styles.statCell}>
-            <Text style={[styles.statValue, { color: theme.textAccent }]}>
-              {montador?.anosExperiencia ?? "—"}
-            </Text>
-            <Text style={styles.statLabel}>Anos de experiência</Text>
-          </View>
-        </View>
-
-        {activeService?.hasActiveService ? (
-          <View style={[styles.activeServiceCard, { borderColor: theme.border }]}>
-            <View style={[styles.activeServiceIcon, { backgroundColor: theme.primarySoft }]}>
-              <AppIcon name="Clock" size={20} color={theme.primary} strokeWidth={2.4} />
-            </View>
-            <View style={styles.activeServiceText}>
-              <Text style={styles.activeServiceTitle}>Você já tem uma solicitação com este montador.</Text>
-              <Text style={styles.activeServiceSubtitle}>
-                Status: {statusLabel(activeService.status)}
-              </Text>
-            </View>
-            <DButton
-              label="Acompanhar"
-              variant="secondary"
-              size="sm"
-              onPress={handleAcompanharServico}
-            />
-          </View>
-        ) : null}
-      </ScrollView>
-
-      {activeService?.hasActiveService === false ? (
-        <View style={[styles.footer, { borderTopColor: theme.border }]}>
-          <DButton
-            label="Contratar"
-            variant="primary"
-            size="lg"
-            onPress={handleContratar}
-          />
-        </View>
-      ) : null}
-    </SafeAreaView>
+    <PerfilPublicoLayout
+      title="Perfil do Montador"
+      onBack={() => navigation.goBack()}
+      favorito={favorito}
+      onToggleFavorito={profissionalId ? handleToggleFavorito : undefined}
+      error={error}
+      hero={{
+        avatarUrl: montador?.fotoPerfil ?? montador?.user.avatarUrl ?? avatarUrlParam,
+        nome,
+        papel: "Montador profissional",
+        rating,
+        verificado,
+        locationLine,
+      }}
+      sections={sections}
+      footer={footer}
+    />
   );
 }
 
-function statusLabel(status?: string | null) {
-  const value = String(status ?? "").toUpperCase();
-  if (value === "PENDENTE" || value === "SOLICITADO") return "Aguardando aceite";
-  if (value === "ACEITO") return "Aceito";
-  if (value === "INICIADO" || value === "EM_ANDAMENTO") return "Em andamento";
-  if (value === "CONCLUIDO" || value === "CONCLUÍDO") return "Concluído";
-  if (value === "CONFIRMADO") return "Confirmado";
-  if (value === "FINALIZADO") return "Finalizado";
-  if (value === "CANCELADO") return "Cancelado";
-  if (value === "RECUSADO") return "Recusado";
-  return "Em acompanhamento";
-}
-
-function makeStyles(p: {
-  theme: ReturnType<typeof getProfileTheme>;
-  surface: string;
-  textPrimary: string;
-  textSecondary: string;
-  textMuted: string;
-  border: string;
-  background: string;
-}) {
-  return StyleSheet.create({
-    root: {
-      flex: 1,
-      backgroundColor: p.theme.background,
-    },
-    center: {
-      flex: 1,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    header: {
-      flexDirection: "row",
-      alignItems: "center",
-      paddingHorizontal: spacing.screenPadding,
-      paddingTop: spacing.sm,
-      paddingBottom: spacing.sm,
-    },
-    backBtn: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      alignItems: "center",
-      justifyContent: "center",
-      backgroundColor: p.surface,
-      borderWidth: 1,
-      borderColor: p.border,
-    },
-    headerTitle: {
-      flex: 1,
-      textAlign: "center",
-      ...typography.bodyMedium,
-      color: p.textPrimary,
-      fontWeight: "700",
-    },
-    headerSpacer: { width: 40 },
-    scroll: {
-      paddingHorizontal: spacing.screenPadding,
-      paddingTop: 8,
-      paddingBottom: 32,
-      gap: 14,
-    },
-    errorCard: {
-      borderRadius: radius.lg,
-      padding: 12,
-      backgroundColor: "rgba(255, 90, 110, 0.08)",
-    },
-    errorText: {
-      color: "#FF5A6E",
-      ...typography.bodySm,
-      fontWeight: "600",
-    },
-    hero: {
-      flexDirection: "row",
-      gap: 14,
-      backgroundColor: p.surface,
-      borderRadius: radius.xl,
-      borderWidth: 1,
-      padding: 14,
-      ...shadows.card,
-    },
-    heroText: {
-      flex: 1,
-      gap: 6,
-    },
-    name: {
-      ...typography.title,
-      color: p.textPrimary,
-      fontWeight: "800",
-    },
-    role: {
-      ...typography.bodySm,
-      color: p.textSecondary,
-      fontWeight: "700",
-    },
-    heroBadges: {
-      flexDirection: "row",
-      flexWrap: "wrap",
-      gap: 6,
-    },
-    badge: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 4,
-      borderRadius: radius.pill,
-      paddingHorizontal: 9,
-      paddingVertical: 5,
-    },
-    badgeText: {
-      fontSize: 11,
-      fontWeight: "900",
-    },
-    locationLine: {
-      ...typography.caption,
-      color: p.textMuted,
-      fontWeight: "700",
-    },
-    card: {
-      backgroundColor: p.surface,
-      borderRadius: radius.xl,
-      borderWidth: 1,
-      padding: 14,
-      gap: 10,
-      ...shadows.soft,
-    },
-    cardLabel: {
-      ...typography.caption,
-      color: p.textMuted,
-      fontWeight: "800",
-      textTransform: "uppercase",
-    },
-    bio: {
-      ...typography.bodySm,
-      color: p.textPrimary,
-      lineHeight: 20,
-      fontWeight: "500",
-    },
-    chips: {
-      flexDirection: "row",
-      flexWrap: "wrap",
-      gap: 8,
-    },
-    chip: {
-      borderRadius: radius.pill,
-      borderWidth: 1,
-      paddingHorizontal: 10,
-      paddingVertical: 7,
-    },
-    chipText: {
-      fontSize: 12,
-      fontWeight: "800",
-    },
-    empty: {
-      ...typography.caption,
-      color: p.textSecondary,
-      fontWeight: "500",
-      fontStyle: "italic",
-    },
-    infoGrid: {
-      flexDirection: "row",
-      backgroundColor: p.surface,
-      borderRadius: radius.xl,
-      borderWidth: 1,
-      paddingVertical: 14,
-      ...shadows.soft,
-    },
-    infoCell: {
-      flex: 1,
-      gap: 6,
-      paddingHorizontal: 14,
-    },
-    infoValue: {
-      ...typography.bodySmMedium,
-      fontWeight: "900",
-    },
-    infoHint: {
-      ...typography.caption,
-      color: p.textSecondary,
-      fontWeight: "500",
-    },
-    statsRow: {
-      flexDirection: "row",
-      backgroundColor: p.surface,
-      borderRadius: radius.xl,
-      borderWidth: 1,
-      paddingVertical: 14,
-    },
-    activeServiceCard: {
-      flexDirection: "row",
-      alignItems: "center",
-      backgroundColor: p.surface,
-      borderRadius: radius.xl,
-      borderWidth: 1,
-      padding: 14,
-      gap: 12,
-      ...shadows.soft,
-    },
-    activeServiceIcon: {
-      width: 42,
-      height: 42,
-      borderRadius: 16,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    activeServiceText: {
-      flex: 1,
-      gap: 4,
-    },
-    activeServiceTitle: {
-      ...typography.bodySmMedium,
-      color: p.textPrimary,
-      fontWeight: "800",
-    },
-    activeServiceSubtitle: {
-      ...typography.caption,
-      color: p.textSecondary,
-      fontWeight: "600",
-    },
-    statCell: {
-      flex: 1,
-      alignItems: "center",
-      gap: 4,
-    },
-    statDivider: {
-      width: StyleSheet.hairlineWidth,
-      marginVertical: 4,
-    },
-    statValue: {
-      ...typography.h2,
-      fontWeight: "800",
-    },
-    statLabel: {
-      ...typography.caption,
-      color: p.textSecondary,
-      fontWeight: "700",
-    },
-    footer: {
-      paddingHorizontal: spacing.xl,
-      paddingTop: spacing.sm,
-      paddingBottom: spacing.xl,
-      backgroundColor: p.background,
-      borderTopWidth: StyleSheet.hairlineWidth,
-    },
-  });
-}
+const s = StyleSheet.create({
+  loading: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: EMPREGADOR_THEME.background,
+  },
+  activeServiceCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    borderColor: EMPREGADOR_THEME.border,
+    padding: 14,
+    gap: 12,
+    ...shadows.soft,
+  },
+  activeServiceIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: EMPREGADOR_THEME.primarySoft,
+  },
+  activeServiceText: { flex: 1, gap: 4 },
+  activeServiceTitle: { ...typography.bodySmMedium, color: colors.textPrimary, fontWeight: "800" },
+  activeServiceSubtitle: { ...typography.caption, color: colors.textSecondary, fontWeight: "600" },
+});

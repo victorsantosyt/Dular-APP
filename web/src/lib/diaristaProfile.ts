@@ -46,12 +46,29 @@ export type CompletenessResult = {
   motivos: string[];
 };
 
-export type ServicoOferecido = "DIARISTA" | "BABA" | "COZINHEIRA";
+export type ServicoOferecido =
+  | "DIARISTA"
+  | "BABA"
+  | "COZINHEIRA"
+  | "PASSADEIRA"
+  | "LAVADEIRA"
+  | "CUIDADORA";
 
 export const SERVICOS_OFERECIDOS_VALIDOS: ServicoOferecido[] = [
   "DIARISTA",
   "BABA",
   "COZINHEIRA",
+  // Nichos "a combinar" (sem preço dedicado) — alinhados ao fluxo do empregador.
+  "PASSADEIRA",
+  "LAVADEIRA",
+  "CUIDADORA",
+];
+
+/** Nichos sem preço dedicado: completude/preço tratados como "a combinar". */
+export const SERVICOS_A_COMBINAR: ServicoOferecido[] = [
+  "PASSADEIRA",
+  "LAVADEIRA",
+  "CUIDADORA",
 ];
 
 /**
@@ -65,6 +82,9 @@ export function nichoFromTipo(tipo: string): ServicoOferecido | null {
   if (tipo === "FAXINA") return "DIARISTA";
   if (tipo === "BABA") return "BABA";
   if (tipo === "COZINHEIRA") return "COZINHEIRA";
+  if (tipo === "PASSA_ROUPA") return "PASSADEIRA";
+  if (tipo === "LAVADEIRA") return "LAVADEIRA";
+  if (tipo === "CUIDADORA") return "CUIDADORA";
   return null;
 }
 
@@ -77,6 +97,7 @@ export function nichoFromCategoria(categoria: string | null | undefined): Servic
   if (categoria.startsWith("FAXINA_")) return "DIARISTA";
   if (categoria.startsWith("BABA_")) return "BABA";
   if (categoria.startsWith("COZINHEIRA_")) return "COZINHEIRA";
+  if (categoria.startsWith("PASSA_ROUPA_")) return "PASSADEIRA";
   return null;
 }
 

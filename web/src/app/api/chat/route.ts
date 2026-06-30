@@ -71,6 +71,45 @@ export async function GET(req: Request) {
     // some da aba "Conversas" e aparece em "Arquivadas".
     const ARQUIVADOS = new Set(["CONCLUIDO", "CONFIRMADO", "FINALIZADO"]);
 
+    // Agregados de chat (evitam N+1):
+    //  - naoLidasPorSala: 1 groupBy sobre ChatMessage filtrando readAt=null
+    //    e senderId != userId. Usado pelo badge da aba Mensagens / card.
+    //  - ultimaMsgPorSala: 1 findMany com distinct:['roomId'] + orderBy desc
+    //    devolve a última mensagem de cada sala (prévia + atualizadaEm).
+    const roomIds = rooms.map((r) => r.id);
+    const [naoLidasGroups, ultimasMsgs] = roomIds.length === 0
+      ? ([[], []] as const)
+      : await Promise.all([
+          prisma.chatMessage.groupBy({
+            by: ["roomId"],
+            where: {
+              roomId: { in: roomIds },
+              senderId: { not: auth.userId },
+              readAt: null,
+            },
+            _count: { _all: true },
+          }),
+          prisma.chatMessage.findMany({
+            where: { roomId: { in: roomIds } },
+            distinct: ["roomId"],
+            orderBy: { createdAt: "desc" },
+            select: {
+              roomId: true,
+              content: true,
+              createdAt: true,
+              senderId: true,
+              type: true,
+            },
+          }),
+        ]);
+
+    const naoLidasMap = new Map<string, number>(
+      naoLidasGroups.map((g) => [g.roomId, g._count._all]),
+    );
+    const ultimaMsgMap = new Map<string, (typeof ultimasMsgs)[number]>(
+      ultimasMsgs.map((m) => [m.roomId, m]),
+    );
+
     const payload = rooms.map((r) => {
       const servico = r.servico;
       const profissionalUserId = servico.montadorId ?? servico.diaristaId;
@@ -80,10 +119,17 @@ export async function GET(req: Request) {
         ? servico.montador ?? servico.diarista
         : servico.cliente;
 
+      const ultima = ultimaMsgMap.get(r.id) ?? null;
+      // `atualizadaEm` reflete a última atividade real (mensagem) e cai no
+      // createdAt da sala se nunca houve mensagem. O mobile usa esse valor
+      // como timestamp do card.
+      const atualizadaEm = ultima?.createdAt ?? r.createdAt;
+
       return {
         id: r.id,
         servicoId: r.servicoId,
         createdAt: r.createdAt,
+        atualizadaEm,
         arquivada: ARQUIVADOS.has(servico.status),
         outroUsuario: outroUsuario
           ? {
@@ -100,6 +146,15 @@ export async function GET(req: Request) {
           data: servico.data,
           local: `${servico.bairro}, ${servico.cidade} - ${servico.uf}`,
         },
+        naoLidas: naoLidasMap.get(r.id) ?? 0,
+        ultimaMensagem: ultima
+          ? {
+              content: ultima.content,
+              createdAt: ultima.createdAt,
+              senderId: ultima.senderId,
+              type: ultima.type,
+            }
+          : null,
       };
     });
 

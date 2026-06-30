@@ -1,17 +1,22 @@
-import React, { useEffect } from "react";
-import { Alert, SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
+import React, { useCallback, useEffect, useState } from "react";
+import { ActivityIndicator, Alert, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { AppIcon } from "@/components/ui/AppIcon";
-import { DButton } from "@/components/ui/DButton";
 import { DCard } from "@/components/ui/DCard";
 import { DInput } from "@/components/ui/DInput";
 import type { EmpregadorServiceFlowStackParamList } from "@/navigation/EmpregadorServiceFlowNavigator";
 import { colors, radius, shadows, spacing } from "@/theme";
 import { useAuth } from "@/stores/authStore";
+import { fetchEnderecos, type Endereco } from "@/api/enderecoApi";
 import { useServiceFlow } from "./ServiceFlowContext";
 import { FlowPrimaryButton, flowStyles, StepHeader } from "./components";
 import { getServiceFlowTheme } from "@/theme/serviceFlowTheme";
+
+const TIPO_LABEL: Record<Endereco["tipo"], string> = {
+  RESIDENCIAL: "Residencial",
+  EMPRESARIAL: "Empresarial",
+};
 
 type Navigation = NativeStackNavigationProp<EmpregadorServiceFlowStackParamList, "EnderecoServico">;
 
@@ -21,25 +26,93 @@ export function EnderecoServicoScreen() {
   const flowTheme = getServiceFlowTheme(draft.tipo);
   const user = useAuth((state) => state.user);
 
-  // Pré-preenche cidade/UF/bairro com a localização real salva do Empregador
-  // (mesma fonte da busca/perfil). Só seeda campos ainda vazios para não
-  // sobrescrever edição manual do usuário dentro do fluxo.
+  // FASE 6 — endereços cadastrados do empregador (GET /api/me/enderecos):
+  // 0 → bloqueia (precisa cadastrar antes de solicitar); 1 → usa automaticamente;
+  // 2 → o usuário escolhe qual. O endereço selecionado popula o draft, de onde o
+  // flow monta o enderecoCompleto. `null` = carregando; `loadFailed` cai no
+  // preenchimento manual (legado) para não travar o fluxo em falha de rede.
+  const [enderecos, setEnderecos] = useState<Endereco[] | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  const aplicarEndereco = useCallback(
+    (e: Endereco) => {
+      setSelectedId(e.id);
+      updateDraft({
+        rua: e.rua,
+        numero: e.numero,
+        complemento: e.complemento ?? "",
+        bairro: e.bairro,
+        cidade: e.cidade,
+        uf: e.uf,
+        referencia: e.pontoReferencia ?? "",
+      });
+    },
+    [updateDraft],
+  );
+
+  useEffect(() => {
+    let alive = true;
+    fetchEnderecos()
+      .then((list) => {
+        if (!alive) return;
+        setEnderecos(list);
+        // Um único endereço → seleciona e popula automaticamente.
+        if (list.length === 1) aplicarEndereco(list[0]);
+      })
+      .catch(() => {
+        if (alive) setLoadFailed(true);
+      });
+    return () => {
+      alive = false;
+    };
+    // Rodar só uma vez no mount; aplicarEndereco é estável o suficiente aqui.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Fallback legado (só quando o GET falhou): pré-preenche cidade/UF/bairro com a
+  // localização salva do Empregador. Só seeda campos vazios.
   const perfilCidade = user?.cidadeAtual ?? user?.cidade ?? "";
   const perfilUf = user?.estadoAtual ?? user?.estado ?? user?.uf ?? "";
   const perfilBairro = user?.bairroAtual ?? "";
   useEffect(() => {
+    if (!loadFailed) return;
     const patch: Record<string, string> = {};
     if (!draft.cidade && perfilCidade) patch.cidade = perfilCidade;
     if (!draft.uf && perfilUf) patch.uf = perfilUf;
     if (!draft.bairro && perfilBairro) patch.bairro = perfilBairro;
     if (Object.keys(patch).length > 0) updateDraft(patch);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [perfilCidade, perfilUf, perfilBairro]);
+  }, [loadFailed, perfilCidade, perfilUf, perfilBairro]);
+
+  const carregando = enderecos === null && !loadFailed;
+  const bloqueado = enderecos !== null && enderecos.length === 0 && !loadFailed;
+  const precisaSelecionar = (enderecos?.length ?? 0) >= 2;
 
   const temLocalizacao = Boolean(draft.cidade.trim() && draft.uf.trim());
   const cidadeUfLabel = temLocalizacao
     ? `${draft.cidade} - ${draft.uf.toUpperCase()}`
     : "Localização não definida";
+
+  const continuar = () => {
+    if (bloqueado) {
+      Alert.alert("Endereço necessário", "Cadastre seu endereço antes de solicitar um serviço.");
+      return;
+    }
+    if (precisaSelecionar && !selectedId) {
+      Alert.alert("Selecione um endereço", "Escolha em qual endereço o serviço deve acontecer.");
+      return;
+    }
+    if (!temLocalizacao) {
+      Alert.alert("Localização necessária", "Defina sua cidade/UF no perfil ou na busca antes de continuar.");
+      return;
+    }
+    if (!draft.rua.trim() || !draft.numero.trim()) {
+      Alert.alert("Endereço incompleto", "Informe ao menos a rua e o número do endereço do serviço.");
+      return;
+    }
+    navigation.navigate("ObservacoesServico");
+  };
 
   return (
     <SafeAreaView style={flowStyles.screen}>
@@ -53,23 +126,80 @@ export function EnderecoServicoScreen() {
           theme={flowTheme}
         />
 
-        <DCard style={s.addressCard}>
-          <View style={s.addressHeader}>
-            <View style={[s.addressIcon, { backgroundColor: flowTheme.primarySoft }]}>
-              <AppIcon name="MapPin" size={20} color={flowTheme.primary} />
+        {carregando ? (
+          <DCard style={s.addressCard}>
+            <View style={s.centerBox}>
+              <ActivityIndicator color={flowTheme.primary} />
             </View>
-            <View style={s.addressText}>
-              <Text style={s.addressTitle}>{cidadeUfLabel}</Text>
-              <Text style={s.addressSubtitle}>
-                {temLocalizacao
-                  ? "Cidade/UF da sua localização salva. Confirme o endereço abaixo."
-                  : "Defina sua localização no perfil ou na busca para continuar."}
-              </Text>
+          </DCard>
+        ) : bloqueado ? (
+          <DCard style={s.addressCard}>
+            <View style={s.addressHeader}>
+              <View style={[s.addressIcon, { backgroundColor: flowTheme.primarySoft }]}>
+                <AppIcon name="MapPin" size={20} color={flowTheme.primary} />
+              </View>
+              <View style={s.addressText}>
+                <Text style={s.addressTitle}>Cadastre seu endereço</Text>
+                <Text style={s.addressSubtitle}>
+                  Cadastre seu endereço antes de solicitar um serviço. Você pode fazer isso no seu perfil.
+                </Text>
+              </View>
             </View>
-          </View>
-        </DCard>
+          </DCard>
+        ) : (
+          <>
+            {precisaSelecionar && enderecos ? (
+              <View style={s.selectWrap}>
+                <Text style={s.selectTitle}>Escolha o endereço do serviço</Text>
+                {enderecos.map((e) => {
+                  const ativo = e.id === selectedId;
+                  return (
+                    <Pressable
+                      key={e.id}
+                      onPress={() => aplicarEndereco(e)}
+                      style={[
+                        s.selectCard,
+                        { borderColor: ativo ? flowTheme.primary : colors.border },
+                        ativo && { backgroundColor: flowTheme.primarySoft },
+                      ]}
+                    >
+                      <View style={[s.selectIcon, { backgroundColor: flowTheme.primarySoft }]}>
+                        <AppIcon
+                          name={e.tipo === "EMPRESARIAL" ? "BriefcaseBusiness" : "Home"}
+                          size={18}
+                          color={flowTheme.primary}
+                        />
+                      </View>
+                      <View style={s.selectText}>
+                        <Text style={s.selectLabel}>{TIPO_LABEL[e.tipo]}</Text>
+                        <Text style={s.selectSub} numberOfLines={1}>
+                          {e.rua}, {e.numero} — {e.bairro}, {e.cidade}/{e.uf}
+                        </Text>
+                      </View>
+                      {ativo ? <AppIcon name="CheckCircle" size={20} color={flowTheme.primary} /> : null}
+                    </Pressable>
+                  );
+                })}
+              </View>
+            ) : null}
 
-        <View style={s.form}>
+            <DCard style={s.addressCard}>
+              <View style={s.addressHeader}>
+                <View style={[s.addressIcon, { backgroundColor: flowTheme.primarySoft }]}>
+                  <AppIcon name="MapPin" size={20} color={flowTheme.primary} />
+                </View>
+                <View style={s.addressText}>
+                  <Text style={s.addressTitle}>{cidadeUfLabel}</Text>
+                  <Text style={s.addressSubtitle}>
+                    {temLocalizacao
+                      ? "Cidade/UF do endereço selecionado. Confirme os dados abaixo."
+                      : "Defina sua localização no perfil ou na busca para continuar."}
+                  </Text>
+                </View>
+              </View>
+            </DCard>
+
+            <View style={s.form}>
           <DInput
             placeholder="Rua / logradouro"
             value={draft.rua}
@@ -117,22 +247,64 @@ export function EnderecoServicoScreen() {
             <Text style={s.mapSubtitle}>Mapa ilustrativo para revisão visual do endereço.</Text>
           </View>
         </DCard>
+          </>
+        )}
 
-        <DButton
-          label="Adicionar novo endereço"
-          variant="secondary"
-          onPress={() => Alert.alert("Em breve", "Cadastro de novos endereços será conectado em uma próxima etapa.")}
-        />
       </ScrollView>
 
       <SafeAreaView style={flowStyles.footer}>
-        <FlowPrimaryButton label="Continuar" theme={flowTheme} onPress={() => navigation.navigate("ObservacoesServico")} />
+        <FlowPrimaryButton label="Continuar" theme={flowTheme} onPress={continuar} />
       </SafeAreaView>
     </SafeAreaView>
   );
 }
 
 const s = StyleSheet.create({
+  centerBox: {
+    paddingVertical: spacing.lg,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  selectWrap: {
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  selectTitle: {
+    color: colors.textPrimary,
+    fontSize: 15,
+    fontWeight: "800",
+    marginBottom: 2,
+  },
+  selectCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    borderWidth: 1.5,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    backgroundColor: colors.surface,
+  },
+  selectIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  selectText: {
+    flex: 1,
+    gap: 2,
+  },
+  selectLabel: {
+    color: colors.textPrimary,
+    fontSize: 15,
+    fontWeight: "800",
+  },
+  selectSub: {
+    color: colors.textSecondary,
+    fontSize: 13,
+    fontWeight: "600",
+  },
   addressCard: {
     borderRadius: 24,
   },

@@ -28,6 +28,22 @@ export function ConfirmarSolicitacaoScreen() {
   const flowTheme = getServiceFlowTheme(draft.tipo);
   const isMontador = draft.tipo === "MONTADOR";
 
+  // Valor final exibido na confirmação. "A combinar" SÓ quando a profissional
+  // marcou essa opção (não mais forçado por categoria). Prioriza o valor que o
+  // empregador escolheu na tabela de intensidades.
+  function resolvePrecoLabel(): string {
+    // Montador: valor da especialidade escolhida (ou "a combinar"), definido
+    // ao selecionar o serviço a partir dos preços do profissional.
+    if (isMontador) return draft.precoEstimadoLabel ?? "A combinar";
+    if (draft.precoInfo?.valorACombinar) return "A combinar";
+    if (draft.valorSelecionado != null) {
+      return `R$ ${draft.valorSelecionado.toFixed(2).replace(".", ",")}`;
+    }
+    if (draft.precoEstimadoLabel) return draft.precoEstimadoLabel;
+    return "A combinar";
+  }
+  const precoLabel = resolvePrecoLabel();
+
   const empregadorVerificado = useAuth(
     (state) =>
       state.user?.verificacao?.status === "APROVADO" ||
@@ -141,12 +157,18 @@ export function ConfirmarSolicitacaoScreen() {
     }
 
     return [
-      { label: "Serviço", value: SERVICE_LABELS[draft.categoria], icon: "BriefcaseBusiness" as const },
+      {
+        label: "Serviço",
+        value: draft.intensidadeLabel
+          ? `${SERVICE_LABELS[draft.categoria]} · ${draft.intensidadeLabel}`
+          : SERVICE_LABELS[draft.categoria],
+        icon: "BriefcaseBusiness" as const,
+      },
       { label: "Data e horário", value: `${formatDate(draft.dataISO)} às ${draft.horario || "--:--"}`, icon: "Calendar" as const },
       { label: "Endereço", value: address, icon: "MapPin" as const },
       { label: "Observações", value: draft.observacoes || "Nenhuma observação adicionada.", icon: "FileText" as const },
     ];
-  }, [address, draft, isMontador]);
+  }, [address, draft, isMontador, precoLabel]);
 
   return (
     <SafeAreaView style={flowStyles.screen}>
@@ -165,7 +187,7 @@ export function ConfirmarSolicitacaoScreen() {
         <DCard style={[s.priceCard, { backgroundColor: flowTheme.primarySoft }]}>
           <View>
             <Text style={s.priceLabel}>Valor estimado</Text>
-            <Text style={[s.priceValue, { color: flowTheme.textAccent }]}>{isMontador ? "A orçar" : "R$ 160,00"}</Text>
+            <Text style={[s.priceValue, { color: flowTheme.textAccent }]}>{precoLabel}</Text>
           </View>
           <Text style={s.priceHint}>Pagamento após confirmação</Text>
         </DCard>

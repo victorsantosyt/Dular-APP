@@ -80,16 +80,18 @@ updates:
       # react 19.2.7 / react-native-renderer 19.1.0" (o renderer vem dentro
       # do react-native 0.81 e exige match exato). Os react-native-* da Expo
       # (safe-area-context, screens, svg, etc.) também são bundled e devem
-      # subir só via `expo install`. Bloqueia major/minor; patch e alertas de
+      # subir só via `expo install`. Bloqueia major/minor/patch; alertas de
       # SEGURANÇA seguem abertos.
+      # Patch bloqueado porque react-native 0.81.6 exige react@^19.1.4 mas
+      # o SDK54 fixa react@19.1.0 — bumps de patch também quebram o CI.
       - dependency-name: "react"
-        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+        update-types: ["version-update:semver-major", "version-update:semver-minor", "version-update:semver-patch"]
       - dependency-name: "@types/react"
-        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+        update-types: ["version-update:semver-major", "version-update:semver-minor", "version-update:semver-patch"]
       - dependency-name: "react-native"
-        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+        update-types: ["version-update:semver-major", "version-update:semver-minor", "version-update:semver-patch"]
       - dependency-name: "react-native-*"
-        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+        update-types: ["version-update:semver-major", "version-update:semver-minor", "version-update:semver-patch"]
 
   # ---------- GITHUB ACTIONS ----------
   # Mantém os pinned actions atualizados (actions/checkout, setup-node).

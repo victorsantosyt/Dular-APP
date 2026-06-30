@@ -24,6 +24,7 @@ export type MockPrisma = {
   incidentAttachment: { create: AnyFn };
   chatRoom: { upsert: AnyFn };
   chatMessage: { findMany: AnyFn; updateMany: AnyFn; create: AnyFn };
+  notification: { findMany: AnyFn; count: AnyFn; findUnique: AnyFn; update: AnyFn; updateMany: AnyFn };
   diaristaProfile: { findUnique: AnyFn; upsert: AnyFn };
   empregadorFavorito: { findMany: AnyFn; upsert: AnyFn; delete: AnyFn };
   montadorPerfil: { findUnique: AnyFn };
@@ -74,6 +75,13 @@ export function createMockPrisma(): MockPrisma {
       findMany: notMocked("chatMessage.findMany"),
       updateMany: notMocked("chatMessage.updateMany"),
       create: notMocked("chatMessage.create"),
+    },
+    notification: {
+      findMany: notMocked("notification.findMany"),
+      count: notMocked("notification.count"),
+      findUnique: notMocked("notification.findUnique"),
+      update: notMocked("notification.update"),
+      updateMany: notMocked("notification.updateMany"),
     },
     diaristaProfile: {
       findUnique: notMocked("diaristaProfile.findUnique"),

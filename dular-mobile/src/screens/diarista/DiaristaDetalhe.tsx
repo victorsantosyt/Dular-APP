@@ -61,8 +61,8 @@ function getServicoEndereco(servico: Servico | null | undefined) {
   return typeof endereco === "string" && endereco.trim() ? endereco.trim() : null;
 }
 
-// Rótulos do tipo/categoria do serviço (para a profissional saber o que foi
-// contratado — ex.: "Limpeza pesada").
+// Rótulos do tipo/categoria do serviço — para a profissional saber o que foi
+// contratado (ex.: "Limpeza pesada"). Prioriza a categoria/intensidade.
 const TIPO_LABEL_DET: Record<string, string> = {
   FAXINA: "Limpeza",
   BABA: "Babá",
@@ -84,7 +84,7 @@ const CATEGORIA_LABEL_DET: Record<string, string> = {
   PASSA_ROUPA_BASICO: "Passar roupa — básico",
   PASSA_ROUPA_COMPLETO: "Passar roupa — completo",
 };
-function servicoLabel(s: Servico): string {
+function servicoLabelDetalhe(s: Servico): string {
   if (s.categoria && CATEGORIA_LABEL_DET[s.categoria]) return CATEGORIA_LABEL_DET[s.categoria];
   return TIPO_LABEL_DET[s.tipo] ?? s.tipo;
 }
@@ -306,6 +306,13 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
         showsVerticalScrollIndicator={false}
       >
 
+        {/* ── Voltar ── */}
+        <View style={s.navRow}>
+          <Pressable onPress={() => navigation.goBack()} hitSlop={10} style={s.backBtn}>
+            <Ionicons name="arrow-back" size={22} color={colors.ink} />
+          </Pressable>
+        </View>
+
         {/* ── Título + status ── */}
         <View style={s.titleRow}>
           <Pressable
@@ -325,7 +332,7 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
         {/* ── Info card ── */}
         <View style={s.card}>
           <InfoRow icon="briefcase-outline" label="Serviço">
-            <Text style={s.infoValue}>{servicoLabel(svc)}</Text>
+            <Text style={s.infoValue}>{servicoLabelDetalhe(svc)}</Text>
           </InfoRow>
 
           <View style={s.divider} />
@@ -598,6 +605,20 @@ const s = StyleSheet.create({
     gap: 16,
   },
 
+  navRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.stroke,
+  },
   titleRow: {
     flexDirection: "row",
     alignItems: "center",

@@ -176,8 +176,8 @@ export function ConfirmarSolicitacaoScreen() {
         <StepHeader
           title="Confirmar solicitação"
           subtitle="Revise tudo antes de enviar para os profissionais."
-          step={5}
-          total={5}
+          step={6}
+          total={6}
           onBack={() => navigation.goBack()}
           theme={flowTheme}
         />

@@ -480,11 +480,17 @@ export async function POST(req: Request) {
     //
     // Quando `valorACombinar=true`, registramos 0 como sentinela "a combinar"
     // (preço negociado externamente — mesma convenção usada para Montador).
-    // Nichos sem preço dedicado (Passadeira/Lavadeira/Cuidadora) são
-    // sempre "a combinar": precoFinal = 0 e sem exigência de preço configurado.
-    const tipoACombinar = ["PASSA_ROUPA", "LAVADEIRA", "CUIDADORA"].includes(tipo);
+    // Nichos sem subtipo: valor único por nicho em REAIS (Decimal).
+    // Quando nulo, o nicho fica "a combinar" (precoFinal 0).
+    const PRECO_NICHO_DECIMAL: Record<string, unknown> = {
+      CUIDADORA: prof.precoCuidadora ?? prof.precoCuidadoraHora,
+      PASSA_ROUPA: prof.precoPassadeira,
+      LAVADEIRA: prof.precoLavadeira,
+    };
+    const temPrecoNicho = Object.prototype.hasOwnProperty.call(PRECO_NICHO_DECIMAL, tipo);
+    let aCombinar = prof.valorACombinar;
     let precoFinal = 0;
-    if (prof.valorACombinar || tipoACombinar) {
+    if (prof.valorACombinar) {
       precoFinal = 0;
     } else if (tipo === "FAXINA") {
       if (categoria === "FAXINA_PESADA") {
@@ -498,11 +504,19 @@ export async function POST(req: Request) {
       precoFinal = Math.round(Number(prof.precoBabaHora ?? 0) * 100);
     } else if (tipo === "COZINHEIRA") {
       precoFinal = Math.round(Number(prof.precoCozinheiraBase ?? 0) * 100);
+    } else if (temPrecoNicho) {
+      const valorNicho = PRECO_NICHO_DECIMAL[tipo];
+      if (valorNicho != null) {
+        precoFinal = Math.round(Number(valorNicho) * 100);
+      } else {
+        aCombinar = true;
+        precoFinal = 0;
+      }
     } else {
       precoFinal = prof.precoLeve;
     }
 
-    if (!prof.valorACombinar && !tipoACombinar && (!precoFinal || precoFinal <= 0)) {
+    if (!aCombinar && (!precoFinal || precoFinal <= 0)) {
       return NextResponse.json(
         { ok: false, error: "Profissional sem preço configurado para este serviço." },
         { status: 400 },

@@ -19,9 +19,13 @@ export type ConversationItem = {
   horario: string;
   initials: string;
   avatarUrl?: string;
-  /** Prévia da última mensagem (estilo WhatsApp). */
+  /** Mensagens não-lidas da conversa (badge estilo WhatsApp). */
+  naoLidas?: number;
+  /** Prévia da última mensagem (quando disponível). */
+  ultimaMensagem?: string;
+  /** Prévia da última mensagem (estilo WhatsApp — alias de ultimaMensagem). */
   lastMessage?: string;
-  /** Quantidade de mensagens não lidas. */
+  /** Quantidade de mensagens não lidas (alias de naoLidas). */
   unread?: number;
 };
 
@@ -77,15 +81,16 @@ type ConversationCardProps = {
 };
 
 export function ConversationCard({ item, onPress, accent = colors.primary, soft = colors.lavenderSoft }: ConversationCardProps) {
-  const unread = item.unread ?? 0;
-  const hasUnread = unread > 0;
-  const preview = item.lastMessage?.trim() ? item.lastMessage : "Toque para conversar";
+  const naoLidas = item.naoLidas ?? item.unread ?? 0;
+  const unread = naoLidas > 0;
+  const hasUnread = unread;
+  const preview = (item.ultimaMensagem ?? item.lastMessage)?.trim() ? (item.ultimaMensagem ?? item.lastMessage)! : "Toque para conversar";
 
   return (
     <DCard style={s.conversationCard} onPress={onPress}>
       <View style={s.avatarWrap}>
         <DAvatar size="lg" uri={item.avatarUrl} initials={item.initials} />
-        {/* OnlineDot removido — Etapa 2 fará presença real (lastSeenAt no User). */}
+        {hasUnread ? <View style={[s.unreadDot, { backgroundColor: accent }]} /> : <OnlineDot />}
       </View>
 
       <View style={s.cardMain}>
@@ -107,10 +112,10 @@ export function ConversationCard({ item, onPress, accent = colors.primary, soft 
       </View>
 
       <View style={s.rightCol}>
-        <Text style={[s.time, hasUnread && { color: accent }]}>{item.horario}</Text>
+        <Text style={[s.time, hasUnread && { color: accent, fontWeight: "700" }]}>{item.horario}</Text>
         {hasUnread ? (
           <View style={[s.unreadBadge, { backgroundColor: accent }]}>
-            <Text style={s.unreadText}>{unread > 99 ? "99+" : unread}</Text>
+            <Text style={s.unreadBadgeText}>{naoLidas > 9 ? "9+" : naoLidas}</Text>
           </View>
         ) : null}
       </View>
@@ -191,6 +196,33 @@ const s = StyleSheet.create({
     borderColor: colors.surface,
     backgroundColor: colors.success,
   },
+  unreadDot: {
+    position: "absolute",
+    right: 2,
+    top: 6,
+    width: 15,
+    height: 15,
+    borderRadius: 8,
+    borderWidth: 3,
+    borderColor: colors.surface,
+  },
+  nameUnread: {
+    fontWeight: "800",
+  },
+  unreadBadge: {
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    paddingHorizontal: 6,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  unreadBadgeText: {
+    color: colors.white,
+    fontSize: 11,
+    lineHeight: 14,
+    fontWeight: "800",
+  },
   cardMain: {
     flex: 1,
     minWidth: 0,
@@ -224,9 +256,6 @@ const s = StyleSheet.create({
     ...typography.caption,
     fontWeight: "700",
   },
-  nameUnread: {
-    fontWeight: "800",
-  },
   preview: {
     color: colors.textSecondary,
     ...typography.caption,
@@ -241,20 +270,6 @@ const s = StyleSheet.create({
     ...typography.caption,
     fontWeight: "600",
     textAlign: "right",
-  },
-  unreadBadge: {
-    minWidth: 20,
-    height: 20,
-    borderRadius: 10,
-    paddingHorizontal: 6,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  unreadText: {
-    color: colors.white,
-    fontSize: 11,
-    lineHeight: 14,
-    fontWeight: "800",
   },
   rightCol: {
     width: 56,

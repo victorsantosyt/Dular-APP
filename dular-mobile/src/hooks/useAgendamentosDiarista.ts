@@ -41,6 +41,8 @@ const TIPO_LABEL: Record<string, string> = {
   BABA: "Babá",
   COZINHEIRA: "Cozinha",
   PASSA_ROUPA: "Passar Roupa",
+  CUIDADORA: "Cuidadora",
+  LAVADEIRA: "Lavadeira",
 };
 
 const CATEGORIA_LABEL: Record<string, string> = {

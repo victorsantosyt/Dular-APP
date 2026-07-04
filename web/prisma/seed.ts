@@ -9,6 +9,14 @@ if (!datasourceUrl) {
   throw new Error("DATABASE_URL is not set");
 }
 
+// Este seed é de DESENVOLVIMENTO: cria usuários demo com senhas fracas.
+// Em produção use exclusivamente prisma/seed-prod.ts (npm run seed:prod).
+if (process.env.NODE_ENV === "production") {
+  throw new Error(
+    "seed de desenvolvimento bloqueado em produção — use prisma/seed-prod.ts",
+  );
+}
+
 const pool = new pg.Pool({ connectionString: datasourceUrl });
 const prisma = new PrismaClient({
   adapter: new PrismaPg(pool),
@@ -35,7 +43,11 @@ async function main() {
   const senhaCliente = await hashPassword("cliente123");
   const senhaDiarista = await hashPassword("diarista123");
   const senhaAdmin = await hashPassword("admin123");
-  const senhaAdminExtra = await hashPassword("S982575428yt");
+  // Senha do admin extra vem de env para não versionar credencial real
+  // (a senha antiga que ficou no histórico do git deve ser rotacionada).
+  const senhaAdminExtra = await hashPassword(
+    process.env.SEED_ADMIN_EXTRA_PASSWORD ?? "admin123",
+  );
 
   // ADMIN
   await prisma.user.upsert({
@@ -49,7 +61,7 @@ async function main() {
     },
   });
 
-  // ADMIN extra (pedido: victordev.tec@gmail.com / S982575428yt)
+  // ADMIN extra (victordev.tec@gmail.com — senha via SEED_ADMIN_EXTRA_PASSWORD)
   await prisma.user.upsert({
     where: { telefone: "65999990100" },
     update: {
@@ -232,7 +244,9 @@ async function main() {
 
   console.log("Seed concluído:");
   console.log("Admin: 65999990000 / admin123");
-  console.log("Admin extra: 65999990100 / S982575428yt (email: victordev.tec@gmail.com)");
+  console.log(
+    "Admin extra: 65999990100 / (senha de SEED_ADMIN_EXTRA_PASSWORD, default admin123) — victordev.tec@gmail.com",
+  );
   console.log("Clientes:");
   clientes.forEach((c) => console.log(`- ${c.tel} / cliente123`));
   console.log("Diaristas:");

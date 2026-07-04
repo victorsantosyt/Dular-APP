@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/requireAuth";
 import { assertStatus } from "@/lib/regrasServico";
 import { ServicoStatus, UserRole } from "@prisma/client";
-import { jaConfirmouFinalizacao, registrarEvento } from "@/lib/servicoEvento";
+import { jaConfirmouFinalizacao, confirmarFinalizacaoAtomic } from "@/lib/servicoEvento";
 import { criarNotificacao } from "@/lib/notifications";
 
 type Params = { params: Promise<{ id: string }> };
@@ -51,8 +51,11 @@ export async function POST(req: Request, { params }: Params) {
 
     assertStatus(servico.status as ServicoStatus, ["EM_ANDAMENTO", "AGUARDANDO_FINALIZACAO"]);
 
-    const minhaConfirmacao = await jaConfirmouFinalizacao(servico.id, papel);
-    if (minhaConfirmacao) {
+    // Transição atômica (Serializable + retry) — corrige a corrida de dupla
+    // confirmação simultânea. Ver confirmarFinalizacaoAtomic em servicoEvento.ts.
+    const resultado = await confirmarFinalizacaoAtomic(servico.id, papel, auth.userId);
+
+    if (resultado.idempotent) {
       return NextResponse.json({
         ok: true,
         idempotent: true,
@@ -65,18 +68,8 @@ export async function POST(req: Request, { params }: Params) {
       });
     }
 
-    const outroJaConfirmou = isCliente
-      ? await jaConfirmouFinalizacaoProfissional(servico.id)
-      : await jaConfirmouFinalizacao(servico.id, "EMPREGADOR");
-
-    const novoStatus: ServicoStatus = outroJaConfirmou ? "CONCLUIDO" : "AGUARDANDO_FINALIZACAO";
-
-    const updated = await prisma.servico.update({
-      where: { id },
-      data: { status: novoStatus },
-    });
-
-    await registrarEvento(servico.id, servico.status as ServicoStatus, novoStatus, papel, auth.userId);
+    const novoStatus = resultado.novoStatus;
+    const updated = { ...servico, status: novoStatus };
 
     const destinoId = isCliente ? servico.montadorId ?? servico.diaristaId : servico.clientId;
     if (destinoId) {

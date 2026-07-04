@@ -28,7 +28,6 @@ import { PILOT_MODE, PILOT } from "@/config/pilotConfig";
 import { useGeoDefaults } from "@/hooks/useGeoDefaults";
 import { useMensagens } from "@/hooks/useMensagens";
 import { useNotificacoes } from "@/hooks/useNotificacoes";
-import { usePaywallGuard } from "@/hooks/usePaywallGuard";
 import { useFavoritos } from "@/hooks/useFavoritos";
 import { useAuth } from "@/stores/authStore";
 import {
@@ -186,7 +185,6 @@ export default function EmpregadorHome() {
   const navigation = useNavigation<Navigation>();
   const user = useAuth((state) => state.user);
   const geo = useGeoDefaults();
-  const { verificar } = usePaywallGuard();
   const { rooms } = useMensagens();
   const { unreadCount } = useNotificacoes();
   const { isFavorito, toggle: toggleFavorito } = useFavoritos();

@@ -13,7 +13,7 @@ const BASE_URL =
   "http://localhost:3000";
 
 const checkoutSchema = z.object({
-  planId: z.enum(["basico_mensal", "pro_mensal", "pro_anual", "cliente_mensal"]).optional(),
+  planId: z.enum(["basico_mensal", "pro_mensal", "pro_anual"]).optional(),
   plano: z.enum(["PLUS", "PREMIUM"]).optional(),
 });
 
@@ -25,9 +25,8 @@ function legacyPlanoToPlanId(
   if (role === "DIARISTA") {
     return plano === "PLUS" ? "basico_mensal" : "pro_mensal";
   }
-  if (role === "EMPREGADOR") {
-    return "cliente_mensal";
-  }
+  // Estratégia oficial (00-fonte-unica-verdade.md): o Empregador NUNCA paga.
+  // Qualquer checkout de Empregador cai aqui e retorna null → INVALID_PLAN.
   return null;
 }
 

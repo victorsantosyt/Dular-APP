@@ -4,13 +4,15 @@ export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2026-06-24.dahlia",
 });
 
-export type PlanId = "basico_mensal" | "pro_mensal" | "pro_anual" | "cliente_mensal";
+export type PlanId = "basico_mensal" | "pro_mensal" | "pro_anual";
 
 export type PlanDef = {
   id: PlanId;
   name: string;
   description: string;
-  role: "EMPREGADOR" | "DIARISTA" | "MONTADOR";
+  // Estratégia oficial (00-fonte-unica-verdade.md): somente o profissional paga.
+  // O Empregador NUNCA paga — não há plano com role "EMPREGADOR".
+  role: "DIARISTA" | "MONTADOR";
   mode: "subscription";
   interval: "month" | "year";
   priceInCents: number;
@@ -47,17 +49,6 @@ export const PLANS: Record<PlanId, PlanDef> = {
     mode: "subscription",
     interval: "year",
     priceInCents: 35900, // R$359,00
-    plan: "PREMIUM",
-  },
-  // ── EMPREGADOR ───────────────────────────────────────────────────────────────
-  cliente_mensal: {
-    id: "cliente_mensal",
-    name: "Empregador Mensal",
-    description: "Solicite serviços ilimitados por mês",
-    role: "EMPREGADOR",
-    mode: "subscription",
-    interval: "month",
-    priceInCents: 1490, // R$14,90
     plan: "PREMIUM",
   },
 };

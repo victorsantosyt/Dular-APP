@@ -62,7 +62,11 @@ export function useRestricoes(): UseRestricoesReturn {
 
   const atingiuLimite = useCallback(
     (tipo: "servicosMes" | "aceiteMes"): boolean => {
-      if (!restricoes) return false;
+      // Guarda de segurança: /api/me/restrictions hoje devolve banimentos
+      // administrativos (UserRestriction[]), não limites de plano. Sem esta guarda,
+      // restricoes.limites é undefined e o acesso [tipo] lança em runtime ao aceitar
+      // serviço. Beta 0 não aplica limite de plano (00/06) → fail-open seguro.
+      if (!restricoes || !restricoes.limites) return false;
       const limite = restricoes.limites[tipo];
       if (limite === null) return false;
       return restricoes.uso[tipo] >= limite;

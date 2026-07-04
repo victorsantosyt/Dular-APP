@@ -13,7 +13,6 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
 
 import { api } from "@/lib/api";
-import { useAuth } from "@/stores/authStore";
 import { useRestricoes } from "@/hooks/useRestricoes";
 import { AppIcon } from "@/components/ui";
 import PlanoCard from "@/components/ui/PlanoCard";
@@ -37,30 +36,6 @@ type Props = {
 };
 
 // ─── Plan data ────────────────────────────────────────────────────────────────
-
-const PLANOS_EMPREGADOR: PlanoInfo[] = [
-  {
-    id: "BASICO",
-    nome: "Básico",
-    preco: "Grátis",
-    beneficios: ["1 serviço por mês", "Acesso a diaristas", "Chat básico"],
-    destaque: false,
-  },
-  {
-    id: "PLUS",
-    nome: "Plus",
-    preco: "R$ 19/mês",
-    beneficios: ["Serviços ilimitados", "Suporte prioritário", "Chat dedicado"],
-    destaque: true,
-  },
-  {
-    id: "PREMIUM",
-    nome: "Premium",
-    preco: "R$ 39/mês",
-    beneficios: ["Tudo do Plus", "Diaristas verificadas", "Prioridade no agendamento"],
-    destaque: false,
-  },
-];
 
 const PLANOS_DIARISTA: PlanoInfo[] = [
   {
@@ -93,9 +68,6 @@ export default function PaywallScreen({ onClose }: Props) {
   const route = useRoute();
   const insets = useSafeAreaInsets();
 
-  const { user } = useAuth();
-  const role = user?.role ?? "EMPREGADOR";
-
   const { restricoes, loading, refetch } = useRestricoes();
 
   // Loading state per plan being checked out
@@ -112,7 +84,9 @@ export default function PaywallScreen({ onClose }: Props) {
     }, [refetch])
   );
 
-  const planos = role === "DIARISTA" ? PLANOS_DIARISTA : PLANOS_EMPREGADOR;
+  // Tela de planos exclusiva do profissional. Hoje só o Diarista alcança este
+  // paywall (Montador não o registra; Empregador nunca paga — 00-fonte-unica-verdade.md).
+  const planos = PLANOS_DIARISTA;
   const planoAtual: Plano = restricoes?.plano ?? "BASICO";
 
   const canGoBack = !onClose && navigation.canGoBack();

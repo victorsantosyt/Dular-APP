@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/requireAuth";
 import { assertRole, assertStatus } from "@/lib/regrasServico";
 import { ServicoStatus, UserRole } from "@prisma/client";
-import { jaConfirmouFinalizacao, registrarEvento } from "@/lib/servicoEvento";
+import { confirmarFinalizacaoAtomic } from "@/lib/servicoEvento";
 import { criarNotificacao } from "@/lib/notifications";
 
 type Params = { params: Promise<{ id: string }> };
@@ -45,32 +45,15 @@ export async function POST(req: Request, { params }: Params) {
 
     const papel = auth.role as UserRole;
 
-    // Idempotência: se o profissional já confirmou, devolve o estado atual.
-    const minhaConfirmacao = await jaConfirmouFinalizacao(servico.id, papel);
-    if (minhaConfirmacao) {
-      return NextResponse.json({
-        ok: true,
-        idempotent: true,
-        servico,
-      });
+    // Transição atômica (Serializable + retry) — mesma lógica compartilhada de
+    // `confirmar-finalizacao`, corrigindo a corrida de dupla confirmação.
+    const resultado = await confirmarFinalizacaoAtomic(servico.id, papel, auth.userId);
+    if (resultado.idempotent) {
+      return NextResponse.json({ ok: true, idempotent: true, servico });
     }
 
-    // Verifica se o EMPREGADOR já confirmou (dupla confirmação).
-    const empregadorJaConfirmou = await jaConfirmouFinalizacao(servico.id, "EMPREGADOR");
-    const novoStatus: ServicoStatus = empregadorJaConfirmou ? "CONCLUIDO" : "AGUARDANDO_FINALIZACAO";
-
-    const updated = await prisma.servico.update({
-      where: { id },
-      data: { status: novoStatus },
-    });
-
-    await registrarEvento(
-      servico.id,
-      servico.status as ServicoStatus,
-      novoStatus,
-      papel,
-      auth.userId,
-    );
+    const novoStatus = resultado.novoStatus;
+    const updated = { ...servico, status: novoStatus };
 
     if (novoStatus === "CONCLUIDO") {
       // Notifica ambas as partes — empregador (destino habitual) e o próprio

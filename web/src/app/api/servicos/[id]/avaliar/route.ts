@@ -49,19 +49,28 @@ export async function POST(req: Request, { params }: Params) {
     }
     const isMontadorServico = !!servico.montadorId;
 
-    const avaliacao = await prisma.avaliacao.create({
-      data: {
-        servicoId: servico.id,
-        clientId: servico.clientId,
-        diaristaId: isMontadorServico ? null : servico.diaristaId,
-        montadorId: isMontadorServico ? servico.montadorId : null,
-        ...parsed.data,
-      },
-    });
+    // Atomicidade: a criação da avaliação e a transição para FINALIZADO precisam
+    // ser uma unidade. Sem $transaction, uma falha entre as duas escritas deixava
+    // a Avaliacao criada (servicoId @unique) com o serviço preso em CONFIRMADO —
+    // estado irrecuperável, pois nova tentativa bate no guard `servico.avaliacao`
+    // e retorna 409 permanentemente. Ver auditoria Fases 2A/6A/7A.
+    const avaliacao = await prisma.$transaction(async (tx) => {
+      const av = await tx.avaliacao.create({
+        data: {
+          servicoId: servico.id,
+          clientId: servico.clientId,
+          diaristaId: isMontadorServico ? null : servico.diaristaId,
+          montadorId: isMontadorServico ? servico.montadorId : null,
+          ...parsed.data,
+        },
+      });
 
-    await prisma.servico.update({
-      where: { id: servico.id },
-      data: { status: "FINALIZADO" },
+      await tx.servico.update({
+        where: { id: servico.id },
+        data: { status: "FINALIZADO" },
+      });
+
+      return av;
     });
 
     await registrarEvento(servico.id, servico.status as ServicoStatus, "FINALIZADO", auth.role, auth.userId);

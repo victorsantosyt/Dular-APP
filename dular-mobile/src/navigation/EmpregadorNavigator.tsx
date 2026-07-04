@@ -23,7 +23,6 @@ import AcoesRapidasEmpregadorScreen from "@/screens/empregador/AcoesRapidasEmpre
 import ProfissionaisDestaqueScreen from "@/screens/empregador/ProfissionaisDestaqueScreen";
 import { ChatAbertoScreen } from "@/screens/shared/ChatAbertoScreen";
 import type { ChatAbertoParams } from "@/screens/shared/ChatAbertoScreen";
-import PaywallScreen from "@/screens/PaywallScreen";
 import Privacidade from "@/screens/perfil/Privacidade";
 import ReportIncident from "@/screens/perfil/ReportIncident";
 import Termos from "@/screens/perfil/Termos";
@@ -84,7 +83,6 @@ export type EmpregadorTabParamList = {
   };
   DetalheServico: { id: string };
   EmpregadorDetalhe: { servicoId: string };
-  Paywall: { mensagem?: string };
   VerificacaoDocs: undefined;
   ReportIncident: undefined;
   SosFlow: undefined;
@@ -158,7 +156,6 @@ export function EmpregadorNavigator() {
       <RootStack.Screen name="MontadorPublicProfile" component={MontadorPublicProfile} />
       <RootStack.Screen name="DetalheServico" component={DetalheServicoScreen} />
       <RootStack.Screen name="EmpregadorDetalhe" component={DetalheServicoScreen} />
-      <RootStack.Screen name="Paywall" component={PaywallScreen} />
       <RootStack.Screen name="VerificacaoDocs" component={VerificacaoDocs} />
       <RootStack.Screen name="ReportIncident" component={ReportIncident} />
       <RootStack.Screen name="SosFlow" component={SosFlowScreen} />

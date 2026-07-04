@@ -11,6 +11,8 @@ Use este checklist antes do primeiro deploy. Execute os comandos a partir da rai
 - [ ] `cd web && npx prisma validate` rodado com sucesso
 - [ ] `cd web && npx prisma migrate deploy` rodado no banco de produção
 - [ ] `cd web && npx prisma migrate status` confirmando todas as migrations como aplicadas
+- [ ] `cd web && npm run seed:prod` rodado com `PROD_ADMIN_EMAIL`/`PROD_ADMIN_PASSWORD` e `PILOT_CITY`/`PILOT_UF`/`PILOT_BAIRROS` definidos (cria admin inicial + bairros da cidade piloto; idempotente)
+- [ ] NUNCA rodar o seed de desenvolvimento (`prisma db seed`) em produção — ele cria usuários demo e é bloqueado com `NODE_ENV=production`
 - [ ] Bucket S3 criado com política de acesso correta
 - [ ] Domínio configurado e HTTPS ativo
 
@@ -37,6 +39,7 @@ Use este checklist antes do primeiro deploy. Execute os comandos a partir da rai
 
 ## PÓS-DEPLOY
 
+- [ ] Executar o smoke test oficial do Beta (12 passos + pré/pós-checks): procedimento em `auditoria/14-smoke-test-producao.md` (doc operacional local, fora do git)
 - [ ] Testar fluxo completo: cadastro → busca → contratação → execução → confirmação → avaliação
 - [ ] Verificar que SOS registra no banco de produção
 - [ ] Verificar que KYC envia para S3 correto

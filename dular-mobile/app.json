@@ -38,6 +38,9 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
     "plugins": [
       "expo-web-browser",
       "expo-font",
@@ -45,7 +48,12 @@
       ["expo-location", {
         "locationWhenInUsePermission": "O Dular usa sua localização para sugerir profissionais e serviços próximos.",
         "locationAlwaysAndWhenInUsePermission": "O Dular usa sua localização durante o serviço para segurança."
-      }]
+      }],
+      ["expo-image-picker", {
+        "photosPermission": "O Dular acessa suas fotos para enviar documentos de verificação, foto de perfil e portfólio.",
+        "cameraPermission": "O Dular usa a câmera para fotografar documentos de verificação e foto de perfil."
+      }],
+      "expo-notifications"
     ],
     "extra": {
       "apiBaseUrl": "SUBSTITUIR_EM_PRODUCAO",

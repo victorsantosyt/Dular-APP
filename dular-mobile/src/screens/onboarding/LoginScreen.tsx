@@ -52,7 +52,16 @@ function getRoleParam(params: URLSearchParams, keys: string[]): AuthRole | null 
   return null;
 }
 
-function getRoleMismatchMessage(params: URLSearchParams, requestedFallback: AuthRole | null) {
+const providerLabels: Record<Provider, string> = {
+  google: "Google",
+  apple: "Apple",
+};
+
+function getRoleMismatchMessage(
+  provider: Provider,
+  params: URLSearchParams,
+  requestedFallback: AuthRole | null,
+) {
   const linkedRole = getRoleParam(params, [
     "linkedRole",
     "existingRole",
@@ -67,13 +76,15 @@ function getRoleMismatchMessage(params: URLSearchParams, requestedFallback: Auth
   const linkedRoleLabel = linkedRole ? roleLabels[linkedRole] : "outro perfil";
   const requestedRoleLabel = requestedRole ? roleLabels[requestedRole] : "o perfil selecionado";
 
+  const providerLabel = providerLabels[provider];
   return [
-    `Esta conta Google já está vinculada ao perfil ${linkedRoleLabel}.`,
-    `Para entrar como ${requestedRoleLabel}, use outra conta Google.`,
+    `Esta conta ${providerLabel} já está vinculada ao perfil ${linkedRoleLabel}.`,
+    `Para entrar como ${requestedRoleLabel}, use outra conta ${providerLabel}.`,
   ].join(" ");
 }
 
-function getGoogleOAuthUrlWarning(value: string) {
+function getOAuthUrlWarning(provider: Provider, value: string) {
+  const providerLabel = providerLabels[provider];
   try {
     const url = new URL(value);
     const host = url.hostname;
@@ -83,12 +94,12 @@ function getGoogleOAuthUrlWarning(value: string) {
       /^172\.(1[6-9]|2\d|3[01])\./.test(host);
     if (url.protocol !== "https:") {
       return privateIp
-        ? "O app está apontando para um IP LAN. Para Google OAuth no Expo Go físico, use uma URL HTTPS pública via ngrok."
-        : "Para Google OAuth no Expo Go físico, use uma URL HTTPS pública no EXPO_PUBLIC_API_URL.";
+        ? `O app está apontando para um IP LAN. Para ${providerLabel} OAuth no Expo Go físico, use uma URL HTTPS pública via ngrok.`
+        : `Para ${providerLabel} OAuth no Expo Go físico, use uma URL HTTPS pública no EXPO_PUBLIC_API_URL.`;
     }
     return null;
   } catch {
-    return "URL da API inválida para iniciar o Google OAuth.";
+    return `URL da API inválida para iniciar o ${providerLabel} OAuth.`;
   }
 }
 
@@ -209,11 +220,12 @@ export function LoginScreen() {
       return;
     }
 
-    const googleOAuthWarning = provider === "google" ? getGoogleOAuthUrlWarning(API_BASE_URL) : null;
-    if (googleOAuthWarning) {
+    // Apple e Google exigem HTTPS público para o fluxo OAuth em aparelho físico.
+    const oauthWarning = getOAuthUrlWarning(provider, API_BASE_URL);
+    if (oauthWarning) {
       Alert.alert(
-        "Google OAuth no aparelho",
-        `${googleOAuthWarning}\n\nUse a mesma URL no AUTH_URL do backend para manter os cookies do NextAuth no mesmo domínio.`,
+        `${providerLabels[provider]} OAuth no aparelho`,
+        `${oauthWarning}\n\nUse a mesma URL no AUTH_URL do backend para manter os cookies do NextAuth no mesmo domínio.`,
       );
       return;
     }
@@ -223,11 +235,13 @@ export function LoginScreen() {
       // FASE 5C — gênero não é mais coletado no pré-login; é definido pós-login
       // pelo GeneroGate (backend é a fonte). O callback não recebe mais genero.
       const callbackPath = `/auth/callback/${callbackRole}?platform=mobile`;
+      // Ambos os providers usam o proxy mobile do backend: NextAuth v5 não
+      // inicia OAuth com GET em /api/auth/signin/:provider.
       const loginUrl = new URL(
-        provider === "google" ? "/api/auth/mobile-google" : "/api/auth/signin/apple",
+        provider === "google" ? "/api/auth/mobile-google" : "/api/auth/mobile-apple",
         API_BASE_URL,
       );
-      if (provider === "google") loginUrl.searchParams.set("role", callbackRole);
+      loginUrl.searchParams.set("role", callbackRole);
       loginUrl.searchParams.set("callbackUrl", callbackPath);
 
       const result = await WebBrowser.openAuthSessionAsync(loginUrl.toString(), MOBILE_AUTH_REDIRECT);
@@ -241,7 +255,10 @@ export function LoginScreen() {
 
       if (error) {
         if (error.toUpperCase() === "ROLE_MISMATCH") {
-          Alert.alert("Perfil Google já vinculado", getRoleMismatchMessage(url.searchParams, requestedRole));
+          Alert.alert(
+            `Perfil ${providerLabels[provider]} já vinculado`,
+            getRoleMismatchMessage(provider, url.searchParams, requestedRole),
+          );
           return;
         }
 

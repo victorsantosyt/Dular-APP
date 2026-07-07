@@ -40,4 +40,6 @@ const BASE_URL =
 export default BASE_URL;
 
 export const sosWhatsapp: string =
-  (Constants.expoConfig?.extra?.sosWhatsapp as string | undefined) ?? "5565999999999";
+  process.env.EXPO_PUBLIC_SOS_WHATSAPP ??
+  (Constants.expoConfig?.extra?.sosWhatsapp as string | undefined) ??
+  "5565999999999";

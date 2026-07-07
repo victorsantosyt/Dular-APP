@@ -1,6 +1,7 @@
 import NextAuth from "next-auth";
 import Google from "next-auth/providers/google";
 import Apple from "next-auth/providers/apple";
+import { appleClientId, appleClientSecret } from "@/lib/appleClientSecret";
 import { prisma } from "@/lib/prisma";
 import type { OAuthProvider, UserRole } from "@prisma/client";
 
@@ -52,8 +53,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
     }),
     Apple({
-      clientId: process.env.APPLE_ID!,
-      clientSecret: process.env.APPLE_SECRET!,
+      // Secret dinâmico (APPLE_TEAM_ID/APPLE_KEY_ID/APPLE_PRIVATE_KEY) com
+      // fallback para o par estático APPLE_ID/APPLE_SECRET.
+      clientId: appleClientId()!,
+      clientSecret: appleClientSecret()!,
     }),
   ],
   session: { strategy: "jwt" },

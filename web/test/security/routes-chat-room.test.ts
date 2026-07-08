@@ -103,6 +103,8 @@ describe("GET /api/chat/[roomId] — ler mensagens", () => {
     // GET marca deliveredAt (e depois readAt) via updateMany — Etapa 2.
     mockPrisma.chatMessage.updateMany = async () => ({ count: 0 });
     mockPrisma.chatMessage.findMany = async () => [];
+    // GET agora informa se o profissional tem chave PIX (banner de pagamento).
+    mockPrisma.paymentInfo.findUnique = async () => null;
 
     const { GET } = await getHandlers();
     const res = await GET(
@@ -114,6 +116,7 @@ describe("GET /api/chat/[roomId] — ler mensagens", () => {
     assert.equal(body.ok, true);
     assert.equal(body.room.servicoId, "svc-1");
     assert.ok(Array.isArray(body.messages));
+    assert.equal(body.room.pagamento.profissionalTemPix, false);
   });
 });
 

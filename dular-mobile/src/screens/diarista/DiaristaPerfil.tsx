@@ -1507,6 +1507,14 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                   title="Carteira / Ganhos"
                   subtitle="Histórico e ganhos dos serviços"
                   onPress={() => navigation.navigate("Carteira", { from: "Perfil" })}
+                />
+                <ProfileRow
+                  accentColor={theme.primary}
+                  accentSoft={theme.primarySoft}
+                  icon="Landmark"
+                  title="Recebimentos"
+                  subtitle="Receber pelo PIX"
+                  onPress={() => navigation.navigate("Recebimentos")}
                   isLast
                 />
               </ProfileSection>

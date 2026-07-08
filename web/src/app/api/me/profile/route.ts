@@ -1,24 +1,8 @@
 import { auth } from "@/lib/auth-oauth";
 import { prisma } from "@/lib/prisma";
 import { fail, ok } from "@/lib/apiResponse";
+import { validarCPF } from "@/lib/pixKey";
 import { z } from "zod";
-
-function validarCPF(cpf: string): boolean {
-  const digits = cpf.replace(/\D/g, "");
-  if (digits.length !== 11) return false;
-  if (/^(\d)\1+$/.test(digits)) return false;
-
-  const calc = (mod: number) => {
-    let sum = 0;
-    for (let i = 0; i < mod - 1; i++) {
-      sum += Number(digits[i]) * (mod - i);
-    }
-    const rem = (sum * 10) % 11;
-    return rem === 10 || rem === 11 ? 0 : rem;
-  };
-
-  return calc(10) === Number(digits[9]) && calc(11) === Number(digits[10]);
-}
 
 const schema = z.object({
   nome: z.string().min(3, "Nome muito curto"),

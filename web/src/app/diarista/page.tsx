@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { CalendarDays } from "lucide-react";
 import { AgendaCard } from "@/components/ui/AgendaCard";
 import { EarningsBox } from "@/components/ui/EarningsBox";
@@ -29,7 +30,18 @@ const tabs: TabItem[] = [
 ];
 
 export default function DiaristaPage() {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState("inicio");
+
+  // "Ganhos" leva à tela real de Recebimentos (chave PIX); as demais tabs
+  // seguem como estado local do mock.
+  const onTabPress = (key: string) => {
+    if (key === "ganhos") {
+      router.push("/diarista/recebimentos");
+      return;
+    }
+    setActiveTab(key);
+  };
 
   return (
     <main className="min-h-screen bg-dular-bg px-4 pb-28">
@@ -71,7 +83,7 @@ export default function DiaristaPage() {
         </section>
       </div>
 
-      <TabBar active={activeTab} tabs={tabs} onPress={setActiveTab} />
+      <TabBar active={activeTab} tabs={tabs} onPress={onTabPress} />
     </main>
   );
 }

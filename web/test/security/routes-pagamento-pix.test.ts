@@ -341,9 +341,11 @@ describe("POST /api/servicos/[id]/pix — geração", () => {
     assert.equal(body.pix.txid, SERVICO_ID);
     assert.ok(body.pix.copiaECola.includes("0504svc1"));
     assert.ok(!body.pix.copiaECola.includes("TXIDFORJADO"));
-    // Chave do snapshot, nunca a do body.
+    // Chave do snapshot, nunca a do body (checa a chave forjada inteira —
+    // substring de domínio dispararia js/incomplete-url-substring-sanitization
+    // no CodeQL, que não se aplica a asserções de teste).
     assert.ok(body.pix.copiaECola.includes(PAYMENT_INFO.pixKey));
-    assert.ok(!body.pix.copiaECola.includes("evil.com"));
+    assert.ok(!body.pix.copiaECola.includes("chave-do-atacante"));
     // CRC do payload é válido.
     assert.equal(body.pix.copiaECola.slice(-4), crc16ccitt(body.pix.copiaECola.slice(0, -4)));
     // Chave nunca sai completa da API de geração (vai só dentro do payload EMV).

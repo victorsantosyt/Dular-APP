@@ -46,5 +46,10 @@
   "devDependencies": {
     "@types/react": "~19.1.10",
     "typescript": "^5.9.3"
+  },
+  "overrides": {
+    "@expo/metro-config": {
+      "postcss": "8.5.16"
+    }
   }
 }

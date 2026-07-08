@@ -1,5 +1,7 @@
 import { auth } from "@/lib/auth-oauth";
 import { redirect } from "next/navigation";
+import Link from "next/link";
+import { Wallet } from "lucide-react";
 
 export default async function MontadorPage() {
   const session = await auth();
@@ -13,6 +15,12 @@ export default async function MontadorPage() {
         <p className="mt-3 text-sm leading-6 text-dular-sub">
           Seu perfil foi criado com segurança. A area operacional de montadores ainda esta em preparacao.
         </p>
+        <Link
+          href="/montador/recebimentos"
+          className="mt-6 inline-flex h-[48px] items-center justify-center gap-2 rounded-16 bg-dular-green px-6 text-[14px] font-black text-white shadow-card"
+        >
+          <Wallet size={17} /> Recebimentos (PIX)
+        </Link>
       </section>
     </main>
   );

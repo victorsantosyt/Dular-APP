@@ -25,6 +25,7 @@ import Termos from "@/screens/perfil/Termos";
 import Privacidade from "@/screens/perfil/Privacidade";
 import { EnderecoEditRoute, type CadastroEnderecoParams } from "@/screens/shared/EnderecoEditRoute";
 import { MeusEnderecosScreen, type MeusEnderecosParams } from "@/screens/shared/MeusEnderecosScreen";
+import { RecebimentosScreen } from "@/screens/shared/RecebimentosScreen";
 import { useAuth } from "@/stores/authStore";
 
 export type DiaristaTabParamList = {
@@ -52,6 +53,7 @@ export type DiaristaTabParamList = {
   Privacidade: undefined;
   CadastroEndereco: CadastroEnderecoParams;
   MeusEnderecos: MeusEnderecosParams;
+  Recebimentos: undefined;
 };
 
 const Tab = createBottomTabNavigator<DiaristaTabParamList>();
@@ -127,6 +129,7 @@ export function DiaristaNavigator() {
       <RootStack.Screen name="Privacidade" component={Privacidade} />
       <RootStack.Screen name="CadastroEndereco" component={EnderecoEditRoute} />
       <RootStack.Screen name="MeusEnderecos" component={MeusEnderecosScreen} />
+      <RootStack.Screen name="Recebimentos" component={RecebimentosScreen} />
     </RootStack.Navigator>
   );
 }

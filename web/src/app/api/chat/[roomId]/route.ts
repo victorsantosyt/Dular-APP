@@ -47,6 +47,8 @@ export async function GET(req: Request, { params }: Params) {
         bairro: true,
         cidade: true,
         uf: true,
+        precoFinal: true,
+        paymentStatus: true,
       },
     });
 
@@ -92,6 +94,15 @@ export async function GET(req: Request, { params }: Params) {
           select: { id: true, nome: true, avatarUrl: true, role: true, lastSeenAt: true },
         })
       : null;
+
+    // Pagamento PIX: o banner/botão do chat depende de o profissional ter
+    // chave cadastrada. Consulta leve (só id), re-buscada a cada poll de 8s.
+    const profissionalTemPix = profissionalUserId
+      ? (await prisma.paymentInfo.findUnique({
+          where: { userId: profissionalUserId },
+          select: { id: true },
+        })) !== null
+      : false;
 
     // Entrega (deliveredAt) ANTES de leitura (readAt): ao abrir/atualizar a sala,
     // as mensagens do outro são consideradas entregues; só as visíveis aqui
@@ -151,7 +162,10 @@ export async function GET(req: Request, { params }: Params) {
           data: servico.data,
           turno: servico.turno,
           local: `${servico.bairro}, ${servico.cidade} - ${servico.uf}`,
+          precoFinal: servico.precoFinal,
+          paymentStatus: servico.paymentStatus,
         },
+        pagamento: { profissionalTemPix },
         other: otherUser,
         myRole: auth.role as UserRole,
       },

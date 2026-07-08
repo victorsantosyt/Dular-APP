@@ -1044,6 +1044,7 @@ export default function MontadorPerfil() {
         <Row icon="Camera" title="Portfólio" subtitle={perfil.portfolioFotos.length ? `${perfil.portfolioFotos.length} foto(s)` : "Sem fotos no portfólio"} theme={profileTheme} onPress={() => openModal("portfolio")} />
         <Row icon="Star" title="Avaliações" subtitle={perfil.avaliacoes?.total ? `${perfil.avaliacoes.total} avaliação(ões)` : "Sem avaliações ainda"} theme={profileTheme} onPress={() => openModal("avaliacoes")} />
         <Row icon="CreditCard" title="Carteira/Ganhos" subtitle={formatMoneyFromCents(ganhos)} theme={profileTheme} onPress={() => navigation.navigate("Carteira", { from: "MontadorPerfil" })} />
+        <Row icon="Landmark" title="Recebimentos" subtitle="Receber pelo PIX" theme={profileTheme} onPress={() => navigation.navigate("Recebimentos")} />
       </Section>
 
       <Section title="Endereço" borderColor={profileTheme.border}>

@@ -16,6 +16,8 @@ import * as ImagePicker from "expo-image-picker";
 import { AppIcon, type AppIconName } from "@/components/ui";
 import { DAvatar } from "@/components/ui/DAvatar";
 import { MensagemBubble } from "@/components/ui/MensagemBubble";
+import { PagamentoChatBanner } from "@/components/ui/PagamentoChatBanner";
+import type { PaymentStatus } from "@/api/pagamentoApi";
 import { useChat } from "@/hooks/useChat";
 import type { Mensagem } from "@/hooks/useChat";
 import { useAuth } from "@/stores/authStore";
@@ -77,8 +79,20 @@ export function ChatAbertoScreen({ route }: Props) {
   const insets = useSafeAreaInsets();
   const listRef = useRef<FlatList<Mensagem>>(null);
 
-  const { mensagens, servicoStatus, outroUsuario, servicoTipo, loading, error, enviar, enviarMidia, refetch } =
-    useChat(roomId);
+  const {
+    mensagens,
+    servicoStatus,
+    outroUsuario,
+    servicoTipo,
+    paymentStatus,
+    precoFinal,
+    profissionalTemPix,
+    loading,
+    error,
+    enviar,
+    enviarMidia,
+    refetch,
+  } = useChat(roomId);
 
   // Fonte de verdade: dados da sala (GET), com fallback nos params da rota —
   // assim a foto/nome/categoria aparecem ao abrir o chat de qualquer tela.
@@ -191,9 +205,15 @@ export function ChatAbertoScreen({ route }: Props) {
   }, [anexando, enviarMidia]);
 
   const renderItem = useCallback(
-    ({ item }: { item: Mensagem }) => (
-      <MensagemBubble mensagem={item} isOwn={item.autorId === userId} accent={theme.primary} />
-    ),
+    ({ item }: { item: Mensagem }) =>
+      item.tipo === "SYSTEM" ? (
+        // Mensagem de sistema (ex.: eventos de pagamento) — chip centralizado.
+        <View style={styles.systemMsg}>
+          <Text style={styles.systemMsgText}>{item.texto}</Text>
+        </View>
+      ) : (
+        <MensagemBubble mensagem={item} isOwn={item.autorId === userId} accent={theme.primary} />
+      ),
     [userId, theme.primary]
   );
 
@@ -230,6 +250,22 @@ export function ChatAbertoScreen({ route }: Props) {
             com a mesma folga dos dois lados. */}
         <View style={styles.backBtn} />
       </View>
+
+      {/* Pagamento PIX — banner condicional (o componente decide se aparece:
+          empregador paga quando há chave cadastrada e pagamento pendente;
+          profissional confirma/contesta quando o pagamento foi informado).
+          O polling de 8s do useChat mantém o estado atualizado. */}
+      {servicoStatus ? (
+        <PagamentoChatBanner
+          servicoId={roomId}
+          papel={isEmpregador ? "EMPREGADOR" : "PROFISSIONAL"}
+          paymentStatus={(paymentStatus as PaymentStatus | null) ?? null}
+          precoFinal={precoFinal}
+          profissionalTemPix={profissionalTemPix}
+          accent={theme.primary}
+          onChange={refetch}
+        />
+      ) : null}
 
       <KeyboardAvoidingView
         style={[styles.kav, { backgroundColor: theme.background }]}
@@ -472,5 +508,22 @@ const styles = StyleSheet.create({
     ...typography.body,
     color: colors.textMuted,
     fontWeight: "700",
+  },
+  systemMsg: {
+    alignSelf: "center",
+    maxWidth: "86%",
+    backgroundColor: colors.surface,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 6,
+    marginVertical: 2,
+  },
+  systemMsgText: {
+    ...typography.caption,
+    color: colors.textMuted,
+    fontWeight: "600",
+    textAlign: "center",
   },
 });

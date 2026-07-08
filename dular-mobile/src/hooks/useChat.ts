@@ -4,7 +4,7 @@ import { api } from "@/lib/api";
 import { sendHeartbeat } from "@/api/heartbeatApi";
 import { useAuth } from "@/stores/authStore";
 
-export type MensagemTipo = "TEXT" | "IMAGE" | "LOCATION";
+export type MensagemTipo = "TEXT" | "IMAGE" | "LOCATION" | "SYSTEM";
 
 export interface Mensagem {
   id: string;
@@ -36,6 +36,12 @@ export interface UseChatReturn {
   outroUsuario: OutroUsuario | null;
   /** Tipo do serviço da sala (BABA, MONTADOR, FAXINA…). */
   servicoTipo: string | null;
+  /** Estado do pagamento PIX do serviço (WAITING_PAYMENT, PAYMENT_REPORTED…). */
+  paymentStatus: string | null;
+  /** Valor congelado do serviço em CENTAVOS (precoFinal). */
+  precoFinal: number | null;
+  /** true quando o profissional do serviço tem chave PIX cadastrada. */
+  profissionalTemPix: boolean;
   loading: boolean;
   error: string | null;
   enviar: (texto: string) => Promise<void>;
@@ -61,7 +67,10 @@ type RawMessage = {
 
 function normalize(raw: RawMessage): Mensagem {
   const tipoUp = String(raw.type ?? "TEXT").toUpperCase();
-  const tipo: MensagemTipo = tipoUp === "IMAGE" || tipoUp === "LOCATION" ? tipoUp : "TEXT";
+  const tipo: MensagemTipo =
+    tipoUp === "IMAGE" || tipoUp === "LOCATION" || tipoUp === "SYSTEM"
+      ? (tipoUp as MensagemTipo)
+      : "TEXT";
   return {
     id: raw.id,
     texto: raw.content ?? raw.texto ?? "",
@@ -101,6 +110,9 @@ export function useChat(roomId: string): UseChatReturn {
   const [servicoStatus, setServicoStatus] = useState<string | null>(null);
   const [outroUsuario, setOutroUsuario] = useState<OutroUsuario | null>(null);
   const [servicoTipo, setServicoTipo] = useState<string | null>(null);
+  const [paymentStatus, setPaymentStatus] = useState<string | null>(null);
+  const [precoFinal, setPrecoFinal] = useState<number | null>(null);
+  const [profissionalTemPix, setProfissionalTemPix] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const isFirstFetch = useRef(true);
@@ -138,14 +150,24 @@ export function useChat(roomId: string): UseChatReturn {
       const sorted = rawList
         .map(normalize)
         .sort((a, b) => new Date(a.criadaEm).getTime() - new Date(b.criadaEm).getTime());
-      // Backend retorna `{ room: { servico: { status, tipo }, other: {...} }, messages }`
+      // Backend retorna `{ room: { servico: { status, tipo, precoFinal,
+      // paymentStatus }, pagamento: { profissionalTemPix }, other }, messages }`
       const status: string | null = res.data?.room?.servico?.status ?? null;
       const tipo: string | null = res.data?.room?.servico?.tipo ?? null;
+      const payStatus: string | null = res.data?.room?.servico?.paymentStatus ?? null;
+      const preco: number | null =
+        typeof res.data?.room?.servico?.precoFinal === "number"
+          ? res.data.room.servico.precoFinal
+          : null;
+      const temPix: boolean = res.data?.room?.pagamento?.profissionalTemPix === true;
       const other = res.data?.room?.other ?? null;
       if (mountedRef.current) {
         setMensagens(sorted);
         setServicoStatus(status);
         setServicoTipo(tipo);
+        setPaymentStatus(payStatus);
+        setPrecoFinal(preco);
+        setProfissionalTemPix(temPix);
         setOutroUsuario(
           other
             ? {
@@ -268,5 +290,18 @@ export function useChat(roomId: string): UseChatReturn {
     [roomId, userId],
   );
 
-  return { mensagens, servicoStatus, outroUsuario, servicoTipo, loading, error, enviar, enviarMidia, refetch };
+  return {
+    mensagens,
+    servicoStatus,
+    outroUsuario,
+    servicoTipo,
+    paymentStatus,
+    precoFinal,
+    profissionalTemPix,
+    loading,
+    error,
+    enviar,
+    enviarMidia,
+    refetch,
+  };
 }

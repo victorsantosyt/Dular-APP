@@ -23,3 +23,7 @@ export type { MensagemBubbleProps } from "./MensagemBubble";
 export type { PlanoCardProps } from "./PlanoCard";
 export { default as AvaliacaoModal } from "./AvaliacaoModal";
 export type { AvaliacaoModalProps } from "./AvaliacaoModal";
+export { PixPagamentoModal } from "./PixPagamentoModal";
+export type { PixPagamentoModalProps } from "./PixPagamentoModal";
+export { PagamentoChatBanner } from "./PagamentoChatBanner";
+export type { PagamentoChatBannerProps } from "./PagamentoChatBanner";

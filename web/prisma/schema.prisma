@@ -229,6 +229,7 @@ model User {
   empregadorFavoritos   EmpregadorFavorito[] @relation("EmpregadorFavoritos")
   profissionalFavoritado EmpregadorFavorito[] @relation("ProfissionalFavoritado")
   enderecos             EnderecoUsuario[]
+  paymentInfo           PaymentInfo?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -454,6 +455,14 @@ model Servico {
 
   precoFinal Int
 
+  // ── Pagamento PIX (P2P: empregador paga o profissional; a Dular não recebe) ──
+  // O valor do PIX é SEMPRE precoFinal, congelado — nunca editável, nunca
+  // vindo do cliente. Timestamps registram a linha do tempo do pagamento.
+  paymentStatus      PaymentStatus @default(WAITING_PAYMENT)
+  paymentReportedAt  DateTime?
+  paymentConfirmedAt DateTime?
+  paymentDisputedAt  DateTime?
+
   // Reagendamento com aprovação: o profissional propõe nova data/turno e o
   // empregador (client) confirma ou recusa. reagendamentoData != null = proposta pendente.
   reagendamentoData  DateTime?
@@ -477,6 +486,7 @@ model Servico {
   avaliacao           Avaliacao?
   avaliacaoEmpregador AvaliacaoEmpregador?
   eventos             ServicoEvento[]
+  paymentEvents       PaymentEvent[]
   chatRoom            ChatRoom?
 
   createdAt DateTime @default(now())
@@ -502,6 +512,59 @@ model DiaristaHabilidade {
   @@unique([diaristaId, tipo, categoria])
   @@index([tipo, categoria])
   @@index([diaristaId])
+}
+
+enum PaymentStatus {
+  WAITING_PAYMENT
+  PAYMENT_REPORTED
+  PAYMENT_CONFIRMED
+  PAYMENT_DISPUTED
+}
+
+enum PixKeyType {
+  CPF
+  CELULAR
+  EMAIL
+  ALEATORIA
+}
+
+enum PaymentEventType {
+  PIX_GENERATED
+  PIX_COPIED
+  PAYMENT_REPORTED
+  PAYMENT_CONFIRMED
+  PAYMENT_DISPUTED
+}
+
+// Dados de recebimento PIX do profissional (entidade própria, 1:1 com User —
+// não são campos soltos na tabela User). A chave é usada pelo backend para
+// montar o BR Code e nunca aparece completa em logs.
+model PaymentInfo {
+  id         String     @id @default(cuid())
+  userId     String     @unique
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pixType    PixKeyType
+  pixKey     String
+  bank       String?
+  holderName String
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+}
+
+// Trilha de auditoria do pagamento (espelha o padrão de ServicoEvento, mas
+// com tipos próprios — transições de pagamento não são ServicoStatus).
+model PaymentEvent {
+  id        String           @id @default(cuid())
+  servicoId String
+  servico   Servico          @relation(fields: [servicoId], references: [id], onDelete: Cascade)
+  tipo      PaymentEventType
+  actorId   String
+  actorRole UserRole
+  motivo    String?
+  createdAt DateTime         @default(now())
+
+  @@index([servicoId])
+  @@index([actorId])
 }
 
 model ServicoEvento {

@@ -95,14 +95,23 @@ export async function GET(req: Request, { params }: Params) {
         })
       : null;
 
-    // Pagamento PIX: o banner/botão do chat depende de o profissional ter
-    // chave cadastrada. Consulta leve (só id), re-buscada a cada poll de 8s.
-    const profissionalTemPix = profissionalUserId
-      ? (await prisma.paymentInfo.findUnique({
-          where: { userId: profissionalUserId },
-          select: { id: true },
-        })) !== null
-      : false;
+    // Pagamento PIX: o banner/botão do chat depende de haver dados de
+    // recebimento — o snapshot congelado do serviço (fonte canônica após a
+    // contratação) ou, na falta dele, o PaymentInfo atual do profissional.
+    // Consultas leves (só id), re-buscadas a cada poll de 8s.
+    const temSnapshot =
+      (await prisma.pixSnapshot.findUnique({
+        where: { servicoId },
+        select: { id: true },
+      })) !== null;
+    const profissionalTemPix =
+      temSnapshot ||
+      (profissionalUserId
+        ? (await prisma.paymentInfo.findUnique({
+            where: { userId: profissionalUserId },
+            select: { id: true },
+          })) !== null
+        : false);
 
     // Entrega (deliveredAt) ANTES de leitura (readAt): ao abrir/atualizar a sala,
     // as mensagens do outro são consideradas entregues; só as visíveis aqui

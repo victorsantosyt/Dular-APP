@@ -4,6 +4,7 @@ import type { JwtPayload } from "@/lib/auth";
 import type {
   PaymentEventType,
   PaymentStatus,
+  PixKeyType,
   ServicoStatus,
   UserRole,
 } from "@prisma/client";
@@ -38,6 +39,55 @@ export function profissionalIdDoServico(servico: {
   montadorId: string | null;
 }): string | null {
   return servico.montadorId ?? servico.diaristaId;
+}
+
+export type DadosRecebimento = {
+  pixType: PixKeyType;
+  pixKey: string;
+  bank: string | null;
+  holderName: string;
+};
+
+/**
+ * Congela (create-only) o snapshot PIX do serviço e o retorna.
+ *
+ * - Se o snapshot já existe, retorna o existente — NUNCA sobrescreve, mesmo
+ *   que o PaymentInfo do profissional tenha mudado depois.
+ * - Se não existe e o profissional tem PaymentInfo, cria a partir dele
+ *   (contratação, ou primeiro uso quando a chave foi cadastrada após o aceite).
+ * - Se não existe e não há PaymentInfo, retorna null (nada a congelar).
+ *
+ * Corrida entre dois congelamentos: o unique(servicoId) garante um vencedor;
+ * o perdedor lê e usa o snapshot vencedor.
+ */
+export async function congelarPixSnapshot(
+  servicoId: string,
+  profissionalId: string,
+): Promise<DadosRecebimento | null> {
+  const existente = await prisma.pixSnapshot.findUnique({
+    where: { servicoId },
+    select: { pixType: true, pixKey: true, bank: true, holderName: true },
+  });
+  if (existente) return existente;
+
+  const info = await prisma.paymentInfo.findUnique({
+    where: { userId: profissionalId },
+    select: { pixType: true, pixKey: true, bank: true, holderName: true },
+  });
+  if (!info) return null;
+
+  try {
+    return await prisma.pixSnapshot.create({
+      data: { servicoId, ...info },
+      select: { pixType: true, pixKey: true, bank: true, holderName: true },
+    });
+  } catch {
+    // Unique violado = outra requisição congelou primeiro; o snapshot dela vence.
+    return prisma.pixSnapshot.findUnique({
+      where: { servicoId },
+      select: { pixType: true, pixKey: true, bank: true, holderName: true },
+    });
+  }
 }
 
 /**

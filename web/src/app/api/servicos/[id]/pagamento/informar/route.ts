@@ -52,11 +52,25 @@ export async function POST(req: Request, { params }: Params) {
       );
     }
 
-    const updated = await prisma.servico.update({
-      where: { id },
-      data: { paymentStatus: "PAYMENT_REPORTED", paymentReportedAt: new Date() },
-      select: { id: true, paymentStatus: true, paymentReportedAt: true },
+    // Transição atômica (compare-and-set): o WHERE inclui o estado de origem,
+    // então duplo clique/retry/corrida nunca aplica a transição duas vezes —
+    // a segunda requisição encontra count=0 e recebe 409, sem evento duplicado.
+    const paymentReportedAt = new Date();
+    const cas = await prisma.servico.updateMany({
+      where: { id, paymentStatus: { in: [...PIX_PAGAVEL] } },
+      data: { paymentStatus: "PAYMENT_REPORTED", paymentReportedAt },
     });
+    if (cas.count === 0) {
+      return NextResponse.json(
+        { ok: false, error: "Pagamento já informado ou confirmado." },
+        { status: 409 },
+      );
+    }
+    const updated = {
+      id: servico.id,
+      paymentStatus: "PAYMENT_REPORTED" as const,
+      paymentReportedAt,
+    };
 
     await registrarPaymentEvent(servico.id, "PAYMENT_REPORTED", "EMPREGADOR", auth.userId);
 

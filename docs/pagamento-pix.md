@@ -11,7 +11,10 @@
    Nunca editável, nunca vindo do frontend.
 2. **TxId**: sempre o `Servico.id` (cuid, cabe no limite de 25 chars do BR Code)
    — rastreabilidade transação ↔ serviço.
-3. **Chave/nome**: sempre do `PaymentInfo` do profissional do serviço.
+3. **Chave/nome**: sempre do **`PixSnapshot` do serviço** — congelado na
+   contratação (aceite) ou no primeiro uso (quando a chave é cadastrada depois
+   do aceite). Create-only: mudanças futuras no `PaymentInfo` do profissional
+   **nunca** afetam pagamentos de serviços já contratados.
 4. O frontend **apenas solicita** — o backend monta chave, valor, txid,
    descrição e o payload EMV completo.
 5. A chave PIX nunca aparece completa em logs (`maskPixKey`).
@@ -25,7 +28,11 @@
   `paymentReportedAt/ConfirmedAt/DisputedAt`.
 - **`PaymentEvent`** — trilha de auditoria (espelho de `ServicoEvento`):
   `tipo` (`PIX_GENERATED|PIX_COPIED|PAYMENT_REPORTED|PAYMENT_CONFIRMED|PAYMENT_DISPUTED`),
-  `actorId`, `actorRole`, `motivo?`, `createdAt`.
+  `actorId`, `actorRole`, `motivo?`, `createdAt`. Nunca apagada.
+- **`PixSnapshot`** (migration `20260708120000_add_pix_snapshot`) — snapshot
+  imutável 1:1 com o Servico (`pixType`, `pixKey`, `bank`, `holderName`,
+  `createdAt`), congelado por `congelarPixSnapshot()` no aceite ou no primeiro
+  uso; corrida de congelamento resolvida pelo unique(servicoId).
 
 ### Máquina de estados
 
@@ -40,6 +47,12 @@ Geração do PIX permitida em `WAITING_PAYMENT` e `PAYMENT_DISPUTED`, e somente
 com o serviço "contratado e ativo" (`ACEITO → FINALIZADO`, nunca
 `RASCUNHO/SOLICITADO/RECUSADO/CANCELADO`) — `PIX_STATUSES_ELEGIVEIS` em
 `web/src/lib/pagamentoPix.ts`.
+
+**Idempotência**: toda transição é um compare-and-set atômico
+(`updateMany` com o estado de origem no WHERE). Duplo clique, retry ou corrida
+(ex.: confirmar × contestar simultâneos) têm exatamente um vencedor; o perdedor
+recebe 409 e **nenhum evento/notificação duplicado é gerado**.
+`PAYMENT_CONFIRMED` é terminal — não existe transição de saída em nenhuma rota.
 
 ## Endpoints (todas com autenticação dual JWT próprio → sessão NextAuth)
 

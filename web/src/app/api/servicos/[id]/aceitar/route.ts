@@ -14,6 +14,7 @@ import {
   GuardianBlockedError,
   guardianErrorResponseBody,
 } from "@/lib/safeScoreGuardian";
+import { congelarPixSnapshot } from "@/lib/pagamentoPix";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -84,6 +85,16 @@ export async function POST(req: Request, { params }: Params) {
       });
     } catch (e) {
       console.error("[servicos/aceitar] erro garantindo chatRoom:", e);
+    }
+
+    // Congela o snapshot PIX na contratação (Sprint 0.X.1): os dados de
+    // recebimento deste serviço ficam imutáveis a partir daqui. Best-effort:
+    // se o profissional ainda não cadastrou chave, o congelamento acontece na
+    // primeira geração do PIX — o aceite nunca falha por causa disso.
+    try {
+      await congelarPixSnapshot(servico.id, auth.userId);
+    } catch (e) {
+      console.error("[servicos/aceitar] erro congelando snapshot PIX:", e);
     }
 
     await registrarEvento(servico.id, servico.status as ServicoStatus, "ACEITO", auth.role as UserRole, auth.userId);

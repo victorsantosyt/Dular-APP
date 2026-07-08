@@ -5,6 +5,7 @@ import { buildPixPayload, maskPixKey } from "@/lib/pix";
 import {
   PIX_PAGAVEL,
   PIX_STATUSES_ELEGIVEIS,
+  congelarPixSnapshot,
   profissionalIdDoServico,
   registrarPaymentEvent,
   requireAuthOuSessao,
@@ -67,11 +68,11 @@ export async function POST(req: Request, { params }: Params) {
       );
     }
 
-    const paymentInfo = await prisma.paymentInfo.findUnique({
-      where: { userId: profissionalId },
-      select: { pixType: true, pixKey: true, bank: true, holderName: true },
-    });
-    if (!paymentInfo) {
+    // Snapshot IMUTÁVEL: congelado na contratação (ou aqui, no primeiro uso).
+    // A geração usa EXCLUSIVAMENTE o snapshot — mudanças posteriores no
+    // PaymentInfo do profissional nunca afetam este serviço.
+    const snapshot = await congelarPixSnapshot(servico.id, profissionalId);
+    if (!snapshot) {
       return NextResponse.json(
         { ok: false, error: "O profissional ainda não cadastrou uma chave PIX." },
         { status: 409 },
@@ -79,8 +80,8 @@ export async function POST(req: Request, { params }: Params) {
     }
 
     const copiaECola = buildPixPayload({
-      pixKey: paymentInfo.pixKey,
-      holderName: paymentInfo.holderName,
+      pixKey: snapshot.pixKey,
+      holderName: snapshot.holderName,
       city: servico.cidade,
       amountCents: servico.precoFinal,
       txid: servico.id,
@@ -88,9 +89,9 @@ export async function POST(req: Request, { params }: Params) {
     });
 
     await registrarPaymentEvent(servico.id, "PIX_GENERATED", "EMPREGADOR", auth.userId);
-    // Log sem a chave completa (requisito de segurança).
+    // Log sem NENHUM dado da chave (nem mascarado): id do serviço + valor + tipo.
     console.log(
-      `[pix] gerado servico=${servico.id} valor=${servico.precoFinal} chave=${maskPixKey(paymentInfo.pixKey)}`,
+      `[pix] gerado servico=${servico.id} valor=${servico.precoFinal} tipoChave=${snapshot.pixType}`,
     );
 
     return NextResponse.json({
@@ -99,10 +100,10 @@ export async function POST(req: Request, { params }: Params) {
         copiaECola,
         valorCentavos: servico.precoFinal,
         txid: servico.id,
-        profissional: { nome: paymentInfo.holderName },
-        chaveMascarada: maskPixKey(paymentInfo.pixKey),
-        tipoChave: paymentInfo.pixType,
-        banco: paymentInfo.bank,
+        profissional: { nome: snapshot.holderName },
+        chaveMascarada: maskPixKey(snapshot.pixKey),
+        tipoChave: snapshot.pixType,
+        banco: snapshot.bank,
       },
     });
   } catch (error: unknown) {

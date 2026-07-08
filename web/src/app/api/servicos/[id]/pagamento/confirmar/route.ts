@@ -49,11 +49,24 @@ export async function POST(req: Request, { params }: Params) {
       );
     }
 
-    const updated = await prisma.servico.update({
-      where: { id },
-      data: { paymentStatus: "PAYMENT_CONFIRMED", paymentConfirmedAt: new Date() },
-      select: { id: true, paymentStatus: true, paymentConfirmedAt: true },
+    // Transição atômica (compare-and-set): corrida entre confirmar/contestar
+    // ou duplo clique nunca aplica duas transições — count=0 vira 409.
+    const paymentConfirmedAt = new Date();
+    const cas = await prisma.servico.updateMany({
+      where: { id, paymentStatus: "PAYMENT_REPORTED" },
+      data: { paymentStatus: "PAYMENT_CONFIRMED", paymentConfirmedAt },
     });
+    if (cas.count === 0) {
+      return NextResponse.json(
+        { ok: false, error: "Não há pagamento informado aguardando confirmação." },
+        { status: 409 },
+      );
+    }
+    const updated = {
+      id: servico.id,
+      paymentStatus: "PAYMENT_CONFIRMED" as const,
+      paymentConfirmedAt,
+    };
 
     await registrarPaymentEvent(
       servico.id,

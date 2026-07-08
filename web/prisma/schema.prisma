@@ -487,6 +487,7 @@ model Servico {
   avaliacaoEmpregador AvaliacaoEmpregador?
   eventos             ServicoEvento[]
   paymentEvents       PaymentEvent[]
+  pixSnapshot         PixSnapshot?
   chatRoom            ChatRoom?
 
   createdAt DateTime @default(now())
@@ -549,6 +550,22 @@ model PaymentInfo {
   holderName String
   createdAt  DateTime   @default(now())
   updatedAt  DateTime   @updatedAt
+}
+
+// Snapshot IMUTÁVEL dos dados de recebimento do serviço, congelado na
+// contratação (aceite) — ou no primeiro uso, quando o profissional cadastra a
+// chave depois de aceitar. Pertence ao ticket: alterações futuras no
+// PaymentInfo do profissional NUNCA afetam pagamentos deste serviço.
+// Create-only: nenhuma rota faz update/delete deste registro.
+model PixSnapshot {
+  id         String     @id @default(cuid())
+  servicoId  String     @unique
+  servico    Servico    @relation(fields: [servicoId], references: [id], onDelete: Cascade)
+  pixType    PixKeyType
+  pixKey     String
+  bank       String?
+  holderName String
+  createdAt  DateTime   @default(now())
 }
 
 // Trilha de auditoria do pagamento (espelha o padrão de ServicoEvento, mas

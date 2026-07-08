@@ -281,8 +281,9 @@ describe("POST /api/servicos/[id]/pix — geração", () => {
     assert.equal(res.status, 409);
   });
 
-  it("retorna 409 quando o profissional não tem chave PIX cadastrada", async () => {
+  it("retorna 409 quando não há snapshot nem chave PIX cadastrada", async () => {
     mockPrisma.servico.findUnique = async () => servicoBase();
+    mockPrisma.pixSnapshot.findUnique = async () => null;
     mockPrisma.paymentInfo.findUnique = async () => null;
     const POST = await getGerarPix();
     const res = await POST(
@@ -296,11 +297,18 @@ describe("POST /api/servicos/[id]/pix — geração", () => {
     assert.equal(res.status, 409);
   });
 
-  it("gera o PIX com valor do precoFinal e TxId do serviço — ignorando o body", async () => {
+  it("gera o PIX com valor do precoFinal e TxId do serviço — ignorando o body — e congela o snapshot no 1º uso", async () => {
     mockPrisma.servico.findUnique = async () => servicoBase();
+    // Sem snapshot ainda: a rota congela a partir do PaymentInfo atual.
+    mockPrisma.pixSnapshot.findUnique = async () => null;
     mockPrisma.paymentInfo.findUnique = async (args: any) => {
       assert.equal(args.where.userId, DIARISTA);
       return PAYMENT_INFO;
+    };
+    let snapshotCriado: any = null;
+    mockPrisma.pixSnapshot.create = async (args: any) => {
+      snapshotCriado = args.data;
+      return args.data;
     };
     const eventos: any[] = [];
     mockPrisma.paymentEvent.create = async (args: any) => {
@@ -308,11 +316,18 @@ describe("POST /api/servicos/[id]/pix — geração", () => {
       return args.data;
     };
     const POST = await getGerarPix();
-    // Tentativa maliciosa: body com valor forjado — o backend não lê o body.
+    // Tentativa maliciosa: body com valor/txid/chave forjados — a rota não lê o body.
     const res = await POST(
       jsonRequest(
         `http://test/api/servicos/${SERVICO_ID}/pix`,
-        { valorCentavos: 1, amountCents: 1, precoFinal: 1 },
+        {
+          valorCentavos: 1,
+          amountCents: 1,
+          precoFinal: 1,
+          txid: "TXID-FORJADO",
+          pixKey: "chave-do-atacante@evil.com",
+          chave: "chave-do-atacante@evil.com",
+        },
         makeAuthHeaders(DONO, "EMPREGADOR"),
       ),
       params(SERVICO_ID),
@@ -322,23 +337,38 @@ describe("POST /api/servicos/[id]/pix — geração", () => {
     // Valor congelado do ticket, nunca do cliente.
     assert.equal(body.pix.valorCentavos, 15000);
     assert.ok(body.pix.copiaECola.includes("5406150.00"));
-    // TxId = id do serviço (sanitizado p/ alfanumérico).
+    // TxId = id do serviço (sanitizado p/ alfanumérico) — nunca o do body.
     assert.equal(body.pix.txid, SERVICO_ID);
     assert.ok(body.pix.copiaECola.includes("0504svc1"));
+    assert.ok(!body.pix.copiaECola.includes("TXIDFORJADO"));
+    // Chave do snapshot, nunca a do body.
+    assert.ok(body.pix.copiaECola.includes(PAYMENT_INFO.pixKey));
+    assert.ok(!body.pix.copiaECola.includes("evil.com"));
     // CRC do payload é válido.
     assert.equal(body.pix.copiaECola.slice(-4), crc16ccitt(body.pix.copiaECola.slice(0, -4)));
     // Chave nunca sai completa da API de geração (vai só dentro do payload EMV).
     assert.notEqual(body.pix.chaveMascarada, PAYMENT_INFO.pixKey);
-    // Evento de auditoria registrado.
+    // Snapshot congelado com os dados do PaymentInfo, pertencendo ao serviço.
+    assert.equal(snapshotCriado.servicoId, SERVICO_ID);
+    assert.equal(snapshotCriado.pixKey, PAYMENT_INFO.pixKey);
+    assert.equal(snapshotCriado.holderName, PAYMENT_INFO.holderName);
+    // Evento de auditoria registrado (com ator).
     assert.equal(eventos.length, 1);
     assert.equal(eventos[0].tipo, "PIX_GENERATED");
     assert.equal(eventos[0].actorId, DONO);
   });
 
-  it("permite regenerar após contestação (PAYMENT_DISPUTED)", async () => {
-    mockPrisma.servico.findUnique = async () =>
-      servicoBase({ paymentStatus: "PAYMENT_DISPUTED" });
-    mockPrisma.paymentInfo.findUnique = async () => PAYMENT_INFO;
+  it("usa EXCLUSIVAMENTE o snapshot congelado — nunca a chave atual do perfil", async () => {
+    const SNAPSHOT_CONGELADO = {
+      pixType: "EMAIL",
+      pixKey: "chave-congelada@dular.com.br",
+      bank: null,
+      holderName: "Maria José",
+    };
+    mockPrisma.servico.findUnique = async () => servicoBase();
+    mockPrisma.pixSnapshot.findUnique = async () => SNAPSHOT_CONGELADO;
+    // paymentInfo.findUnique fica NÃO-mockado de propósito: se a rota
+    // consultasse o perfil atual, o teste falharia com 500.
     mockPrisma.paymentEvent.create = async (args: any) => args.data;
     const POST = await getGerarPix();
     const res = await POST(
@@ -350,6 +380,52 @@ describe("POST /api/servicos/[id]/pix — geração", () => {
       params(SERVICO_ID),
     );
     assert.equal(res.status, 200);
+    const body = await res.json();
+    assert.ok(body.pix.copiaECola.includes(SNAPSHOT_CONGELADO.pixKey));
+    assert.equal(body.pix.profissional.nome, SNAPSHOT_CONGELADO.holderName);
+  });
+
+  it("permite regenerar após contestação (PAYMENT_DISPUTED)", async () => {
+    mockPrisma.servico.findUnique = async () =>
+      servicoBase({ paymentStatus: "PAYMENT_DISPUTED" });
+    mockPrisma.pixSnapshot.findUnique = async () => null;
+    mockPrisma.paymentInfo.findUnique = async () => PAYMENT_INFO;
+    mockPrisma.pixSnapshot.create = async (args: any) => args.data;
+    mockPrisma.paymentEvent.create = async (args: any) => args.data;
+    const POST = await getGerarPix();
+    const res = await POST(
+      jsonRequest(
+        `http://test/api/servicos/${SERVICO_ID}/pix`,
+        null,
+        makeAuthHeaders(DONO, "EMPREGADOR"),
+      ),
+      params(SERVICO_ID),
+    );
+    assert.equal(res.status, 200);
+  });
+});
+
+describe("congelarPixSnapshot — snapshot é create-only", () => {
+  beforeEach(() => resetMockPrisma());
+
+  it("snapshot existente NUNCA é sobrescrito, mesmo com PaymentInfo diferente", async () => {
+    const EXISTENTE = {
+      pixType: "CPF",
+      pixKey: "52998224725",
+      bank: null,
+      holderName: "Nome Congelado",
+    };
+    mockPrisma.pixSnapshot.findUnique = async () => EXISTENTE;
+    // PaymentInfo atual diferente — não pode nem ser consultado p/ sobrescrever.
+    let criouSnapshot = false;
+    mockPrisma.pixSnapshot.create = async () => {
+      criouSnapshot = true;
+      return null;
+    };
+    const { congelarPixSnapshot } = await import("../../src/lib/pagamentoPix");
+    const resultado = await congelarPixSnapshot(SERVICO_ID, DIARISTA);
+    assert.deepEqual(resultado, EXISTENTE);
+    assert.equal(criouSnapshot, false);
   });
 });
 
@@ -423,12 +499,12 @@ describe("POST /api/servicos/[id]/pagamento/informar", () => {
     assert.equal(res.status, 409);
   });
 
-  it("WAITING_PAYMENT → PAYMENT_REPORTED com timestamp, ator e evento", async () => {
+  it("WAITING_PAYMENT → PAYMENT_REPORTED via compare-and-set, com timestamp, ator e evento", async () => {
     mockPrisma.servico.findUnique = async () => servicoBase();
-    let updateArgs: any = null;
-    mockPrisma.servico.update = async (args: any) => {
-      updateArgs = args;
-      return { id: SERVICO_ID, paymentStatus: "PAYMENT_REPORTED", paymentReportedAt: new Date() };
+    let casArgs: any = null;
+    mockPrisma.servico.updateMany = async (args: any) => {
+      casArgs = args;
+      return { count: 1 };
     };
     const eventos: any[] = [];
     mockPrisma.paymentEvent.create = async (args: any) => {
@@ -445,21 +521,45 @@ describe("POST /api/servicos/[id]/pagamento/informar", () => {
       params(SERVICO_ID),
     );
     assert.equal(res.status, 200);
-    assert.equal(updateArgs.data.paymentStatus, "PAYMENT_REPORTED");
-    assert.ok(updateArgs.data.paymentReportedAt instanceof Date);
+    // CAS: o WHERE inclui o estado de origem — transição condicionada.
+    assert.deepEqual(casArgs.where.paymentStatus, {
+      in: ["WAITING_PAYMENT", "PAYMENT_DISPUTED"],
+    });
+    assert.equal(casArgs.data.paymentStatus, "PAYMENT_REPORTED");
+    assert.ok(casArgs.data.paymentReportedAt instanceof Date);
+    const body = await res.json();
+    assert.equal(body.servico.paymentStatus, "PAYMENT_REPORTED");
     assert.equal(eventos[0].tipo, "PAYMENT_REPORTED");
     assert.equal(eventos[0].actorId, DONO);
     assert.equal(eventos[0].actorRole, "EMPREGADOR");
   });
 
+  it("corrida perdida (CAS count=0) devolve 409 e NÃO registra evento duplicado", async () => {
+    // Entre o check e o write, outra requisição já aplicou a transição.
+    mockPrisma.servico.findUnique = async () => servicoBase();
+    mockPrisma.servico.updateMany = async () => ({ count: 0 });
+    const eventos: any[] = [];
+    mockPrisma.paymentEvent.create = async (args: any) => {
+      eventos.push(args.data);
+      return args.data;
+    };
+    const POST = await getInformar();
+    const res = await POST(
+      jsonRequest(
+        `http://test/api/servicos/${SERVICO_ID}/pagamento/informar`,
+        null,
+        makeAuthHeaders(DONO, "EMPREGADOR"),
+      ),
+      params(SERVICO_ID),
+    );
+    assert.equal(res.status, 409);
+    assert.equal(eventos.length, 0);
+  });
+
   it("permite informar novamente após contestação (PAYMENT_DISPUTED)", async () => {
     mockPrisma.servico.findUnique = async () =>
       servicoBase({ paymentStatus: "PAYMENT_DISPUTED" });
-    mockPrisma.servico.update = async () => ({
-      id: SERVICO_ID,
-      paymentStatus: "PAYMENT_REPORTED",
-      paymentReportedAt: new Date(),
-    });
+    mockPrisma.servico.updateMany = async () => ({ count: 1 });
     mockPrisma.paymentEvent.create = async (args: any) => args.data;
     const POST = await getInformar();
     const res = await POST(
@@ -521,17 +621,13 @@ describe("POST /api/servicos/[id]/pagamento/confirmar", () => {
     assert.equal(res.status, 409);
   });
 
-  it("PAYMENT_REPORTED → PAYMENT_CONFIRMED com timestamp e evento do profissional", async () => {
+  it("PAYMENT_REPORTED → PAYMENT_CONFIRMED via compare-and-set, com timestamp e evento do profissional", async () => {
     mockPrisma.servico.findUnique = async () =>
       servicoBase({ paymentStatus: "PAYMENT_REPORTED" });
-    let updateArgs: any = null;
-    mockPrisma.servico.update = async (args: any) => {
-      updateArgs = args;
-      return {
-        id: SERVICO_ID,
-        paymentStatus: "PAYMENT_CONFIRMED",
-        paymentConfirmedAt: new Date(),
-      };
+    let casArgs: any = null;
+    mockPrisma.servico.updateMany = async (args: any) => {
+      casArgs = args;
+      return { count: 1 };
     };
     const eventos: any[] = [];
     mockPrisma.paymentEvent.create = async (args: any) => {
@@ -548,11 +644,35 @@ describe("POST /api/servicos/[id]/pagamento/confirmar", () => {
       params(SERVICO_ID),
     );
     assert.equal(res.status, 200);
-    assert.equal(updateArgs.data.paymentStatus, "PAYMENT_CONFIRMED");
-    assert.ok(updateArgs.data.paymentConfirmedAt instanceof Date);
+    // CAS: só transiciona a partir de PAYMENT_REPORTED.
+    assert.equal(casArgs.where.paymentStatus, "PAYMENT_REPORTED");
+    assert.equal(casArgs.data.paymentStatus, "PAYMENT_CONFIRMED");
+    assert.ok(casArgs.data.paymentConfirmedAt instanceof Date);
     assert.equal(eventos[0].tipo, "PAYMENT_CONFIRMED");
     assert.equal(eventos[0].actorId, DIARISTA);
     assert.equal(eventos[0].actorRole, "DIARISTA");
+  });
+
+  it("corrida confirmar×contestar: o perdedor (count=0) recebe 409 sem evento", async () => {
+    mockPrisma.servico.findUnique = async () =>
+      servicoBase({ paymentStatus: "PAYMENT_REPORTED" });
+    mockPrisma.servico.updateMany = async () => ({ count: 0 });
+    const eventos: any[] = [];
+    mockPrisma.paymentEvent.create = async (args: any) => {
+      eventos.push(args.data);
+      return args.data;
+    };
+    const POST = await getConfirmar();
+    const res = await POST(
+      jsonRequest(
+        `http://test/api/servicos/${SERVICO_ID}/pagamento/confirmar`,
+        null,
+        makeAuthHeaders(DIARISTA, "DIARISTA"),
+      ),
+      params(SERVICO_ID),
+    );
+    assert.equal(res.status, 409);
+    assert.equal(eventos.length, 0);
   });
 });
 
@@ -603,17 +723,28 @@ describe("POST /api/servicos/[id]/pagamento/contestar", () => {
     assert.equal(res.status, 409);
   });
 
-  it("PAYMENT_REPORTED → PAYMENT_DISPUTED registrando o motivo", async () => {
+  it("retorna 403 para profissional que não é o do serviço", async () => {
     mockPrisma.servico.findUnique = async () =>
       servicoBase({ paymentStatus: "PAYMENT_REPORTED" });
-    let updateArgs: any = null;
-    mockPrisma.servico.update = async (args: any) => {
-      updateArgs = args;
-      return {
-        id: SERVICO_ID,
-        paymentStatus: "PAYMENT_DISPUTED",
-        paymentDisputedAt: new Date(),
-      };
+    const POST = await getContestar();
+    const res = await POST(
+      jsonRequest(
+        `http://test/api/servicos/${SERVICO_ID}/pagamento/contestar`,
+        { motivo: "Não caiu na conta." },
+        makeAuthHeaders(OUTRA_DIARISTA, "DIARISTA"),
+      ),
+      params(SERVICO_ID),
+    );
+    assert.equal(res.status, 403);
+  });
+
+  it("PAYMENT_REPORTED → PAYMENT_DISPUTED via compare-and-set, registrando o motivo", async () => {
+    mockPrisma.servico.findUnique = async () =>
+      servicoBase({ paymentStatus: "PAYMENT_REPORTED" });
+    let casArgs: any = null;
+    mockPrisma.servico.updateMany = async (args: any) => {
+      casArgs = args;
+      return { count: 1 };
     };
     const eventos: any[] = [];
     mockPrisma.paymentEvent.create = async (args: any) => {
@@ -630,9 +761,90 @@ describe("POST /api/servicos/[id]/pagamento/contestar", () => {
       params(SERVICO_ID),
     );
     assert.equal(res.status, 200);
-    assert.equal(updateArgs.data.paymentStatus, "PAYMENT_DISPUTED");
-    assert.ok(updateArgs.data.paymentDisputedAt instanceof Date);
+    assert.equal(casArgs.where.paymentStatus, "PAYMENT_REPORTED");
+    assert.equal(casArgs.data.paymentStatus, "PAYMENT_DISPUTED");
+    assert.ok(casArgs.data.paymentDisputedAt instanceof Date);
     assert.equal(eventos[0].tipo, "PAYMENT_DISPUTED");
     assert.equal(eventos[0].motivo, "Não caiu na conta.");
+  });
+});
+
+describe("Matriz de estados — transições proibidas retornam 409", () => {
+  beforeEach(() => resetMockPrisma());
+
+  // Matriz completa (estado × ação):
+  //                 gerar-pix  informar  confirmar  contestar
+  // WAITING          OK         OK        409        409
+  // REPORTED         409        409       OK         OK
+  // CONFIRMED        409        409       409        409   (terminal)
+  // DISPUTED         OK         OK        409        409
+  // Os "OK" estão cobertos nos describes acima; aqui, todos os proibidos.
+  const PROIBIDAS: Array<{
+    estado: string;
+    acao: string;
+    getHandler: () => Promise<any>;
+    caller: [string, "EMPREGADOR" | "DIARISTA"];
+    body?: unknown;
+  }> = [
+    { estado: "PAYMENT_REPORTED", acao: "gerar-pix", getHandler: getGerarPix, caller: [DONO, "EMPREGADOR"] },
+    { estado: "PAYMENT_CONFIRMED", acao: "gerar-pix", getHandler: getGerarPix, caller: [DONO, "EMPREGADOR"] },
+    { estado: "PAYMENT_REPORTED", acao: "informar", getHandler: getInformar, caller: [DONO, "EMPREGADOR"] },
+    { estado: "PAYMENT_CONFIRMED", acao: "informar", getHandler: getInformar, caller: [DONO, "EMPREGADOR"] },
+    { estado: "WAITING_PAYMENT", acao: "confirmar", getHandler: getConfirmar, caller: [DIARISTA, "DIARISTA"] },
+    { estado: "PAYMENT_DISPUTED", acao: "confirmar", getHandler: getConfirmar, caller: [DIARISTA, "DIARISTA"] },
+    { estado: "PAYMENT_CONFIRMED", acao: "confirmar", getHandler: getConfirmar, caller: [DIARISTA, "DIARISTA"] },
+    { estado: "WAITING_PAYMENT", acao: "contestar", getHandler: getContestar, caller: [DIARISTA, "DIARISTA"], body: { motivo: "Não caiu." } },
+    { estado: "PAYMENT_DISPUTED", acao: "contestar", getHandler: getContestar, caller: [DIARISTA, "DIARISTA"], body: { motivo: "Não caiu." } },
+    { estado: "PAYMENT_CONFIRMED", acao: "contestar", getHandler: getContestar, caller: [DIARISTA, "DIARISTA"], body: { motivo: "Não caiu." } },
+  ];
+
+  for (const caso of PROIBIDAS) {
+    it(`${caso.estado} × ${caso.acao} → 409`, async () => {
+      mockPrisma.servico.findUnique = async () =>
+        servicoBase({ paymentStatus: caso.estado });
+      const handler = await caso.getHandler();
+      const res = await handler(
+        jsonRequest(
+          `http://test/api/servicos/${SERVICO_ID}/x`,
+          caso.body ?? null,
+          makeAuthHeaders(caso.caller[0], caso.caller[1]),
+        ),
+        params(SERVICO_ID),
+      );
+      assert.equal(res.status, 409);
+    });
+  }
+
+  it("estado terminal PAYMENT_CONFIRMED nunca volta: nenhuma rota escreve WAITING_PAYMENT", async () => {
+    // Prova estática: nenhum handler possui transição de saída de CONFIRMED
+    // (todos os casos acima retornam 409 sem chamar updateMany). Reforço
+    // dinâmico: updateMany não pode ser alcançado a partir de CONFIRMED.
+    mockPrisma.servico.findUnique = async () =>
+      servicoBase({ paymentStatus: "PAYMENT_CONFIRMED" });
+    let casChamado = false;
+    mockPrisma.servico.updateMany = async () => {
+      casChamado = true;
+      return { count: 1 };
+    };
+    for (const getHandler of [getInformar, getConfirmar, getContestar]) {
+      const handler = await getHandler();
+      await handler(
+        jsonRequest(
+          `http://test/api/servicos/${SERVICO_ID}/x`,
+          { motivo: "x".repeat(10) },
+          makeAuthHeaders(DONO, "EMPREGADOR"),
+        ),
+        params(SERVICO_ID),
+      );
+      await handler(
+        jsonRequest(
+          `http://test/api/servicos/${SERVICO_ID}/x`,
+          { motivo: "x".repeat(10) },
+          makeAuthHeaders(DIARISTA, "DIARISTA"),
+        ),
+        params(SERVICO_ID),
+      );
+    }
+    assert.equal(casChamado, false);
   });
 });

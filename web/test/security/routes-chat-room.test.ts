@@ -103,7 +103,9 @@ describe("GET /api/chat/[roomId] — ler mensagens", () => {
     // GET marca deliveredAt (e depois readAt) via updateMany — Etapa 2.
     mockPrisma.chatMessage.updateMany = async () => ({ count: 0 });
     mockPrisma.chatMessage.findMany = async () => [];
-    // GET agora informa se o profissional tem chave PIX (banner de pagamento).
+    // GET agora informa se há dados de recebimento (snapshot do serviço ou
+    // PaymentInfo do profissional) para o banner de pagamento.
+    mockPrisma.pixSnapshot.findUnique = async () => null;
     mockPrisma.paymentInfo.findUnique = async () => null;
 
     const { GET } = await getHandlers();

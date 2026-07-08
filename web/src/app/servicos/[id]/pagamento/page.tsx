@@ -43,14 +43,22 @@ export default async function PagamentoServicoPage({
   const isProfissional = profissionalId === uid;
   if (!isEmpregador && !isProfissional) redirect("/");
 
-  const paymentInfo = profissionalId
-    ? await prisma.paymentInfo.findUnique({
-        where: { userId: profissionalId },
-        select: { holderName: true },
-      })
-    : null;
+  // O snapshot congelado do serviço é a fonte canônica dos dados de
+  // recebimento; o PaymentInfo atual só é olhado enquanto não há snapshot.
+  const snapshot = await prisma.pixSnapshot.findUnique({
+    where: { servicoId: servico.id },
+    select: { holderName: true },
+  });
+  const paymentInfo =
+    !snapshot && profissionalId
+      ? await prisma.paymentInfo.findUnique({
+          where: { userId: profissionalId },
+          select: { holderName: true },
+        })
+      : null;
 
   const profissionalNome =
+    snapshot?.holderName ??
     paymentInfo?.holderName ??
     servico.montador?.nome ??
     servico.diarista?.nome ??
@@ -69,7 +77,7 @@ export default async function PagamentoServicoPage({
           paymentStatus={servico.paymentStatus}
           valorCentavos={servico.precoFinal}
           profissionalNome={profissionalNome}
-          profissionalTemPix={paymentInfo !== null}
+          profissionalTemPix={snapshot !== null || paymentInfo !== null}
           elegivel={PIX_STATUSES_ELEGIVEIS.includes(servico.status)}
         />
       </div>

@@ -1,0 +1,6 @@
+# Nunca enviar arquivos .env locais no deploy CLI.
+# Bug RC-1 (2026-07-08): o web/.env de desenvolvimento subiu no build de
+# produção (o CLI 54 não aplica o .gitignore) e a produção rodou com config
+# dev (ngrok, DATABASE_URL=localhost). Envs reais ficam no painel da Vercel.
+.env
+.env.*

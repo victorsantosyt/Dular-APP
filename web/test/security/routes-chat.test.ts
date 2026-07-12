@@ -75,7 +75,7 @@ describe("POST /api/chat/[roomId]/messages", () => {
     assert.equal(res.status, 403);
   });
 
-  it("retorna 400 quando type=IMAGE (envio de imagem por URL externa proibido)", async () => {
+  it("retorna 400 quando type=IMAGE com URL externa (imagem exige data URL)", async () => {
     mockPrisma.servico.findUnique = async () => SVC_ACEITO;
     mockPrisma.chatRoom.upsert = async () => ({ id: "room-1" });
     const POST = await getPost();
@@ -87,9 +87,11 @@ describe("POST /api/chat/[roomId]/messages", () => {
       ),
       ctx("svc-1"),
     );
+    // WAR-001: imagem só é aceita como data URL (data:image/...). URL externa
+    // continua rejeitada com 400, agora pela validação de formato do schema.
     assert.equal(res.status, 400);
     const body = await res.json();
-    assert.match(body.error, /upload seguro|URL externa/i);
+    assert.match(body.error, /data URL|Imagem inválida/i);
   });
 
   it("aceita TEXT válido de participante e cria mensagem", async () => {

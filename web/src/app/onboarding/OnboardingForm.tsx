@@ -6,6 +6,13 @@ import { useRouter } from "next/navigation";
 import { AlertCircle, Calendar, CreditCard, Loader2, LockKeyhole, Phone, User } from "lucide-react";
 import type { UserRole } from "@prisma/client";
 
+// Limite "maior de 18 anos" do campo de data de nascimento. Calculado uma vez
+// no load do módulo (precisão de dia basta) — Date.now() dentro do render
+// violava react-hooks/purity.
+const MAX_DATA_NASCIMENTO = new Date(Date.now() - 18 * 365.25 * 24 * 60 * 60 * 1000)
+  .toISOString()
+  .slice(0, 10);
+
 function maskCPF(value: string): string {
   const d = value.replace(/\D/g, "").slice(0, 11);
   return d
@@ -142,11 +149,7 @@ function Field({
           autoComplete={meta.autoComplete}
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          max={
-            isDate
-              ? new Date(Date.now() - 18 * 365.25 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
-              : undefined
-          }
+          max={isDate ? MAX_DATA_NASCIMENTO : undefined}
           className="h-full min-w-0 flex-1 bg-transparent text-[15px] font-semibold text-[#241A3A] outline-none placeholder:text-[#9A8BAE]"
           placeholder={meta.label}
         />

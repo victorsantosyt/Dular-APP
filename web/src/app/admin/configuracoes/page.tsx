@@ -62,6 +62,9 @@ const [croppedAreaPixels, setCroppedAreaPixels] = useState<any>(null);
   }
 
   useEffect(() => {
+    // O setMsg("") no início de loadAll é no-op aqui: msg inicia "" no mount,
+    // e setState com valor idêntico não re-renderiza (sem cascata).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadAll();
   }, []);
 

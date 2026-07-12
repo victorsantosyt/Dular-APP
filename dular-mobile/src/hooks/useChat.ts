@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useFocusEffect } from "@react-navigation/native";
 import { api } from "@/lib/api";
+import { getAblyRealtime, Ably } from "@/lib/ably";
 import { sendHeartbeat } from "@/api/heartbeatApi";
 import { useAuth } from "@/stores/authStore";
 
@@ -44,6 +45,8 @@ export interface UseChatReturn {
   profissionalTemPix: boolean;
   loading: boolean;
   error: string | null;
+  /** true enquanto o outro participante está com a sala aberta (presence Ably). Uso futuro (indicador online). */
+  isPeerOnline: boolean;
   enviar: (texto: string) => Promise<void>;
   /** Envia foto (IMAGE, content = data URL) ou localização (LOCATION, content = JSON {lat,lng}). */
   enviarMidia: (tipo: "IMAGE" | "LOCATION", content: string) => Promise<void>;
@@ -115,9 +118,16 @@ export function useChat(roomId: string): UseChatReturn {
   const [profissionalTemPix, setProfissionalTemPix] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // realtimeConnected: interno — só gera o gate do polling (connected = online).
+  const [realtimeConnected, setRealtimeConnected] = useState(false);
+  const [isPeerOnline, setIsPeerOnline] = useState(false);
   const isFirstFetch = useRef(true);
   const inFlight = useRef(false);
   const mountedRef = useRef(true);
+  // Espelho SÍNCRONO de realtimeConnected. O tick do polling o consulta para
+  // nunca buscar no exato instante do connect — antes do React re-renderizar e
+  // derrubar o interval. Garante um único mecanismo ativo (realtime XOR polling).
+  const realtimeConnectedRef = useRef(false);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -197,16 +207,98 @@ export function useChat(roomId: string): UseChatReturn {
     void fetchMensagens();
   }, [fetchMensagens]);
 
+  // Realtime (Ably): ao abrir a sala, conecta autenticado por TOKEN e assina
+  // APENAS `chat:{roomId}`. Ao receber `new_message`, dispara fetchMensagens() —
+  // o GET permanece a ÚNICA fonte da verdade (o evento NÃO traz conteúdo). O
+  // polling de 8s abaixo continua inalterado, como redundância independente.
+  // `fetchRef` mantém a última fetchMensagens sem re-assinar o canal.
+  const fetchRef = useRef(fetchMensagens);
+  useEffect(() => {
+    fetchRef.current = fetchMensagens;
+  }, [fetchMensagens]);
+
+  useEffect(() => {
+    if (!roomId) return;
+    const client = getAblyRealtime();
+    const channel = client.channels.get(`chat:${roomId}`);
+    let cancelled = false;
+
+    const onNewMessage = () => {
+      void fetchRef.current();
+    };
+
+    // Estado da conexão → gate do polling. Só `connected` é ONLINE; qualquer
+    // outro (connecting/disconnected/suspended/failed/closing/closed) é OFFLINE
+    // e reativa o polling. A reconexão é 100% do SDK (sem timer/backoff nosso).
+    const onConnState = (stateChange: Ably.ConnectionStateChange) => {
+      if (cancelled) return;
+      const connected = stateChange.current === "connected";
+      realtimeConnectedRef.current = connected;
+      setRealtimeConnected(connected);
+      if (connected) {
+        // (Re)sincroniza a presença do outro ao (re)conectar.
+        channel.presence
+          .get()
+          .then((members) => {
+            if (cancelled) return;
+            setIsPeerOnline(members.some((m) => m.clientId && m.clientId !== userId));
+          })
+          .catch(() => {});
+      }
+    };
+
+    // Presence do OUTRO participante via eventos enter/leave (ignora o próprio).
+    const onPeerPresence = (member: Ably.PresenceMessage) => {
+      if (cancelled || !member.clientId || member.clientId === userId) return;
+      setIsPeerOnline(member.action === "enter");
+    };
+
+    client.connection.on(onConnState);
+    client.connect();
+    void channel.subscribe("new_message", onNewMessage);
+    void channel.presence.subscribe("enter", onPeerPresence);
+    void channel.presence.subscribe("leave", onPeerPresence);
+    // Após conectar, entra na presença (o SDK enfileira até o connected e
+    // re-entra sozinho em reconexões).
+    channel.presence.enter().catch(() => {});
+
+    // Ao sair da tela: remove listeners, sai da presença e fecha a conexão.
+    return () => {
+      cancelled = true;
+      channel.unsubscribe("new_message", onNewMessage);
+      channel.presence.unsubscribe();
+      channel.presence.leave().catch(() => {});
+      client.connection.off(onConnState);
+      client.close();
+      realtimeConnectedRef.current = false;
+      setRealtimeConnected(false);
+      setIsPeerOnline(false);
+    };
+  }, [roomId, userId]);
+
   useFocusEffect(
     useCallback(() => {
       if (!roomId) {
         setLoading(false);
         return;
       }
+      // Sync único a cada (re)conexão/foco: uma chamada, não múltiplas. No
+      // reconnect (false→true) este effect re-roda e faz exatamente 1 fetch.
       void fetchMensagens();
-      const interval = setInterval(() => void fetchMensagens(), POLL_INTERVAL);
+      // Realtime é o caminho PRINCIPAL: conectado → NÃO cria interval (o canal
+      // acorda o fetch). Ao reconectar, o cleanup abaixo derruba o interval
+      // ativo imediatamente e o early-return impede criar outro.
+      // Offline (fallback) → mantém exatamente o polling de 8s de antes.
+      if (realtimeConnected) return;
+      const interval = setInterval(() => {
+        // Trava anti-coexistência: se o realtime assumiu no meio do ciclo (antes
+        // do re-render derrubar este interval), o tick não busca. Nunca há
+        // realtime + polling simultâneos.
+        if (realtimeConnectedRef.current) return;
+        void fetchMensagens();
+      }, POLL_INTERVAL);
       return () => clearInterval(interval);
-    }, [fetchMensagens, roomId]),
+    }, [fetchMensagens, roomId, realtimeConnected]),
   );
 
   const enviar = useCallback(
@@ -300,6 +392,7 @@ export function useChat(roomId: string): UseChatReturn {
     profissionalTemPix,
     loading,
     error,
+    isPeerOnline,
     enviar,
     enviarMidia,
     refetch,

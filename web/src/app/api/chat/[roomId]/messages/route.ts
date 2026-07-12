@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/requireAuth";
 import { criarNotificacao } from "@/lib/notifications";
+import { publishChatEvent, isUserPresentInRoom } from "@/lib/ably";
 import { cleanupRateLimit, rateLimit, rateLimitRetryAfterMs } from "@/lib/rateLimit";
 import { getRequestIp } from "@/lib/requestIp";
 import { z } from "zod";
@@ -25,7 +26,12 @@ const postSchema = z.discriminatedUnion("type", [
   }),
   z.object({
     type: z.literal("IMAGE"),
-    content: z.string().min(1), // URL ou S3 key
+    // Imagem = data URL base64 (mesmo padrão do avatar em me/avatar). Teto de
+    // tamanho para não inchar a linha do Postgres nem o payload do GET da sala.
+    content: z
+      .string()
+      .startsWith("data:image/", "Imagem inválida (esperado data URL de imagem).")
+      .max(3_000_000, "Imagem muito grande. Reduza a qualidade e tente novamente."),
   }),
   z.object({
     type: z.literal("LOCATION"),
@@ -211,16 +217,6 @@ export async function POST(req: Request, { params }: Params) {
         { status: 400 },
       );
     }
-    if (parsed.data.type === "IMAGE") {
-      return NextResponse.json(
-        {
-          ok: false,
-          error: "Envio de imagem pelo chat exige upload seguro. URL externa não é aceita.",
-        },
-        { status: 400 },
-      );
-    }
-
     const message = await prisma.chatMessage.create({
       data: {
         roomId: room.id,
@@ -240,6 +236,10 @@ export async function POST(req: Request, { params }: Params) {
       },
     });
 
+    // Acorda os clientes em tempo real (best-effort): evento leve, sem conteúdo.
+    // O banco permanece a fonte da verdade; falha do Ably não afeta o 201.
+    await publishChatEvent(servicoId, { id: message.id, roomId: room.id, type: message.type });
+
     // Notifica a outra parte da nova mensagem (best-effort).
     try {
       const profissionalUserId = servico.montadorId ?? servico.diaristaId;
@@ -251,7 +251,13 @@ export async function POST(req: Request, { params }: Params) {
             ? parsed.data.content.length > 80
               ? `${parsed.data.content.slice(0, 77)}...`
               : parsed.data.content
-            : "[localização]";
+            : parsed.data.type === "IMAGE"
+              ? "📷 Imagem"
+              : "📍 Localização";
+        // Gate anti-duplicação: destinatário presente na sala em tempo real
+        // (canal Ably) → realtime já entrega, pula o push; a Notification in-app
+        // continua criada. Fail-open (Ably fora → push).
+        const presente = await isUserPresentInRoom(servicoId, outroUsuarioId);
         await criarNotificacao({
           userId: outroUsuarioId,
           type: "CHAT_NOVA_MENSAGEM",
@@ -259,6 +265,7 @@ export async function POST(req: Request, { params }: Params) {
           body: preview,
           servicoId,
           chatRoomId: room.id,
+          sendPush: !presente,
         });
       }
     } catch (e) {

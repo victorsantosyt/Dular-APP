@@ -25,8 +25,22 @@ function createPrisma() {
   });
 }
 
-export const prisma = globalForPrisma.prisma ?? createPrisma();
-
-if (process.env.NODE_ENV !== "production") {
-  globalForPrisma.prisma = prisma;
+// Inicialização LAZY: o client só é construído no primeiro acesso, em tempo
+// de execução. Construir (e validar DATABASE_URL) no import quebrava o
+// `next build` — o "collect page data" importa cada rota sem env de runtime
+// e o throw derrubava o build (visto em /api/admin/servicos/cancelar).
+function getPrisma(): PrismaClient {
+  if (!globalForPrisma.prisma) {
+    globalForPrisma.prisma = createPrisma();
+  }
+  return globalForPrisma.prisma;
 }
+
+export const prisma = new Proxy({} as PrismaClient, {
+  get(_target, prop) {
+    const client = getPrisma();
+    const value = Reflect.get(client, prop, client);
+    // Métodos precisam de `this` = client real (não o Proxy).
+    return typeof value === "function" ? value.bind(client) : value;
+  },
+});

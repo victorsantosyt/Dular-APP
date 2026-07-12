@@ -11,7 +11,10 @@
 //     prototype em vez de instance.
 //  4. `restoreS3Send` desfaz tudo no `after()`.
 
-import { s3 } from "../../src/lib/s3";
+import { getS3Client } from "../../src/lib/s3";
+
+// Mesma instância singleton usada por s3Objects.putObject (getS3Client()).
+const s3 = getS3Client();
 
 type SendStub = () => Promise<{ $metadata: Record<string, unknown> }>;
 

@@ -1,7 +1,7 @@
 import crypto from "crypto";
 import { PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import { s3, S3_BUCKET } from "@/lib/s3";
+import { getS3Client, s3Bucket } from "@/lib/s3";
 
 export function makeKey(prefix: string, ext: string) {
   const id = crypto.randomBytes(16).toString("hex");
@@ -10,9 +10,9 @@ export function makeKey(prefix: string, ext: string) {
 }
 
 export async function putObject(key: string, body: Buffer, contentType: string) {
-  await s3.send(
+  await getS3Client().send(
     new PutObjectCommand({
-      Bucket: S3_BUCKET,
+      Bucket: s3Bucket(),
       Key: key,
       Body: body,
       ContentType: contentType,
@@ -22,15 +22,15 @@ export async function putObject(key: string, body: Buffer, contentType: string) 
 }
 
 export async function signGetUrl(key: string, expiresSec = 60) {
-  const cmd = new GetObjectCommand({ Bucket: S3_BUCKET, Key: key });
+  const cmd = new GetObjectCommand({ Bucket: s3Bucket(), Key: key });
   // Cast necessário por skew de versão entre @aws-sdk/client-s3 e
   // @aws-sdk/s3-request-presigner (duplicidade de @smithy/types). Em runtime
   // o client é aceito normalmente; o cast só silencia o conflito de tipos.
-  return getSignedUrl(s3 as never, cmd, { expiresIn: expiresSec });
+  return getSignedUrl(getS3Client() as never, cmd, { expiresIn: expiresSec });
 }
 
 export async function deleteObject(key: string) {
-  await s3.send(new DeleteObjectCommand({ Bucket: S3_BUCKET, Key: key }));
+  await getS3Client().send(new DeleteObjectCommand({ Bucket: s3Bucket(), Key: key }));
 }
 
 // Expiração das URLs de exibição (galerias/portfólio). Generosa o suficiente

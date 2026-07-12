@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/requireAuth";
 import { criarNotificacao } from "@/lib/notifications";
+import { publishChatEvent, isUserPresentInRoom } from "@/lib/ably";
 import type { UserRole } from "@prisma/client";
 import { z } from "zod";
 
@@ -256,6 +257,10 @@ export async function POST(req: Request, { params }: Params) {
       },
     });
 
+    // Acorda os clientes em tempo real (best-effort): evento leve, sem conteúdo.
+    // O banco permanece a fonte da verdade; falha do Ably não afeta o 201.
+    await publishChatEvent(servicoId, { id: message.id, roomId: message.roomId, type: message.type });
+
     // Notifica a outra parte sobre a nova mensagem (best-effort).
     // O `outroUsuarioId` é o oposto do sender no serviço.
     try {
@@ -266,6 +271,10 @@ export async function POST(req: Request, { params }: Params) {
         const preview = parsed.data.content.length > 80
           ? `${parsed.data.content.slice(0, 77)}...`
           : parsed.data.content;
+        // Gate anti-duplicação: se o destinatário já está com a sala aberta em
+        // tempo real (presente no canal Ably), o realtime já entrega — pula o
+        // push, mas mantém a Notification in-app. Fail-open (Ably fora → push).
+        const presente = await isUserPresentInRoom(servicoId, outroUsuarioId);
         await criarNotificacao({
           userId: outroUsuarioId,
           type: "CHAT_NOVA_MENSAGEM",
@@ -273,6 +282,7 @@ export async function POST(req: Request, { params }: Params) {
           body: preview,
           servicoId,
           chatRoomId: room.id,
+          sendPush: !presente,
         });
       }
     } catch (e) {

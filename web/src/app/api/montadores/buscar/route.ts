@@ -6,7 +6,7 @@ import {
   normalizeEspecialidades,
   normalizeText,
 } from "@/lib/montadorProfile";
-import { getGuardianStatusForUser } from "@/lib/safeScoreGuardian";
+// Gate do Guardian agora em memória na própria busca (sem N+1); ver abaixo.
 
 export const dynamic = "force-dynamic";
 
@@ -172,20 +172,17 @@ export async function GET(req: Request) {
       })
       .map(({ _diagnostico, ...montador }) => montador);
 
-    // T-18.6B: gate final do Guardian. Filtros anteriores (restrições no
-    // DB + verificado + ativo + completude + localização) já reduziram o
-    // conjunto. Aqui aplicamos `canAppearInSearch` para cobrir SafeScore
-    // baixo e qualquer regra futura do Guardian.
+    // T-18.6B: gate final do Guardian — em MEMÓRIA (elimina o N+1 de
+    // getGuardianStatusForUser por candidato). Para os candidatos que chegam
+    // aqui, o canAppearInSearch do Guardian se reduz a `!scoreBaixo`, porque
+    // verificado, completo e ativo já foram garantidos no .filter acima, e
+    // hardBan (SUSPEND/BLOCK)/shadow (SHADOW_BAN) já foram excluídos pelo where
+    // (mesma condição de restrição ativa do getActiveRestrictions). O
+    // `safeScore.bloqueado` já presente no objeto = getFaixa(score).bloqueado,
+    // que o SCORE_BLOQUEIO (400) do Guardian espelha → !bloqueado equivale a
+    // score >= SCORE_BLOQUEIO. Zero query adicional.
     const isDev = process.env.NODE_ENV !== "production";
-    const guardianResults = await Promise.all(
-      publicos.map(async (montador) => ({
-        montador,
-        guardian: await getGuardianStatusForUser(montador.userId).catch(() => null),
-      })),
-    );
-    const liberados = guardianResults.filter(
-      (r) => r.guardian?.canAppearInSearch === true,
-    );
+    const liberados = publicos.filter((m) => m.safeScore.bloqueado === false);
 
     if (isDev) {
       console.log("[montadores/buscar]", {
@@ -196,19 +193,11 @@ export async function GET(req: Request) {
         totalLocalizacao,
         totalGuardianOk: liberados.length,
       });
-      const blocked = guardianResults.filter(
-        (r) => r.guardian?.canAppearInSearch !== true,
-      );
-      blocked.forEach((r) => {
-        console.log(
-          `[guardian/search] rejeitado userId=${r.montador.userId} motivos=${(r.guardian?.motivos ?? ["guardian_indisponivel"]).join(",")}`,
-        );
-      });
     }
 
     return NextResponse.json({
       ok: true,
-      montadores: liberados.map((r) => r.montador),
+      montadores: liberados,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Erro ao buscar montadores";

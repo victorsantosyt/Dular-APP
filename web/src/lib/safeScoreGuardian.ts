@@ -288,7 +288,7 @@ export async function getGuardianStatusForUser(
 
   const motivos: string[] = [];
   let tier: GuardianTier = scoreTier.tier;
-  let score = scoreTier.score;
+  const score = scoreTier.score;
 
   // 3) Restrições ativas
   const hardBan = restrictions.some(

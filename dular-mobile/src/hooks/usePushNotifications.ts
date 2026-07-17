@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import * as Notifications from "expo-notifications";
 import * as Device from "expo-device";
+import Constants from "expo-constants";
 import { Platform } from "react-native";
 import { api } from "@/lib/api";
 import { navRef } from "@/navigation/nav";
@@ -42,8 +43,13 @@ async function registerForPushNotifications(): Promise<string | null> {
     return null;
   }
 
+  const projectId = Constants.expoConfig?.extra?.eas?.projectId;
+  if (!projectId) {
+    throw new Error("EAS projectId não configurado.");
+  }
+
   const tokenData = await Notifications.getExpoPushTokenAsync({
-    projectId: "com.dular.app",
+    projectId,
   });
 
   return tokenData.data;

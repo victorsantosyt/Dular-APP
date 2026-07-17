@@ -1,0 +1,68 @@
+/*
+ * Admin Design System — Tokens (Tailwind v4 @theme)
+ * ---------------------------------------------------------------------------
+ * Fonte de verdade dos utilitários do painel. Espelha os tokens TS em
+ * foundations/*.ts (colors.ts, semantic.ts, typography.ts). Mantenha os dois
+ * em sincronia — o TS é usado por JS/catálogo; este @theme gera as classes.
+ *
+ * Segurança: definimos APENAS nomes NOVOS. Não sobrescrevemos tokens padrão do
+ * Tailwind v4 (--spacing, --radius-*, --shadow-*, --color-gray-*, --text-sm…),
+ * para não deslocar utilitários já usados pelas páginas não migradas.
+ *
+ * Convenção de nomes (v4 gera bg-/text-/border-/ring- automaticamente):
+ *   --color-<nome>  → bg-<nome>, text-<nome>, border-<nome>, ring-<nome>
+ *   --text-<nome>   → text-<nome> (+ line-height/letter-spacing companheiros)
+ */
+@theme {
+  /* ── Superfícies ──────────────────────────────────────────────── */
+  --color-surface: #ffffff;
+  --color-surface-secondary: #f9fafb;
+  --color-surface-subtle: #f3f4f6;
+
+  /* ── Texto (foreground) ───────────────────────────────────────── */
+  --color-fg: #111827;
+  --color-fg-muted: #4b5563;
+  --color-fg-subtle: #6b7280;
+  --color-fg-disabled: #9ca3af;
+
+  /* ── Bordas ───────────────────────────────────────────────────── */
+  --color-border: #e5e7eb;
+  --color-border-subtle: #f3f4f6;
+
+  /* ── Accent (lavanda) ─────────────────────────────────────────── */
+  --color-accent: #a78bfa;
+  --color-accent-hover: #9370db;
+  --color-accent-active: #7e22ce;
+  --color-accent-subtle: #faf5ff;
+
+  /* ── Status ───────────────────────────────────────────────────── */
+  --color-success: #10b981;
+  --color-success-light: #d1fae5;
+  --color-success-dark: #047857;
+  --color-warning: #f59e0b;
+  --color-warning-light: #fef3c7;
+  --color-warning-dark: #d97706;
+  --color-error: #ef4444;
+  --color-error-light: #fee2e2;
+  --color-error-dark: #dc2626;
+  --color-info: #3b82f6;
+  --color-info-light: #dbeafe;
+  --color-info-dark: #1d4ed8;
+
+  /* ── Escala bruta lavanda (preferir tokens accent-*) ──────────── */
+  --color-primary-50: #faf5ff;
+  --color-primary-100: #f3e8ff;
+  --color-primary-200: #e9d5ff;
+  --color-primary-300: #d8b4fe;
+  --color-primary-400: #c084fc;
+  --color-primary-500: #a78bfa;
+  --color-primary-600: #9370db;
+  --color-primary-700: #7e22ce;
+  --color-primary-800: #6b21a8;
+  --color-primary-900: #581c87;
+
+  /* ── Tipografia: único tamanho novo (Display 32px) ────────────── */
+  --text-display: 32px;
+  --text-display--line-height: 40px;
+  --text-display--letter-spacing: -0.02em;
+}

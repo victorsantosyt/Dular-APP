@@ -1,5 +1,10 @@
 import type { Config } from "tailwindcss";
 
+// NOTA (Tailwind v4): este projeto usa `@import "tailwindcss"` sem `@config`,
+// portanto este arquivo NÃO é carregado pelo build. Os tokens do Admin Design
+// System vivem em `src/design-system/foundations/theme.css` (bloco @theme),
+// importado por `src/app/globals.css`. Mantido apenas por compatibilidade
+// histórica; não adicione tokens aqui esperando que tenham efeito.
 const config = {
   content: [
     "./src/app/**/*.{js,ts,jsx,tsx,mdx}",

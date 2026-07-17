@@ -46,6 +46,7 @@
   "private": true,
   "devDependencies": {
     "@types/react": "~19.1.10",
+    "eas-cli": "^20.5.1",
     "typescript": "^5.9.3"
   },
   "overrides": {

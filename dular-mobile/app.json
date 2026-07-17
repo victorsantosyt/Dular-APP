@@ -26,8 +26,9 @@
       "package": "com.dular.app",
       "versionCode": 1,
       "permissions": [
-        "ACCESS_FINE_LOCATION",
-        "ACCESS_COARSE_LOCATION"
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.RECORD_AUDIO"
       ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
@@ -45,19 +46,29 @@
       "expo-web-browser",
       "expo-font",
       "expo-secure-store",
-      ["expo-location", {
-        "locationWhenInUsePermission": "O Dular usa sua localização para sugerir profissionais e serviços próximos.",
-        "locationAlwaysAndWhenInUsePermission": "O Dular usa sua localização durante o serviço para segurança."
-      }],
-      ["expo-image-picker", {
-        "photosPermission": "O Dular acessa suas fotos para enviar documentos de verificação, foto de perfil e portfólio.",
-        "cameraPermission": "O Dular usa a câmera para fotografar documentos de verificação e foto de perfil."
-      }],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "O Dular usa sua localização para sugerir profissionais e serviços próximos.",
+          "locationAlwaysAndWhenInUsePermission": "O Dular usa sua localização durante o serviço para segurança."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "O Dular acessa suas fotos para enviar documentos de verificação, foto de perfil e portfólio.",
+          "cameraPermission": "O Dular usa a câmera para fotografar documentos de verificação e foto de perfil."
+        }
+      ],
       "expo-notifications"
     ],
     "extra": {
       "apiBaseUrl": "SUBSTITUIR_EM_PRODUCAO",
-      "sosWhatsapp": "SUBSTITUIR_EM_PRODUCAO"
-    }
+      "sosWhatsapp": "SUBSTITUIR_EM_PRODUCAO",
+      "eas": {
+        "projectId": "979235a1-9921-4a58-a4ea-ca5143c6b76e"
+      }
+    },
+    "owner": "victorsantosyt"
   }
 }

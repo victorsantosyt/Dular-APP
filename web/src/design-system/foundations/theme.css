@@ -64,6 +64,12 @@
   --color-info-light: #dbeafe;
   --color-info-dark: #1d4ed8;
 
+  /* Laranja: nível ALTA da escala de prioridade — fica entre o âmbar
+     (MEDIA) e o vermelho (CRITICA), que já existem acima. */
+  --color-orange: #f97316;
+  --color-orange-light: #ffedd5;
+  --color-orange-dark: #c2410c;
+
   /* ── Escala bruta teal (preferir tokens accent-*) ─────────────── */
   --color-primary-50: #eef5f1;
   --color-primary-100: #d7ebe4;

@@ -10,7 +10,7 @@ const BORDA: Record<Tone, string> = {
   low: "border-l-info",
   success: "border-l-success",
   info: "border-l-info",
-  neutral: "border-l-accent",
+  neutral: "border-l-fg-disabled",
 };
 
 const VALOR: Record<Tone, string> = {
@@ -30,7 +30,7 @@ const ICONE: Record<Tone, string> = {
   low: "text-info",
   success: "text-success",
   info: "text-info",
-  neutral: "text-accent",
+  neutral: "text-fg-subtle",
 };
 
 type Props = {

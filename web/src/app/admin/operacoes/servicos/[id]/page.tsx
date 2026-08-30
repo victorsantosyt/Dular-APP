@@ -8,6 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { AdminPage } from "@/components/admin-ui/AdminPage";
 import { AdminGrid } from "@/components/admin-ui/AdminGrid";
 import { AdminCard } from "@/components/admin-ui/AdminCard";
+import { FileText, Users, History, Settings2 } from "lucide-react";
 import { AdminEmpty } from "@/components/admin-ui/AdminEmpty";
 
 type Props = {
@@ -90,7 +91,7 @@ export default async function ServicoDetalhePage({ params }: Props) {
     >
       <AdminGrid>
         <div className="md:col-span-6">
-          <AdminCard title="Dados do serviço">
+          <AdminCard title="Dados do serviço" icon={FileText}>
             <div className="space-y-2 text-sm text-fg-muted">
               <div>
                 <b>Tipo:</b> {servico.tipo}
@@ -127,7 +128,7 @@ export default async function ServicoDetalhePage({ params }: Props) {
         </div>
 
         <div className="md:col-span-6">
-          <AdminCard title="Pessoas">
+          <AdminCard title="Pessoas" icon={Users}>
             <div className="space-y-3 text-sm text-fg-muted">
               <div>
                 <div className="text-xs text-fg-subtle">Cliente</div>
@@ -153,7 +154,7 @@ export default async function ServicoDetalhePage({ params }: Props) {
         </div>
 
         <div className="md:col-span-12">
-          <AdminCard title="Timeline do serviço">
+          <AdminCard title="Timeline do serviço" icon={History}>
             {servico.eventos.length === 0 ? (
               <AdminEmpty
                 title="Sem eventos registrados"
@@ -189,7 +190,7 @@ export default async function ServicoDetalhePage({ params }: Props) {
         </div>
 
         <div className="md:col-span-12">
-          <AdminCard title="Ações administrativas">
+          <AdminCard title="Ações administrativas" icon={Settings2}>
             <div className="grid gap-3 md:grid-cols-2">
               <form
                 action="/api/admin/servicos/cancelar"

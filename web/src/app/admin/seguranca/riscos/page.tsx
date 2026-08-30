@@ -17,6 +17,7 @@ import {
   rotuloEnum,
   type Tone,
 } from "@/design-system/ui";
+import { Siren, AlertTriangle, ListChecks, Radar } from "lucide-react";
 
 function fmt(dt: Date) {
   return new Date(dt).toLocaleString("pt-BR");
@@ -101,17 +102,19 @@ export default async function RiscosPage() {
             label="Críticos"
             value={String(criticos)}
             hint={criticos > 0 ? "SOS ou incidente grave — agir agora" : "nenhum no momento"}
+            icon={Siren}
+            tone={criticos > 0 ? "critical" : "neutral"}
           />
         </div>
         <div className="md:col-span-4">
-          <AdminKpi label="Alta prioridade" value={String(altos)} />
+          <AdminKpi label="Alta prioridade" value={String(altos)} icon={AlertTriangle} tone={altos > 0 ? "high" : "neutral"} />
         </div>
         <div className="md:col-span-4">
-          <AdminKpi label="Total na fila" value={String(rows.length)} />
+          <AdminKpi label="Total na fila" value={String(rows.length)} icon={ListChecks} />
         </div>
 
         <div className="md:col-span-12">
-          <AdminCard title="Fila de risco">
+          <AdminCard title="Fila de risco" icon={Radar}>
             {rows.length === 0 ? (
               <AdminEmpty title="Nenhum risco ativo" hint="SOS e incidentes abertos aparecem aqui." />
             ) : (

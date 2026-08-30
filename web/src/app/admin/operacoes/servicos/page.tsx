@@ -8,6 +8,7 @@ import { AdminGrid } from "@/components/admin-ui/AdminGrid";
 import { AdminKpi } from "@/components/admin-ui/AdminKpi";
 import { AdminCard } from "@/components/admin-ui/AdminCard";
 import { AdminTable } from "@/components/admin-ui/AdminTable";
+import { ClipboardList } from "lucide-react";
 import { AdminEmpty } from "@/components/admin-ui/AdminEmpty";
 
 export default async function ServicosPage() {
@@ -126,7 +127,7 @@ export default async function ServicosPage() {
         </div>
 
         <div className="md:col-span-12">
-          <AdminCard title="Serviços recentes">
+          <AdminCard title="Serviços recentes" icon={ClipboardList}>
             {rows.length === 0 ? (
               <AdminEmpty title="Sem serviços ainda" hint="Assim que o piloto rodar, aparece aqui." />
             ) : (

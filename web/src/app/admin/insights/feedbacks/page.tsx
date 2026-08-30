@@ -9,6 +9,7 @@ import { AdminGrid } from "@/components/admin-ui/AdminGrid";
 import { AdminCard } from "@/components/admin-ui/AdminCard";
 import { AdminKpi } from "@/components/admin-ui/AdminKpi";
 import { AdminEmpty } from "@/components/admin-ui/AdminEmpty";
+import { Star, MessageSquareText, ThumbsDown } from "lucide-react";
 
 const FILTROS = [
   { key: "todas", label: "Todas" },
@@ -88,22 +89,27 @@ export default async function FeedbacksPage({
             label="Avaliação média"
             value={nota ? nota.toFixed(1) : "—"}
             hint={total > 0 ? `de ${total} avaliações` : "sem avaliações ainda"}
+            icon={Star}
+            tone="medium"
           />
         </div>
         <div className="md:col-span-4">
-          <AdminKpi label="Total de avaliações" value={String(total)} />
+          <AdminKpi label="Total de avaliações" value={String(total)} icon={MessageSquareText} />
         </div>
         <div className="md:col-span-4">
           <AdminKpi
             label="Negativas (nota ≤ 2)"
             value={String(negativas)}
             hint={negativas > 0 ? "exigem atenção da operação" : "nenhuma no período"}
+            icon={ThumbsDown}
+            tone={negativas > 0 ? "critical" : "neutral"}
           />
         </div>
 
         <div className="md:col-span-12">
           <AdminCard
             title="Avaliações"
+            icon={MessageSquareText}
             right={
               <div className="flex flex-wrap items-center gap-1">
                 {FILTROS.map((f) => (

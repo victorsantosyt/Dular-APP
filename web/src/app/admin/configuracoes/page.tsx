@@ -6,6 +6,7 @@ import { AdminCard } from "@/components/admin-ui/AdminCard";
 import { AdminTable } from "@/components/admin-ui/AdminTable";
 import { AdminEmpty } from "@/components/admin-ui/AdminEmpty";
 import { Button, Field } from "@/design-system/ui";
+import { UserCircle, IdCard, ShieldCheck, UserPlus } from "lucide-react";
 import Cropper from "react-easy-crop";
 import { getCroppedImg } from "@/lib/cropper";
 
@@ -213,7 +214,7 @@ export default function ConfiguracoesPage() {
         ) : null}
 
         {/* Seção: identidade do administrador */}
-        <AdminCard title="Sua conta">
+        <AdminCard title="Sua conta" icon={UserCircle}>
           <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
             <div className="h-16 w-16 shrink-0 overflow-hidden rounded-full bg-accent-subtle ring-1 ring-border">
               {me?.avatarUrl ? (
@@ -318,7 +319,7 @@ export default function ConfiguracoesPage() {
         ) : null}
 
         {/* Seção: dados do perfil */}
-        <AdminCard title="Perfil">
+        <AdminCard title="Perfil" icon={IdCard}>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_auto] md:items-end">
             <Field
               label="Nome exibido"
@@ -335,6 +336,7 @@ export default function ConfiguracoesPage() {
         {/* Seção: administradores */}
         <AdminCard
           title="Administradores"
+          icon={ShieldCheck}
           right={
             <Button variant="secondary" size="sm" onClick={loadAll} disabled={loading}>
               Atualizar
@@ -387,7 +389,7 @@ export default function ConfiguracoesPage() {
         </AdminCard>
 
         {/* Seção: novo administrador */}
-        <AdminCard title="Cadastrar administrador">
+        <AdminCard title="Cadastrar administrador" icon={UserPlus}>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Field
               label="Usuário (telefone)"

@@ -21,6 +21,8 @@
 **backup_pre_baseline.sql
 **claude.md
 CLAUDE.md
+# Gerado pelo `next dev` (mesma origem do CLAUDE.md acima), reescrito a cada run.
+AGENTS.md
 
 # Documentação interna (auditorias, levantamentos, docs de teste/QA) — fica
 # só local; não sobe pro GitHub.

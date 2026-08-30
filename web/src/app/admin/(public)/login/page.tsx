@@ -55,7 +55,7 @@ export default function AdminLoginPage() {
             label="Usuário (telefone ou email)"
             value={telefone}
             onChange={(e) => setTelefone(e.target.value)}
-            placeholder="65999990000"
+            placeholder="Telefone ou email"
             autoComplete="username"
           />
           <PillInput
@@ -63,15 +63,11 @@ export default function AdminLoginPage() {
             type="password"
             value={senha}
             onChange={(e) => setSenha(e.target.value)}
-            placeholder="admin123"
+            placeholder="••••••••"
             autoComplete="current-password"
           />
           <PrimaryButton disabled={loading}>{loading ? "Entrando..." : "Entrar"}</PrimaryButton>
         </form>
-
-        <div className="mt-4 text-center text-xs text-slate-600">
-          Seed: <b className="text-slate-800">65999990000</b> / <b className="text-slate-800">admin123</b>
-        </div>
       </GlassCard>
     </AuthBackground>
   );

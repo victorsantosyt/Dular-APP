@@ -9,6 +9,7 @@ import { AdminGrid } from "@/components/admin-ui/AdminGrid";
 import { AdminCard } from "@/components/admin-ui/AdminCard";
 import { AdminEmpty } from "@/components/admin-ui/AdminEmpty";
 import { AdminTable } from "@/components/admin-ui/AdminTable";
+import { LifeBuoy } from "lucide-react";
 
 function fmt(dt: Date) {
   return new Date(dt).toLocaleString("pt-BR");
@@ -35,7 +36,7 @@ export default async function SuportePage() {
     <AdminPage title="Suporte" subtitle="Incidentes abertos ou em análise">
       <AdminGrid>
         <div className="md:col-span-12">
-          <AdminCard title="Fila de atendimento">
+          <AdminCard title="Fila de atendimento" icon={LifeBuoy}>
             {incidents.length === 0 ? (
               <AdminEmpty title="Nenhum incidente na fila" hint="Incidentes abertos ou em análise aparecem aqui." />
             ) : (

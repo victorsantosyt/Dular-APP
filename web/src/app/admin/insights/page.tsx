@@ -11,6 +11,10 @@ import { AdminKpi } from "@/components/admin-ui/AdminKpi";
 import { AdminEmpty } from "@/components/admin-ui/AdminEmpty";
 import { AdminTable } from "@/components/admin-ui/AdminTable";
 import ConcluidosSemanaChart from "./ConcluidosSemanaChart";
+import {
+  Target, Droplets, Repeat, Timer, TrendingUp, LayoutList,
+  Star, BadgeDollarSign, AlertTriangle, MapPin, Award,
+} from "lucide-react";
 
 function pct(v: number | null): string {
   return v === null ? "—" : `${v.toFixed(0)}%`;
@@ -106,6 +110,8 @@ export default async function InsightsPage() {
             label="Concluídos esta semana"
             value={String(m.northStar.semanaAtual)}
             hint={variacaoHint}
+            icon={Target}
+            tone="success"
           />
         </div>
         <div className="md:col-span-3">
@@ -113,6 +119,8 @@ export default async function InsightsPage() {
             label="Liquidez (28 dias)"
             value={pct(m.liquidez.pct)}
             hint={`${m.liquidez.aceitos}/${m.liquidez.solicitados} solicitados aceitos · meta ≥60%`}
+            icon={Droplets}
+            tone="info"
           />
         </div>
         <div className="md:col-span-3">
@@ -120,6 +128,8 @@ export default async function InsightsPage() {
             label="Retenção de profissionais"
             value={pct(m.retencao.pct)}
             hint={`${m.retencao.retidos}/${m.retencao.ativosSemanaBase} nas 2 últimas semanas fechadas · meta ≥30%`}
+            icon={Repeat}
+            tone="success"
           />
         </div>
         <div className="md:col-span-3">
@@ -131,11 +141,14 @@ export default async function InsightsPage() {
                 : `${m.tempoCadastroPrimeiroServico.medianaDias} d`
             }
             hint={`mediana · ${m.tempoCadastroPrimeiroServico.amostra} profissionais`}
+            icon={Timer}
+            tone="info"
           />
         </div>
 
         <div className="md:col-span-8">
           <AdminCard
+            icon={TrendingUp}
             title="Serviços concluídos por semana"
             right={
               <span className="rounded-full bg-accent-subtle px-2.5 py-1 text-eyebrow font-bold uppercase text-accent-strong">
@@ -159,7 +172,7 @@ export default async function InsightsPage() {
         </div>
 
         <div className="md:col-span-4">
-          <AdminCard title="Visão geral">
+          <AdminCard title="Visão geral" icon={LayoutList}>
             <div className="grid grid-cols-2 gap-3">
               <AdminKpi label="Serviços totais" value={String(servicosTotal)} />
               <AdminKpi label="Em andamento" value={String(andamento)} />
@@ -174,6 +187,8 @@ export default async function InsightsPage() {
             label="Avaliação média"
             value={mediaNota ? mediaNota.toFixed(1) : "—"}
             hint={`${totalAval} avaliações`}
+            icon={Star}
+            tone="medium"
           />
         </div>
         <div className="md:col-span-4">
@@ -181,6 +196,8 @@ export default async function InsightsPage() {
             label="PIX confirmados"
             value={String(m.pagamentos.confirmados)}
             hint={`${m.pagamentos.informados} informados · ${m.pagamentos.aguardando} aguardando (de concluídos)`}
+            icon={BadgeDollarSign}
+            tone="success"
           />
         </div>
         <div className="md:col-span-4">
@@ -188,11 +205,13 @@ export default async function InsightsPage() {
             label="PIX contestados"
             value={String(m.pagamentos.contestados)}
             hint={m.pagamentos.contestados > 0 ? "exige atenção — ver disputa no chat" : "nenhuma disputa aberta"}
+            icon={AlertTriangle}
+            tone={m.pagamentos.contestados > 0 ? "critical" : "neutral"}
           />
         </div>
 
         <div className="md:col-span-4">
-          <AdminCard title="Top bairros">
+          <AdminCard title="Top bairros" icon={MapPin}>
             {topBairros.length === 0 ? (
               <AdminEmpty title="Sem dados" hint="Quando houver serviços, os bairros aparecem aqui." />
             ) : (
@@ -209,7 +228,7 @@ export default async function InsightsPage() {
         </div>
 
         <div className="md:col-span-4">
-          <AdminCard title="Top diaristas (nota)">
+          <AdminCard title="Top diaristas (nota)" icon={Award}>
             {topDiaristas.length === 0 ? (
               <AdminEmpty title="Sem avaliações ainda" />
             ) : (

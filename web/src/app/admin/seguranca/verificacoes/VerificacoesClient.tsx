@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AdminCard } from "@/components/admin-ui/AdminCard";
+import { BadgeCheck, Clock, CheckCircle2, XCircle, RefreshCw } from "lucide-react";
 import { AdminEmpty } from "@/components/admin-ui/AdminEmpty";
 
 type Role = "EMPREGADOR" | "DIARISTA" | "MONTADOR";
@@ -445,28 +446,28 @@ export default function VerificacoesClient() {
           onClick={() => setTab("PENDING")}
           className="rounded-xl border border-l-4 border-border border-l-warning bg-surface p-4 text-left transition-colors hover:bg-surface-subtle"
         >
-          <div className="text-eyebrow font-bold uppercase text-fg-subtle">Pendentes</div>
+          <div className="flex items-center gap-2"><Clock size={15} strokeWidth={2} className="shrink-0 text-warning" /><span className="text-eyebrow font-bold uppercase text-fg-subtle">Pendentes</span></div>
           <div className="mt-2 text-metric font-bold tabular-nums text-warning-dark">{stats.pending}</div>
         </button>
         <button
           onClick={() => setTab("APPROVED")}
           className="rounded-xl border border-l-4 border-border border-l-success bg-surface p-4 text-left transition-colors hover:bg-surface-subtle"
         >
-          <div className="text-eyebrow font-bold uppercase text-fg-subtle">Aprovadas</div>
+          <div className="flex items-center gap-2"><CheckCircle2 size={15} strokeWidth={2} className="shrink-0 text-success" /><span className="text-eyebrow font-bold uppercase text-fg-subtle">Aprovadas</span></div>
           <div className="mt-2 text-metric font-bold tabular-nums text-success-dark">{stats.approved}</div>
         </button>
         <button
           onClick={() => setTab("REJECTED")}
           className="rounded-xl border border-l-4 border-border border-l-error bg-surface p-4 text-left transition-colors hover:bg-surface-subtle"
         >
-          <div className="text-eyebrow font-bold uppercase text-fg-subtle">Reprovadas</div>
+          <div className="flex items-center gap-2"><XCircle size={15} strokeWidth={2} className="shrink-0 text-error" /><span className="text-eyebrow font-bold uppercase text-fg-subtle">Reprovadas</span></div>
           <div className="mt-2 text-metric font-bold tabular-nums text-error-dark">{stats.rejected}</div>
         </button>
         <button
           onClick={() => setTab("RENEWAL")}
           className="rounded-xl border border-l-4 border-border border-l-info bg-surface p-4 text-left transition-colors hover:bg-surface-subtle"
         >
-          <div className="text-eyebrow font-bold uppercase text-fg-subtle">Renovação/Reenvios</div>
+          <div className="flex items-center gap-2"><RefreshCw size={15} strokeWidth={2} className="shrink-0 text-info" /><span className="text-eyebrow font-bold uppercase text-fg-subtle">Renovação/Reenvios</span></div>
           <div className="mt-2 text-metric font-bold tabular-nums text-info-dark">{stats.renewals}</div>
         </button>
       </div>
@@ -511,7 +512,7 @@ export default function VerificacoesClient() {
         </div>
       ) : null}
 
-      <AdminCard title="Fila de análise">
+      <AdminCard title="Fila de análise" icon={BadgeCheck}>
         {loading ? (
           <AdminEmpty title="Carregando verificações" hint="Buscando documentos enviados." />
         ) : visibleItems.length === 0 ? (

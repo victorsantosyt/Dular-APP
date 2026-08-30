@@ -10,6 +10,7 @@ import { AdminCard } from "@/components/admin-ui/AdminCard";
 import { AdminKpi } from "@/components/admin-ui/AdminKpi";
 import { AdminEmpty } from "@/components/admin-ui/AdminEmpty";
 import ConcluidosSemanaChart from "@/app/admin/insights/ConcluidosSemanaChart";
+import { Users, UserPlus, Star, Repeat, TrendingUp, ShieldAlert, Zap } from "lucide-react";
 
 function pct(v: number | null): string {
   return v === null ? "—" : `${v.toFixed(0)}%`;
@@ -64,12 +65,14 @@ export default async function AdminHomePage() {
       <AdminGrid>
         {/* KPIs (pequenos) */}
         <div className="md:col-span-3">
-          <AdminKpi label="Usuários cadastrados" value={String(usuariosTotal)} />
+          <AdminKpi label="Usuários cadastrados" value={String(usuariosTotal)} icon={Users} />
         </div>
         <div className="md:col-span-3">
           <AdminKpi
             label="Novos usuários (30 dias)"
             value={`+${usuariosNovos30d}`}
+            icon={UserPlus}
+            tone="info"
           />
         </div>
         <div className="md:col-span-3">
@@ -77,6 +80,8 @@ export default async function AdminHomePage() {
             label="Avaliação média"
             value={mediaNota ? mediaNota.toFixed(1) : "—"}
             hint={`${totalAval} avaliações`}
+            icon={Star}
+            tone="medium"
           />
         </div>
         <div className="md:col-span-3">
@@ -84,12 +89,15 @@ export default async function AdminHomePage() {
             label="Retenção de profissionais"
             value={pct(m.retencao.pct)}
             hint={`${m.retencao.retidos}/${m.retencao.ativosSemanaBase} nas 2 últimas semanas · meta ≥30%`}
+            icon={Repeat}
+            tone="success"
           />
         </div>
 
         {/* Card grande - ocupa a linha inteira */}
         <div className="md:col-span-12">
           <AdminCard
+            icon={TrendingUp}
             title="Serviços concluídos por semana"
             right={
               <span className="rounded-full bg-accent-subtle px-2.5 py-1 text-eyebrow font-bold uppercase text-accent-strong">
@@ -114,7 +122,7 @@ export default async function AdminHomePage() {
 
         {/* Cards médios (lado a lado) */}
         <div className="md:col-span-6">
-          <AdminCard title="Segurança & suporte">
+          <AdminCard title="Segurança & suporte" icon={ShieldAlert}>
             <div className="divide-y divide-border-subtle">
               <Row label="Incidentes de segurança abertos" value={String(incidentesAbertos)} />
               <Row label="Avaliações negativas (nota ≤ 2)" value={String(avaliacoesNegativas)} />
@@ -123,7 +131,7 @@ export default async function AdminHomePage() {
         </div>
 
         <div className="md:col-span-6">
-          <AdminCard title="Resumo rápido">
+          <AdminCard title="Resumo rápido" icon={Zap}>
             <AdminEmpty title="Em breve" hint="Espaço para atalhos ou alertas rápidos." />
           </AdminCard>
         </div>

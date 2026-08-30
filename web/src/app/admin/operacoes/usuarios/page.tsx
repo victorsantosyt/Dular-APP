@@ -8,6 +8,7 @@ import { AdminGrid } from "@/components/admin-ui/AdminGrid";
 import { AdminKpi } from "@/components/admin-ui/AdminKpi";
 import { AdminCard } from "@/components/admin-ui/AdminCard";
 import { AdminTable } from "@/components/admin-ui/AdminTable";
+import { Users } from "lucide-react";
 import { AdminEmpty } from "@/components/admin-ui/AdminEmpty";
 
 export default async function UsuariosPage() {
@@ -44,7 +45,7 @@ export default async function UsuariosPage() {
         </div>
 
         <div className="md:col-span-12">
-          <AdminCard title="Últimos cadastrados">
+          <AdminCard title="Últimos cadastrados" icon={Users}>
             {rows.length === 0 ? (
               <AdminEmpty title="Sem dados ainda" hint="Quando houver usuários cadastrados, aparecem aqui." />
             ) : (

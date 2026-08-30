@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Search } from "lucide-react";
 import { ChipCategory } from "@/components/ui/ChipCategory";
 import { LogoBrand } from "@/components/ui/LogoBrand";
@@ -14,21 +14,78 @@ const categoryItems = [
   { key: "outros", label: "Outros", icon: "+" },
 ] as const;
 
-const diaristas = [
-  { id: "d1", name: "Mariana Silva", subtitle: "Confiável e experiente", rating: 4.8 },
-  { id: "d2", name: "Amanda Costa", subtitle: "Confiável e experiente", rating: 4.8 },
-  { id: "d3", name: "Fernanda Lima", subtitle: "Confiável e experiente", rating: 4.6 },
-] as const;
-
 const tabs: TabItem[] = [
   { key: "inicio", label: "Início", icon: "home" },
   { key: "pedidos", label: "Pedidos", icon: "orders" },
   { key: "perfil", label: "Perfil", icon: "profile" },
 ];
 
+// Beta 0 opera numa única cidade — fallback quando o usuário ainda não
+// cadastrou endereço (auditoria/15-provisionamento-golive.md).
+const PILOT_CIDADE = "Água Boa";
+const PILOT_UF = "MT";
+
+type Diarista = {
+  userId: string;
+  bio: string | null;
+  notaMedia: number | null;
+  cidade: string | null;
+  estado: string | null;
+  user: { nome: string | null } | null;
+};
+
 export default function ClientePage() {
   const [activeCategory, setActiveCategory] = useState<(typeof categoryItems)[number]["key"]>("leve");
   const [activeTab, setActiveTab] = useState("inicio");
+  const [nome, setNome] = useState<string | null>(null);
+  const [diaristas, setDiaristas] = useState<Diarista[]>([]);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const r = await fetch("/api/me/header");
+        const j = await r.json().catch(() => null);
+        if (alive && j?.ok) setNome(j.user?.nome ?? null);
+      } catch {
+        /* silencioso */
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        let cidade = PILOT_CIDADE;
+        let uf = PILOT_UF;
+        try {
+          const rEnd = await fetch("/api/me/enderecos");
+          const jEnd = await rEnd.json().catch(() => null);
+          const primeiro = jEnd?.ok ? jEnd.enderecos?.[0] : null;
+          if (primeiro?.cidade && primeiro?.uf) {
+            cidade = primeiro.cidade;
+            uf = primeiro.uf;
+          }
+        } catch {
+          /* usa o fallback do piloto */
+        }
+
+        const params = new URLSearchParams({ cidade, uf });
+        const r = await fetch(`/api/diaristas/buscar?${params.toString()}`);
+        const j = await r.json().catch(() => null);
+        if (alive && j?.ok) setDiaristas(j.diaristas ?? []);
+      } catch {
+        /* silencioso */
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   return (
     <main className="min-h-screen bg-dular-bg px-4 pb-28">
@@ -37,7 +94,9 @@ export default function ClientePage() {
 
         <header className="flex flex-col items-center px-5 pt-1 animate-dular-up">
           <LogoBrand variant="small" className="w-[118px]" />
-          <h1 className="mt-1 w-full text-left text-[24px] font-black text-dular-ink">Olá, Gabriel</h1>
+          <h1 className="mt-1 w-full text-left text-[24px] font-black text-dular-ink">
+            Olá{nome ? `, ${nome.split(" ")[0]}` : ""}
+          </h1>
         </header>
 
         <div className="mt-3 px-5 animate-dular-up [animation-delay:80ms]">
@@ -69,22 +128,28 @@ export default function ClientePage() {
 
         <section className="mt-1 px-5 pb-2">
           <h2 className="pb-2 text-[15px] font-extrabold text-dular-ink">Diaristas disponíveis</h2>
-          <div className="space-y-2.5 pb-20">
-            {diaristas.map((diarista, index) => (
-              <div
-                key={diarista.id}
-                className="animate-dular-up"
-                style={{ animationDelay: `${140 + index * 60}ms` }}
-              >
-                <ServiceCard
-                  name={diarista.name}
-                  subtitle={diarista.subtitle}
-                  rating={diarista.rating}
-                  onAction={() => undefined}
-                />
-              </div>
-            ))}
-          </div>
+          {diaristas.length === 0 ? (
+            <p className="pb-20 text-[13px] text-dular-sub">
+              Nenhuma diarista disponível na sua região no momento.
+            </p>
+          ) : (
+            <div className="space-y-2.5 pb-20">
+              {diaristas.map((diarista, index) => (
+                <div
+                  key={diarista.userId}
+                  className="animate-dular-up"
+                  style={{ animationDelay: `${140 + index * 60}ms` }}
+                >
+                  <ServiceCard
+                    name={diarista.user?.nome ?? "Diarista"}
+                    subtitle={diarista.bio?.trim() || `${diarista.cidade ?? PILOT_CIDADE} - ${diarista.estado ?? PILOT_UF}`}
+                    rating={diarista.notaMedia ?? 0}
+                    onAction={() => undefined}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
         </section>
       </div>
 

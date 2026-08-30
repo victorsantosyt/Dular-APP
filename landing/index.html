@@ -20,7 +20,18 @@
   <link rel="apple-touch-icon" href="dular-mark.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <!-- Carrega a fonte sem bloquear o primeiro paint: o browser trata como
+       stylesheet só depois de baixar (media=print → onload). O <noscript>
+       cobre quem está sem JS. `display=swap` já garante texto visível. -->
+  <link
+    href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+    rel="stylesheet"
+    media="print"
+    onload="this.media='all'"
+  />
+  <noscript>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  </noscript>
   <style>
     :root {
       /* Três cores dos perfis */

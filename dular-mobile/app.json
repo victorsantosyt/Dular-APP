@@ -63,8 +63,8 @@
       "expo-notifications"
     ],
     "extra": {
-      "apiBaseUrl": "SUBSTITUIR_EM_PRODUCAO",
-      "sosWhatsapp": "SUBSTITUIR_EM_PRODUCAO",
+      "apiBaseUrl": "https://dular-three.vercel.app",
+      "sosWhatsapp": "5565996293033",
       "eas": {
         "projectId": "979235a1-9921-4a58-a4ea-ca5143c6b76e"
       }

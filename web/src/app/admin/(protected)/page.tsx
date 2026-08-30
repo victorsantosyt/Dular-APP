@@ -79,7 +79,7 @@ export default async function AdminHomePage() {
           <AdminKpi
             label="Avaliação média"
             value={mediaNota ? mediaNota.toFixed(1) : "—"}
-            hint={`${totalAval} avaliações`}
+            hint={totalAval === 1 ? "1 avaliação" : `${totalAval} avaliações`}
             icon={Star}
             tone="medium"
           />
@@ -88,7 +88,11 @@ export default async function AdminHomePage() {
           <AdminKpi
             label="Retenção de profissionais"
             value={pct(m.retencao.pct)}
-            hint={`${m.retencao.retidos}/${m.retencao.ativosSemanaBase} nas 2 últimas semanas · meta ≥30%`}
+            hint={
+              m.retencao.ativosSemanaBase === 0
+                ? "Sem profissionais ativos na semana de referência"
+                : `${m.retencao.retidos} de ${m.retencao.ativosSemanaBase} voltaram a atender (meta: 30%)`
+            }
             icon={Repeat}
             tone="success"
           />
@@ -125,7 +129,7 @@ export default async function AdminHomePage() {
           <AdminCard title="Segurança & suporte" icon={ShieldAlert}>
             <div className="divide-y divide-border-subtle">
               <Row label="Incidentes de segurança abertos" value={String(incidentesAbertos)} />
-              <Row label="Avaliações negativas (nota ≤ 2)" value={String(avaliacoesNegativas)} />
+              <Row label="Avaliações negativas (nota 1 ou 2)" value={String(avaliacoesNegativas)} />
             </div>
           </AdminCard>
         </div>

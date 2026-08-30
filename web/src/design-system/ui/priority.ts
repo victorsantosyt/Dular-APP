@@ -67,3 +67,48 @@ export function rotuloEnum(valor: string | null | undefined): string {
   if (!valor) return "—";
   return valor.replace(/_/g, " ");
 }
+
+/**
+ * ServicoStatus em português legível. Enum cru (CAIXA_ALTA, underscore) é
+ * detalhe de banco — não deve vazar para a interface.
+ */
+const SERVICO_STATUS_LABEL: Record<string, string> = {
+  RASCUNHO: "Rascunho",
+  SOLICITADO: "Solicitado",
+  ACEITO: "Aceito",
+  RECUSADO: "Recusado",
+  CANCELADO: "Cancelado",
+  EM_ANDAMENTO: "Em andamento",
+  AGUARDANDO_FINALIZACAO: "Aguardando finalização",
+  CONCLUIDO: "Concluído",
+  CONFIRMADO: "Confirmado",
+  FINALIZADO: "Finalizado",
+};
+
+export function servicoStatusLabel(valor: string | null | undefined): string {
+  if (!valor) return "—";
+  const chave = valor.toUpperCase();
+  return SERVICO_STATUS_LABEL[chave] ?? rotuloEnum(chave);
+}
+
+/** Cor do status no ciclo de vida do serviço. */
+export function servicoStatusTone(valor: string | null | undefined): Tone {
+  switch ((valor ?? "").toUpperCase()) {
+    case "FINALIZADO":
+    case "CONFIRMADO":
+      return "success";
+    case "CONCLUIDO":
+      return "low";
+    case "EM_ANDAMENTO":
+    case "AGUARDANDO_FINALIZACAO":
+      return "info";
+    case "SOLICITADO":
+    case "ACEITO":
+      return "medium";
+    case "CANCELADO":
+    case "RECUSADO":
+      return "critical";
+    default:
+      return "neutral";
+  }
+}

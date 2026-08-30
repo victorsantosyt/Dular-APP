@@ -47,12 +47,12 @@ export default async function AdminIncidenteDetalhePage({
 
   if (!incident) {
     return (
-      <main className="mx-auto w-full max-w-5xl px-4 py-6">
-        <Link href="/admin/incidentes" className="text-sm underline text-gray-700">
+      <div className="mx-auto w-full max-w-5xl">
+        <Link href="/admin/incidentes" className="text-sm underline text-fg-muted">
           ← Voltar
         </Link>
-        <div className="mt-4 rounded-2xl border bg-white p-4 text-sm text-red-700">Não encontrado.</div>
-      </main>
+        <div className="mt-4 rounded-xl border border-border bg-surface p-4 text-sm text-error-dark">Não encontrado.</div>
+      </div>
     );
   }
 
@@ -64,22 +64,22 @@ export default async function AdminIncidenteDetalhePage({
   );
 
   return (
-    <main className="mx-auto w-full max-w-5xl px-4 py-6">
-      <Link href="/admin/incidentes" className="text-sm underline text-gray-700">
+    <div className="mx-auto w-full max-w-5xl">
+      <Link href="/admin/incidentes" className="text-sm underline text-fg-muted">
         ← Voltar
       </Link>
 
-      <header className="mt-4 rounded-2xl border bg-white p-5">
+      <header className="mt-4 rounded-xl border border-border bg-surface p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-lg font-extrabold text-gray-900">
+              <h1 className="text-lg font-extrabold text-fg">
                 {incident.categoria} • {incident.gravidade}
               </h1>
               <StatusPill status={incident.status} />
             </div>
 
-            <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-xs text-gray-500">
+            <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-xs text-fg-subtle">
               <span>ID: {incident.id}</span>
               <span>Criado: {new Date(incident.createdAt).toLocaleString("pt-BR")}</span>
               {incident.serviceId ? <span>Serviço: {incident.serviceId}</span> : null}
@@ -92,7 +92,7 @@ export default async function AdminIncidenteDetalhePage({
             {NEXT_STATUS.map((s) => (
               <form key={s} action={updateStatus.bind(null, incident.id, s)}>
                 <button
-                  className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-800 hover:bg-gray-50"
+                  className="rounded-xl border border-border bg-white px-3 py-2 text-xs font-bold text-fg hover:bg-surface-secondary"
                   type="submit"
                 >
                   Marcar {s}
@@ -102,11 +102,11 @@ export default async function AdminIncidenteDetalhePage({
           </div>
         </div>
 
-        <p className="mt-4 whitespace-pre-wrap text-sm text-gray-700">{incident.description}</p>
+        <p className="mt-4 whitespace-pre-wrap text-sm text-fg-muted">{incident.description}</p>
 
         <div className="mt-4 grid gap-2 text-sm">
-          <div className="rounded-xl bg-gray-50 p-3">
-            <div className="text-xs font-bold text-gray-500">Denunciado</div>
+          <div className="rounded-lg bg-surface-secondary p-3">
+            <div className="text-xs font-bold text-fg-subtle">Denunciado</div>
             <div className="font-semibold">
               {incident.reportedUser?.nome ||
                 incident.reportedUser?.telefone ||
@@ -115,8 +115,8 @@ export default async function AdminIncidenteDetalhePage({
             </div>
           </div>
 
-          <div className="rounded-xl bg-gray-50 p-3">
-            <div className="text-xs font-bold text-gray-500">Quem denunciou</div>
+          <div className="rounded-lg bg-surface-secondary p-3">
+            <div className="text-xs font-bold text-fg-subtle">Quem denunciou</div>
             <div className="font-semibold">
               {incident.anonimo
                 ? "Denunciante: anônimo"
@@ -126,11 +126,11 @@ export default async function AdminIncidenteDetalhePage({
         </div>
       </header>
 
-      <section className="mt-4 rounded-2xl border bg-white p-5">
-        <h2 className="text-sm font-extrabold text-gray-900">Evidências</h2>
+      <section className="mt-4 rounded-xl border border-border bg-surface p-5">
+        <h2 className="text-sm font-extrabold text-fg">Evidências</h2>
 
         {attachments.length === 0 ? (
-          <p className="mt-2 text-sm text-gray-600">Nenhuma evidência anexada.</p>
+          <p className="mt-2 text-sm text-fg-muted">Nenhuma evidência anexada.</p>
         ) : (
           <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
             {attachments.map((a) => (
@@ -139,7 +139,7 @@ export default async function AdminIncidenteDetalhePage({
                 href={a.signedUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="group overflow-hidden rounded-2xl border bg-gray-50"
+                className="group overflow-hidden rounded-xl border border-border bg-surface-secondary"
               >
                 {a.mime.startsWith("image/") ? (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -149,11 +149,11 @@ export default async function AdminIncidenteDetalhePage({
                     className="h-40 w-full object-cover group-hover:opacity-95"
                   />
                 ) : (
-                  <div className="flex h-40 items-center justify-center text-xs text-gray-600">
+                  <div className="flex h-40 items-center justify-center text-xs text-fg-muted">
                     Abrir arquivo
                   </div>
                 )}
-                <div className="p-2 text-xs text-gray-600">
+                <div className="p-2 text-xs text-fg-muted">
                   {a.mime} • {(a.size / 1024).toFixed(0)} KB
                 </div>
               </a>
@@ -163,6 +163,6 @@ export default async function AdminIncidenteDetalhePage({
       </section>
 
       <ResolutionPanel incidentId={incident.id} />
-    </main>
+    </div>
   );
 }

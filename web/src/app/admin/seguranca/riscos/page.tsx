@@ -101,7 +101,7 @@ export default async function RiscosPage() {
           <AdminKpi
             label="Críticos"
             value={String(criticos)}
-            hint={criticos > 0 ? "SOS ou incidente grave — agir agora" : "nenhum no momento"}
+            hint={criticos > 0 ? "SOS ou incidente grave: agir agora" : "Nenhum no momento"}
             icon={Siren}
             tone={criticos > 0 ? "critical" : "neutral"}
           />

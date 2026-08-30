@@ -10,6 +10,7 @@ import { AdminCard } from "@/components/admin-ui/AdminCard";
 import { AdminEmpty } from "@/components/admin-ui/AdminEmpty";
 import { AdminTable } from "@/components/admin-ui/AdminTable";
 import { LifeBuoy } from "lucide-react";
+import { Badge, incidenteStatusTone, gravidadeTone, rotuloEnum } from "@/design-system/ui";
 
 function fmt(dt: Date) {
   return new Date(dt).toLocaleString("pt-BR");
@@ -54,8 +55,23 @@ export default async function SuportePage() {
                       </Link>
                     ),
                   },
-                  { key: "type", label: "Tipo", render: (row) => `${row.type} · ${row.severity}` },
-                  { key: "status", label: "Status" },
+                  {
+                    key: "type",
+                    label: "Tipo",
+                    render: (row) => (
+                      <div className="flex items-center gap-2">
+                        <span>{rotuloEnum(row.type)}</span>
+                        <Badge tone={gravidadeTone(row.severity)}>{rotuloEnum(row.severity)}</Badge>
+                      </div>
+                    ),
+                  },
+                  {
+                    key: "status",
+                    label: "Status",
+                    render: (row) => (
+                      <Badge tone={incidenteStatusTone(row.status)}>{rotuloEnum(row.status)}</Badge>
+                    ),
+                  },
                   { key: "reportedBy", label: "Relatado por", render: (row) => row.reportedBy?.nome ?? row.reportedBy?.telefone ?? "—" },
                   { key: "reportedUser", label: "Denunciado", render: (row) => row.reportedUser?.nome ?? row.reportedUser?.telefone ?? "—" },
                   { key: "serviceId", label: "Serviço", render: (row) => row.serviceId ?? "—" },

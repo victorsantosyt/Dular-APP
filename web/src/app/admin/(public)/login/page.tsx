@@ -113,6 +113,11 @@ export default function AdminLoginPage() {
         <form className="mt-5 space-y-4" onSubmit={onSubmit} noValidate={false}>
           <PillInput
             label="Usuário (telefone ou email)"
+            id="login"
+            // `name` + `autoComplete` juntos: os gerenciadores de senha
+            // dependem dos dois para reconhecer o formulário e oferecer
+            // salvar/preencher a credencial.
+            name="username"
             value={login}
             onChange={(e) => setLogin(e.target.value)}
             placeholder="Telefone ou email"
@@ -122,6 +127,8 @@ export default function AdminLoginPage() {
           />
           <PillInput
             label="Senha"
+            id="senha"
+            name="password"
             type="password"
             revelavel
             value={senha}

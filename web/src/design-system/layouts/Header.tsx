@@ -3,7 +3,9 @@
 import { useEffect, useState } from "react";
 import { cn } from "@/design-system/utils/cn";
 import { initials } from "@/design-system/utils/avatar";
+import { usePathname } from "next/navigation";
 import { Menu } from "lucide-react";
+import { ROUTE_TITLES } from "./nav";
 import NotificationsBell from "./NotificationsBell";
 
 export type HeaderUser = {
@@ -36,6 +38,21 @@ export default function Header({
   onOpenMenu?: () => void;
 }) {
   const [user, setUser] = useState<HeaderUser | null>(userProp ?? null);
+  const pathname = usePathname() || "";
+
+  // Sem `title` explícito, deriva da rota: o mapa ROUTE_TITLES já existia mas
+  // nenhum layout passava título, então a barra superior ficava vazia em TODAS
+  // as telas. Casa o prefixo mais longo para cobrir sub-rotas (ex.: detalhe de
+  // serviço herda "Serviços").
+  const tituloDaRota = (() => {
+    if (title) return title;
+    let melhor = "";
+    for (const rota of Object.keys(ROUTE_TITLES)) {
+      const casa = pathname === rota || pathname.startsWith(`${rota}/`);
+      if (casa && rota.length > melhor.length) melhor = rota;
+    }
+    return melhor ? ROUTE_TITLES[melhor] : undefined;
+  })();
 
   useEffect(() => {
     if (userProp !== undefined) setUser(userProp);
@@ -74,8 +91,8 @@ export default function Header({
         </button>
       ) : null}
       <div className="min-w-0 flex-1">
-        {title ? (
-          <h1 className="truncate text-heading font-semibold text-fg">{title}</h1>
+        {tituloDaRota ? (
+          <h1 className="truncate text-heading font-semibold text-fg">{tituloDaRota}</h1>
         ) : null}
       </div>
 

@@ -35,6 +35,13 @@
   --color-accent-active: #7e22ce;
   --color-accent-subtle: #faf5ff;
 
+  /* ── Glass (superfícies com blur leve) ──────────────────────────
+     Força de blur padronizada em backdrop-blur-md (utilitário nativo
+     do Tailwind) nos consumidores — não redefinir aqui.            */
+  --color-glass-surface: rgba(255, 255, 255, 0.70);
+  --color-glass-surface-strong: rgba(255, 255, 255, 0.85);
+  --color-glass-border: rgba(255, 255, 255, 0.40);
+
   /* ── Status ───────────────────────────────────────────────────── */
   --color-success: #10b981;
   --color-success-light: #d1fae5;

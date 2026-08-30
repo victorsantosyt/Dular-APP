@@ -84,7 +84,7 @@ export default async function RiscosPage() {
                       row.href ? (
                         <Link
                           href={row.href}
-                          className="font-semibold text-slate-800 underline-offset-2 hover:underline"
+                          className="font-semibold text-fg underline-offset-2 hover:underline"
                         >
                           {row.tipo}
                         </Link>

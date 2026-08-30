@@ -3,9 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Search } from "lucide-react";
 import { cn } from "@/design-system/utils/cn";
-import { initials } from "@/design-system/utils/avatar";
 import { NAV_SECTIONS, NAV_SETTINGS, type NavItem } from "./nav";
 import type { HeaderUser } from "./Header";
 
@@ -19,10 +17,19 @@ function NavRow({ item, active }: { item: NavItem; active: boolean }) {
 
   const content = (
     <>
-      <Icon size={18} className="shrink-0" />
+      {/* Barra de seleção: substitui o "bloco pintado" por um indicador
+          discreto na borda — padrão de painel profissional. */}
+      <span
+        aria-hidden
+        className={cn(
+          "absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full transition-colors",
+          active ? "bg-accent" : "bg-transparent",
+        )}
+      />
+      <Icon size={18} className="shrink-0" strokeWidth={active ? 2.2 : 1.75} />
       <span className="truncate">{label}</span>
       {soon ? (
-        <span className="ml-auto rounded-full bg-surface-subtle px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-fg-subtle">
+        <span className="ml-auto rounded-full bg-surface-subtle px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-fg-disabled">
           Em breve
         </span>
       ) : null}
@@ -30,12 +37,12 @@ function NavRow({ item, active }: { item: NavItem; active: boolean }) {
   );
 
   const base =
-    "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors duration-150";
+    "relative flex items-center gap-3 rounded-lg py-2 pl-4 pr-3 text-sm transition-colors duration-150";
 
   if (soon) {
     return (
       <div
-        className={cn(base, "cursor-not-allowed text-fg-disabled")}
+        className={cn(base, "cursor-not-allowed font-medium text-fg-disabled")}
         aria-disabled="true"
         title="Em breve"
       >
@@ -51,8 +58,8 @@ function NavRow({ item, active }: { item: NavItem; active: boolean }) {
       className={cn(
         base,
         active
-          ? "bg-accent-subtle text-accent"
-          : "text-fg-muted hover:bg-surface-secondary hover:text-fg",
+          ? "bg-accent-subtle font-semibold text-accent-strong"
+          : "font-medium text-fg-muted hover:bg-surface-subtle hover:text-fg",
       )}
     >
       {content}
@@ -67,52 +74,14 @@ const ROLE_LABEL: Record<string, string> = {
   MONTADOR: "Montador",
 };
 
-function UserBlock({ user }: { user?: HeaderUser | null }) {
-  return (
-    <div className="border-b border-glass-border px-3 py-3">
-      <div className="flex items-center gap-3 rounded-lg px-2 py-1.5">
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-accent-subtle text-xs font-semibold text-accent ring-1 ring-border">
-          {user === undefined ? (
-            <span className="h-full w-full animate-pulse bg-surface-subtle" />
-          ) : user?.avatarUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={user.avatarUrl}
-              alt={user.nome ?? "Avatar"}
-              className="h-full w-full object-cover"
-            />
-          ) : (
-            <span>{initials(user?.nome ?? null)}</span>
-          )}
-        </div>
-        <div className="min-w-0">
-          {user === undefined ? (
-            <>
-              <div className="h-3.5 w-24 animate-pulse rounded bg-surface-subtle" />
-              <div className="mt-1.5 h-3 w-16 animate-pulse rounded bg-surface-subtle" />
-            </>
-          ) : (
-            <>
-              <div className="truncate text-sm font-medium text-fg">{user?.nome ?? "—"}</div>
-              <div className="truncate text-xs text-fg-subtle">
-                {ROLE_LABEL[user?.role ?? ""] ?? user?.role ?? ""}
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export default function Sidebar({ user }: { user?: HeaderUser | null }) {
   const pathname = usePathname() || "/admin";
 
   return (
-    <aside className="sticky top-0 flex h-screen w-[264px] shrink-0 flex-col border-r border-glass-border bg-glass-surface backdrop-blur-md">
-      {/* Logo */}
-      <div className="flex h-16 items-center gap-3 px-5">
-        <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-lg bg-surface-secondary ring-1 ring-border">
+    <aside className="sticky top-0 flex h-screen w-[264px] shrink-0 flex-col border-r border-border bg-surface">
+      {/* Identidade: logo + usuário logado (mesma altura do Header) */}
+      <div className="flex h-16 items-center gap-3 border-b border-border-subtle px-5">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-accent-subtle ring-1 ring-border">
           <Image
             src="/brand/dular-mark.png"
             alt="Dular"
@@ -123,34 +92,30 @@ export default function Sidebar({ user }: { user?: HeaderUser | null }) {
           />
         </div>
         <div className="min-w-0">
-          <div className="truncate text-sm font-semibold text-fg">Dular</div>
-          <div className="truncate text-xs text-fg-subtle">Painel administrativo</div>
+          {user === undefined ? (
+            <>
+              <div className="h-3.5 w-24 animate-pulse rounded bg-surface-subtle" />
+              <div className="mt-1.5 h-3 w-16 animate-pulse rounded bg-surface-subtle" />
+            </>
+          ) : (
+            <>
+              <div className="truncate text-sm font-semibold leading-tight text-fg">
+                {user?.nome ?? "—"}
+              </div>
+              <div className="truncate text-xs leading-tight text-fg-subtle">
+                {ROLE_LABEL[user?.role ?? ""] ?? user?.role ?? ""}
+              </div>
+            </>
+          )}
         </div>
       </div>
 
-      {/* Usuário logado */}
-      <UserBlock user={user} />
-
-      {/* Busca */}
-      <div className="px-3 pb-2">
-        <button
-          type="button"
-          className="flex w-full items-center gap-2 rounded-lg border border-border bg-surface-secondary px-3 py-2 text-sm text-fg-subtle transition-colors hover:border-fg-disabled"
-        >
-          <Search size={16} />
-          <span>Buscar…</span>
-          <kbd className="ml-auto rounded border border-border bg-surface px-1.5 py-0.5 text-[10px] font-medium text-fg-subtle">
-            ⌘K
-          </kbd>
-        </button>
-      </div>
-
       {/* Navegação */}
-      <nav className="flex-1 overflow-y-auto px-3 py-2">
+      <nav className="flex-1 overflow-y-auto px-3 py-4">
         {NAV_SECTIONS.map((section, idx) => (
-          <div key={section.label ?? `section-${idx}`} className={idx > 0 ? "mt-4" : ""}>
+          <div key={section.label ?? `section-${idx}`} className={idx > 0 ? "mt-6" : ""}>
             {section.label ? (
-              <div className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-fg-subtle">
+              <div className="px-4 pb-2 text-eyebrow font-bold uppercase text-fg-disabled">
                 {section.label}
               </div>
             ) : null}
@@ -164,7 +129,7 @@ export default function Sidebar({ user }: { user?: HeaderUser | null }) {
       </nav>
 
       {/* Rodapé: Configurações */}
-      <div className="border-t border-border px-3 py-3">
+      <div className="border-t border-border-subtle px-3 py-3">
         <NavRow item={NAV_SETTINGS} active={isActive(pathname, NAV_SETTINGS.href)} />
       </div>
     </aside>

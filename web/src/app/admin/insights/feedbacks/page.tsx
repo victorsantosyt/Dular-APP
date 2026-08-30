@@ -56,23 +56,23 @@ export default async function FeedbacksPage() {
             ) : (
               <div className="space-y-3">
                 {lista.map((a) => (
-                  <div key={a.id} className="rounded-xl border border-slate-200 bg-white/80 p-3">
+                  <div key={a.id} className="rounded-xl border border-border bg-surface p-3">
                     <div className="flex items-start justify-between gap-3">
-                      <div className="text-sm font-semibold text-slate-900">
+                      <div className="text-sm font-semibold text-fg">
                         Nota {a.notaGeral}/5{" "}
-                        <span className="text-xs text-slate-500">
+                        <span className="text-xs text-fg-subtle">
                           {a.servico?.bairro ?? "—"} • {a.servico?.cidade ?? "—"}
                         </span>
                       </div>
-                      <div className="text-xs text-slate-500">
+                      <div className="text-xs text-fg-subtle">
                         {new Date(a.createdAt).toLocaleString("pt-BR")}
                       </div>
                     </div>
-                    <div className="text-xs text-slate-600">
+                    <div className="text-xs text-fg-muted">
                       Cliente: {a.servico?.cliente?.nome ?? "—"} • Diarista: {a.servico?.diarista?.nome ?? "—"}
                     </div>
-                    <div className="mt-2 text-sm text-slate-800">
-                      {a.comentario?.trim() ? a.comentario : <span className="text-slate-500">Sem comentário.</span>}
+                    <div className="mt-2 text-sm text-fg">
+                      {a.comentario?.trim() ? a.comentario : <span className="text-fg-subtle">Sem comentário.</span>}
                     </div>
                   </div>
                 ))}

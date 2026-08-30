@@ -156,12 +156,12 @@ export default async function InsightsPage() {
           <AdminCard
             title="Serviços concluídos por semana"
             right={
-              <span className="rounded-full bg-emerald-200/60 px-3 py-1 text-xs font-semibold text-emerald-900">
+              <span className="rounded-full bg-accent-subtle px-2.5 py-1 text-eyebrow font-bold uppercase text-accent-strong">
                 North Star · 8 semanas
               </span>
             }
           >
-            <div className="rounded-2xl border border-white/50 bg-white/50 p-2">
+            <div className="">
               {m.totalConcluidos === 0 ? (
                 <AdminEmpty
                   title="Nenhum serviço concluído ainda"
@@ -250,23 +250,23 @@ export default async function InsightsPage() {
             ) : (
               <div className="space-y-3">
                 {ultimasAval.map((a) => (
-                  <div key={a.id} className="rounded-xl border border-slate-200 bg-white/80 p-3">
+                  <div key={a.id} className="rounded-xl border border-border bg-surface p-3">
                     <div className="flex items-start justify-between gap-3 text-sm">
-                      <div className="font-semibold text-slate-900">
+                      <div className="font-semibold text-fg">
                         Nota {a.notaGeral}/5{" "}
-                        <span className="text-xs text-slate-500">
+                        <span className="text-xs text-fg-subtle">
                           {a.servico?.bairro ?? "—"} • {a.servico?.cidade ?? "—"}
                         </span>
                       </div>
-                      <div className="text-xs text-slate-500">
+                      <div className="text-xs text-fg-subtle">
                         {new Date(a.createdAt).toLocaleDateString("pt-BR")}
                       </div>
                     </div>
-                    <div className="text-xs text-slate-600">
+                    <div className="text-xs text-fg-muted">
                       Cliente: {a.servico?.cliente?.nome ?? "—"} • Diarista: {a.servico?.diarista?.nome ?? "—"}
                     </div>
-                    <div className="mt-2 text-sm text-slate-800">
-                      {a.comentario?.trim() ? a.comentario : <span className="text-slate-500">Sem comentário.</span>}
+                    <div className="mt-2 text-sm text-fg">
+                      {a.comentario?.trim() ? a.comentario : <span className="text-fg-subtle">Sem comentário.</span>}
                     </div>
                   </div>
                 ))}

@@ -80,7 +80,7 @@ export default async function CheckinsPage() {
                           href={`https://www.google.com/maps?q=${row.localizacao}`}
                           target="_blank"
                           rel="noreferrer"
-                          className="font-semibold text-slate-800 underline-offset-2 hover:underline"
+                          className="font-semibold text-fg underline-offset-2 hover:underline"
                         >
                           {row.localizacao}
                         </a>

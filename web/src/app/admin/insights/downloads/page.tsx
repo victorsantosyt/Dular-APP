@@ -26,10 +26,10 @@ export default function DownloadsPage() {
         {downloads.map((item) => (
           <div key={item.href} className="md:col-span-6">
             <AdminCard title={item.title}>
-              <p className="text-sm text-slate-500">{item.description}</p>
+              <p className="text-sm text-fg-subtle">{item.description}</p>
               <a
                 href={item.href}
-                className="mt-4 inline-flex rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:brightness-95 active:brightness-90"
+                className="mt-4 inline-flex rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-white shadow-sm hover:brightness-95 active:brightness-90"
               >
                 Exportar CSV
               </a>

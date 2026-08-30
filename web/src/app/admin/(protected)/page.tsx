@@ -92,12 +92,12 @@ export default async function AdminHomePage() {
           <AdminCard
             title="Serviços concluídos por semana"
             right={
-              <span className="rounded-full bg-accent-subtle px-3 py-1 text-xs font-semibold text-accent-active">
+              <span className="rounded-full bg-accent-subtle px-2.5 py-1 text-eyebrow font-bold uppercase text-accent-strong">
                 North Star · 8 semanas
               </span>
             }
           >
-            <div className="rounded-2xl border border-glass-border bg-glass-surface p-2">
+            <div>
               {m.totalConcluidos === 0 ? (
                 <AdminEmpty
                   title="Nenhum serviço concluído ainda"
@@ -115,7 +115,7 @@ export default async function AdminHomePage() {
         {/* Cards médios (lado a lado) */}
         <div className="md:col-span-6">
           <AdminCard title="Segurança & suporte">
-            <div className="space-y-4 text-sm text-fg-muted">
+            <div className="divide-y divide-border-subtle">
               <Row label="Incidentes de segurança abertos" value={String(incidentesAbertos)} />
               <Row label="Avaliações negativas (nota ≤ 2)" value={String(avaliacoesNegativas)} />
             </div>
@@ -134,9 +134,9 @@ export default async function AdminHomePage() {
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-start justify-between gap-3">
-      <div className="text-fg-muted">{label}</div>
-      <div className="font-semibold text-fg">{value}</div>
+    <div className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
+      <div className="text-sm text-fg-muted">{label}</div>
+      <div className="text-sm font-bold tabular-nums text-fg">{value}</div>
     </div>
   );
 }

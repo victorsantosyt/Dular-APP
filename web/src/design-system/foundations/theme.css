@@ -14,33 +14,41 @@
  *   --text-<nome>   → text-<nome> (+ line-height/letter-spacing companheiros)
  */
 @theme {
-  /* ── Superfícies ──────────────────────────────────────────────── */
+  /* ── Superfícies ──────────────────────────────────────────────────
+     Cinzas levemente esverdeados (não neutros puros): harmonizam com o
+     teal do accent sem tingir o painel de verde.                     */
   --color-surface: #ffffff;
-  --color-surface-secondary: #f9fafb;
-  --color-surface-subtle: #f3f4f6;
+  --color-surface-secondary: #f6f8f7;
+  --color-surface-subtle: #eef2f0;
 
-  /* ── Texto (foreground) ───────────────────────────────────────── */
-  --color-fg: #111827;
-  --color-fg-muted: #4b5563;
-  --color-fg-subtle: #6b7280;
-  --color-fg-disabled: #9ca3af;
+  /* ── Texto (foreground) ───────────────────────────────────────────
+     Base #16211d (quase-preto esverdeado) em vez de preto puro — mais
+     elegante e ainda ~15:1 de contraste sobre branco (AAA).          */
+  --color-fg: #16211d;
+  --color-fg-muted: #4a5854;
+  --color-fg-subtle: #6d7c77;
+  --color-fg-disabled: #9aa8a3;
 
   /* ── Bordas ───────────────────────────────────────────────────── */
-  --color-border: #e5e7eb;
-  --color-border-subtle: #f3f4f6;
+  --color-border: #e2e9e6;
+  --color-border-subtle: #eef2f0;
 
-  /* ── Accent (lavanda) ─────────────────────────────────────────── */
-  --color-accent: #a78bfa;
-  --color-accent-hover: #9370db;
-  --color-accent-active: #7e22ce;
-  --color-accent-subtle: #faf5ff;
+  /* ── Accent (teal profundo) ───────────────────────────────────────
+     #3a9e8e é o teal da marca Dular. O `accent-strong` existe para
+     TEXTO sobre fundo claro: o accent puro não passa em contraste de
+     texto pequeno, o strong (#1b6b5f) passa AA.                      */
+  --color-accent: #3a9e8e;
+  --color-accent-hover: #2f8577;
+  --color-accent-active: #1b7a4a;
+  --color-accent-strong: #1b6b5f;
+  --color-accent-subtle: #eef5f1;
 
   /* ── Glass (superfícies com blur leve) ──────────────────────────
      Força de blur padronizada em backdrop-blur-md (utilitário nativo
      do Tailwind) nos consumidores — não redefinir aqui.            */
-  --color-glass-surface: rgba(255, 255, 255, 0.70);
-  --color-glass-surface-strong: rgba(255, 255, 255, 0.85);
-  --color-glass-border: rgba(255, 255, 255, 0.40);
+  --color-glass-surface: rgba(255, 255, 255, 0.72);
+  --color-glass-surface-strong: rgba(255, 255, 255, 0.88);
+  --color-glass-border: rgba(255, 255, 255, 0.55);
 
   /* ── Status ───────────────────────────────────────────────────── */
   --color-success: #10b981;
@@ -56,20 +64,36 @@
   --color-info-light: #dbeafe;
   --color-info-dark: #1d4ed8;
 
-  /* ── Escala bruta lavanda (preferir tokens accent-*) ──────────── */
-  --color-primary-50: #faf5ff;
-  --color-primary-100: #f3e8ff;
-  --color-primary-200: #e9d5ff;
-  --color-primary-300: #d8b4fe;
-  --color-primary-400: #c084fc;
-  --color-primary-500: #a78bfa;
-  --color-primary-600: #9370db;
-  --color-primary-700: #7e22ce;
-  --color-primary-800: #6b21a8;
-  --color-primary-900: #581c87;
+  /* ── Escala bruta teal (preferir tokens accent-*) ─────────────── */
+  --color-primary-50: #eef5f1;
+  --color-primary-100: #d7ebe4;
+  --color-primary-200: #b0d8cc;
+  --color-primary-300: #82c1b1;
+  --color-primary-400: #56ad9c;
+  --color-primary-500: #3a9e8e;
+  --color-primary-600: #2f8577;
+  --color-primary-700: #256b60;
+  --color-primary-800: #1b544c;
+  --color-primary-900: #123c36;
 
-  /* ── Tipografia: único tamanho novo (Display 32px) ────────────── */
-  --text-display: 32px;
-  --text-display--line-height: 40px;
-  --text-display--letter-spacing: -0.02em;
+  /* ── Tipografia ───────────────────────────────────────────────────
+     Escala editorial: quanto maior o tamanho, mais negativo o tracking.
+     Só nomes NOVOS (display/heading/eyebrow) — os utilitários padrão do
+     Tailwind (text-sm/base/lg…) seguem intactos para as telas antigas. */
+  --text-display: 30px;
+  --text-display--line-height: 38px;
+  --text-display--letter-spacing: -0.025em;
+
+  --text-heading: 20px;
+  --text-heading--line-height: 28px;
+  --text-heading--letter-spacing: -0.015em;
+
+  --text-metric: 26px;
+  --text-metric--line-height: 32px;
+  --text-metric--letter-spacing: -0.02em;
+
+  /* Rótulo de seção (SIDEBAR / cabeçalho de card): caixa alta pequena. */
+  --text-eyebrow: 11px;
+  --text-eyebrow--line-height: 16px;
+  --text-eyebrow--letter-spacing: 0.07em;
 }

@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import Sidebar from "./Sidebar";
 import Header, { type HeaderUser } from "./Header";
 import Breadcrumb, { type BreadcrumbItem } from "./Breadcrumb";
+import { useSessaoExpira } from "./useSessaoExpira";
 
 /**
  * Casca client do painel: guarda o estado da gaveta no mobile, que precisa ser
@@ -29,6 +30,9 @@ export default function AdminChrome({
   children: React.ReactNode;
 }) {
   const [menuAberto, setMenuAberto] = useState(false);
+
+  // Corte por ociosidade: o painel expõe KYC e dados pessoais.
+  useSessaoExpira();
   const pathname = usePathname();
 
   // Navegar fecha a gaveta — senão ela cobriria a página recém-aberta.

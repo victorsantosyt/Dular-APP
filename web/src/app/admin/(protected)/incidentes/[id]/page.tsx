@@ -132,7 +132,7 @@ export default async function AdminIncidenteDetalhePage({
         {attachments.length === 0 ? (
           <p className="mt-2 text-sm text-fg-muted">Nenhuma evidência anexada.</p>
         ) : (
-          <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <div className="mt-3 grid grid-cols-1 gap-3 min-[420px]:grid-cols-2 sm:grid-cols-3">
             {attachments.map((a) => (
               <a
                 key={a.id}

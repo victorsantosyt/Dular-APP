@@ -4,9 +4,10 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronLeft, ChevronRight, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, X, LogOut } from "lucide-react";
 import { cn } from "@/design-system/utils/cn";
 import { NAV_SECTIONS, NAV_SETTINGS, type NavItem } from "./nav";
+import { encerrarSessao } from "./useSessaoExpira";
 import type { HeaderUser } from "./Header";
 
 function matches(pathname: string, href: string): boolean {
@@ -161,7 +162,7 @@ export default function Sidebar({
   return (
     <aside
       className={cn(
-        "flex h-screen shrink-0 flex-col border-r border-border bg-surface",
+        "flex h-dvh shrink-0 flex-col border-r border-border bg-surface",
         // Mobile: gaveta sobreposta, fora da tela quando fechada.
         "fixed inset-y-0 left-0 z-50 w-[264px] transition-transform duration-200 ease-out",
         mobileOpen ? "translate-x-0" : "-translate-x-full",
@@ -272,13 +273,27 @@ export default function Sidebar({
         ))}
       </nav>
 
-      {/* Rodapé: Configurações */}
-      <div className="border-t border-border-subtle px-3 py-3">
+      {/* Rodapé: Configurações + sair */}
+      <div className="shrink-0 border-t border-border-subtle px-3 py-3">
         <NavRow
           item={NAV_SETTINGS}
           active={NAV_SETTINGS.href === activeHref}
           collapsed={collapsed}
         />
+        <button
+          type="button"
+          onClick={() => encerrarSessao()}
+          title={collapsed ? "Sair" : undefined}
+          className={cn(
+            "relative mt-0.5 flex w-full items-center rounded-lg py-2 text-sm font-medium",
+            "text-fg-muted transition-colors hover:bg-error-light hover:text-error-dark",
+            "gap-3 pl-4 pr-3",
+            collapsed && "md:justify-center md:gap-0 md:px-0",
+          )}
+        >
+          <LogOut size={18} strokeWidth={1.75} className="shrink-0 text-fg-subtle" />
+          <span className={cn("truncate", collapsed && "md:hidden")}>Sair</span>
+        </button>
       </div>
     </aside>
   );

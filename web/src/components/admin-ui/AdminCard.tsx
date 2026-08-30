@@ -14,7 +14,7 @@ export function AdminCard({ title, right, children, className = "", icon: Icon }
   return (
     <section className={cn("rounded-xl border border-border bg-surface", className)}>
       {(title || right) && (
-        <div className="flex items-center justify-between gap-4 border-b border-border-subtle px-5 py-4">
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-border-subtle px-5 py-4">
           {title ? (
             <div className="flex min-w-0 items-center gap-2">
               {Icon ? (
@@ -27,7 +27,7 @@ export function AdminCard({ title, right, children, className = "", icon: Icon }
           ) : (
             <div />
           )}
-          {right ? <div className="shrink-0">{right}</div> : null}
+          {right ? <div className="min-w-0">{right}</div> : null}
         </div>
       )}
       <div className="p-5">{children}</div>

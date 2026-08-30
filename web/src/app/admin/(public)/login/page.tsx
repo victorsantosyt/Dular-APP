@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { AlertCircle } from "lucide-react";
+import { useEffect, useState } from "react";
+import { AlertCircle, Clock } from "lucide-react";
 import AuthBackground from "@/components/auth/AuthBackground";
 import GlassCard from "@/components/auth/GlassCard";
 import PillInput from "@/components/auth/PillInput";
@@ -59,6 +59,12 @@ export default function AdminLoginPage() {
   const [senha, setSenha] = useState("");
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState("");
+  const [expirou, setExpirou] = useState(false);
+
+  // Lido do window (e não de useSearchParams) para não exigir Suspense.
+  useEffect(() => {
+    setExpirou(new URLSearchParams(window.location.search).get("sessao") === "expirada");
+  }, []);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -98,6 +104,16 @@ export default function AdminLoginPage() {
         <div className="mt-4 text-center">
           <h1 className="text-lg font-semibold tracking-tight text-fg">Entrar no Painel</h1>
         </div>
+
+        {expirou && !erro ? (
+          <div
+            role="status"
+            className="mt-4 flex items-start gap-2 rounded-2xl border border-border bg-surface-subtle p-3 text-sm text-fg-muted"
+          >
+            <Clock size={16} strokeWidth={2} className="mt-0.5 shrink-0" />
+            <span>Sua sessão expirou por inatividade. Entre novamente.</span>
+          </div>
+        ) : null}
 
         {erro ? (
           <div

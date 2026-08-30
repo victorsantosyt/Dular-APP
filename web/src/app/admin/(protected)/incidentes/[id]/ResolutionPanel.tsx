@@ -46,16 +46,16 @@ export function ResolutionPanel({ incidentId }: { incidentId: string }) {
   const suspenso = typeof score === "number" && score < 200;
 
   return (
-    <section className="mt-4 rounded-2xl border bg-white p-5">
-      <h2 className="text-sm font-extrabold text-gray-900">Resolução</h2>
+    <section className="mt-4 rounded-2xl border bg-surface p-5">
+      <h2 className="text-sm font-extrabold text-fg">Resolução</h2>
 
       <div className="mt-3 grid gap-3">
         <label className="grid gap-1 text-sm">
-          <span className="text-xs font-bold text-gray-500">Decisão</span>
+          <span className="text-xs font-bold text-fg-subtle">Decisão</span>
           <select
             value={resolucao}
             onChange={(e) => setResolucao(e.target.value as "CONFIRMADA" | "ARQUIVADA")}
-            className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-800"
+            className="rounded-xl border border-border bg-surface px-3 py-2 text-sm font-semibold text-fg"
           >
             <option value="CONFIRMADA">Confirmar denúncia</option>
             <option value="ARQUIVADA">Arquivar denúncia</option>
@@ -63,11 +63,11 @@ export function ResolutionPanel({ incidentId }: { incidentId: string }) {
         </label>
 
         <label className="grid gap-1 text-sm">
-          <span className="text-xs font-bold text-gray-500">Observação interna</span>
+          <span className="text-xs font-bold text-fg-subtle">Observação interna</span>
           <textarea
             value={observacao}
             onChange={(e) => setObservacao(e.target.value)}
-            className="min-h-24 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800"
+            className="min-h-24 rounded-xl border border-border bg-surface px-3 py-2 text-sm text-fg"
             placeholder="Opcional"
           />
         </label>
@@ -79,12 +79,12 @@ export function ResolutionPanel({ incidentId }: { incidentId: string }) {
         ) : null}
 
         {result ? (
-          <div className="grid gap-2 rounded-xl border border-gray-100 bg-gray-50 p-3 text-sm">
-            <div className="font-bold text-gray-900">
+          <div className="grid gap-2 rounded-xl border border-border-subtle bg-surface-secondary p-3 text-sm">
+            <div className="font-bold text-fg">
               {resolucao === "CONFIRMADA" ? "Penalidade aplicada" : "Bônus aplicado"}
             </div>
             {typeof score === "number" && faixa ? (
-              <div className="flex flex-wrap items-center gap-2 text-gray-700">
+              <div className="flex flex-wrap items-center gap-2 text-fg-muted">
                 <span>Score atualizado: {score}</span>
                 <span
                   className="rounded-full px-2 py-1 text-xs font-bold text-white"
@@ -106,7 +106,7 @@ export function ResolutionPanel({ incidentId }: { incidentId: string }) {
           type="button"
           onClick={aplicarResolucao}
           disabled={loading}
-          className="rounded-xl bg-gray-900 px-4 py-3 text-sm font-extrabold text-white disabled:opacity-60"
+          className="rounded-xl bg-accent px-4 py-3 text-sm font-extrabold text-white disabled:opacity-60"
         >
           {loading ? "Aplicando..." : "Aplicar resolução"}
         </button>

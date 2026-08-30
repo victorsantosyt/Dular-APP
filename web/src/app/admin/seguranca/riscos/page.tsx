@@ -9,6 +9,14 @@ import { AdminGrid } from "@/components/admin-ui/AdminGrid";
 import { AdminCard } from "@/components/admin-ui/AdminCard";
 import { AdminEmpty } from "@/components/admin-ui/AdminEmpty";
 import { AdminTable } from "@/components/admin-ui/AdminTable";
+import { AdminKpi } from "@/components/admin-ui/AdminKpi";
+import {
+  Badge,
+  gravidadeTone,
+  incidenteStatusTone,
+  rotuloEnum,
+  type Tone,
+} from "@/design-system/ui";
 
 function fmt(dt: Date) {
   return new Date(dt).toLocaleString("pt-BR");
@@ -48,28 +56,60 @@ export default async function RiscosPage() {
     ...sosEvents.map((event) => ({
       id: `sos-${event.id}`,
       tipo: "SOS",
+      // SOS é sempre o topo da escala: acionamento silencioso em campo.
+      prioridade: "CRITICA",
+      prioridadeTone: "critical" as Tone,
       usuario: event.user?.nome ?? event.user?.telefone ?? event.userId,
       servico: event.serviceId ?? "—",
       status: "ACIONADO",
+      statusTone: "critical" as Tone,
       horarioRaw: event.createdAt,
       horario: fmt(event.createdAt),
       href: null as string | null,
     })),
     ...incidents.map((incident) => ({
       id: `incident-${incident.id}`,
-      tipo: `${incident.type} · ${incident.severity}`,
+      tipo: rotuloEnum(incident.type),
+      prioridade: incident.severity,
+      prioridadeTone: gravidadeTone(incident.severity),
       usuario: incident.reportedUser?.nome ?? incident.reportedUser?.telefone ?? "—",
       servico: incident.serviceId ?? "—",
       status: incident.status,
+      statusTone: incidenteStatusTone(incident.status),
       horarioRaw: incident.createdAt,
       horario: fmt(incident.createdAt),
       href: `/admin/incidentes/${incident.id}`,
     })),
-  ].sort((a, b) => b.horarioRaw.getTime() - a.horarioRaw.getTime());
+  ].sort((a, b) => {
+    // Ordena por prioridade (crítico primeiro) e só depois por recência —
+    // uma fila de risco tem de mostrar o mais grave no topo, não o mais novo.
+    const peso: Record<string, number> = { CRITICA: 0, ALTA: 1, MEDIA: 2, BAIXA: 3 };
+    const pa = peso[(a.prioridade ?? "").toUpperCase()] ?? 4;
+    const pb = peso[(b.prioridade ?? "").toUpperCase()] ?? 4;
+    if (pa !== pb) return pa - pb;
+    return b.horarioRaw.getTime() - a.horarioRaw.getTime();
+  });
+
+  const criticos = rows.filter((r) => r.prioridadeTone === "critical").length;
+  const altos = rows.filter((r) => r.prioridadeTone === "high").length;
 
   return (
     <AdminPage title="Riscos" subtitle="SOS e incidentes abertos para acompanhamento rápido">
       <AdminGrid>
+        <div className="md:col-span-4">
+          <AdminKpi
+            label="Críticos"
+            value={String(criticos)}
+            hint={criticos > 0 ? "SOS ou incidente grave — agir agora" : "nenhum no momento"}
+          />
+        </div>
+        <div className="md:col-span-4">
+          <AdminKpi label="Alta prioridade" value={String(altos)} />
+        </div>
+        <div className="md:col-span-4">
+          <AdminKpi label="Total na fila" value={String(rows.length)} />
+        </div>
+
         <div className="md:col-span-12">
           <AdminCard title="Fila de risco">
             {rows.length === 0 ? (
@@ -77,6 +117,13 @@ export default async function RiscosPage() {
             ) : (
               <AdminTable
                 columns={[
+                  {
+                    key: "prioridade",
+                    label: "Prioridade",
+                    render: (row) => (
+                      <Badge tone={row.prioridadeTone}>{rotuloEnum(row.prioridade)}</Badge>
+                    ),
+                  },
                   {
                     key: "tipo",
                     label: "Tipo",
@@ -89,12 +136,18 @@ export default async function RiscosPage() {
                           {row.tipo}
                         </Link>
                       ) : (
-                        row.tipo
+                        <span className="font-semibold text-fg">{row.tipo}</span>
                       ),
                   },
                   { key: "usuario", label: "Usuário" },
                   { key: "servico", label: "Serviço" },
-                  { key: "status", label: "Status" },
+                  {
+                    key: "status",
+                    label: "Status",
+                    render: (row) => (
+                      <Badge tone={row.statusTone}>{rotuloEnum(row.status)}</Badge>
+                    ),
+                  },
                   { key: "horario", label: "Horário" },
                 ]}
                 rows={rows}

@@ -6,7 +6,7 @@ import { AdminCard } from "@/components/admin-ui/AdminCard";
 import { AdminTable } from "@/components/admin-ui/AdminTable";
 import { AdminEmpty } from "@/components/admin-ui/AdminEmpty";
 import { Button, Field } from "@/design-system/ui";
-import { UserCircle, IdCard, ShieldCheck, UserPlus } from "lucide-react";
+import { UserCircle, IdCard, ShieldCheck, UserPlus, AlertCircle, CheckCircle2 } from "lucide-react";
 import Cropper from "react-easy-crop";
 import { getCroppedImg } from "@/lib/cropper";
 
@@ -32,6 +32,7 @@ export default function ConfiguracoesPage() {
   const [users, setUsers] = useState<UserRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string>("");
+  const [msgErro, setMsgErro] = useState(false);
   const [cropOpen, setCropOpen] = useState(false);
   const [cropSrc, setCropSrc] = useState<string | null>(null);
   const [crop, setCrop] = useState({ x: 0, y: 0 });
@@ -50,7 +51,7 @@ export default function ConfiguracoesPage() {
   const [novaSenha, setNovaSenha] = useState("");
 
   async function loadAll() {
-    setMsg("");
+    (setMsgErro(false), setMsg(""));
     const [rMe, rUsers] = await Promise.all([
       fetch("/api/me").then((r) => r.json()),
       fetch("/api/admin/users?role=ADMIN")
@@ -75,7 +76,7 @@ export default function ConfiguracoesPage() {
 
   async function saveProfile() {
     setLoading(true);
-    setMsg("");
+    (setMsgErro(false), setMsg(""));
     try {
       const res = await fetch("/api/me", {
         method: "PUT",
@@ -85,9 +86,9 @@ export default function ConfiguracoesPage() {
       const j = await res.json();
       if (!res.ok) throw new Error(j?.error || "Erro ao salvar");
       setMe(j.user);
-      setMsg("Perfil atualizado.");
+      (setMsgErro(false), setMsg("Perfil atualizado."));
     } catch (e: any) {
-      setMsg(e?.message || "Falha ao salvar");
+      (setMsgErro(true), setMsg(e?.message || "Falha ao salvar"));
     } finally {
       setLoading(false);
     }
@@ -95,7 +96,7 @@ export default function ConfiguracoesPage() {
 
   async function uploadAvatar(file: File) {
     setLoading(true);
-    setMsg("");
+    (setMsgErro(false), setMsg(""));
     try {
       // Pré-validação: limita arquivo muito grande antes de abrir o cropper (~4MB).
       if (file.size > 4 * 1024 * 1024) {
@@ -106,7 +107,7 @@ export default function ConfiguracoesPage() {
       setCropSrc(dataUrl);
       setCropOpen(true);
     } catch (e: any) {
-      setMsg(e?.message || "Falha no upload");
+      (setMsgErro(true), setMsg(e?.message || "Falha no upload"));
     } finally {
       setLoading(false);
     }
@@ -114,17 +115,17 @@ export default function ConfiguracoesPage() {
 
   async function removeAvatar() {
     setLoading(true);
-    setMsg("");
+    (setMsgErro(false), setMsg(""));
     try {
       const res = await fetch("/api/me/avatar", { method: "DELETE" });
       const j = await res.json();
       if (!res.ok) throw new Error(j?.error || "Erro ao remover avatar");
 
       setMe((prev) => (prev ? { ...prev, avatarUrl: null } : prev));
-      setMsg("Avatar removido.");
+      (setMsgErro(false), setMsg("Avatar removido."));
       window.dispatchEvent(new Event("dular:me-updated"));
     } catch (e: any) {
-      setMsg(e?.message || "Falha ao remover");
+      (setMsgErro(true), setMsg(e?.message || "Falha ao remover"));
     } finally {
       setLoading(false);
     }
@@ -132,7 +133,7 @@ export default function ConfiguracoesPage() {
 
   async function createAdmin() {
     setLoading(true);
-    setMsg("");
+    (setMsgErro(false), setMsg(""));
     try {
       const res = await fetch("/api/admin/admins/create", {
         method: "POST",
@@ -148,9 +149,9 @@ export default function ConfiguracoesPage() {
       setNovoUsuario("");
       setNovaSenha("");
       await loadAll();
-      setMsg("Admin cadastrado.");
+      (setMsgErro(false), setMsg("Admin cadastrado."));
     } catch (e: any) {
-      setMsg(e?.message || "Falha ao cadastrar");
+      (setMsgErro(true), setMsg(e?.message || "Falha ao cadastrar"));
     } finally {
       setLoading(false);
     }
@@ -159,7 +160,7 @@ export default function ConfiguracoesPage() {
   async function removeAdmin(userId: string) {
     if (!confirm("Remover permissão de ADMIN desse usuário?")) return;
     setLoading(true);
-    setMsg("");
+    (setMsgErro(false), setMsg(""));
     try {
       const res = await fetch("/api/admin/admins/demote", {
         method: "POST",
@@ -172,7 +173,7 @@ export default function ConfiguracoesPage() {
       await loadAll();
       setMsg("Admin removido.");
     } catch (e: any) {
-      setMsg(e?.message || "Falha ao remover");
+      (setMsgErro(true), setMsg(e?.message || "Falha ao remover"));
     } finally {
       setLoading(false);
     }
@@ -181,7 +182,7 @@ export default function ConfiguracoesPage() {
   async function confirmCropAndUpload() {
     if (!cropSrc || !croppedAreaPixels) return;
     setLoading(true);
-    setMsg("");
+    (setMsgErro(false), setMsg(""));
     try {
       const croppedDataUrl = await getCroppedImg(cropSrc, croppedAreaPixels);
       const res = await fetch("/api/me/avatar", {
@@ -198,7 +199,7 @@ export default function ConfiguracoesPage() {
       setCropOpen(false);
       setCropSrc(null);
     } catch (e: any) {
-      setMsg(e?.message || "Falha no upload");
+      (setMsgErro(true), setMsg(e?.message || "Falha no upload"));
     } finally {
       setLoading(false);
     }
@@ -208,8 +209,21 @@ export default function ConfiguracoesPage() {
     <AdminPage title="" subtitle="">
       <div className="mx-auto max-w-[900px] space-y-6">
         {msg ? (
-          <div className="rounded-lg border border-border bg-surface-subtle px-4 py-3 text-sm text-fg-muted">
-            {msg}
+          <div
+            role="status"
+            aria-live="polite"
+            className={
+              msgErro
+                ? "flex items-start gap-2 rounded-lg border border-error/30 bg-error-light px-4 py-3 text-sm text-error-dark"
+                : "flex items-start gap-2 rounded-lg border border-success/30 bg-success-light px-4 py-3 text-sm text-success-dark"
+            }
+          >
+            {msgErro ? (
+              <AlertCircle size={16} strokeWidth={2} className="mt-0.5 shrink-0" />
+            ) : (
+              <CheckCircle2 size={16} strokeWidth={2} className="mt-0.5 shrink-0" />
+            )}
+            <span>{msg}</span>
           </div>
         ) : null}
 
@@ -269,7 +283,7 @@ export default function ConfiguracoesPage() {
 
         {/* Cropper modal */}
         {cropOpen && cropSrc ? (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-fg/50 p-4 backdrop-blur-sm">
             <div className="w-full max-w-[420px] rounded-2xl border border-border bg-surface p-4 shadow-lg ring-1 ring-border">
               <div className="relative h-[300px] w-full overflow-hidden rounded-xl bg-surface-subtle">
                 <Cropper

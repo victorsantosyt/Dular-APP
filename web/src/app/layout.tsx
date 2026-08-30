@@ -5,6 +5,7 @@ import { Providers } from "@/components/Providers";
 export const metadata: Metadata = {
   title: "Dular Admin",
   description: "Painel administrativo Dular",
+  robots: { index: false, follow: false },
 };
 
 export default function RootLayout({

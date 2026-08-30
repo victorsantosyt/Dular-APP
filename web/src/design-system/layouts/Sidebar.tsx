@@ -7,9 +7,23 @@ import { cn } from "@/design-system/utils/cn";
 import { NAV_SECTIONS, NAV_SETTINGS, type NavItem } from "./nav";
 import type { HeaderUser } from "./Header";
 
-function isActive(pathname: string, href: string): boolean {
+function matches(pathname: string, href: string): boolean {
   if (href === "/admin") return pathname === "/admin" || pathname === "/admin/";
   return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+/**
+ * href ativo = o match MAIS ESPECÍFICO (mais longo) entre todos os itens.
+ * Sem isso, /admin/insights/feedbacks acende "Analytics" (casa pelo prefixo)
+ * E "Feedbacks" (casa exato) ao mesmo tempo.
+ */
+function resolveActiveHref(pathname: string, hrefs: string[]): string | null {
+  let melhor: string | null = null;
+  for (const href of hrefs) {
+    if (!matches(pathname, href)) continue;
+    if (melhor === null || href.length > melhor.length) melhor = href;
+  }
+  return melhor;
 }
 
 function NavRow({ item, active }: { item: NavItem; active: boolean }) {
@@ -77,6 +91,13 @@ const ROLE_LABEL: Record<string, string> = {
 export default function Sidebar({ user }: { user?: HeaderUser | null }) {
   const pathname = usePathname() || "/admin";
 
+  // Itens `soon` ficam de fora: não navegam, então nunca podem estar ativos.
+  const todosHrefs = [
+    ...NAV_SECTIONS.flatMap((s) => s.items.filter((i) => !i.soon).map((i) => i.href)),
+    NAV_SETTINGS.href,
+  ];
+  const activeHref = resolveActiveHref(pathname, todosHrefs);
+
   return (
     <aside className="sticky top-0 flex h-screen w-[264px] shrink-0 flex-col border-r border-border bg-surface">
       {/* Identidade: logo + usuário logado (mesma altura do Header) */}
@@ -121,7 +142,7 @@ export default function Sidebar({ user }: { user?: HeaderUser | null }) {
             ) : null}
             <div className="space-y-0.5">
               {section.items.map((item) => (
-                <NavRow key={item.href} item={item} active={isActive(pathname, item.href)} />
+                <NavRow key={item.href} item={item} active={item.href === activeHref} />
               ))}
             </div>
           </div>
@@ -130,7 +151,7 @@ export default function Sidebar({ user }: { user?: HeaderUser | null }) {
 
       {/* Rodapé: Configurações */}
       <div className="border-t border-border-subtle px-3 py-3">
-        <NavRow item={NAV_SETTINGS} active={isActive(pathname, NAV_SETTINGS.href)} />
+        <NavRow item={NAV_SETTINGS} active={NAV_SETTINGS.href === activeHref} />
       </div>
     </aside>
   );

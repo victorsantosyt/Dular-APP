@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Search, Bell } from "lucide-react";
 import { cn } from "@/design-system/utils/cn";
 import { initials } from "@/design-system/utils/avatar";
+import NotificationsBell from "./NotificationsBell";
 
 export type HeaderUser = {
   id: string;
@@ -68,22 +68,7 @@ export default function Header({
       <div className="flex items-center gap-2">
         {actions}
 
-        <button
-          type="button"
-          aria-label="Buscar"
-          className="flex h-9 w-9 items-center justify-center rounded-lg text-fg-subtle transition-colors hover:bg-surface-subtle hover:text-fg"
-        >
-          <Search size={18} strokeWidth={1.75} />
-        </button>
-
-        <button
-          type="button"
-          aria-label="Notificações"
-          className="relative flex h-9 w-9 items-center justify-center rounded-lg text-fg-subtle transition-colors hover:bg-surface-subtle hover:text-fg"
-        >
-          <Bell size={18} strokeWidth={1.75} />
-          <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-accent ring-2 ring-surface" />
-        </button>
+        <NotificationsBell />
 
         <div className="ml-2 flex items-center gap-2 border-l border-border pl-3">
           <div

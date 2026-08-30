@@ -6,10 +6,10 @@ type Props = {
 
 export function AdminKpi({ label, value, hint }: Props) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white/80 p-4 ring-1 ring-slate-900/5">
-      <div className="text-xs text-slate-500">{label}</div>
-      <div className="mt-2 text-2xl font-semibold text-slate-900">{value}</div>
-      {hint ? <div className="mt-1 text-xs text-slate-400">{hint}</div> : null}
+    <div className="rounded-2xl border border-border bg-glass-surface-strong p-4 ring-1 ring-border">
+      <div className="text-xs text-fg-subtle">{label}</div>
+      <div className="mt-2 text-2xl font-semibold text-fg">{value}</div>
+      {hint ? <div className="mt-1 text-xs text-fg-subtle">{hint}</div> : null}
     </div>
   );
 }

@@ -32,19 +32,33 @@ export default function AdminLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex min-h-screen bg-surface-secondary text-fg">
-      <Sidebar />
+    <div className="relative flex min-h-screen overflow-hidden bg-accent-subtle text-fg">
+      {/* Manchas roxas desfocadas — dão a cor/atmosfera ao fundo por trás do glass */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -left-32 -top-32 h-[420px] w-[420px] rounded-full bg-primary-200/60 blur-3xl"
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute right-[-10%] top-1/3 h-[380px] w-[380px] rounded-full bg-primary-300/40 blur-3xl"
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute bottom-[-15%] left-1/3 h-[440px] w-[440px] rounded-full bg-accent/20 blur-3xl"
+      />
 
-      <div className="flex min-w-0 flex-1 flex-col">
+      <Sidebar user={user} />
+
+      <div className="relative flex min-w-0 flex-1 flex-col">
         <Header title={title} actions={actions} user={user} autoLoadUser={autoLoadUser} />
 
         {breadcrumb && breadcrumb.length > 0 ? (
-          <div className="flex h-11 shrink-0 items-center border-b border-border bg-surface px-6">
+          <div className="flex h-11 shrink-0 items-center border-b border-glass-border bg-glass-surface px-6 backdrop-blur-md">
             <Breadcrumb items={breadcrumb} />
           </div>
         ) : null}
 
-        <main className="mx-auto w-full max-w-[1400px] flex-1 px-6 py-6">{children}</main>
+        <main className="relative mx-auto w-full max-w-[1400px] flex-1 px-6 py-6">{children}</main>
       </div>
 
       {floatingActions ? (

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Search, Bell } from "lucide-react";
 import { cn } from "@/design-system/utils/cn";
+import { initials } from "@/design-system/utils/avatar";
 
 export type HeaderUser = {
   id: string;
@@ -10,12 +11,6 @@ export type HeaderUser = {
   avatarUrl: string | null;
   role: string;
 };
-
-function initials(name: string | null): string {
-  if (!name) return "·";
-  const parts = name.trim().split(/\s+/);
-  return (parts[0]?.[0] ?? "").concat(parts[1]?.[0] ?? "").toUpperCase() || "·";
-}
 
 /**
  * Header — barra superior do painel.
@@ -63,7 +58,7 @@ export default function Header({
   }, [autoLoadUser, userProp]);
 
   return (
-    <header className="sticky top-0 z-10 flex h-16 shrink-0 items-center gap-4 border-b border-border bg-surface/95 px-6 backdrop-blur-sm">
+    <header className="sticky top-0 z-10 flex h-16 shrink-0 items-center gap-4 border-b border-glass-border bg-glass-surface px-6 backdrop-blur-md">
       <div className="min-w-0 flex-1">
         {title ? (
           <h1 className="truncate text-xl font-semibold tracking-tight text-fg">{title}</h1>

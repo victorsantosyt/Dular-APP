@@ -8,7 +8,8 @@ import { AdminGrid } from "@/components/admin-ui/AdminGrid";
 import { AdminKpi } from "@/components/admin-ui/AdminKpi";
 import { AdminCard } from "@/components/admin-ui/AdminCard";
 import { AdminTable } from "@/components/admin-ui/AdminTable";
-import { ClipboardList } from "lucide-react";
+import { ClipboardList, FolderOpen, Loader, CheckCheck, Flag, Timer, Percent } from "lucide-react";
+import { Badge, servicoStatusLabel, servicoStatusTone } from "@/design-system/ui";
 import { AdminEmpty } from "@/components/admin-ui/AdminEmpty";
 
 export default async function ServicosPage() {
@@ -93,36 +94,64 @@ export default async function ServicosPage() {
     <AdminPage title="" subtitle="">
       <AdminGrid>
         <div className="md:col-span-3">
-          <AdminKpi label="Abertos" value={String(abertos)} hint="SOLICITADO / ACEITO" />
-        </div>
-        <div className="md:col-span-3">
-          <AdminKpi label="Em andamento" value={String(andamento)} hint="EM_ANDAMENTO" />
-        </div>
-        <div className="md:col-span-3">
-          <AdminKpi label="Concluídos" value={String(concluidos)} hint="CONCLUIDO / CONFIRMADO" />
-        </div>
-        <div className="md:col-span-3">
-          <AdminKpi label="Finalizados" value={String(finalizados)} hint="FINALIZADO" />
-        </div>
-        <div className="md:col-span-3">
           <AdminKpi
-            label="Tempo médio até ACEITO"
-            value={tempoAceiteMin != null ? `${tempoAceiteMin} min` : "—"}
-            hint="SOLICITADO → ACEITO"
+            label="Abertos"
+            value={String(abertos)}
+            hint="Aguardando início"
+            icon={FolderOpen}
+            tone="medium"
           />
         </div>
         <div className="md:col-span-3">
           <AdminKpi
-            label="Tempo médio CONCLUIDO → CONFIRMADO"
+            label="Em andamento"
+            value={String(andamento)}
+            hint="Profissional em atendimento"
+            icon={Loader}
+            tone="info"
+          />
+        </div>
+        <div className="md:col-span-3">
+          <AdminKpi
+            label="Concluídos"
+            value={String(concluidos)}
+            hint="Aguardando avaliação"
+            icon={CheckCheck}
+            tone="low"
+          />
+        </div>
+        <div className="md:col-span-3">
+          <AdminKpi
+            label="Finalizados"
+            value={String(finalizados)}
+            hint="Ciclo completo, já avaliados"
+            icon={Flag}
+            tone="success"
+          />
+        </div>
+        <div className="md:col-span-3">
+          <AdminKpi
+            label="Tempo até o aceite"
+            value={tempoAceiteMin != null ? `${tempoAceiteMin} min` : "—"}
+            hint="Média da solicitação até o profissional aceitar"
+            icon={Timer}
+          />
+        </div>
+        <div className="md:col-span-3">
+          <AdminKpi
+            label="Tempo até a confirmação"
             value={tempoConfirmadoMin != null ? `${tempoConfirmadoMin} min` : "—"}
-            hint="Concluído pela diarista até confirmação do cliente"
+            hint="Média da conclusão até o cliente confirmar"
+            icon={Timer}
           />
         </div>
         <div className="md:col-span-3">
           <AdminKpi
             label="Taxa de conclusão"
             value={taxaConclusao != null ? `${taxaConclusao}%` : "—"}
-            hint="FINALIZADO / SOLICITADO"
+            hint="Finalizados sobre o total de solicitações"
+            icon={Percent}
+            tone="success"
           />
         </div>
 
@@ -145,7 +174,15 @@ export default async function ServicosPage() {
                       </a>
                     ),
                   },
-                  { key: "status", label: "Status" },
+                  {
+                    key: "status",
+                    label: "Status",
+                    render: (r) => (
+                      <Badge tone={servicoStatusTone(r.status)}>
+                        {servicoStatusLabel(r.status)}
+                      </Badge>
+                    ),
+                  },
                   { key: "cliente", label: "Cliente", render: (r) => r.cliente?.nome ?? "—" },
                   { key: "diarista", label: "Diarista", render: (r) => r.diarista?.nome ?? "—" },
                   { key: "bairro", label: "Bairro", render: (r) => `${r.bairro ?? "—"} / ${r.cidade ?? "—"}` },

@@ -99,8 +99,8 @@ export default async function InsightsPage() {
 
   const variacaoHint =
     m.northStar.variacaoPct === null
-      ? `semana anterior: ${m.northStar.semanaAnterior}`
-      : `${m.northStar.variacaoPct >= 0 ? "+" : ""}${m.northStar.variacaoPct.toFixed(0)}% vs semana anterior (${m.northStar.semanaAnterior})`;
+      ? `Semana anterior: ${m.northStar.semanaAnterior}`
+      : `${m.northStar.variacaoPct >= 0 ? "+" : ""}${m.northStar.variacaoPct.toFixed(0)}% ante a semana anterior (${m.northStar.semanaAnterior})`;
 
   return (
     <AdminPage title="" subtitle="">
@@ -118,7 +118,11 @@ export default async function InsightsPage() {
           <AdminKpi
             label="Liquidez (28 dias)"
             value={pct(m.liquidez.pct)}
-            hint={`${m.liquidez.aceitos}/${m.liquidez.solicitados} solicitados aceitos · meta ≥60%`}
+            hint={
+              m.liquidez.solicitados === 0
+                ? "Sem solicitações nos últimos 28 dias"
+                : `${m.liquidez.aceitos} de ${m.liquidez.solicitados} solicitações aceitas (meta: 60%)`
+            }
             icon={Droplets}
             tone="info"
           />
@@ -127,20 +131,28 @@ export default async function InsightsPage() {
           <AdminKpi
             label="Retenção de profissionais"
             value={pct(m.retencao.pct)}
-            hint={`${m.retencao.retidos}/${m.retencao.ativosSemanaBase} nas 2 últimas semanas fechadas · meta ≥30%`}
+            hint={
+              m.retencao.ativosSemanaBase === 0
+                ? "Sem profissionais ativos na semana de referência"
+                : `${m.retencao.retidos} de ${m.retencao.ativosSemanaBase} voltaram a atender (meta: 30%)`
+            }
             icon={Repeat}
             tone="success"
           />
         </div>
         <div className="md:col-span-3">
           <AdminKpi
-            label="Cadastro → 1º serviço"
+            label="Cadastro até o 1º serviço"
             value={
               m.tempoCadastroPrimeiroServico.medianaDias === null
                 ? "—"
                 : `${m.tempoCadastroPrimeiroServico.medianaDias} d`
             }
-            hint={`mediana · ${m.tempoCadastroPrimeiroServico.amostra} profissionais`}
+            hint={
+              m.tempoCadastroPrimeiroServico.amostra === 0
+                ? "Ainda sem amostra suficiente"
+                : `Mediana de ${m.tempoCadastroPrimeiroServico.amostra} profissionais`
+            }
             icon={Timer}
             tone="info"
           />
@@ -195,7 +207,7 @@ export default async function InsightsPage() {
           <AdminKpi
             label="PIX confirmados"
             value={String(m.pagamentos.confirmados)}
-            hint={`${m.pagamentos.informados} informados · ${m.pagamentos.aguardando} aguardando (de concluídos)`}
+            hint={`${m.pagamentos.informados} informados e ${m.pagamentos.aguardando} aguardando`}
             icon={BadgeDollarSign}
             tone="success"
           />
@@ -204,7 +216,11 @@ export default async function InsightsPage() {
           <AdminKpi
             label="PIX contestados"
             value={String(m.pagamentos.contestados)}
-            hint={m.pagamentos.contestados > 0 ? "exige atenção — ver disputa no chat" : "nenhuma disputa aberta"}
+            hint={
+              m.pagamentos.contestados > 0
+                ? "Exigem atenção: ver disputa no chat"
+                : "Nenhuma disputa aberta"
+            }
             icon={AlertTriangle}
             tone={m.pagamentos.contestados > 0 ? "critical" : "neutral"}
           />

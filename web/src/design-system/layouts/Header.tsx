@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { cn } from "@/design-system/utils/cn";
 import { initials } from "@/design-system/utils/avatar";
+import { Menu } from "lucide-react";
 import NotificationsBell from "./NotificationsBell";
 
 export type HeaderUser = {
@@ -25,11 +26,14 @@ export default function Header({
   actions,
   user: userProp,
   autoLoadUser = false,
+  onOpenMenu,
 }: {
   title?: string;
   actions?: React.ReactNode;
   user?: HeaderUser | null;
   autoLoadUser?: boolean;
+  /** Abre a gaveta de navegação no mobile. */
+  onOpenMenu?: () => void;
 }) {
   const [user, setUser] = useState<HeaderUser | null>(userProp ?? null);
 
@@ -58,7 +62,17 @@ export default function Header({
   }, [autoLoadUser, userProp]);
 
   return (
-    <header className="sticky top-0 z-10 flex h-16 shrink-0 items-center gap-4 border-b border-border bg-surface px-8">
+    <header className="sticky top-0 z-10 flex h-16 shrink-0 items-center gap-3 border-b border-border bg-surface px-4 md:gap-4 md:px-8">
+      {onOpenMenu ? (
+        <button
+          type="button"
+          onClick={onOpenMenu}
+          aria-label="Abrir menu"
+          className="-ml-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-fg-muted transition-colors hover:bg-surface-subtle hover:text-fg md:hidden"
+        >
+          <Menu size={20} strokeWidth={1.75} />
+        </button>
+      ) : null}
       <div className="min-w-0 flex-1">
         {title ? (
           <h1 className="truncate text-heading font-semibold text-fg">{title}</h1>

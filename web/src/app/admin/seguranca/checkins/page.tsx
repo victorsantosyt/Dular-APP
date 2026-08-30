@@ -69,7 +69,7 @@ export default async function CheckinsPage() {
       diarista: event.user?.nome ?? event.user?.telefone ?? event.userId,
       servico: event.serviceId ?? "—",
       servicoLabel: service
-        ? `${service.id.slice(0, 6)} · ${service.bairro}, ${service.cidade}/${service.uf}`
+        ? `${service.id.slice(0, 6)} — ${service.bairro}, ${service.cidade}/${service.uf}`
         : event.serviceId ?? "—",
       localizacao: fmtLocal(event.lat, event.lng),
       horario: fmt(event.createdAt),
@@ -88,19 +88,19 @@ export default async function CheckinsPage() {
           <AdminKpi
             label="Nas últimas 6h"
             value={String(recentes)}
-            hint="check-ins com sinal recente de campo"
+            hint="Check-ins com sinal recente de campo"
             icon={Signal}
             tone="success"
           />
         </div>
         <div className="md:col-span-4">
-          <AdminKpi label="Total registrados" value={String(rows.length)} hint="últimos 50" icon={ListChecks} />
+          <AdminKpi label="Total registrados" value={String(rows.length)} hint="Últimos 50 registros" icon={ListChecks} />
         </div>
         <div className="md:col-span-4">
           <AdminKpi
             label="Sem localização"
             value={String(semLocalizacao)}
-            hint={semLocalizacao > 0 ? "GPS não enviado no check-in" : "todos com GPS"}
+            hint={semLocalizacao > 0 ? "GPS não enviado no check-in" : "Todos com GPS"}
             icon={MapPinOff}
             tone={semLocalizacao > 0 ? "medium" : "neutral"}
           />

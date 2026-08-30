@@ -24,9 +24,24 @@ function redirectToLogin(req: NextRequest) {
   return response;
 }
 
-// Redireciona qualquer rota /admin* para /admin/login se não houver sessão JWT válida.
+// V1 sai só por mobile (TestFlight) + admin web. O app web consumidor
+// (raiz, /login/[role], /cliente, /diarista, /montador, /billing, /servicos,
+// /onboarding, /escolher-perfil, /auth) continua no repo, só não fica
+// público agora — qualquer rota fora de /admin e /api cai no login do painel.
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
+
+  // Assets estáticos servidos direto de /public (ex.: /brand/dular-login.png
+  // usado na própria tela de login do admin) — nunca gatear, senão a página
+  // de login fica sem os próprios recursos.
+  const isStaticAsset = pathname.startsWith("/_next") || /\.[a-zA-Z0-9]+$/.test(pathname);
+  if (isStaticAsset) {
+    return NextResponse.next();
+  }
+
+  if (pathname.startsWith("/api")) {
+    return NextResponse.next();
+  }
 
   if (pathname.startsWith("/admin/login")) {
     return NextResponse.next();
@@ -43,11 +58,14 @@ export async function middleware(req: NextRequest) {
     } catch {
       return redirectToLogin(req);
     }
+
+    return NextResponse.next();
   }
 
-  return NextResponse.next();
+  // Fora de /admin e /api: app web consumidor, desativado pro launch v1.
+  return NextResponse.redirect(new URL("/admin/login", req.url));
 }
 
 export const config = {
-  matcher: ["/admin/:path*"],
+  matcher: ["/:path*"],
 };

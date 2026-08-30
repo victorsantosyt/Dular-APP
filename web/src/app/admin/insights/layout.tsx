@@ -1,29 +1,15 @@
-import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
-import { verifyToken } from "@/lib/auth";
-import AdminShell from "@/app/admin/_ui/AdminShell";
+import { requireAdminSession } from "@/lib/adminSession";
+import { AdminLayout } from "@/design-system/layouts";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export default async function InsightsLayout({ children }: { children: React.ReactNode }) {
-  const cookieStore = await cookies();
-  const token = cookieStore.get("dular_token")?.value;
+  const { user } = await requireAdminSession();
 
-  if (!token) {
-    redirect("/admin/login");
-  }
-
-  let session: any = null;
-  try {
-    session = verifyToken(token);
-  } catch {
-    redirect("/admin/login");
-  }
-
-  if (!session || session.role !== "ADMIN") {
-    redirect("/admin/login");
-  }
-
-  return <AdminShell>{children}</AdminShell>;
+  return (
+    <AdminLayout user={user} autoLoadUser={false}>
+      {children}
+    </AdminLayout>
+  );
 }

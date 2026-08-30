@@ -7,20 +7,18 @@ type Props = {
 
 export function AdminCard({ title, right, children, className = "" }: Props) {
   return (
-    <section
-      className={[
-        "rounded-2xl border border-glass-border bg-glass-surface shadow-sm backdrop-blur-md",
-        "ring-1 ring-border",
-        className,
-      ].join(" ")}
-    >
+    <section className={["rounded-xl border border-border bg-surface", className].join(" ")}>
       {(title || right) && (
-        <div className="flex items-center justify-between px-5 pt-5">
-          {title ? <h2 className="text-sm font-semibold text-fg">{title}</h2> : <div />}
-          {right ? <div>{right}</div> : null}
+        <div className="flex items-center justify-between gap-4 border-b border-border-subtle px-5 py-4">
+          {title ? (
+            <h2 className="text-sm font-semibold tracking-tight text-fg">{title}</h2>
+          ) : (
+            <div />
+          )}
+          {right ? <div className="shrink-0">{right}</div> : null}
         </div>
       )}
-      <div className="px-5 pb-5 pt-4">{children}</div>
+      <div className="p-5">{children}</div>
     </section>
   );
 }

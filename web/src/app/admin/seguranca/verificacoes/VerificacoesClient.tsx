@@ -246,9 +246,11 @@ function readError(data: unknown) {
 }
 
 function pillClass(status: string) {
-  if (status === "APPROVED") return "bg-emerald-100 text-emerald-800 ring-emerald-200";
-  if (status === "REJECTED") return "bg-red-100 text-red-800 ring-red-200";
-  return "bg-amber-100 text-amber-800 ring-amber-200";
+  // Espelha design-system/ui/priority (verificacaoTone): aprovada=sucesso,
+  // reprovada=crítico, pendente=média (fila de KYC a resolver).
+  if (status === "APPROVED") return "bg-success-light text-success-dark ring-success/30";
+  if (status === "REJECTED") return "bg-error-light text-error-dark ring-error/30";
+  return "bg-warning-light text-warning-dark ring-warning/30";
 }
 
 function guardianLine(guardian: Guardian) {
@@ -439,21 +441,33 @@ export default function VerificacoesClient() {
   return (
     <div className="space-y-4">
       <div className="grid gap-3 md:grid-cols-4">
-        <button onClick={() => setTab("PENDING")} className="rounded-2xl border border-white/50 bg-white/75 p-4 text-left ring-1 ring-slate-900/5">
-          <div className="text-xs font-semibold text-slate-500">Pendentes</div>
-          <div className="mt-2 text-2xl font-bold text-slate-900">{stats.pending}</div>
+        <button
+          onClick={() => setTab("PENDING")}
+          className="rounded-xl border border-l-4 border-border border-l-warning bg-surface p-4 text-left transition-colors hover:bg-surface-subtle"
+        >
+          <div className="text-eyebrow font-bold uppercase text-fg-subtle">Pendentes</div>
+          <div className="mt-2 text-metric font-bold tabular-nums text-warning-dark">{stats.pending}</div>
         </button>
-        <button onClick={() => setTab("APPROVED")} className="rounded-2xl border border-white/50 bg-white/75 p-4 text-left ring-1 ring-slate-900/5">
-          <div className="text-xs font-semibold text-slate-500">Aprovadas</div>
-          <div className="mt-2 text-2xl font-bold text-emerald-700">{stats.approved}</div>
+        <button
+          onClick={() => setTab("APPROVED")}
+          className="rounded-xl border border-l-4 border-border border-l-success bg-surface p-4 text-left transition-colors hover:bg-surface-subtle"
+        >
+          <div className="text-eyebrow font-bold uppercase text-fg-subtle">Aprovadas</div>
+          <div className="mt-2 text-metric font-bold tabular-nums text-success-dark">{stats.approved}</div>
         </button>
-        <button onClick={() => setTab("REJECTED")} className="rounded-2xl border border-white/50 bg-white/75 p-4 text-left ring-1 ring-slate-900/5">
-          <div className="text-xs font-semibold text-slate-500">Reprovadas</div>
-          <div className="mt-2 text-2xl font-bold text-red-700">{stats.rejected}</div>
+        <button
+          onClick={() => setTab("REJECTED")}
+          className="rounded-xl border border-l-4 border-border border-l-error bg-surface p-4 text-left transition-colors hover:bg-surface-subtle"
+        >
+          <div className="text-eyebrow font-bold uppercase text-fg-subtle">Reprovadas</div>
+          <div className="mt-2 text-metric font-bold tabular-nums text-error-dark">{stats.rejected}</div>
         </button>
-        <button onClick={() => setTab("RENEWAL")} className="rounded-2xl border border-white/50 bg-white/75 p-4 text-left ring-1 ring-slate-900/5">
-          <div className="text-xs font-semibold text-slate-500">Renovação/Reenvios</div>
-          <div className="mt-2 text-2xl font-bold text-violet-700">{stats.renewals}</div>
+        <button
+          onClick={() => setTab("RENEWAL")}
+          className="rounded-xl border border-l-4 border-border border-l-info bg-surface p-4 text-left transition-colors hover:bg-surface-subtle"
+        >
+          <div className="text-eyebrow font-bold uppercase text-fg-subtle">Renovação/Reenvios</div>
+          <div className="mt-2 text-metric font-bold tabular-nums text-info-dark">{stats.renewals}</div>
         </button>
       </div>
 
@@ -465,7 +479,7 @@ export default function VerificacoesClient() {
               onClick={() => setTab(item.key)}
               className={[
                 "rounded-full px-3 py-2 text-xs font-bold ring-1",
-                tab === item.key ? "bg-violet-700 text-white ring-violet-700" : "bg-white/70 text-slate-700 ring-slate-200",
+                tab === item.key ? "bg-accent text-white ring-accent" : "bg-surface text-fg-muted ring-border hover:bg-surface-subtle",
               ].join(" ")}
             >
               {item.label}
@@ -476,7 +490,7 @@ export default function VerificacoesClient() {
           <select
             value={role}
             onChange={(event) => setRole(event.target.value as RoleFilter)}
-            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none ring-1 ring-slate-900/5"
+            className="rounded-xl border border-border bg-surface px-3 py-2 text-sm text-fg outline-none ring-1 ring-border"
           >
             {ROLE_FILTERS.map((item) => (
               <option key={item.key} value={item.key}>{item.label}</option>
@@ -486,13 +500,13 @@ export default function VerificacoesClient() {
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Buscar por nome, email, telefone ou identificador"
-            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none ring-1 ring-slate-900/5"
+            className="rounded-xl border border-border bg-surface px-3 py-2 text-sm text-fg outline-none ring-1 ring-border"
           />
         </div>
       </AdminCard>
 
       {message ? (
-        <div className="rounded-2xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm font-semibold text-violet-900">
+        <div className="rounded-xl border border-accent/30 bg-accent-subtle px-4 py-3 text-sm font-semibold text-accent-strong">
           {message}
         </div>
       ) : null}
@@ -506,7 +520,7 @@ export default function VerificacoesClient() {
           <div className="overflow-x-auto">
             <table className="w-full min-w-[1040px] border-collapse">
               <thead>
-                <tr className="text-left text-xs text-slate-500">
+                <tr className="text-left text-xs text-fg-subtle">
                   <th className="px-2 py-2 font-semibold">Usuário</th>
                   <th className="px-2 py-2 font-semibold">Perfil</th>
                   <th className="px-2 py-2 font-semibold">Documento</th>
@@ -519,34 +533,34 @@ export default function VerificacoesClient() {
               </thead>
               <tbody>
                 {visibleItems.map((item) => (
-                  <tr key={item.id} className="border-t border-slate-200/70 align-top">
-                    <td className="px-2 py-3 text-sm text-slate-800">
+                  <tr key={item.id} className="border-t border-border align-top">
+                    <td className="px-2 py-3 text-sm text-fg">
                       <div className="font-bold">{item.user.nome}</div>
-                      <div className="text-xs text-slate-500">{item.user.email ?? "sem email"}</div>
-                      <div className="text-xs text-slate-500">{maskPhone(item.user.telefone)}</div>
+                      <div className="text-xs text-fg-subtle">{item.user.email ?? "sem email"}</div>
+                      <div className="text-xs text-fg-subtle">{maskPhone(item.user.telefone)}</div>
                     </td>
-                    <td className="px-2 py-3 text-sm text-slate-700">{roleLabel[item.user.role]}</td>
-                    <td className="px-2 py-3 text-sm text-slate-700">{docTypeText(item.docType)}</td>
+                    <td className="px-2 py-3 text-sm text-fg-muted">{roleLabel[item.user.role]}</td>
+                    <td className="px-2 py-3 text-sm text-fg-muted">{docTypeText(item.docType)}</td>
                     <td className="px-2 py-3">
                       <span className={["rounded-full px-2 py-1 text-xs font-bold ring-1", pillClass(item.status)].join(" ")}>
                         {statusLabel[item.status] ?? item.status}
                       </span>
                     </td>
-                    <td className="px-2 py-3 text-sm text-slate-600">{fmtDate(item.createdAt)}</td>
-                    <td className="px-2 py-3 text-sm text-slate-700">
+                    <td className="px-2 py-3 text-sm text-fg-muted">{fmtDate(item.createdAt)}</td>
+                    <td className="px-2 py-3 text-sm text-fg-muted">
                       <div className="font-semibold">{guardianStatusText(item.guardian.verificationStatus)}</div>
-                      <div className="text-xs text-slate-500">Score {Math.round(item.guardian.score)} · {tierText(item.guardian.tier)}</div>
-                      <div className="text-xs text-slate-500">{guardianLine(item.guardian)}</div>
+                      <div className="text-xs text-fg-subtle">Score {Math.round(item.guardian.score)} · {tierText(item.guardian.tier)}</div>
+                      <div className="text-xs text-fg-subtle">{guardianLine(item.guardian)}</div>
                     </td>
                     <td className="px-2 py-3">
-                      <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-bold text-slate-700 ring-1 ring-slate-200">
+                      <span className="rounded-full bg-surface-subtle px-2 py-1 text-xs font-bold text-fg-muted ring-1 ring-border">
                         {item.flowType === "RENOVACAO_REENVIO" ? "Renovação/Reenvio" : "Primeira verificação"}
                       </span>
                     </td>
                     <td className="px-2 py-3">
                       <button
                         onClick={() => loadDetail(item.id)}
-                        className="rounded-xl bg-slate-900 px-3 py-2 text-xs font-bold text-white hover:brightness-95"
+                        className="rounded-xl bg-accent px-3 py-2 text-xs font-bold text-white hover:brightness-95"
                       >
                         Analisar
                       </button>
@@ -560,19 +574,19 @@ export default function VerificacoesClient() {
       </AdminCard>
 
       {selectedId ? (
-        <div className="fixed inset-0 z-50 flex items-start justify-end bg-slate-950/45 p-3 backdrop-blur-sm md:p-6">
-          <div className="max-h-full w-full max-w-5xl overflow-y-auto rounded-3xl bg-white p-5 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-start justify-end bg-fg/45 p-3 backdrop-blur-sm md:p-6">
+          <div className="max-h-full w-full max-w-5xl overflow-y-auto rounded-3xl bg-surface p-5 shadow-2xl">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <h2 className="text-xl font-black text-slate-900">Análise documental</h2>
-                <p className="text-sm text-slate-500">Revise os documentos antes de liberar o perfil.</p>
+                <h2 className="text-xl font-black text-fg">Análise documental</h2>
+                <p className="text-sm text-fg-subtle">Revise os documentos antes de liberar o perfil.</p>
               </div>
               <button
                 onClick={() => {
                   setSelectedId(null);
                   setDetail(null);
                 }}
-                className="rounded-full bg-slate-100 px-3 py-2 text-sm font-bold text-slate-700"
+                className="rounded-full bg-surface-subtle px-3 py-2 text-sm font-bold text-fg-muted"
               >
                 Fechar
               </button>
@@ -585,7 +599,7 @@ export default function VerificacoesClient() {
             ) : (
               <div className="mt-5 space-y-5">
                 {message ? (
-                  <div className="rounded-2xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm font-semibold text-violet-900">
+                  <div className="rounded-xl border border-accent/30 bg-accent-subtle px-4 py-3 text-sm font-semibold text-accent-strong">
                     {message}
                   </div>
                 ) : null}
@@ -600,21 +614,21 @@ export default function VerificacoesClient() {
                   <DocumentPreview title="Frente do documento" doc={detail.documents.frente} />
                   <DocumentPreview title="Verso do documento" doc={detail.documents.verso} />
                 </div>
-                <div className="text-xs font-semibold text-slate-500">
+                <div className="text-xs font-semibold text-fg-subtle">
                   Upload: {fmtDate(detail.documents.uploadedAt ?? detail.verification.createdAt)}
                 </div>
 
                 <InfoBlock title="Histórico de verificações">
                   <div className="space-y-2">
                     {detail.history.map((item) => (
-                      <div key={item.id} className="rounded-xl bg-slate-50 p-3 text-sm text-slate-700 ring-1 ring-slate-200">
+                      <div key={item.id} className="rounded-xl bg-surface-secondary p-3 text-sm text-fg-muted ring-1 ring-border">
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <b>{docTypeText(item.docType)}</b>
                           <span className={["rounded-full px-2 py-1 text-xs font-bold ring-1", pillClass(item.status)].join(" ")}>
                             {statusLabel[item.status] ?? item.status}
                           </span>
                         </div>
-                        <div className="mt-1 text-xs text-slate-500">{fmtDate(item.createdAt)} · {cleanReviewNote(item.reviewNote)}</div>
+                        <div className="mt-1 text-xs text-fg-subtle">{fmtDate(item.createdAt)} · {cleanReviewNote(item.reviewNote)}</div>
                       </div>
                     ))}
                   </div>
@@ -622,20 +636,20 @@ export default function VerificacoesClient() {
 
                 <TechnicalDetails detail={detail} />
 
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                  <label className="text-xs font-bold text-slate-600">Motivo da reprovação</label>
+                <div className="rounded-2xl border border-border bg-surface-secondary p-4">
+                  <label className="text-xs font-bold text-fg-muted">Motivo da reprovação</label>
                   <textarea
                     value={reproveReason}
                     onChange={(event) => setReproveReason(event.target.value)}
                     rows={3}
                     placeholder="Ex.: Documento ilegível. Envie novamente."
-                    className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-1 ring-slate-900/5"
+                    className="mt-2 w-full rounded-xl border border-border bg-surface px-3 py-2 text-sm outline-none ring-1 ring-border"
                   />
                   <div className="mt-3 flex flex-wrap gap-2">
                     <button
                       disabled={Boolean(actionLoading)}
                       onClick={() => review("approve")}
-                      className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
+                      className="rounded-lg bg-success px-4 py-2 text-sm font-bold text-white hover:bg-success-dark disabled:opacity-50"
                     >
                       {actionLoading === "approve" ? "Aprovando..." : "Aprovar"}
                     </button>
@@ -649,7 +663,7 @@ export default function VerificacoesClient() {
                     <button
                       disabled={Boolean(actionLoading)}
                       onClick={() => review("resend", reproveReason)}
-                      className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-800 disabled:opacity-50"
+                      className="rounded-xl border border-border bg-surface px-4 py-2 text-sm font-bold text-fg disabled:opacity-50"
                     >
                       {actionLoading === "resend" ? "Solicitando..." : "Solicitar reenvio"}
                     </button>
@@ -666,8 +680,8 @@ export default function VerificacoesClient() {
 
 function InfoBlock({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-4 ring-1 ring-slate-900/5">
-      <h3 className="text-sm font-black text-slate-900">{title}</h3>
+    <section className="rounded-2xl border border-border bg-surface p-4 ring-1 ring-border">
+      <h3 className="text-sm font-black text-fg">{title}</h3>
       <div className="mt-3 space-y-2">{children}</div>
     </section>
   );
@@ -676,8 +690,8 @@ function InfoBlock({ title, children }: { title: string; children: React.ReactNo
 function Line({ label, value }: { label: string; value: string }) {
   return (
     <div className="grid grid-cols-[110px_1fr] gap-2 text-sm">
-      <span className="font-semibold text-slate-500">{label}</span>
-      <span className="min-w-0 break-words font-semibold text-slate-800">{value}</span>
+      <span className="font-semibold text-fg-subtle">{label}</span>
+      <span className="min-w-0 break-words font-semibold text-fg">{value}</span>
     </div>
   );
 }
@@ -797,8 +811,8 @@ function GuardianBlock({ detail }: { detail: Detail }) {
 
 function AdvancedProfileDetails({ children }: { children: React.ReactNode }) {
   return (
-    <details className="mt-3 rounded-xl bg-slate-50 p-3 text-sm ring-1 ring-slate-200">
-      <summary className="cursor-pointer text-xs font-bold text-slate-600">Dados avançados</summary>
+    <details className="mt-3 rounded-xl bg-surface-secondary p-3 text-sm ring-1 ring-border">
+      <summary className="cursor-pointer text-xs font-bold text-fg-muted">Dados avançados</summary>
       <div className="mt-3 space-y-2">{children}</div>
     </details>
   );
@@ -806,8 +820,8 @@ function AdvancedProfileDetails({ children }: { children: React.ReactNode }) {
 
 function TechnicalDetails({ detail }: { detail: Detail }) {
   return (
-    <details className="rounded-2xl border border-slate-200 bg-white p-4 ring-1 ring-slate-900/5">
-      <summary className="cursor-pointer text-sm font-black text-slate-900">Detalhes técnicos</summary>
+    <details className="rounded-2xl border border-border bg-surface p-4 ring-1 ring-border">
+      <summary className="cursor-pointer text-sm font-black text-fg">Detalhes técnicos</summary>
       <div className="mt-3 grid gap-3 md:grid-cols-2">
         <div className="space-y-2">
           <Line label="Verificação ID" value={detail.verification.id} />
@@ -829,11 +843,11 @@ function TechnicalDetails({ detail }: { detail: Detail }) {
 
 function DocumentPreview({ title, doc }: { title: string; doc: { key: string; signedUrl: string } | null }) {
   return (
-    <section className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+    <section className="rounded-2xl border border-border bg-surface-secondary p-3">
       <div className="mb-2 flex items-center justify-between gap-3">
-        <h3 className="text-sm font-black text-slate-900">{title}</h3>
+        <h3 className="text-sm font-black text-fg">{title}</h3>
         {doc?.signedUrl ? (
-          <a href={doc.signedUrl} target="_blank" rel="noreferrer" className="text-xs font-bold text-violet-700 underline-offset-2 hover:underline">
+          <a href={doc.signedUrl} target="_blank" rel="noreferrer" className="text-xs font-bold text-accent-strong underline-offset-2 hover:underline">
             Abrir
           </a>
         ) : null}
@@ -842,10 +856,10 @@ function DocumentPreview({ title, doc }: { title: string; doc: { key: string; si
         <img
           src={doc.signedUrl}
           alt={`Documento - ${title}`}
-          className="max-h-[420px] w-full rounded-xl object-contain ring-1 ring-slate-200"
+          className="max-h-[420px] w-full rounded-xl object-contain ring-1 ring-border"
         />
       ) : (
-        <div className="flex h-44 items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white text-sm font-semibold text-slate-500">
+        <div className="flex h-44 items-center justify-center rounded-xl border border-dashed border-border bg-surface text-sm font-semibold text-fg-subtle">
           Documento não disponível
         </div>
       )}

@@ -82,7 +82,7 @@ export default async function ServicoDetalhePage({ params }: Props) {
       right={
         <Link
           href="/admin/operacoes/servicos"
-          className="rounded-xl border border-white/40 bg-white/70 px-3 py-2 text-sm text-slate-700 shadow-sm ring-1 ring-slate-900/5 hover:bg-white/80"
+          className="rounded-xl border border-border bg-surface px-3 py-2 text-sm text-fg-muted shadow-sm hover:bg-surface-subtle"
         >
           ← Voltar
         </Link>
@@ -91,7 +91,7 @@ export default async function ServicoDetalhePage({ params }: Props) {
       <AdminGrid>
         <div className="md:col-span-6">
           <AdminCard title="Dados do serviço">
-            <div className="space-y-2 text-sm text-slate-700">
+            <div className="space-y-2 text-sm text-fg-muted">
               <div>
                 <b>Tipo:</b> {servico.tipo}
               </div>
@@ -108,7 +108,10 @@ export default async function ServicoDetalhePage({ params }: Props) {
                 <b>Endereço:</b> {servico.enderecoCompleto || "—"}
               </div>
               <div>
-                <b>Preço final:</b> R$ {(servico.precoFinal / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                <b>Preço final:</b> R${" "}
+                {(servico.precoFinal / 100).toLocaleString("pt-BR", {
+                  minimumFractionDigits: 2,
+                })}
               </div>
               <div>
                 <b>Criado em:</b> {fmtDate(servico.createdAt)}
@@ -125,17 +128,25 @@ export default async function ServicoDetalhePage({ params }: Props) {
 
         <div className="md:col-span-6">
           <AdminCard title="Pessoas">
-            <div className="space-y-3 text-sm text-slate-700">
+            <div className="space-y-3 text-sm text-fg-muted">
               <div>
-                <div className="text-xs text-slate-500">Cliente</div>
-                <div className="font-semibold">{servico.cliente?.nome || "—"}</div>
-                <div className="text-xs text-slate-500">{servico.cliente?.telefone || "—"}</div>
+                <div className="text-xs text-fg-subtle">Cliente</div>
+                <div className="font-semibold">
+                  {servico.cliente?.nome || "—"}
+                </div>
+                <div className="text-xs text-fg-subtle">
+                  {servico.cliente?.telefone || "—"}
+                </div>
               </div>
-              <div className="h-px bg-white/40" />
+              <div className="h-px bg-border" />
               <div>
-                <div className="text-xs text-slate-500">Diarista</div>
-                <div className="font-semibold">{servico.diarista?.nome || "—"}</div>
-                <div className="text-xs text-slate-500">{servico.diarista?.telefone || "—"}</div>
+                <div className="text-xs text-fg-subtle">Diarista</div>
+                <div className="font-semibold">
+                  {servico.diarista?.nome || "—"}
+                </div>
+                <div className="text-xs text-fg-subtle">
+                  {servico.diarista?.telefone || "—"}
+                </div>
               </div>
             </div>
           </AdminCard>
@@ -144,21 +155,31 @@ export default async function ServicoDetalhePage({ params }: Props) {
         <div className="md:col-span-12">
           <AdminCard title="Timeline do serviço">
             {servico.eventos.length === 0 ? (
-              <AdminEmpty title="Sem eventos registrados" hint="Quando o fluxo rodar, os eventos aparecem aqui." />
+              <AdminEmpty
+                title="Sem eventos registrados"
+                hint="Quando o fluxo rodar, os eventos aparecem aqui."
+              />
             ) : (
               <ol className="space-y-3">
                 {servico.eventos.map((ev) => (
-                  <li key={ev.id} className="rounded-xl border border-white/40 bg-white/60 px-3 py-2 ring-1 ring-slate-900/5">
+                  <li
+                    key={ev.id}
+                    className="rounded-xl border border-border bg-surface-secondary px-3 py-2"
+                  >
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <div className="text-sm font-semibold text-slate-800">
-                          {STATUS_LABEL[ev.fromStatus] ?? ev.fromStatus} → {STATUS_LABEL[ev.toStatus] ?? ev.toStatus}
+                        <div className="text-sm font-semibold text-fg">
+                          {STATUS_LABEL[ev.fromStatus] ?? ev.fromStatus} →{" "}
+                          {STATUS_LABEL[ev.toStatus] ?? ev.toStatus}
                         </div>
-                        <div className="text-xs text-slate-500">
-                          Ator: {ev.actorRole} {ev.actorId ? `(${ev.actorId})` : ""}
+                        <div className="text-xs text-fg-subtle">
+                          Ator: {ev.actorRole}{" "}
+                          {ev.actorId ? `(${ev.actorId})` : ""}
                         </div>
                       </div>
-                      <div className="text-xs text-slate-500">{fmtDate(ev.createdAt)}</div>
+                      <div className="text-xs text-fg-subtle">
+                        {fmtDate(ev.createdAt)}
+                      </div>
                     </div>
                   </li>
                 ))}
@@ -170,12 +191,18 @@ export default async function ServicoDetalhePage({ params }: Props) {
         <div className="md:col-span-12">
           <AdminCard title="Ações administrativas">
             <div className="grid gap-3 md:grid-cols-2">
-              <form action="/api/admin/servicos/cancelar" method="POST" className="space-y-2">
+              <form
+                action="/api/admin/servicos/cancelar"
+                method="POST"
+                className="space-y-2"
+              >
                 <input type="hidden" name="id" value={servico.id} />
-                <label className="text-xs text-slate-500">Motivo do cancelamento</label>
+                <label className="text-xs text-fg-subtle">
+                  Motivo do cancelamento
+                </label>
                 <textarea
                   name="motivo"
-                  className="w-full rounded-xl border border-white/30 bg-white/60 px-3 py-2 text-sm text-slate-800 outline-none ring-1 ring-slate-900/5 focus:ring-2 focus:ring-slate-900/20"
+                  className="w-full rounded-xl border border-border bg-surface px-3 py-2 text-sm text-fg outline-none focus:ring-2 focus:ring-accent/30"
                   placeholder="Ex: cliente solicitou cancelamento"
                   rows={3}
                 />
@@ -184,22 +211,29 @@ export default async function ServicoDetalhePage({ params }: Props) {
                 </button>
               </form>
 
-              <form action="/api/admin/servicos/disputa" method="POST" className="space-y-2">
+              <form
+                action="/api/admin/servicos/disputa"
+                method="POST"
+                className="space-y-2"
+              >
                 <input type="hidden" name="id" value={servico.id} />
-                <label className="text-xs text-slate-500">Marcar como disputa (motivo)</label>
+                <label className="text-xs text-fg-subtle">
+                  Marcar como disputa (motivo)
+                </label>
                 <textarea
                   name="motivo"
-                  className="w-full rounded-xl border border-white/30 bg-white/60 px-3 py-2 text-sm text-slate-800 outline-none ring-1 ring-slate-900/5 focus:ring-2 focus:ring-slate-900/20"
+                  className="w-full rounded-xl border border-border bg-surface px-3 py-2 text-sm text-fg outline-none focus:ring-2 focus:ring-accent/30"
                   placeholder="Ex: divergência cliente/diarista"
                   rows={3}
                 />
-                <button className="rounded-xl border border-white/30 bg-white/70 px-4 py-2 text-sm font-semibold text-slate-800 shadow-sm ring-1 ring-slate-900/5 hover:bg-white/80 active:bg-white/85">
+                <button className="rounded-xl border border-border bg-surface px-4 py-2 text-sm font-semibold text-fg shadow-sm hover:bg-surface-subtle active:bg-surface-subtle">
                   Marcar como disputa
                 </button>
               </form>
             </div>
-            <div className="mt-2 text-xs text-slate-500">
-              Ações são registradas na timeline. Cancelamento muda status para CANCELADO.
+            <div className="mt-2 text-xs text-fg-subtle">
+              Ações são registradas na timeline. Cancelamento muda status para
+              CANCELADO.
             </div>
           </AdminCard>
         </div>

@@ -138,7 +138,7 @@ export default async function ServicosPage() {
                     render: (r) => (
                       <a
                         href={`/admin/operacoes/servicos/${r.id}`}
-                        className="font-semibold text-slate-800 underline-offset-2 hover:underline"
+                        className="font-semibold text-fg underline-offset-2 hover:underline"
                       >
                         {r.id.slice(0, 6)}
                       </a>

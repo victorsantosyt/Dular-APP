@@ -13,9 +13,9 @@ import { Star, MessageSquareText, ThumbsDown } from "lucide-react";
 
 const FILTROS = [
   { key: "todas", label: "Todas" },
-  { key: "negativas", label: "Negativas (≤2)" },
-  { key: "neutras", label: "Neutras (3)" },
-  { key: "positivas", label: "Positivas (≥4)" },
+  { key: "negativas", label: "Negativas" },
+  { key: "neutras", label: "Neutras" },
+  { key: "positivas", label: "Positivas" },
 ] as const;
 
 type FiltroKey = (typeof FILTROS)[number]["key"];
@@ -88,7 +88,7 @@ export default async function FeedbacksPage({
           <AdminKpi
             label="Avaliação média"
             value={nota ? nota.toFixed(1) : "—"}
-            hint={total > 0 ? `de ${total} avaliações` : "sem avaliações ainda"}
+            hint={total === 0 ? "Ainda sem avaliações" : total === 1 ? "De 1 avaliação" : `De ${total} avaliações`}
             icon={Star}
             tone="medium"
           />
@@ -98,9 +98,9 @@ export default async function FeedbacksPage({
         </div>
         <div className="md:col-span-4">
           <AdminKpi
-            label="Negativas (nota ≤ 2)"
+            label="Negativas (nota 1 ou 2)"
             value={String(negativas)}
-            hint={negativas > 0 ? "exigem atenção da operação" : "nenhuma no período"}
+            hint={negativas > 0 ? "Exigem atenção da operação" : "Nenhuma no período"}
             icon={ThumbsDown}
             tone={negativas > 0 ? "critical" : "neutral"}
           />

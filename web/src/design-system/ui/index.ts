@@ -14,4 +14,6 @@ export {
   verificacaoTone,
   eventoSegurancaTone,
   rotuloEnum,
+  servicoStatusLabel,
+  servicoStatusTone,
 } from "./priority";

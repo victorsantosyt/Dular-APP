@@ -10,6 +10,7 @@ import { AdminEmpty } from "@/components/admin-ui/AdminEmpty";
 import { AdminTable } from "@/components/admin-ui/AdminTable";
 import { AdminKpi } from "@/components/admin-ui/AdminKpi";
 import { Badge, type Tone } from "@/design-system/ui";
+import { Signal, ListChecks, MapPinOff, Siren } from "lucide-react";
 
 const SEIS_HORAS_MS = 6 * 60 * 60 * 1000;
 const VINTE_QUATRO_HORAS_MS = 24 * 60 * 60 * 1000;
@@ -88,21 +89,25 @@ export default async function CheckinsPage() {
             label="Nas últimas 6h"
             value={String(recentes)}
             hint="check-ins com sinal recente de campo"
+            icon={Signal}
+            tone="success"
           />
         </div>
         <div className="md:col-span-4">
-          <AdminKpi label="Total registrados" value={String(rows.length)} hint="últimos 50" />
+          <AdminKpi label="Total registrados" value={String(rows.length)} hint="últimos 50" icon={ListChecks} />
         </div>
         <div className="md:col-span-4">
           <AdminKpi
             label="Sem localização"
             value={String(semLocalizacao)}
             hint={semLocalizacao > 0 ? "GPS não enviado no check-in" : "todos com GPS"}
+            icon={MapPinOff}
+            tone={semLocalizacao > 0 ? "medium" : "neutral"}
           />
         </div>
 
         <div className="md:col-span-12">
-          <AdminCard title="Últimos check-ins">
+          <AdminCard title="Últimos check-ins" icon={Siren}>
             {rows.length === 0 ? (
               <AdminEmpty title="Nenhum check-in registrado" hint="Os check-ins feitos no app aparecem aqui." />
             ) : (

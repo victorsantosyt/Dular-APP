@@ -5,6 +5,7 @@ export const revalidate = 0;
 import { AdminPage } from "@/components/admin-ui/AdminPage";
 import { AdminGrid } from "@/components/admin-ui/AdminGrid";
 import { AdminCard } from "@/components/admin-ui/AdminCard";
+import { Download } from "lucide-react";
 
 const downloads = [
   {
@@ -25,7 +26,7 @@ export default function DownloadsPage() {
       <AdminGrid>
         {downloads.map((item) => (
           <div key={item.href} className="md:col-span-6">
-            <AdminCard title={item.title}>
+            <AdminCard title={item.title} icon={Download}>
               <p className="text-sm text-fg-subtle">{item.description}</p>
               <a
                 href={item.href}

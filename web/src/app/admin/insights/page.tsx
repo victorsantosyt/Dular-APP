@@ -17,7 +17,7 @@ function pct(v: number | null): string {
 }
 
 export default async function InsightsPage() {
-  const [servicos, eventos, profissionais, avaliacaoAgg, topDiaristasRaw, ultimasAval] =
+  const [servicos, eventos, profissionais, avaliacaoAgg, topDiaristasRaw] =
     await Promise.all([
       prisma.servico.findMany({
         select: {
@@ -46,24 +46,6 @@ export default async function InsightsPage() {
         _count: { _all: true },
         orderBy: { _avg: { notaGeral: "desc" } },
         take: 5,
-      }),
-      prisma.avaliacao.findMany({
-        orderBy: { createdAt: "desc" },
-        take: 6,
-        select: {
-          id: true,
-          notaGeral: true,
-          comentario: true,
-          createdAt: true,
-          servico: {
-            select: {
-              bairro: true,
-              cidade: true,
-              cliente: { select: { nome: true } },
-              diarista: { select: { nome: true } },
-            },
-          },
-        },
       }),
     ]);
 
@@ -243,37 +225,8 @@ export default async function InsightsPage() {
           </AdminCard>
         </div>
 
-        <div className="md:col-span-4">
-          <AdminCard title="Últimas avaliações">
-            {ultimasAval.length === 0 ? (
-              <AdminEmpty title="Sem avaliações" />
-            ) : (
-              <div className="space-y-3">
-                {ultimasAval.map((a) => (
-                  <div key={a.id} className="rounded-xl border border-border bg-surface p-3">
-                    <div className="flex items-start justify-between gap-3 text-sm">
-                      <div className="font-semibold text-fg">
-                        Nota {a.notaGeral}/5{" "}
-                        <span className="text-xs text-fg-subtle">
-                          {a.servico?.bairro ?? "—"} • {a.servico?.cidade ?? "—"}
-                        </span>
-                      </div>
-                      <div className="text-xs text-fg-subtle">
-                        {new Date(a.createdAt).toLocaleDateString("pt-BR")}
-                      </div>
-                    </div>
-                    <div className="text-xs text-fg-muted">
-                      Cliente: {a.servico?.cliente?.nome ?? "—"} • Diarista: {a.servico?.diarista?.nome ?? "—"}
-                    </div>
-                    <div className="mt-2 text-sm text-fg">
-                      {a.comentario?.trim() ? a.comentario : <span className="text-fg-subtle">Sem comentário.</span>}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </AdminCard>
-        </div>
+        {/* Conteúdo de avaliação (lista, comentários) vive em /admin/insights/feedbacks —
+            aqui ficam só as métricas da operação, para as duas telas não se sobreporem. */}
       </AdminGrid>
     </AdminPage>
   );

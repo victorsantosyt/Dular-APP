@@ -5,7 +5,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Search } from "lucide-react";
 import { cn } from "@/design-system/utils/cn";
+import { initials } from "@/design-system/utils/avatar";
 import { NAV_SECTIONS, NAV_SETTINGS, type NavItem } from "./nav";
+import type { HeaderUser } from "./Header";
 
 function isActive(pathname: string, href: string): boolean {
   if (href === "/admin") return pathname === "/admin" || pathname === "/admin/";
@@ -58,11 +60,56 @@ function NavRow({ item, active }: { item: NavItem; active: boolean }) {
   );
 }
 
-export default function Sidebar() {
+const ROLE_LABEL: Record<string, string> = {
+  ADMIN: "Administrador",
+  EMPREGADOR: "Empregador",
+  DIARISTA: "Diarista",
+  MONTADOR: "Montador",
+};
+
+function UserBlock({ user }: { user?: HeaderUser | null }) {
+  return (
+    <div className="border-b border-glass-border px-3 py-3">
+      <div className="flex items-center gap-3 rounded-lg px-2 py-1.5">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-accent-subtle text-xs font-semibold text-accent ring-1 ring-border">
+          {user === undefined ? (
+            <span className="h-full w-full animate-pulse bg-surface-subtle" />
+          ) : user?.avatarUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={user.avatarUrl}
+              alt={user.nome ?? "Avatar"}
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            <span>{initials(user?.nome ?? null)}</span>
+          )}
+        </div>
+        <div className="min-w-0">
+          {user === undefined ? (
+            <>
+              <div className="h-3.5 w-24 animate-pulse rounded bg-surface-subtle" />
+              <div className="mt-1.5 h-3 w-16 animate-pulse rounded bg-surface-subtle" />
+            </>
+          ) : (
+            <>
+              <div className="truncate text-sm font-medium text-fg">{user?.nome ?? "—"}</div>
+              <div className="truncate text-xs text-fg-subtle">
+                {ROLE_LABEL[user?.role ?? ""] ?? user?.role ?? ""}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function Sidebar({ user }: { user?: HeaderUser | null }) {
   const pathname = usePathname() || "/admin";
 
   return (
-    <aside className="sticky top-0 flex h-screen w-[264px] shrink-0 flex-col border-r border-border bg-surface">
+    <aside className="sticky top-0 flex h-screen w-[264px] shrink-0 flex-col border-r border-glass-border bg-glass-surface backdrop-blur-md">
       {/* Logo */}
       <div className="flex h-16 items-center gap-3 px-5">
         <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-lg bg-surface-secondary ring-1 ring-border">
@@ -80,6 +127,9 @@ export default function Sidebar() {
           <div className="truncate text-xs text-fg-subtle">Painel administrativo</div>
         </div>
       </div>
+
+      {/* Usuário logado */}
+      <UserBlock user={user} />
 
       {/* Busca */}
       <div className="px-3 pb-2">

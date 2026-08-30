@@ -1,8 +1,8 @@
 export function AdminEmpty({ title, hint }: { title: string; hint?: string }) {
   return (
-    <div className="rounded-2xl border border-dashed border-slate-300 bg-white/60 p-4 text-slate-600">
-      <div className="font-semibold text-slate-800">{title}</div>
-      {hint ? <div className="mt-1 text-sm text-slate-500">{hint}</div> : null}
+    <div className="rounded-2xl border border-dashed border-border-subtle bg-glass-surface p-4 text-fg-muted">
+      <div className="font-semibold text-fg">{title}</div>
+      {hint ? <div className="mt-1 text-sm text-fg-subtle">{hint}</div> : null}
     </div>
   );
 }

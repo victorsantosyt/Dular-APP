@@ -1,9 +1,10 @@
-import AdminIncidentes from "@/app/admin/(protected)/incidentes/page";
+import { redirect } from "next/navigation";
 
-export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const revalidate = 0;
 
+// Conteúdo canônico mora em /admin/incidentes — esta rota existia como uma
+// segunda cópia da mesma página (com seu próprio layout/auth-check). Mantida
+// só como redirect pra não quebrar links/favoritos existentes.
 export default function SegurancaIncidentesPage() {
-  return <AdminIncidentes />;
+  redirect("/admin/incidentes");
 }

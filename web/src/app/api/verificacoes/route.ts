@@ -225,11 +225,14 @@ export async function POST(req: Request) {
       console.warn("[api/verificacoes] multipart recusado:", e?.code);
       return NextResponse.json({ ok: false, error: "Upload inválido." }, { status: 400 });
     }
-    // T-18.6: log explícito para destravar diagnóstico em DEV. Em produção
-    // o framework já registra o erro; aqui garantimos que o motivo real
-    // aparece no console do `next dev` sem despejar stack em prod.
+    // O framework NÃO registra o erro sozinho: o smoke test de produção de
+    // 30/08 bateu num 500 aqui e o log da Vercel veio com `logs: []`, sem
+    // nenhuma pista da causa. Nome e mensagem passam a ser registrados em
+    // qualquer ambiente (é log de servidor, não vai para o cliente); a stack
+    // continua só em DEV para não despejar caminho de arquivo em produção.
+    console.error("[api/verificacoes] POST falhou:", e?.name, e?.message);
     if (process.env.NODE_ENV === "development") {
-      console.error("[api/verificacoes] POST falhou:", e?.name, e?.message, e?.stack);
+      console.error(e?.stack);
     }
     return NextResponse.json({ ok: false, error: "Erro ao enviar documentos." }, { status: 500 });
   }

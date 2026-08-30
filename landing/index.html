@@ -184,6 +184,28 @@
       .nav-cta { display: none; }
       .cta-box { padding: 40px 22px; }
     }
+
+    /* ---------- COOKIE / LGPD BANNER ---------- */
+    .cookie-banner {
+      position: fixed; left: 16px; right: 16px; bottom: 16px; z-index: 100;
+      max-width: 560px; margin: 0 auto;
+      background: #1a1230; color: #ede8f7;
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-float);
+      padding: 20px 22px;
+      display: flex; flex-direction: column; gap: 14px;
+    }
+    .cookie-banner p { margin: 0; font-size: 13.5px; line-height: 1.5; color: #cabfe0; }
+    .cookie-banner .cookie-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+    .cookie-banner button {
+      flex: 1; min-width: 110px; height: 40px; border: none; border-radius: 999px;
+      font-family: var(--font); font-weight: 800; font-size: 13.5px; cursor: pointer;
+    }
+    .cookie-banner .cookie-accept { background: var(--grad-primary); color: #fff; }
+    .cookie-banner .cookie-decline { background: transparent; color: #cabfe0; border: 1px solid rgba(255,255,255,0.22); }
+    @media (max-width: 560px) {
+      .cookie-banner { left: 12px; right: 12px; bottom: 12px; padding: 16px 18px; }
+    }
   </style>
 </head>
 <body>
@@ -335,5 +357,71 @@
     </div>
   </footer>
 
+  <!-- COOKIE / LGPD BANNER -->
+  <div id="cookie-banner" class="cookie-banner" hidden>
+    <p>
+      Usamos cookies para entender como você usa o site e melhorar sua experiência.
+      Você pode aceitar ou recusar — isso não afeta a navegação no site.
+    </p>
+    <div class="cookie-actions">
+      <button type="button" class="cookie-decline" id="cookie-decline">Recusar</button>
+      <button type="button" class="cookie-accept" id="cookie-accept">Aceitar</button>
+    </div>
+  </div>
+
+  <script>
+    // GA: colar o measurement ID (formato G-XXXXXXXXXX) aqui quando a
+    // propriedade GA4 for criada. Enquanto for o placeholder, o script do
+    // GA nunca carrega — mesmo que o visitante aceite os cookies.
+    var GA_MEASUREMENT_ID = "SUBSTITUIR_QUANDO_TIVER_GA4";
+
+    function loadGoogleAnalytics() {
+      if (!GA_MEASUREMENT_ID || GA_MEASUREMENT_ID === "SUBSTITUIR_QUANDO_TIVER_GA4") return;
+      var s = document.createElement("script");
+      s.async = true;
+      s.src = "https://www.googletagmanager.com/gtag/js?id=" + GA_MEASUREMENT_ID;
+      document.head.appendChild(s);
+      window.dataLayer = window.dataLayer || [];
+      function gtag() { window.dataLayer.push(arguments); }
+      window.gtag = gtag;
+      gtag("js", new Date());
+      gtag("config", GA_MEASUREMENT_ID, { anonymize_ip: true });
+    }
+
+    (function () {
+      var STORAGE_KEY = "dular_cookie_consent";
+      var banner = document.getElementById("cookie-banner");
+      var acceptBtn = document.getElementById("cookie-accept");
+      var declineBtn = document.getElementById("cookie-decline");
+
+      var consent = null;
+      try {
+        consent = localStorage.getItem(STORAGE_KEY);
+      } catch (e) {
+        /* localStorage indisponível (modo privado etc.) — não bloqueia o site */
+      }
+
+      if (consent === "accepted") {
+        loadGoogleAnalytics();
+      } else if (consent !== "declined") {
+        banner.hidden = false;
+      }
+
+      acceptBtn.addEventListener("click", function () {
+        try {
+          localStorage.setItem(STORAGE_KEY, "accepted");
+        } catch (e) {}
+        banner.hidden = true;
+        loadGoogleAnalytics();
+      });
+
+      declineBtn.addEventListener("click", function () {
+        try {
+          localStorage.setItem(STORAGE_KEY, "declined");
+        } catch (e) {}
+        banner.hidden = true;
+      });
+    })();
+  </script>
 </body>
 </html>

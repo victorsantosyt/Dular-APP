@@ -75,6 +75,43 @@ const jpeg = async (texto) =>
     .composite([{ input: Buffer.from(`<svg width="600" height="380"><text x="24" y="200" font-size="26" fill="#222">${texto}</text></svg>`), top: 0, left: 0 }])
     .jpeg({ quality: 70 }).toBuffer();
 
+/* ---------------- modo limpeza ---------------- */
+/**
+ * `node scripts/smoke-prod.mjs --limpar` remove tudo que execuções anteriores
+ * criaram (contas com prefixo `SMOKE `). A ordem importa: 7 FKs para User são
+ * RESTRICT, e ScoreEvento depende de SafeScore. Precisa de DATABASE_URL.
+ */
+if (process.argv.includes("--limpar")) {
+  const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }) });
+  const alvos = await prisma.$queryRawUnsafe(`SELECT id FROM "User" WHERE nome LIKE 'SMOKE %'`);
+  const ids = alvos.map((u) => u.id);
+  if (!ids.length) { console.log("nada a limpar"); await prisma.$disconnect(); process.exit(0); }
+  const L = ids.map((i) => `'${i}'`).join(",");
+  const SIDS = `SELECT id FROM "Servico" WHERE "clientId" IN (${L}) OR "diaristaId" IN (${L}) OR "montadorId" IN (${L})`;
+  const del = {};
+  const exec = async (rot, sql) => { try { del[rot] = await prisma.$executeRawUnsafe(sql); } catch { /* tabela sem essa coluna */ } };
+
+  await exec("ScoreEvento",   `DELETE FROM "ScoreEvento" WHERE "safeScoreId" IN (SELECT id FROM "SafeScore" WHERE "userId" IN (${L}))`);
+  await exec("Avaliacao",     `DELETE FROM "Avaliacao" WHERE "servicoId" IN (${SIDS})`);
+  await exec("AvaliacaoEmpregador", `DELETE FROM "AvaliacaoEmpregador" WHERE "servicoId" IN (${SIDS})`);
+  await exec("ChatMessage",   `DELETE FROM "ChatMessage" WHERE "senderId" IN (${L}) OR "roomId" IN (SELECT id FROM "ChatRoom" WHERE "servicoId" IN (${SIDS}))`);
+  await exec("ChatRoom",      `DELETE FROM "ChatRoom" WHERE "servicoId" IN (${SIDS})`);
+  for (const t of ["ServicoEvento","SafetyEvent","SafeScoreEvent","PaymentEvent","PixSnapshot","PaymentInfo","Notification","CheckIn"])
+    await exec(t, `DELETE FROM "${t}" WHERE "servicoId" IN (${SIDS})`);
+  await exec("IncidentReport",`DELETE FROM "IncidentReport" WHERE "reportedUserId" IN (${L}) OR "reportedById" IN (${L})`);
+  await exec("Servico",       `DELETE FROM "Servico" WHERE "clientId" IN (${L}) OR "diaristaId" IN (${L}) OR "montadorId" IN (${L})`);
+  await exec("SafeScore",     `DELETE FROM "SafeScore" WHERE "userId" IN (${L})`);
+  await exec("User",          `DELETE FROM "User" WHERE id IN (${L})`);
+
+  console.log("removido:", Object.entries(del).filter(([, v]) => v).map(([k, v]) => `${k}=${v}`).join(" "));
+  console.log("SMOKE restantes:", await prisma.user.count({ where: { nome: { startsWith: "SMOKE " } } }));
+  const resto = await prisma.user.findMany({ select: { nome: true, role: true } });
+  console.log("usuários agora:", resto.map((u) => `${u.nome} (${u.role})`).join(" | "));
+  console.log("OBS: os JPEGs de teste enviados continuam em s3://<bucket>/verificacoes/ — remover pelo console da AWS.");
+  await prisma.$disconnect();
+  process.exit(0);
+}
+
 console.log(`\nSMOKE TEST DE PRODUÇÃO — ${BASE}\nexecução ${SUF}\n${"─".repeat(72)}`);
 
 /* ---------------- 1. Cadastro ---------------- */
@@ -108,9 +145,15 @@ registra(3, "Login Apple", null, "exige aparelho físico + conta Apple real");
     json: { tipo: "RESIDENCIAL", cep: "78635000", rua: "Rua do Smoke", numero: "100",
             bairro: BAIRRO, cidade: CIDADE, uf: UF },
   });
-  const ok = me.status === 200 && (end.status === 200 || end.status === 201);
-  registra(4, "Perfil do Empregador + endereço", ok, `me=${me.status} endereco=${end.status}`);
-  if (end.status >= 400) console.log("     ", JSON.stringify(end.dados).slice(0, 220));
+  // O guardian exige KYC do EMPREGADOR para ele poder contratar
+  // (GUARDIAN_BLOCKED / documento_nao_enviado). O doc do smoke não citava.
+  const fdEmp = new FormData();
+  fdEmp.append("docFrente", new Blob([await jpeg("SMOKE emp frente")], { type: "image/jpeg" }), "frente.jpg");
+  fdEmp.append("docVerso", new Blob([await jpeg("SMOKE emp verso")], { type: "image/jpeg" }), "verso.jpg");
+  const kyc = await req("POST", "/api/verificacoes", { ator: "emp", form: fdEmp });
+  const ok = me.status === 200 && (end.status === 200 || end.status === 201) && kyc.status === 200;
+  registra(4, "Perfil do Empregador + endereço + KYC", ok, `me=${me.status} endereco=${end.status} kyc=${kyc.status}`);
+  if (!ok) console.log("     ", JSON.stringify(end.dados).slice(0, 160), JSON.stringify(kyc.dados).slice(0, 160));
   artefatos.criados.empregadorId = me.dados?.user?.id ?? me.dados?.id ?? null;
 }
 
@@ -122,9 +165,16 @@ registra(3, "Login Apple", null, "exige aparelho físico + conta Apple real");
   const bairros = await req("POST", "/api/diarista/bairros", {
     ator: "dia", json: { cidade: CIDADE, uf: UF, bairros: [BAIRRO, "Centro 2"] },
   });
-  const ok = precos.status === 200 && bairros.status === 200;
-  registra(5, "Perfil do Profissional (preços + bairros)", ok, `precos=${precos.status} bairros=${bairros.status}`);
-  if (!ok) console.log("     ", JSON.stringify(precos.dados).slice(0, 200), JSON.stringify(bairros.dados).slice(0, 200));
+  // "O que você oferece": sem isto a completude reprova com `sem_servicos_oferecidos`
+  // e o profissional NUNCA aparece na busca, mesmo verificado. No app é uma tela
+  // obrigatória do onboarding (RootNavigator.tsx:91). O doc do smoke não citava.
+  const nichos = await req("PATCH", "/api/diarista/me", {
+    ator: "dia", json: { servicosOferecidos: ["DIARISTA"] },
+  });
+  const ok = precos.status === 200 && bairros.status === 200 && nichos.status === 200;
+  registra(5, "Perfil do Profissional (preços + bairros + nichos)", ok,
+    `precos=${precos.status} bairros=${bairros.status} nichos=${nichos.status}`);
+  if (!ok) console.log("     ", JSON.stringify(precos.dados).slice(0, 160), JSON.stringify(bairros.dados).slice(0, 160), JSON.stringify(nichos.dados).slice(0, 160));
 }
 
 /* ---------------- 6. Upload de documento ---------------- */
@@ -143,15 +193,20 @@ let verificacaoId = null;
 /* ---------------- 7. Aprovação pelo admin ---------------- */
 {
   const lista = await req("GET", "/api/admin/verificacoes?status=PENDING", { ator: "admin" });
-  const itens = lista.dados?.itens ?? lista.dados?.verificacoes ?? lista.dados?.data ?? [];
-  const alvo = Array.isArray(itens) ? itens.find((i) => (i.user?.nome ?? i.nome ?? "").includes(SUF)) : null;
-  const id = alvo?.id ?? verificacaoId;
-  let r = { status: 0, dados: null };
-  if (id) r = await req("POST", "/api/admin/verificacoes/approve", { ator: "admin", json: { verificationId: id } });
-  const ok = r.status === 200;
-  registra(7, "Admin aprova a verificação", ok, `lista=${lista.status} alvo=${id ? "achado" : "NAO ACHADO"} approve=${r.status}`);
-  if (!ok) console.log("     ", JSON.stringify(lista.dados).slice(0, 300), JSON.stringify(r.dados).slice(0, 200));
-  artefatos.criados.verificacaoId = id;
+  // a API do admin responde `items` (em inglês), não `itens`
+  const itens = lista.dados?.items ?? lista.dados?.itens ?? lista.dados?.verificacoes ?? lista.dados?.data ?? [];
+  // as DUAS pontas (empregador e profissional) enviaram documento
+  const alvos = Array.isArray(itens) ? itens.filter((i) => (i.user?.nome ?? i.nome ?? "").includes(SUF)) : [];
+  const respostas = [];
+  for (const a of alvos) {
+    const r = await req("POST", "/api/admin/verificacoes/approve", { ator: "admin", json: { verificationId: a.id } });
+    respostas.push(`${a.user?.role ?? "?"}=${r.status}`);
+  }
+  const ok = alvos.length === 2 && respostas.every((x) => x.endsWith("=200"));
+  registra(7, "Admin aprova as verificações (empregador + profissional)", ok,
+    `lista=${lista.status} encontradas=${alvos.length} ${respostas.join(" ")}`);
+  if (!ok) console.log("     ", JSON.stringify(lista.dados).slice(0, 300));
+  artefatos.criados.verificacoes = alvos.map((a) => a.id);
 }
 
 /* -------- CONTORNO do bloqueio de S3 (não é parte do procedimento) --------

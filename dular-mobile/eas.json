@@ -11,6 +11,17 @@
       "distribution": "internal",
       "android": {
         "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://dular-three.vercel.app",
+        "EXPO_PUBLIC_API_BASE_URL": "https://dular-three.vercel.app",
+        "EXPO_PUBLIC_PILOT_MODE": "true",
+        "EXPO_PUBLIC_PILOT_CITY": "Água Boa",
+        "EXPO_PUBLIC_PILOT_UF": "MT",
+        "EXPO_PUBLIC_PILOT_LAT": "-14.051",
+        "EXPO_PUBLIC_PILOT_LNG": "-52.160",
+        "EXPO_PUBLIC_PILOT_BAIRROS": "Centro 1,Centro 2,Setor Noroeste,Setor Cristalino,Setor Norte,Setor Rodoviário,Jardim Tropical,Jardim Primavera,Jardim Planalto,Araguaia Park,Guarujá,Guarujá Expansão,Operário,Luiz Costa,Vila Nova,Universitário,Morada das Águas",
+        "EXPO_PUBLIC_SOS_WHATSAPP": "5565996293033"
       }
     },
     "production": {}

@@ -185,7 +185,7 @@ export default async function InsightsPage() {
 
         <div className="md:col-span-4">
           <AdminCard title="Visão geral" icon={LayoutList}>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-2">
               <AdminKpi label="Serviços totais" value={String(servicosTotal)} />
               <AdminKpi label="Em andamento" value={String(andamento)} />
               <AdminKpi label="Concluídos" value={String(concluidosTotal)} />

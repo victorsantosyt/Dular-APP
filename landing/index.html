@@ -149,18 +149,43 @@
     /* ---------- MOCKUP DO CELULAR ---------- */
     .phone-col { display: flex; justify-content: center; }
     .phone {
-      position: relative; width: 296px; max-width: 100%;
-      background: #1b2320; border-radius: 46px;
-      padding: 8px;                    /* moldura fina — antes era uma borda grossa */
+      position: relative; width: 300px; max-width: 100%;
+      /* Borda metálica: o gradiente imita a lateral em titânio, que muda de
+         tom conforme a face pega luz. Uma cor chapada é o que fazia parecer
+         um retângulo preto desenhado. */
+      background: linear-gradient(145deg, #6f7d78 0%, #2c3733 18%, #1a221f 50%, #2c3733 82%, #7c8a85 100%);
+      border-radius: 54px;
+      padding: 11px;
       box-shadow: var(--shadow-phone);
     }
-    .phone::before {                   /* ilha da câmera, discreta */
-      content: ""; position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
-      width: 78px; height: 22px; background: #1b2320; border-radius: 999px; z-index: 3;
+    /* Fresta interna escura entre a lateral e o vidro. */
+    .phone-inner {
+      position: relative; background: #050a08; border-radius: 44px; padding: 3px;
     }
+    /* Ilha dinâmica. */
+    .phone-inner::before {
+      content: ""; position: absolute; top: 13px; left: 50%; transform: translateX(-50%);
+      width: 84px; height: 25px; background: #050a08; border-radius: 999px; z-index: 3;
+    }
+    /* Brilho diagonal sobre o vidro — sutil, some no mobile. */
+    .phone-inner::after {
+      content: ""; position: absolute; inset: 3px; border-radius: 41px; z-index: 2;
+      pointer-events: none;
+      background: linear-gradient(118deg, rgba(255,255,255,.16) 0%, rgba(255,255,255,.05) 26%, rgba(255,255,255,0) 46%);
+    }
+    /* Botões laterais. */
+    .phone .btn-lat {
+      position: absolute; width: 3px; border-radius: 3px; z-index: 1;
+      background: linear-gradient(90deg, #404b47, #7a8783);
+    }
+    .phone .btn-lat.silencioso { left: -3px; top: 108px; height: 30px; }
+    .phone .btn-lat.vol-mais   { left: -3px; top: 156px; height: 56px; }
+    .phone .btn-lat.vol-menos  { left: -3px; top: 224px; height: 56px; }
+    .phone .btn-lat.power      { right: -3px; top: 178px; height: 86px;
+      background: linear-gradient(270deg, #404b47, #7a8783); }
     .screen {
       background: linear-gradient(168deg, #eaf5ef 0%, #dcece4 58%, #cfe6da 100%);
-      border-radius: 39px; padding: 52px 16px 20px; min-height: 560px;
+      border-radius: 41px; padding: 54px 16px 20px; min-height: 560px;
       display: flex; flex-direction: column; align-items: center; overflow: hidden;
     }
     .screen .m-logo { width: 46px; height: 46px; border-radius: 12px; margin: 6px 0 10px; }
@@ -264,6 +289,10 @@
       border-radius: 18px; box-shadow: 0 20px 50px rgba(22,33,29,.3);
       padding: 20px 22px; display: flex; flex-direction: column; gap: 14px;
     }
+    /* O `display: flex` acima vence o display:none do atributo [hidden] (estilo
+       do próprio navegador), então setar banner.hidden não escondia nada — era
+       por isso que "Aceitar" parecia não funcionar. */
+    .cookie-banner[hidden] { display: none; }
     .cookie-banner p { margin: 0; font-size: 13.5px; line-height: 1.5; }
     .cookie-actions { display: flex; gap: 10px; }
     .cookie-banner button {
@@ -289,6 +318,7 @@
       .cta-box { padding: 42px 22px; border-radius: 22px; }
       .btn { width: 100%; justify-content: center; }
       .cookie-banner { left: 12px; right: 12px; bottom: 12px; padding: 17px 18px; }
+      .phone-inner::after { display: none; }
     }
   </style>
 </head>
@@ -332,6 +362,11 @@
 
       <div class="phone-col">
         <div class="phone">
+          <span class="btn-lat silencioso" aria-hidden="true"></span>
+          <span class="btn-lat vol-mais" aria-hidden="true"></span>
+          <span class="btn-lat vol-menos" aria-hidden="true"></span>
+          <span class="btn-lat power" aria-hidden="true"></span>
+          <div class="phone-inner">
           <div class="screen">
             <picture><source srcset="dular-mark.webp" type="image/webp" /><img class="m-logo" src="dular-mark.png" alt="" width="46" height="46" /></picture>
             <div class="m-title">Bem-vindo ao Dular</div>
@@ -353,6 +388,7 @@
               <div class="m-radio"></div>
             </div>
             <div class="m-btn">Continuar</div>
+          </div>
           </div>
         </div>
       </div>

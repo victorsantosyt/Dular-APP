@@ -70,6 +70,12 @@
   --color-orange-light: #ffedd5;
   --color-orange-dark: #c2410c;
 
+  /* Violeta: só para identidade de ícone na navegação (não entra na
+     escala de prioridade). */
+  --color-violet: #8b5cf6;
+  --color-violet-light: #ede9fe;
+  --color-violet-dark: #6d28d9;
+
   /* ── Escala bruta teal (preferir tokens accent-*) ─────────────── */
   --color-primary-50: #eef5f1;
   --color-primary-100: #d7ebe4;

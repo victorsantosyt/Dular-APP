@@ -17,6 +17,12 @@ export type NavItem = {
   href: string;
   label: string;
   icon: LucideIcon;
+  /**
+   * Cor de identidade do ícone (classe Tailwind `text-*`). Ajuda a localizar
+   * o item na varredura vertical da sidebar. Nas telas de Segurança a cor
+   * acompanha a escala de prioridade (vermelho = risco, verde = aprovação).
+   */
+  iconColor: string;
   /** Rota ainda não existente — renderiza como "Em breve", sem navegação. */
   soon?: boolean;
 };
@@ -35,30 +41,30 @@ export type NavSection = {
 export const NAV_SECTIONS: NavSection[] = [
   {
     label: null,
-    items: [{ href: "/admin", label: "Dashboard", icon: LayoutDashboard }],
+    items: [{ href: "/admin", label: "Dashboard", icon: LayoutDashboard, iconColor: "text-accent" }],
   },
   {
     label: "Operações",
     items: [
-      { href: "/admin/operacoes/usuarios", label: "Usuários", icon: Users },
-      { href: "/admin/operacoes/servicos", label: "Serviços", icon: ClipboardList },
-      { href: "/admin/financeiro", label: "Financeiro", icon: Wallet, soon: true },
+      { href: "/admin/operacoes/usuarios", label: "Usuários", icon: Users, iconColor: "text-info" },
+      { href: "/admin/operacoes/servicos", label: "Serviços", icon: ClipboardList, iconColor: "text-violet" },
+      { href: "/admin/financeiro", label: "Financeiro", icon: Wallet, iconColor: "text-success", soon: true },
     ],
   },
   {
     label: "Inteligência",
     items: [
-      { href: "/admin/insights", label: "Analytics", icon: BarChart3 },
-      { href: "/admin/insights/feedbacks", label: "Feedbacks", icon: MessageSquareText },
+      { href: "/admin/insights", label: "Analytics", icon: BarChart3, iconColor: "text-violet" },
+      { href: "/admin/insights/feedbacks", label: "Feedbacks", icon: MessageSquareText, iconColor: "text-warning" },
     ],
   },
   {
     label: "Segurança",
     items: [
-      { href: "/admin/seguranca/riscos", label: "Risk score", icon: Radar },
-      { href: "/admin/seguranca/checkins", label: "Check-ins & SOS", icon: Siren },
-      { href: "/admin/seguranca/verificacoes", label: "Verificações", icon: BadgeCheck },
-      { href: "/admin/seguranca/incidentes", label: "Incidentes", icon: ShieldAlert },
+      { href: "/admin/seguranca/riscos", label: "Risk score", icon: Radar, iconColor: "text-error" },
+      { href: "/admin/seguranca/checkins", label: "Check-ins & SOS", icon: Siren, iconColor: "text-orange" },
+      { href: "/admin/seguranca/verificacoes", label: "Verificações", icon: BadgeCheck, iconColor: "text-success" },
+      { href: "/admin/seguranca/incidentes", label: "Incidentes", icon: ShieldAlert, iconColor: "text-error" },
     ],
   },
 ];
@@ -68,6 +74,7 @@ export const NAV_SETTINGS: NavItem = {
   href: "/admin/configuracoes",
   label: "Configurações",
   icon: Settings,
+  iconColor: "text-fg-subtle",
 };
 
 /** Mapa href → título, para breadcrumb/header derivarem o rótulo da rota. */

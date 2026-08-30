@@ -27,7 +27,7 @@ function resolveActiveHref(pathname: string, hrefs: string[]): string | null {
 }
 
 function NavRow({ item, active }: { item: NavItem; active: boolean }) {
-  const { icon: Icon, label, soon } = item;
+  const { icon: Icon, label, soon, iconColor } = item;
 
   const content = (
     <>
@@ -40,7 +40,12 @@ function NavRow({ item, active }: { item: NavItem; active: boolean }) {
           active ? "bg-accent" : "bg-transparent",
         )}
       />
-      <Icon size={18} className="shrink-0" strokeWidth={active ? 2.2 : 1.75} />
+      {/* Ícone mantém a cor de identidade do item; `soon` fica apagado. */}
+      <Icon
+        size={18}
+        className={cn("shrink-0", soon ? "text-fg-disabled" : iconColor)}
+        strokeWidth={active ? 2.2 : 1.75}
+      />
       <span className="truncate">{label}</span>
       {soon ? (
         <span className="ml-auto rounded-full bg-surface-subtle px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-fg-disabled">

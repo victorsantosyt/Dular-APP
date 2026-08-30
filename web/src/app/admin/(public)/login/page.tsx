@@ -8,18 +8,44 @@ import PillInput from "@/components/auth/PillInput";
 import PrimaryButton from "@/components/auth/PrimaryButton";
 import LogoDular from "@/components/auth/LogoDular";
 
+/** Códigos que a nossa rota /api/auth/login realmente emite. */
+const CODIGOS_DA_API = new Set([
+  "bad_request",
+  "invalid_credentials",
+  "blocked_user",
+  "rate_limited",
+  "internal_error",
+]);
+
 /**
  * A API responde `{ ok:false, error:{ code, message } }` — `error` é OBJETO.
  * Fazer `new Error(j.error)` produzia a mensagem "[object Object]" na tela.
+ *
+ * Cuidado: nem todo 401 vem da nossa rota. Em deploys de preview protegidos,
+ * a própria Vercel intercepta a chamada e devolve 401 com um payload de
+ * "Protected deployment" — tratar isso como senha errada mandava o usuário
+ * caçar um erro de credencial que não existia.
  */
 function mensagemDeErro(payload: unknown, status: number): string {
-  const erro = (payload as { error?: unknown } | null)?.error;
+  const corpo = payload as { error?: unknown; protection?: unknown } | null;
+  const erro = corpo?.error;
+
+  if (corpo?.protection) {
+    return "Este ambiente de pré-visualização exige login da Vercel. Abra o painel pelo endereço de produção.";
+  }
 
   if (typeof erro === "string") return erro;
+
   if (erro && typeof erro === "object") {
     const { message, code } = erro as { message?: unknown; code?: unknown };
-    if (typeof message === "string" && message.trim()) return message;
-    if (code === "rate_limited") return "Muitas tentativas. Aguarde um instante.";
+
+    if (code === "rate_limited") return "Muitas tentativas. Aguarde um instante e tente de novo.";
+    if (typeof code === "string" && CODIGOS_DA_API.has(code)) {
+      if (typeof message === "string" && message.trim()) return message;
+    }
+    // Payload de erro que não é da nossa API (proxy, gateway, protecção):
+    // não afirmar que a credencial está errada.
+    return `Não foi possível entrar (resposta inesperada do servidor, código ${status}).`;
   }
 
   if (status === 401) return "Credenciais inválidas.";
@@ -97,6 +123,7 @@ export default function AdminLoginPage() {
           <PillInput
             label="Senha"
             type="password"
+            revelavel
             value={senha}
             onChange={(e) => setSenha(e.target.value)}
             placeholder="••••••••"

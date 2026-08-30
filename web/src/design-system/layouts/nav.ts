@@ -64,7 +64,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { href: "/admin/seguranca/riscos", label: "Risk score", icon: Radar, iconColor: "text-error" },
       { href: "/admin/seguranca/checkins", label: "Check-ins & SOS", icon: Siren, iconColor: "text-orange" },
       { href: "/admin/seguranca/verificacoes", label: "Verificações", icon: BadgeCheck, iconColor: "text-success" },
-      { href: "/admin/seguranca/incidentes", label: "Incidentes", icon: ShieldAlert, iconColor: "text-error" },
+      { href: "/admin/incidentes", label: "Incidentes", icon: ShieldAlert, iconColor: "text-error" },
     ],
   },
 ];
@@ -92,6 +92,7 @@ export const ROUTE_TITLES: Record<string, string> = {
   "/admin/seguranca/riscos": "Risk score",
   "/admin/seguranca/checkins": "Check-ins & SOS",
   "/admin/seguranca/verificacoes": "Verificações",
+  "/admin/incidentes": "Incidentes",
   "/admin/seguranca/incidentes": "Incidentes",
   "/admin/configuracoes": "Configurações",
   "/admin/design-system": "Design System",

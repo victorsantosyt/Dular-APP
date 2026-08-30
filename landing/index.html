@@ -9,16 +9,21 @@
   <meta property="og:description" content="Diaristas e montadores verificados, perto de você. Já disponível para Android." />
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://dular-landing.vercel.app/" />
-  <meta property="og:image" content="https://dular-landing.vercel.app/dular-mark.png" />
+  <meta property="og:image" content="https://dular-landing.vercel.app/og-dular.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
   <meta property="og:locale" content="pt_BR" />
-  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="Dular — profissionais de confiança para a sua casa" />
   <meta name="twitter:description" content="Diaristas e montadores verificados, perto de você. Já disponível para Android." />
-  <meta name="twitter:image" content="https://dular-landing.vercel.app/dular-mark.png" />
-  <meta name="theme-color" content="#f7faf9" />
+  <meta name="twitter:image" content="https://dular-landing.vercel.app/og-dular.png" />
+  <meta name="theme-color" content="#fbfaff" />
   <link rel="canonical" href="https://dular-landing.vercel.app/" />
   <link rel="icon" href="dular-mark.png" type="image/png" />
   <link rel="apple-touch-icon" href="dular-mark.png" />
+  <link rel="preload" as="image" href="img/app-perfil.webp"
+        imagesrcset="img/app-perfil-sm.webp 380w, img/app-perfil-md.webp 480w, img/app-perfil.webp 620w"
+        imagesizes="(max-width: 560px) 258px, 300px" fetchpriority="high" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link
@@ -33,27 +38,36 @@
 
   <style>
     :root {
-      /* Teal da marca — o mesmo do app e do painel administrativo. */
-      --teal: #4aa596;
-      --teal-deep: #2f8577;      /* antes #1b6b5f — escuro demais para o clima leve */
-      --teal-wash: #eef6f3;
-      --teal-mist: #f6faf8;
+      /* Cores amostradas direto das telas do app — não são aproximações.
+         O roxo vem do botão "Sou Empregador"; o rosa, do título "Casa".
+         O roxo exato é #7b5cfa, mas com texto branco ele dá 4.41:1 e reprova
+         no WCAG AA; escurecido o mínimo para passar (5.0:1) — a diferença é
+         imperceptível ao lado dos prints reais. */
+      --roxo: #7250f6;
+      --rosa: #f7658c;
+      --azul: #3f86f5;                 /* terceiro perfil (Montador) */
+      /* Versões escuras para TEXTO: o roxo e o rosa puros ficam abaixo de
+         4.5:1 sobre branco e reprovam no WCAG AA em corpo de texto. */
+      --roxo-forte: #5a3ed6;
+      --rosa-forte: #c4325b;
+      --roxo-lavado: #f2edfc;          /* fundo do card "Empregador" no app */
+      --rosa-lavado: #fef1f7;          /* fundo do card "Casa" no app */
 
-      /* Neutros com viés verde: cinza puro ao lado do teal parece sujo. */
-      --ink: #24322d;            /* quase-preto suave; preto puro pesa demais */
-      --body: #5a6b65;
-      --mute: #859590;
-      --line: #ecf2ef;           /* bordas mais delicadas */
-      --ground: #fbfdfc;
-      --card: #ffffff;
+      /* Neutros puxados para o violeta: cinza puro ao lado do roxo parece sujo. */
+      --ink: #120a4d;                  /* a mesma tinta dos títulos do app */
+      --corpo: #5b5470;
+      --suave: #726b8a;
+      --linha: #ece8f6;
+      --fundo: #fbfaff;
+      --cartao: #ffffff;
 
-      --radius: 14px;
-      --radius-lg: 22px;
-      --shadow-sm: 0 1px 3px rgba(36, 50, 45, .03), 0 4px 16px rgba(36, 50, 45, .035);
-      --shadow-md: 0 2px 10px rgba(36, 50, 45, .035), 0 16px 40px rgba(36, 50, 45, .05);
-      --shadow-phone: 0 40px 90px rgba(36, 50, 45, .10), 0 12px 30px rgba(36, 50, 45, .05);
+      --raio: 14px;
+      --raio-lg: 22px;
+      --sombra-sm: 0 1px 3px rgba(18, 10, 77, .04), 0 4px 16px rgba(18, 10, 77, .04);
+      --sombra-md: 0 2px 10px rgba(18, 10, 77, .04), 0 16px 40px rgba(18, 10, 77, .06);
+      --sombra-fone: 0 40px 90px rgba(18, 10, 77, .13), 0 12px 30px rgba(18, 10, 77, .06);
 
-      --font: "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      --fonte: "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     }
 
     * { box-sizing: border-box; }
@@ -64,230 +78,202 @@
     }
 
     body {
-      margin: 0; font-family: var(--font); color: var(--ink); background: var(--ground);
+      margin: 0; font-family: var(--fonte); color: var(--ink); background: var(--fundo);
       line-height: 1.6; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
     }
     a { color: inherit; text-decoration: none; }
     img { max-width: 100%; display: block; }
     .wrap { width: 100%; max-width: 1120px; margin: 0 auto; padding: 0 24px; }
-    :focus-visible { outline: 2px solid var(--teal); outline-offset: 3px; border-radius: 6px; }
+    :focus-visible { outline: 2px solid var(--roxo); outline-offset: 3px; border-radius: 6px; }
 
     /* ---------- NAV ---------- */
     header.nav {
       position: sticky; top: 0; z-index: 60;
-      background: rgba(247, 250, 249, .82);
+      background: rgba(251, 250, 255, .82);
       backdrop-filter: saturate(150%) blur(14px);
       -webkit-backdrop-filter: saturate(150%) blur(14px);
-      border-bottom: 1px solid var(--line);
+      border-bottom: 1px solid var(--linha);
     }
     .nav-inner { display: flex; align-items: center; justify-content: space-between; height: 66px; }
     .brand { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 18px; letter-spacing: -.02em; }
     .brand img { width: 32px; height: 32px; border-radius: 9px; }
     .nav-cta {
       display: inline-flex; align-items: center; height: 40px; padding: 0 18px; border-radius: 999px;
-      background: var(--teal-deep); color: #fff; font-weight: 700; font-size: 14px;
+      background: var(--roxo); color: #fff; font-weight: 700; font-size: 14px;
       transition: background .18s ease, transform .18s ease;
     }
-    .nav-cta:hover { background: #276f64; transform: translateY(-1px); }
+    .nav-cta:hover { background: var(--roxo-forte); transform: translateY(-1px); }
 
     /* ---------- HERO ---------- */
-    .hero { position: relative; overflow: hidden; border-bottom: 1px solid var(--line); }
-    /* Halos difusos dão profundidade sem gradiente chapado. */
+    .hero { position: relative; overflow: hidden; border-bottom: 1px solid var(--linha); }
+    /* Halos difusos nas duas cores da marca: dão profundidade sem gradiente chapado. */
     .hero::before, .hero::after {
       content: ""; position: absolute; border-radius: 50%; pointer-events: none;
-      filter: blur(90px); opacity: .5;
+      filter: blur(90px); opacity: .55;
     }
-    .hero::before { width: 520px; height: 520px; top: -180px; left: -140px; background: #bfe3d9; }
-    .hero::after { width: 460px; height: 460px; bottom: -220px; right: -120px; background: #d5ece2; }
+    .hero::before { width: 540px; height: 540px; top: -190px; left: -150px; background: #d9cdfb; }
+    .hero::after { width: 470px; height: 470px; bottom: -230px; right: -120px; background: #fbd3e2; }
 
     .hero-grid {
-      position: relative; display: grid; grid-template-columns: 1.02fr .98fr;
-      gap: 72px; align-items: center; padding: 92px 0 100px;
+      position: relative; display: grid; grid-template-columns: 1.04fr .96fr;
+      gap: 64px; align-items: center; padding: 88px 0 96px;
     }
 
     .pill {
       display: inline-flex; align-items: center; gap: 8px;
-      background: #fff; border: 1px solid var(--line); color: var(--teal-deep);
+      background: #fff; border: 1px solid var(--linha); color: var(--roxo-forte);
       font-weight: 600; font-size: 13px; padding: 7px 15px 7px 12px; border-radius: 999px;
-      margin-bottom: 22px; box-shadow: var(--shadow-sm);
+      margin-bottom: 22px; box-shadow: var(--sombra-sm);
     }
-    .pill .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--teal); box-shadow: 0 0 0 4px rgba(58,158,142,.16); }
+    .pill .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--roxo); box-shadow: 0 0 0 4px rgba(114, 80, 246, .16); }
 
+    /* O app titula as telas em duas linhas — tinta escura e depois a cor.
+       A página repete esse gesto em vez de inventar outro. */
     h1.headline {
-      font-size: clamp(33px, 4.3vw, 47px); line-height: 1.16; letter-spacing: -.028em;
-      font-weight: 600; margin: 0 0 22px; text-wrap: balance; color: var(--ink);
+      font-size: clamp(33px, 4.4vw, 48px); line-height: 1.14; letter-spacing: -.03em;
+      font-weight: 700; margin: 0 0 22px; text-wrap: balance; color: var(--ink);
     }
-    h1.headline em { font-style: normal; font-weight: 700; color: var(--teal-deep); }
-    .lede { font-size: clamp(15.5px, 1.6vw, 17.5px); line-height: 1.72; color: var(--body); max-width: 29rem; margin: 0 0 36px; font-weight: 400; }
+    h1.headline span { display: block; color: var(--rosa-forte); }
+    .lede { font-size: clamp(15.5px, 1.6vw, 17.5px); line-height: 1.72; color: var(--corpo); max-width: 29rem; margin: 0 0 36px; font-weight: 400; }
 
     /* ---------- BOTÕES ---------- */
     .acoes { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
     .btn {
       display: inline-flex; align-items: center; gap: 11px; height: 54px; padding: 0 22px;
-      border-radius: var(--radius); font-family: var(--font); font-weight: 700; font-size: 15px;
+      border-radius: var(--raio); font-family: var(--fonte); font-weight: 700; font-size: 15px;
       border: 1px solid transparent;
       transition: transform .18s ease, box-shadow .18s ease, background .18s ease;
     }
     .btn svg { width: 21px; height: 21px; flex: none; }
     .btn-sub { display: flex; flex-direction: column; line-height: 1.15; text-align: left; }
-    .btn-sub small { font-size: 11px; font-weight: 500; opacity: .82; }
+    .btn-sub small { font-size: 11px; font-weight: 500; opacity: .85; }
     .btn-sub strong { font-size: 15.5px; font-weight: 700; letter-spacing: -.01em; }
 
-    .btn-primary { background: var(--teal-deep); color: #fff; box-shadow: 0 4px 14px rgba(47,133,119,.18); }
-    .btn-primary:hover { background: #276f64; transform: translateY(-1px); box-shadow: 0 8px 22px rgba(47,133,119,.22); }
+    .btn-primary { background: var(--roxo); color: #fff; box-shadow: 0 4px 14px rgba(114, 80, 246, .26); }
+    .btn-primary:hover { background: var(--roxo-forte); transform: translateY(-1px); box-shadow: 0 8px 24px rgba(114, 80, 246, .30); }
 
     /* Loja ainda não publicada: estado desabilitado explícito, não um botão falso. */
-    .btn-soon { background: #fff; color: var(--mute); border-color: var(--line); cursor: default; box-shadow: var(--shadow-sm); }
+    .btn-soon { background: #fff; color: var(--suave); border-color: var(--linha); cursor: default; box-shadow: var(--sombra-sm); }
     .btn-soon .tag {
       margin-left: 4px; font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
-      color: var(--teal-deep); background: var(--teal-wash); padding: 3px 8px; border-radius: 999px;
+      color: var(--roxo-forte); background: var(--roxo-lavado); padding: 3px 8px; border-radius: 999px;
     }
 
-    .nota-acoes { font-size: 13.5px; color: var(--mute); margin: 16px 0 0; }
-    .nota-acoes a { color: var(--teal-deep); font-weight: 600; text-decoration: underline; text-underline-offset: 2px; }
+    .nota-acoes { font-size: 13.5px; color: var(--suave); margin: 16px 0 0; }
+    .nota-acoes a { color: var(--roxo-forte); font-weight: 600; text-decoration: underline; text-underline-offset: 2px; }
 
-    /* ---------- MOCKUP DO CELULAR ---------- */
-    .phone-col { display: flex; justify-content: center; }
-    .phone {
-      position: relative; width: 268px; max-width: 100%;
-      /* Borda metálica: o gradiente imita a lateral em titânio, que muda de
-         tom conforme a face pega luz. Uma cor chapada é o que fazia parecer
-         um retângulo preto desenhado. */
-      background: linear-gradient(150deg, #ffffff 0%, #eef2f1 26%, #dfe7e4 52%, #eef2f1 76%, #ffffff 100%);
-      border-radius: 46px;
-      padding: 8px;
-      box-shadow: var(--shadow-phone);
-    }
-    /* Fresta interna escura entre a lateral e o vidro. */
-    .phone-inner {
-      position: relative; background: #f3f6f5; border-radius: 39px; padding: 2px;
-    }
-    /* Ilha dinâmica. */
-    .phone-inner::before {
-      content: ""; position: absolute; top: 13px; left: 50%; transform: translateX(-50%);
-      width: 68px; height: 19px; background: #2c3733; border-radius: 999px; z-index: 3;
-    }
-    /* Brilho diagonal sobre o vidro — sutil, some no mobile. */
-    .phone-inner::after {
-      content: ""; position: absolute; inset: 2px; border-radius: 37px; z-index: 2;
-      pointer-events: none;
-      background: linear-gradient(118deg, rgba(255,255,255,.5) 0%, rgba(255,255,255,.14) 24%, rgba(255,255,255,0) 44%);
-    }
-    /* Botões laterais. */
-    .phone .btn-lat {
-      position: absolute; width: 3px; border-radius: 3px; z-index: 1;
-      background: linear-gradient(90deg, #cfd8d5, #eaefed);
-    }
-    .phone .btn-lat.silencioso { left: -2px; top: 92px; height: 24px; }
-    .phone .btn-lat.vol-mais   { left: -2px; top: 132px; height: 46px; }
-    .phone .btn-lat.vol-menos  { left: -2px; top: 188px; height: 46px; }
-    .phone .btn-lat.power      { right: -2px; top: 150px; height: 72px;
-      background: linear-gradient(270deg, #cfd8d5, #eaefed); }
-    .screen {
-      background: linear-gradient(170deg, #f4faf7 0%, #e9f4ef 60%, #dfeee7 100%);
-      border-radius: 37px; padding: 44px 13px 17px; min-height: 470px;
-      display: flex; flex-direction: column; align-items: center; overflow: hidden;
-    }
-    .screen .m-logo { width: 40px; height: 40px; border-radius: 11px; margin: 4px 0 9px; }
-    .screen .m-title { font-size: 16px; font-weight: 600; letter-spacing: -.02em; color: var(--ink); }
-    .screen .m-sub { font-size: 11px; color: var(--mute); margin: 3px 0 14px; }
-
-    .m-card {
-      width: 100%; background: #fff; border: 1px solid rgba(255,255,255,.9); border-radius: 15px;
-      box-shadow: 0 2px 10px rgba(36,50,45,.05); padding: 10px 11px;
-      display: flex; align-items: center; gap: 9px; margin-bottom: 8px;
-    }
-    .m-ico {
-      width: 32px; height: 32px; border-radius: 10px; flex: none;
-      display: flex; align-items: center; justify-content: center;
-      background: var(--teal-wash); color: var(--teal-deep);
-    }
-    .m-ico svg { width: 17px; height: 17px; }
-    .m-c-title { font-size: 12.5px; font-weight: 600; color: var(--ink); letter-spacing: -.01em; white-space: nowrap; }
-    .m-c-desc { font-size: 10px; color: var(--mute); line-height: 1.4; margin-top: 2px; }
-    .m-radio { margin-left: auto; width: 15px; height: 15px; border-radius: 50%; border: 2px solid #dde7e3; flex: none; }
-    .m-card.sel { border-color: var(--teal); box-shadow: 0 0 0 3px rgba(58,158,142,.14); }
-    .m-card.sel .m-radio { border-color: var(--teal); background: var(--teal); box-shadow: inset 0 0 0 3px #fff; }
-    .m-btn {
-      width: 100%; height: 40px; margin-top: 6px; border-radius: 12px;
-      background: var(--teal-deep); color: #fff; font-weight: 600; font-size: 13.5px;
-      display: flex; align-items: center; justify-content: center;
+    /* ---------- MOCKUPS ---------- */
+    /* A moldura faz parte do PNG (iPhone real, tela recortada). O CSS só
+       posiciona e projeta a sombra — nada de telefone desenhado à mão. */
+    .fone-col { display: flex; justify-content: center; }
+    .fone-hero {
+      width: 300px; height: auto; max-width: 100%;
+      filter: drop-shadow(0 40px 70px rgba(18, 10, 77, .16)) drop-shadow(0 10px 24px rgba(18, 10, 77, .07));
     }
 
     /* ---------- SEÇÕES ---------- */
-    section { padding: 104px 0; }
-    .sec-head { text-align: center; max-width: 600px; margin: 0 auto 60px; }
-    .sec-tag { font-size: 12px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--teal-deep); margin-bottom: 14px; }
-    .sec-title { font-size: clamp(25px, 2.9vw, 33px); font-weight: 600; letter-spacing: -.022em; margin: 0 0 14px; line-height: 1.22; text-wrap: balance; }
-    .sec-desc { font-size: 16px; color: var(--body); line-height: 1.7; margin: 0; }
+    section { padding: 100px 0; }
+    .sec-head { text-align: center; max-width: 620px; margin: 0 auto 56px; }
+    .sec-tag { font-size: 12px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--roxo-forte); margin-bottom: 14px; }
+    .sec-title { font-size: clamp(25px, 2.9vw, 34px); font-weight: 700; letter-spacing: -.025em; margin: 0 0 14px; line-height: 1.2; text-wrap: balance; }
+    .sec-title span { color: var(--rosa-forte); }
+    .sec-desc { font-size: 16px; color: var(--corpo); line-height: 1.7; margin: 0; }
+
+    /* ---------- ONBOARDING (as telas reais, na ordem) ---------- */
+    .onb { background: var(--cartao); border-top: 1px solid var(--linha); border-bottom: 1px solid var(--linha); }
+    /* Rolagem lateral no celular: quem scrolla é a faixa, nunca o body. */
+    .onb-faixa {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 26px;
+      overflow-x: auto; scroll-snap-type: x mandatory;
+      padding-bottom: 6px; -webkit-overflow-scrolling: touch;
+    }
+    .passo { scroll-snap-align: center; min-width: 0; text-align: center; }
+    .passo img {
+      width: 100%; height: auto; margin: 0 auto 20px;
+      filter: drop-shadow(0 22px 38px rgba(18, 10, 77, .13));
+    }
+    .passo-num {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 26px; height: 26px; border-radius: 50%; margin-bottom: 10px;
+      background: var(--roxo-lavado); color: var(--roxo-forte);
+      font-size: 12.5px; font-weight: 700; font-variant-numeric: tabular-nums;
+    }
+    .passo h3 { font-size: 16px; font-weight: 700; letter-spacing: -.015em; margin: 0 0 7px; line-height: 1.3; }
+    .passo p { font-size: 14px; color: var(--corpo); line-height: 1.55; margin: 0; }
 
     /* ---------- PERFIS ---------- */
     .roles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
     .role {
-      background: var(--card); border: 1px solid var(--line); border-radius: var(--radius-lg);
-      padding: 30px 26px; box-shadow: var(--shadow-sm);
+      background: var(--cartao); border: 1px solid var(--linha); border-radius: var(--raio-lg);
+      padding: 30px 26px; box-shadow: var(--sombra-sm);
       transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
     }
-    .role:hover { transform: translateY(-3px); box-shadow: var(--shadow-md); border-color: #cfe0da; }
+    .role:hover { transform: translateY(-3px); box-shadow: var(--sombra-md); }
     .role .r-ico {
       width: 50px; height: 50px; border-radius: 15px; display: flex; align-items: center; justify-content: center;
-      margin-bottom: 18px; background: var(--teal-wash); color: var(--teal-deep);
+      margin-bottom: 18px;
     }
-    .role.deep .r-ico { background: #e2efe9; color: #14554b; }
-    .role.soft .r-ico { background: #edf7f3; color: var(--teal); }
+    /* Cada perfil carrega a sua própria cor — as mesmas do app. */
+    .role.empregador .r-ico { background: var(--roxo-lavado); color: var(--roxo-forte); }
+    .role.empregador:hover { border-color: #d6c9fb; }
+    .role.diarista   .r-ico { background: var(--rosa-lavado); color: var(--rosa-forte); }
+    .role.diarista:hover { border-color: #fbd0e0; }
+    .role.montador   .r-ico { background: #eaf2fe; color: #1f5fc4; }
+    .role.montador:hover { border-color: #c9dcfa; }
     .role .r-ico svg { width: 26px; height: 26px; }
-    .role h3 { font-size: 17.5px; font-weight: 600; margin: 0 0 9px; letter-spacing: -.015em; }
-    .role p { font-size: 15px; color: var(--body); line-height: 1.55; margin: 0; }
+    .role h3 { font-size: 17.5px; font-weight: 700; margin: 0 0 9px; letter-spacing: -.018em; }
+    .role p { font-size: 15px; color: var(--corpo); line-height: 1.55; margin: 0; }
 
-    /* ---------- DIFERENCIAIS ---------- */
-    .features { background: var(--card); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
-    .feat-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px; }
-    .feat {
-      display: flex; gap: 16px; align-items: flex-start;
-      background: var(--teal-mist); border: 1px solid var(--line); border-radius: var(--radius); padding: 22px;
+    /* ---------- SEGURANÇA (tela de login + garantias) ---------- */
+    .seg-grid { display: grid; grid-template-columns: .82fr 1.18fr; gap: 64px; align-items: center; }
+    .seg-fone { display: flex; justify-content: center; }
+    .seg-fone img {
+      width: 264px; height: auto; max-width: 100%;
+      filter: drop-shadow(0 34px 60px rgba(18, 10, 77, .14));
     }
-    .feat .f-ico {
-      width: 42px; height: 42px; border-radius: 12px; background: #fff; flex: none;
-      display: flex; align-items: center; justify-content: center; color: var(--teal-deep); box-shadow: var(--shadow-sm);
+    .seg-lista { display: flex; flex-direction: column; gap: 16px; margin: 26px 0 0; padding: 0; list-style: none; }
+    .seg-lista li { display: flex; gap: 15px; align-items: flex-start; }
+    .seg-lista .s-ico {
+      width: 40px; height: 40px; border-radius: 12px; flex: none;
+      display: flex; align-items: center; justify-content: center;
+      background: var(--roxo-lavado); color: var(--roxo-forte);
     }
-    .feat .f-ico svg { width: 22px; height: 22px; }
-    .feat .feat-title { font-size: 16px; font-weight: 600; margin: 1px 0 6px; letter-spacing: -.012em; }
-    .feat p { font-size: 14.5px; color: var(--body); line-height: 1.55; margin: 0; }
+    .seg-lista li:nth-child(even) .s-ico { background: var(--rosa-lavado); color: var(--rosa-forte); }
+    .seg-lista .s-ico svg { width: 21px; height: 21px; }
+    .seg-lista h3 { font-size: 15.5px; font-weight: 700; margin: 2px 0 5px; letter-spacing: -.012em; }
+    .seg-lista p { font-size: 14.5px; color: var(--corpo); line-height: 1.55; margin: 0; }
 
     /* ---------- CTA ---------- */
     .cta-box {
-      position: relative; overflow: hidden; background: var(--teal-wash);
-      border: 1px solid var(--line);
+      position: relative; overflow: hidden;
+      background: linear-gradient(135deg, var(--roxo-lavado) 0%, #f7f0fd 52%, var(--rosa-lavado) 100%);
+      border: 1px solid var(--linha);
       border-radius: 26px; padding: 56px 40px; text-align: center; color: var(--ink);
-      box-shadow: var(--shadow-sm);
+      box-shadow: var(--sombra-sm);
     }
     .cta-box::before {
       content: ""; position: absolute; width: 420px; height: 420px; border-radius: 50%;
-      background: rgba(74,165,150,.20); filter: blur(80px); top: -190px; right: -110px; pointer-events: none;
+      background: rgba(114, 80, 246, .16); filter: blur(80px); top: -190px; right: -110px; pointer-events: none;
     }
     .cta-box > * { position: relative; }
-    .cta-box h2 { font-size: clamp(25px, 2.9vw, 33px); font-weight: 600; margin: 0 0 13px; letter-spacing: -.022em; }
-    .cta-box p { font-size: 16px; color: var(--body); margin: 0 auto 30px; max-width: 34rem; line-height: 1.7; }
+    .cta-box h2 { font-size: clamp(25px, 2.9vw, 34px); font-weight: 700; margin: 0 0 13px; letter-spacing: -.025em; }
+    .cta-box p { font-size: 16px; color: var(--corpo); margin: 0 auto 30px; max-width: 34rem; line-height: 1.7; }
     .cta-box .acoes { justify-content: center; }
-    .cta-box .btn-primary { background: var(--teal-deep); color: #fff; box-shadow: 0 4px 14px rgba(47,133,119,.18); }
-    .cta-box .btn-primary:hover { background: #276f64; }
-    .cta-box .btn-soon { background: #fff; color: var(--mute); border-color: var(--line); }
-    .cta-box .btn-soon .tag { background: var(--teal-wash); color: var(--teal-deep); }
-    .cta-box .nota-acoes { color: var(--mute); }
+    .cta-box .btn-soon { background: #fff; }
 
     /* ---------- RODAPÉ ---------- */
-    footer { background: var(--ink); color: #b9c7c2; padding: 40px 0; }
+    footer { background: var(--ink); color: #b6aed2; padding: 40px 0; }
     .foot-inner { display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
     .foot-brand { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 16.5px; color: #fff; }
     .foot-brand img { width: 28px; height: 28px; border-radius: 8px; }
     .foot-note { font-size: 13.5px; }
-    .foot-note a { color: #dbe6e2; text-decoration: underline; text-underline-offset: 2px; }
+    .foot-note a { color: #ddd6f2; text-decoration: underline; text-underline-offset: 2px; }
 
     /* ---------- BANNER DE COOKIES ---------- */
     .cookie-banner {
       position: fixed; left: 16px; right: 16px; bottom: 16px; z-index: 100;
-      max-width: 540px; margin: 0 auto; background: var(--ink); color: #d7e2de;
-      border-radius: 18px; box-shadow: 0 20px 50px rgba(22,33,29,.3);
+      max-width: 540px; margin: 0 auto; background: var(--ink); color: #d6cff0;
+      border-radius: 18px; box-shadow: 0 20px 50px rgba(18, 10, 77, .32);
       padding: 20px 22px; display: flex; flex-direction: column; gap: 14px;
     }
     /* O `display: flex` acima vence o display:none do atributo [hidden] (estilo
@@ -298,20 +284,24 @@
     .cookie-actions { display: flex; gap: 10px; }
     .cookie-banner button {
       flex: 1; height: 40px; border: none; border-radius: 10px;
-      font-family: var(--font); font-weight: 700; font-size: 13.5px; cursor: pointer;
+      font-family: var(--fonte); font-weight: 700; font-size: 13.5px; cursor: pointer;
     }
-    .cookie-accept { background: var(--teal); color: #08211c; }
-    .cookie-decline { background: transparent; color: #b9c7c2; border: 1px solid rgba(255,255,255,.2) !important; }
+    .cookie-accept { background: var(--roxo); color: #fff; }
+    .cookie-decline { background: transparent; color: #b6aed2; border: 1px solid rgba(255, 255, 255, .2) !important; }
 
     /* ---------- RESPONSIVO ---------- */
     @media (max-width: 900px) {
-      .hero-grid { grid-template-columns: 1fr; gap: 48px; padding: 56px 0 68px; text-align: center; }
+      .hero-grid { grid-template-columns: 1fr; gap: 44px; padding: 54px 0 66px; text-align: center; }
       .lede { margin-left: auto; margin-right: auto; }
       .acoes { justify-content: center; }
       .pill { margin-left: auto; margin-right: auto; }
       .roles { grid-template-columns: 1fr; }
-      .feat-grid { grid-template-columns: 1fr; }
+      .seg-grid { grid-template-columns: 1fr; gap: 40px; text-align: center; }
+      .seg-lista li { text-align: left; }
+      .sec-head { margin-bottom: 44px; }
       section { padding: 68px 0; }
+      /* Faixa vira carrossel: largura fixa por item em vez de 4 colunas espremidas. */
+      .onb-faixa { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: 232px; gap: 20px; }
     }
     @media (max-width: 560px) {
       .wrap { padding: 0 18px; }
@@ -319,7 +309,8 @@
       .cta-box { padding: 42px 22px; border-radius: 22px; }
       .btn { width: 100%; justify-content: center; }
       .cookie-banner { left: 12px; right: 12px; bottom: 12px; padding: 17px 18px; }
-      .phone-inner::after { display: none; }
+      .fone-hero { width: 258px; }
+      .onb-faixa { grid-auto-columns: 208px; }
     }
   </style>
 </head>
@@ -336,7 +327,7 @@
     <div class="wrap hero-grid">
       <div class="hero-copy">
         <span class="pill"><span class="dot"></span> Começando por Água Boa · MT</span>
-        <h1 class="headline">Profissionais de <em>confiança</em> para a sua casa.</h1>
+        <h1 class="headline">Profissionais de confiança <span>para a sua casa.</span></h1>
         <p class="lede">
           O Dular conecta você a diaristas e montadores verificados da sua região — com
           perfis avaliados, atendimento local e pagamento por PIX.
@@ -361,60 +352,88 @@
         </p>
       </div>
 
-      <div class="phone-col">
-        <div class="phone">
-          <span class="btn-lat silencioso" aria-hidden="true"></span>
-          <span class="btn-lat vol-mais" aria-hidden="true"></span>
-          <span class="btn-lat vol-menos" aria-hidden="true"></span>
-          <span class="btn-lat power" aria-hidden="true"></span>
-          <div class="phone-inner">
-          <div class="screen">
-            <picture><source srcset="dular-mark.webp" type="image/webp" /><img class="m-logo" src="dular-mark.png" alt="" width="46" height="46" /></picture>
-            <div class="m-title">Bem-vindo ao Dular</div>
-            <div class="m-sub">Como você vai usar o app?</div>
-
-            <div class="m-card sel">
-              <div class="m-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M9 21v-6h6v6"/></svg></div>
-              <div><div class="m-c-title">Sou Empregador</div><div class="m-c-desc">Contratar com segurança.</div></div>
-              <div class="m-radio"></div>
-            </div>
-            <div class="m-card">
-              <div class="m-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 1.9 4.6L18.5 9l-3.8 3 1.1 4.9L12 14.6 8.2 16.9 9.3 12 5.5 9l4.6-1.4z"/></svg></div>
-              <div><div class="m-c-title">Sou Diarista</div><div class="m-c-desc">Receber novos clientes.</div></div>
-              <div class="m-radio"></div>
-            </div>
-            <div class="m-card">
-              <div class="m-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.3L3 18v3h3l6.4-6.3a4 4 0 0 0 5.3-5.4l-2.5 2.5-2.3-.6-.6-2.3z"/></svg></div>
-              <div><div class="m-c-title">Sou Montador</div><div class="m-c-desc">Montagem de móveis.</div></div>
-              <div class="m-radio"></div>
-            </div>
-            <div class="m-btn">Continuar</div>
-          </div>
-          </div>
-        </div>
+      <div class="fone-col">
+        <img
+          class="fone-hero"
+          src="img/app-perfil.webp"
+          srcset="img/app-perfil-sm.webp 380w, img/app-perfil-md.webp 480w, img/app-perfil.webp 620w"
+          sizes="(max-width: 560px) 258px, 300px"
+          width="620" height="1244"
+          fetchpriority="high" decoding="async"
+          alt="Tela do app Dular pedindo para escolher entre o perfil de Empregador ou de profissional"
+        />
       </div>
     </div>
   </div>
+
+  <section class="onb" id="app">
+    <div class="wrap">
+      <div class="sec-head">
+        <div class="sec-tag">Por dentro do app</div>
+        <h2 class="sec-title">Quatro telas até <span>você começar</span></h2>
+        <p class="sec-desc">O primeiro acesso explica o essencial e já leva você ao seu perfil. Sem cadastro longo, sem formulário interminável.</p>
+      </div>
+
+      <div class="onb-faixa">
+        <div class="passo">
+          <img src="img/app-onb-1.webp"
+            srcset="img/app-onb-1-sm.webp 320w, img/app-onb-1-md.webp 420w, img/app-onb-1.webp 520w"
+            sizes="(max-width: 560px) 208px, (max-width: 900px) 232px, 248px"
+            width="520" height="1044" loading="lazy" decoding="async" alt="Tela de boas-vindas do app Dular" />
+          <div class="passo-num">1</div>
+          <h3>Bem-vindo ao Dular</h3>
+          <p>Uma forma mais simples, segura e acolhedora de cuidar da rotina da sua casa.</p>
+        </div>
+        <div class="passo">
+          <img src="img/app-onb-2.webp"
+            srcset="img/app-onb-2-sm.webp 320w, img/app-onb-2-md.webp 420w, img/app-onb-2.webp 520w"
+            sizes="(max-width: 560px) 208px, (max-width: 900px) 232px, 248px"
+            width="520" height="1044" loading="lazy" decoding="async" alt="Tela do app mostrando agendamentos e histórico de serviços" />
+          <div class="passo-num">2</div>
+          <h3>Praticidade no seu dia</h3>
+          <p>Agendamento rápido, recontratação das favoritas em um clique e histórico completo.</p>
+        </div>
+        <div class="passo">
+          <img src="img/app-onb-3.webp"
+            srcset="img/app-onb-3-sm.webp 320w, img/app-onb-3-md.webp 420w, img/app-onb-3.webp 520w"
+            sizes="(max-width: 560px) 208px, (max-width: 900px) 232px, 248px"
+            width="520" height="1044" loading="lazy" decoding="async" alt="Tela do app mostrando o SafeScore e a verificação de profissionais" />
+          <div class="passo-num">3</div>
+          <h3>Segurança para confiar</h3>
+          <p>Profissionais verificados por documento e o SafeScore para orientar a sua escolha.</p>
+        </div>
+        <div class="passo">
+          <img src="img/app-onb-4.webp"
+            srcset="img/app-onb-4-sm.webp 320w, img/app-onb-4-md.webp 420w, img/app-onb-4.webp 520w"
+            sizes="(max-width: 560px) 208px, (max-width: 900px) 232px, 248px"
+            width="520" height="1044" loading="lazy" decoding="async" alt="Tela do app convidando a escolher o perfil e começar" />
+          <div class="passo-num">4</div>
+          <h3>Mais tempo para você</h3>
+          <p>Escolha o perfil que combina com a sua jornada e comece a usar na hora.</p>
+        </div>
+      </div>
+    </div>
+  </section>
 
   <section id="perfis">
     <div class="wrap">
       <div class="sec-head">
         <div class="sec-tag">Para todos os lados</div>
-        <h2 class="sec-title">Um app, três formas de usar</h2>
+        <h2 class="sec-title">Um app, <span>três formas de usar</span></h2>
         <p class="sec-desc">Seja para contratar ou para trabalhar, o Dular foi feito para autônomos e para quem precisa deles.</p>
       </div>
       <div class="roles">
-        <div class="role">
+        <div class="role empregador">
           <div class="r-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M9 21v-6h6v6"/></svg></div>
           <h3>Sou Empregador</h3>
           <p>Encontre diaristas e montadores verificados perto de você, veja avaliações e contrate com segurança.</p>
         </div>
-        <div class="role deep">
+        <div class="role diarista">
           <div class="r-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 1.9 4.6L18.5 9l-3.8 3 1.1 4.9L12 14.6 8.2 16.9 9.3 12 5.5 9l4.6-1.4z"/></svg></div>
           <h3>Sou Diarista</h3>
           <p>Ofereça seus serviços, defina seus preços e receba novos clientes da sua cidade — com pagamento por PIX.</p>
         </div>
-        <div class="role soft">
+        <div class="role montador">
           <div class="r-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.3L3 18v3h3l6.4-6.3a4 4 0 0 0 5.3-5.4l-2.5 2.5-2.3-.6-.6-2.3z"/></svg></div>
           <h3>Sou Montador</h3>
           <p>Ganhe visibilidade oferecendo montagem de móveis e serviços para empregadores da sua região.</p>
@@ -423,29 +442,38 @@
     </div>
   </section>
 
-  <section class="features">
+  <section class="seguranca">
     <div class="wrap">
-      <div class="sec-head">
-        <div class="sec-tag">Por que Dular</div>
-        <h2 class="sec-title">Confiança em cada etapa</h2>
-        <p class="sec-desc">Cuidamos da segurança para que contratar e trabalhar seja tranquilo dos dois lados.</p>
-      </div>
-      <div class="feat-grid">
-        <div class="feat">
-          <div class="f-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z"/><path d="m9 12 2 2 4-4"/></svg></div>
-          <div><h3 class="feat-title">Perfis verificados</h3><p>Profissionais passam por verificação de documentos antes de aparecer para contratação.</p></div>
+      <div class="seg-grid">
+        <div class="seg-fone">
+          <img src="img/app-login.webp"
+            srcset="img/app-login-sm.webp 340w, img/app-login-md.webp 480w, img/app-login.webp 560w"
+            sizes="264px"
+            width="560" height="1124" loading="lazy" decoding="async" alt="Tela de login do app Dular com as opções de entrar com Google ou Apple" />
         </div>
-        <div class="feat">
-          <div class="f-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 1.9 4.6L18.5 9l-3.8 3 1.1 4.9L12 14.6 8.2 16.9 9.3 12 5.5 9l4.6-1.4z"/></svg></div>
-          <div><h3 class="feat-title">Avaliações reais</h3><p>Empregadores e profissionais se avaliam depois de cada serviço, construindo reputação de verdade.</p></div>
-        </div>
-        <div class="feat">
-          <div class="f-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M3 10h18"/><path d="M7 15h4"/></svg></div>
-          <div><h3 class="feat-title">Pagamento por PIX</h3><p>O pagamento é direto entre você e o profissional, com confirmação registrada no app.</p></div>
-        </div>
-        <div class="feat">
-          <div class="f-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-4.5-7-10a7 7 0 0 1 14 0c0 5.5-7 10-7 10z"/><circle cx="12" cy="11" r="2.5"/></svg></div>
-          <div><h3 class="feat-title">Atendimento local</h3><p>Encontre quem atende o seu bairro. Começamos por Água Boa – MT e vamos crescendo por perto.</p></div>
+        <div class="seg-copy">
+          <div class="sec-tag">Confiança</div>
+          <h2 class="sec-title" style="text-wrap: balance;">Protegido desde <span>a primeira tela</span></h2>
+          <p class="sec-desc">Você entra com a conta que já usa, e as duas pontas do serviço passam pela mesma verificação.</p>
+
+          <ul class="seg-lista">
+            <li>
+              <div class="s-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z"/><path d="m9 12 2 2 4-4"/></svg></div>
+              <div><h3>Perfis verificados</h3><p>Profissionais passam por verificação de documentos antes de aparecer para contratação.</p></div>
+            </li>
+            <li>
+              <div class="s-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 1.9 4.6L18.5 9l-3.8 3 1.1 4.9L12 14.6 8.2 16.9 9.3 12 5.5 9l4.6-1.4z"/></svg></div>
+              <div><h3>Avaliações dos dois lados</h3><p>Empregadores e profissionais se avaliam depois de cada serviço, construindo reputação de verdade.</p></div>
+            </li>
+            <li>
+              <div class="s-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M3 10h18"/><path d="M7 15h4"/></svg></div>
+              <div><h3>Pagamento por PIX</h3><p>O pagamento é direto entre você e o profissional, com a confirmação registrada no app.</p></div>
+            </li>
+            <li>
+              <div class="s-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-4.5-7-10a7 7 0 0 1 14 0c0 5.5-7 10-7 10z"/><circle cx="12" cy="11" r="2.5"/></svg></div>
+              <div><h3>Atendimento local</h3><p>Encontre quem atende o seu bairro. Começamos por Água Boa – MT e vamos crescendo por perto.</p></div>
+            </li>
+          </ul>
         </div>
       </div>
     </div>

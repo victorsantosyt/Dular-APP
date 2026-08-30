@@ -17,7 +17,7 @@ function pct(v: number | null): string {
 }
 
 export default async function InsightsPage() {
-  const [servicos, eventos, profissionais, avaliacaoAgg, topDiaristasRaw, ultimasAval] =
+  const [servicos, eventos, profissionais, avaliacaoAgg, topDiaristasRaw] =
     await Promise.all([
       prisma.servico.findMany({
         select: {
@@ -46,24 +46,6 @@ export default async function InsightsPage() {
         _count: { _all: true },
         orderBy: { _avg: { notaGeral: "desc" } },
         take: 5,
-      }),
-      prisma.avaliacao.findMany({
-        orderBy: { createdAt: "desc" },
-        take: 6,
-        select: {
-          id: true,
-          notaGeral: true,
-          comentario: true,
-          createdAt: true,
-          servico: {
-            select: {
-              bairro: true,
-              cidade: true,
-              cliente: { select: { nome: true } },
-              diarista: { select: { nome: true } },
-            },
-          },
-        },
       }),
     ]);
 
@@ -156,12 +138,12 @@ export default async function InsightsPage() {
           <AdminCard
             title="Serviços concluídos por semana"
             right={
-              <span className="rounded-full bg-emerald-200/60 px-3 py-1 text-xs font-semibold text-emerald-900">
+              <span className="rounded-full bg-accent-subtle px-2.5 py-1 text-eyebrow font-bold uppercase text-accent-strong">
                 North Star · 8 semanas
               </span>
             }
           >
-            <div className="rounded-2xl border border-white/50 bg-white/50 p-2">
+            <div className="">
               {m.totalConcluidos === 0 ? (
                 <AdminEmpty
                   title="Nenhum serviço concluído ainda"
@@ -243,37 +225,8 @@ export default async function InsightsPage() {
           </AdminCard>
         </div>
 
-        <div className="md:col-span-4">
-          <AdminCard title="Últimas avaliações">
-            {ultimasAval.length === 0 ? (
-              <AdminEmpty title="Sem avaliações" />
-            ) : (
-              <div className="space-y-3">
-                {ultimasAval.map((a) => (
-                  <div key={a.id} className="rounded-xl border border-slate-200 bg-white/80 p-3">
-                    <div className="flex items-start justify-between gap-3 text-sm">
-                      <div className="font-semibold text-slate-900">
-                        Nota {a.notaGeral}/5{" "}
-                        <span className="text-xs text-slate-500">
-                          {a.servico?.bairro ?? "—"} • {a.servico?.cidade ?? "—"}
-                        </span>
-                      </div>
-                      <div className="text-xs text-slate-500">
-                        {new Date(a.createdAt).toLocaleDateString("pt-BR")}
-                      </div>
-                    </div>
-                    <div className="text-xs text-slate-600">
-                      Cliente: {a.servico?.cliente?.nome ?? "—"} • Diarista: {a.servico?.diarista?.nome ?? "—"}
-                    </div>
-                    <div className="mt-2 text-sm text-slate-800">
-                      {a.comentario?.trim() ? a.comentario : <span className="text-slate-500">Sem comentário.</span>}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </AdminCard>
-        </div>
+        {/* Conteúdo de avaliação (lista, comentários) vive em /admin/insights/feedbacks —
+            aqui ficam só as métricas da operação, para as duas telas não se sobreporem. */}
       </AdminGrid>
     </AdminPage>
   );

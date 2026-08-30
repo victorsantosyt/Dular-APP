@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Search, Bell } from "lucide-react";
 import { cn } from "@/design-system/utils/cn";
 import { initials } from "@/design-system/utils/avatar";
+import NotificationsBell from "./NotificationsBell";
 
 export type HeaderUser = {
   id: string;
@@ -58,38 +58,23 @@ export default function Header({
   }, [autoLoadUser, userProp]);
 
   return (
-    <header className="sticky top-0 z-10 flex h-16 shrink-0 items-center gap-4 border-b border-glass-border bg-glass-surface px-6 backdrop-blur-md">
+    <header className="sticky top-0 z-10 flex h-16 shrink-0 items-center gap-4 border-b border-border bg-surface px-8">
       <div className="min-w-0 flex-1">
         {title ? (
-          <h1 className="truncate text-xl font-semibold tracking-tight text-fg">{title}</h1>
+          <h1 className="truncate text-heading font-semibold text-fg">{title}</h1>
         ) : null}
       </div>
 
       <div className="flex items-center gap-2">
         {actions}
 
-        <button
-          type="button"
-          aria-label="Buscar"
-          className="flex h-9 w-9 items-center justify-center rounded-lg text-fg-muted transition-colors hover:bg-surface-secondary hover:text-fg"
-        >
-          <Search size={18} />
-        </button>
+        <NotificationsBell />
 
-        <button
-          type="button"
-          aria-label="Notificações"
-          className="relative flex h-9 w-9 items-center justify-center rounded-lg text-fg-muted transition-colors hover:bg-surface-secondary hover:text-fg"
-        >
-          <Bell size={18} />
-          <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-accent" />
-        </button>
-
-        <div className="ml-1 flex items-center gap-2">
+        <div className="ml-2 flex items-center gap-2 border-l border-border pl-3">
           <div
             className={cn(
               "flex h-9 w-9 items-center justify-center overflow-hidden rounded-full",
-              "bg-accent-subtle text-xs font-semibold text-accent ring-1 ring-border",
+              "bg-accent text-xs font-bold text-white",
             )}
           >
             {user?.avatarUrl ? (

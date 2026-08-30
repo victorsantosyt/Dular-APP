@@ -8,6 +8,23 @@ import { AdminGrid } from "@/components/admin-ui/AdminGrid";
 import { AdminCard } from "@/components/admin-ui/AdminCard";
 import { AdminEmpty } from "@/components/admin-ui/AdminEmpty";
 import { AdminTable } from "@/components/admin-ui/AdminTable";
+import { AdminKpi } from "@/components/admin-ui/AdminKpi";
+import { Badge, type Tone } from "@/design-system/ui";
+
+const SEIS_HORAS_MS = 6 * 60 * 60 * 1000;
+const VINTE_QUATRO_HORAS_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * CHECKIN_OK não carrega gravidade — é a confirmação de que está tudo bem.
+ * O que tem valor operacional aqui é a RECÊNCIA: um check-in das últimas
+ * horas é sinal vivo; um antigo já não diz nada sobre o agora.
+ */
+function recenciaTone(dt: Date): { tone: Tone; label: string } {
+  const idade = Date.now() - new Date(dt).getTime();
+  if (idade <= SEIS_HORAS_MS) return { tone: "success", label: "Recente" };
+  if (idade <= VINTE_QUATRO_HORAS_MS) return { tone: "medium", label: "Hoje" };
+  return { tone: "neutral", label: "Antigo" };
+}
 
 function fmt(dt: Date) {
   return new Date(dt).toLocaleString("pt-BR");
@@ -45,6 +62,7 @@ export default async function CheckinsPage() {
 
   const rows = events.map((event) => {
     const service = event.serviceId ? servicesById.get(event.serviceId) : null;
+    const recencia = recenciaTone(event.createdAt);
     return {
       id: event.id,
       diarista: event.user?.nome ?? event.user?.telefone ?? event.userId,
@@ -54,12 +72,35 @@ export default async function CheckinsPage() {
         : event.serviceId ?? "—",
       localizacao: fmtLocal(event.lat, event.lng),
       horario: fmt(event.createdAt),
+      recenciaTone: recencia.tone,
+      recenciaLabel: recencia.label,
     };
   });
+
+  const recentes = rows.filter((r) => r.recenciaTone === "success").length;
+  const semLocalizacao = rows.filter((r) => r.localizacao === "—").length;
 
   return (
     <AdminPage title="Check-ins" subtitle="Eventos de segurança confirmados pelas diaristas">
       <AdminGrid>
+        <div className="md:col-span-4">
+          <AdminKpi
+            label="Nas últimas 6h"
+            value={String(recentes)}
+            hint="check-ins com sinal recente de campo"
+          />
+        </div>
+        <div className="md:col-span-4">
+          <AdminKpi label="Total registrados" value={String(rows.length)} hint="últimos 50" />
+        </div>
+        <div className="md:col-span-4">
+          <AdminKpi
+            label="Sem localização"
+            value={String(semLocalizacao)}
+            hint={semLocalizacao > 0 ? "GPS não enviado no check-in" : "todos com GPS"}
+          />
+        </div>
+
         <div className="md:col-span-12">
           <AdminCard title="Últimos check-ins">
             {rows.length === 0 ? (
@@ -67,6 +108,11 @@ export default async function CheckinsPage() {
             ) : (
               <AdminTable
                 columns={[
+                  {
+                    key: "recenciaLabel",
+                    label: "Sinal",
+                    render: (row) => <Badge tone={row.recenciaTone}>{row.recenciaLabel}</Badge>,
+                  },
                   { key: "diarista", label: "Diarista" },
                   { key: "servicoLabel", label: "Serviço" },
                   {
@@ -80,7 +126,7 @@ export default async function CheckinsPage() {
                           href={`https://www.google.com/maps?q=${row.localizacao}`}
                           target="_blank"
                           rel="noreferrer"
-                          className="font-semibold text-slate-800 underline-offset-2 hover:underline"
+                          className="font-semibold text-fg underline-offset-2 hover:underline"
                         >
                           {row.localizacao}
                         </a>

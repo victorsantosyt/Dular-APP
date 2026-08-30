@@ -1,5 +1,7 @@
 import React from "react";
 
+// As células usam `tabular-nums`: afeta apenas os dígitos (datas, contagens,
+// notas alinham entre as linhas) sem alterar a renderização do texto.
 type Column<T> = { key: string; label: string; render?: (row: T) => React.ReactNode };
 
 export function AdminTable<T extends Record<string, any>>({
@@ -10,12 +12,15 @@ export function AdminTable<T extends Record<string, any>>({
   rows: T[];
 }) {
   return (
-    <div className="overflow-x-auto">
+    <div className="-mx-5 overflow-x-auto">
       <table className="w-full border-collapse">
         <thead>
-          <tr className="text-left text-xs text-fg-subtle">
+          <tr className="border-b border-border text-left">
             {columns.map((c) => (
-              <th key={c.key} className="px-2 py-2 font-medium">
+              <th
+                key={c.key}
+                className="whitespace-nowrap px-5 pb-2.5 text-eyebrow font-bold uppercase text-fg-subtle"
+              >
                 {c.label}
               </th>
             ))}
@@ -23,9 +28,12 @@ export function AdminTable<T extends Record<string, any>>({
         </thead>
         <tbody>
           {rows.map((r, idx) => (
-            <tr key={idx} className="border-t border-border">
+            <tr
+              key={idx}
+              className="border-b border-border-subtle transition-colors last:border-0 hover:bg-surface-subtle"
+            >
               {columns.map((c) => (
-                <td key={c.key} className="px-2 py-2 text-sm text-fg">
+                <td key={c.key} className="px-5 py-3 text-sm tabular-nums text-fg">
                   {c.render ? c.render(r) : String(r[c.key] ?? "")}
                 </td>
               ))}

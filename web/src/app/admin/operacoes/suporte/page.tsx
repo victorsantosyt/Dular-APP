@@ -47,7 +47,7 @@ export default async function SuportePage() {
                     render: (row) => (
                       <Link
                         href={`/admin/incidentes/${row.id}`}
-                        className="font-semibold text-slate-800 underline-offset-2 hover:underline"
+                        className="font-semibold text-fg underline-offset-2 hover:underline"
                       >
                         {row.id.slice(0, 6)}
                       </Link>

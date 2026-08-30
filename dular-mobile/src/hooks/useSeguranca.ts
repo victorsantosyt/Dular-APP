@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Linking } from "react-native";
 import Constants from "expo-constants";
+import { sosWhatsapp } from "../config/api";
 import * as Location from "expo-location";
 
 import { api } from "@/lib/api";
@@ -62,8 +63,7 @@ export function useSeguranca(): UseSegurancaReturn {
 
   const acionarSOS = async (servicoId: string, mensagem?: string): Promise<void> => {
     // PASSO 1 — WhatsApp abre ANTES de qualquer await
-    const numero: string =
-      (Constants.expoConfig?.extra?.sosWhatsapp as string | undefined) ?? "5565999999999";
+    const numero: string = sosWhatsapp;
     const texto = encodeURIComponent(mensagem ?? "EMERGÊNCIA: Preciso de ajuda agora!");
     Linking.openURL(`https://wa.me/${numero}?text=${texto}`);
 

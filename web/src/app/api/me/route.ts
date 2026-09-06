@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/requireAuth";
+import { anonimizarUsuario } from "@/lib/lgpd";
 import bcrypt from "bcryptjs";
 
 export const dynamic = "force-dynamic";
@@ -473,5 +474,85 @@ export async function PUT(req: Request) {
       );
     }
     return NextResponse.json({ ok: false, error: e?.message ?? "Erro" }, { status: 500 });
+  }
+}
+
+/**
+ * DELETE /api/me — exclusão da própria conta (LGPD, art. 18).
+ *
+ * Não apaga a linha do usuário: anonimiza. O porquê está em `@/lib/lgpd`.
+ * Exige confirmação explícita no corpo para não ser disparado por engano por
+ * um cliente que faça DELETE sem querer.
+ */
+const CONFIRMACAO_EXIGIDA = "EXCLUIR MINHA CONTA";
+
+/** Status com obrigação pendente: some no meio deixa a outra parte na mão. */
+const STATUS_EM_ABERTO = [
+  "SOLICITADO",
+  "ACEITO",
+  "EM_ANDAMENTO",
+  "AGUARDANDO_FINALIZACAO",
+  "CONCLUIDO",
+] as const;
+
+export async function DELETE(req: Request) {
+  try {
+    const auth = requireAuth(req);
+    const body = await req.json().catch(() => ({}) as Record<string, unknown>);
+
+    if (body?.confirmacao !== CONFIRMACAO_EXIGIDA) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "CONFIRMACAO_INVALIDA",
+          message: `Para excluir a conta, envie { "confirmacao": "${CONFIRMACAO_EXIGIDA}" }.`,
+        },
+        { status: 400 },
+      );
+    }
+
+    const emAberto = await prisma.servico.count({
+      where: {
+        status: { in: [...STATUS_EM_ABERTO] },
+        OR: [{ clientId: auth.userId }, { diaristaId: auth.userId }, { montadorId: auth.userId }],
+      },
+    });
+    if (emAberto > 0) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "SERVICOS_EM_ABERTO",
+          message:
+            "Você tem serviço em andamento. Conclua ou cancele antes de excluir a conta.",
+          servicosEmAberto: emAberto,
+        },
+        { status: 409 },
+      );
+    }
+
+    const resumo = await anonimizarUsuario(auth.userId);
+
+    const res = NextResponse.json({
+      ok: true,
+      message:
+        "Conta excluída. Seus dados pessoais foram apagados. Serviços, avaliações e " +
+        "incidentes continuam registrados sem vínculo com você, como descrito na " +
+        "política de privacidade.",
+      resumo,
+    });
+    // A sessão morre junto — o token continuaria válido por 7 dias.
+    res.cookies.set("dular_token", "", { path: "/", maxAge: 0 });
+    return res;
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "Erro";
+    if (msg === "Unauthorized") {
+      return NextResponse.json({ ok: false, error: "Não autorizado" }, { status: 401 });
+    }
+    if (msg === "USUARIO_NAO_ENCONTRADO") return staleSessionResponse();
+    if (msg === "JA_REMOVIDO") {
+      return NextResponse.json({ ok: false, error: "Conta já excluída." }, { status: 409 });
+    }
+    console.error("[api/me] DELETE falhou:", msg);
+    return NextResponse.json({ ok: false, error: "Erro ao excluir a conta." }, { status: 500 });
   }
 }

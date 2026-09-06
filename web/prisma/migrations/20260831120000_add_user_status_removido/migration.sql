@@ -1,0 +1,12 @@
+-- Estado para contas excluídas a pedido do titular (LGPD).
+--
+-- Não é exclusão física: a política de privacidade promete preservar serviços
+-- concluídos, avaliações e incidentes "de forma desvinculada de você". Além
+-- disso 7 FKs para "User" são RESTRICT justamente para isso. Então a exclusão
+-- é uma anonimização, e a conta fica marcada como REMOVIDO.
+--
+-- O login já barra qualquer status != 'ATIVO', então isto também impede acesso.
+--
+-- ADD VALUE roda dentro da transação da migration porque o valor novo não é
+-- usado nesta mesma transação (exigência do PostgreSQL).
+ALTER TYPE "UserStatus" ADD VALUE IF NOT EXISTS 'REMOVIDO';

@@ -21,6 +21,10 @@ enum Genero {
 enum UserStatus {
   ATIVO
   BLOQUEADO
+  /// Conta excluída a pedido do titular (LGPD). Os dados pessoais foram
+  /// anonimizados; serviços, avaliações e incidentes seguem preservados e
+  /// desvinculados, como promete a política de privacidade.
+  REMOVIDO
 }
 
 enum VerificacaoStatus {

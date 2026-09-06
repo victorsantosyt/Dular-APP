@@ -268,13 +268,18 @@ export async function getGuardianStatusForUser(
 
   const role: GuardianRole = user.role;
 
-  // 1) Hard-block: User.status === BLOQUEADO derrota tudo.
-  if (user.status === "BLOQUEADO") {
+  // 1) Hard-block: qualquer status != ATIVO derrota tudo.
+  //
+  // Antes era só BLOQUEADO. Com REMOVIDO (exclusão LGPD) isso virou furo: o
+  // JWT vale 7 dias e não é revogado na exclusão, então um token antigo de
+  // conta excluída passaria direto por aqui. Comparar contra ATIVO fecha o
+  // caso presente e qualquer status futuro, em vez de listar os ruins.
+  if (user.status !== "ATIVO") {
     return blocked({
       score: 0,
       tier: "BLOCKED",
       verificationStatus: "NAO_ENVIADO",
-      motivos: ["usuario_bloqueado"],
+      motivos: [user.status === "REMOVIDO" ? "conta_removida" : "usuario_bloqueado"],
     });
   }
 

@@ -176,6 +176,7 @@ const guardianReasonLabel: Record<string, string> = {
   safescore_baixo: "SafeScore abaixo do mínimo",
   score_baixo: "SafeScore abaixo do mínimo",
   usuario_bloqueado: "Usuário bloqueado",
+  conta_removida: "Conta excluída pelo titular",
   usuario_nao_encontrado: "Usuário não encontrado",
   perfil_incompleto: "Perfil incompleto",
   sem_perfil_diarista: "Perfil de Profissional de Casa não encontrado",

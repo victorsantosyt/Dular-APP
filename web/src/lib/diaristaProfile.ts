@@ -129,7 +129,11 @@ export function getDiaristaProfileCompleteness(
 ): CompletenessResult {
   const motivos: string[] = [];
 
-  if (profile.user?.status === "BLOQUEADO") motivos.push("usuario_bloqueado");
+  // Qualquer status != ATIVO reprova (BLOQUEADO por moderação, REMOVIDO por
+  // exclusão LGPD). Testar contra ATIVO cobre estados futuros sozinho.
+  if (profile.user?.status && profile.user.status !== "ATIVO") {
+    motivos.push(profile.user.status === "REMOVIDO" ? "conta_removida" : "usuario_bloqueado");
+  }
   if (!profile.ativo) motivos.push("perfil_inativo");
   if (!profile.user?.nome?.trim()) motivos.push("falta_nome");
   if (!profile.bio?.trim()) motivos.push("falta_bio");

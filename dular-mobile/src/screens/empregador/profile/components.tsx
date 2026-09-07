@@ -85,7 +85,9 @@ export function ProfileHeroCard({
   gradient,
   accentColor,
   cameraColor,
-  memberSincePrefix = "Usuária desde",
+  // Default NEUTRO: o feminino fixo era exibido para qualquer usuário nas telas
+  // que não passam a prop (empregador e montador). Quem sabe o gênero passa.
+  memberSincePrefix = "Na Dular desde",
   verificacaoStatus,
   hideMemberSinceIfEmpty,
 }: ProfileHeroCardProps) {

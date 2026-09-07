@@ -27,7 +27,13 @@ export const stripe = new Proxy({} as Stripe, {
   },
 });
 
-export type PlanId = "basico_mensal" | "pro_mensal" | "pro_anual";
+export type PlanId =
+  | "basico_mensal"
+  | "pro_mensal"
+  | "pro_anual"
+  | "montador_basico_mensal"
+  | "montador_pro_mensal"
+  | "montador_pro_anual";
 
 export type PlanDef = {
   id: PlanId;
@@ -69,6 +75,41 @@ export const PLANS: Record<PlanId, PlanDef> = {
     name: "Pro Anual",
     description: "Serviços ilimitados por 1 ano",
     role: "DIARISTA",
+    mode: "subscription",
+    interval: "year",
+    priceInCents: 35900, // R$359,00
+    plan: "PREMIUM",
+  },
+
+  // ── MONTADOR ──────────────────────────────────────────────────────────────
+  // Mesmos valores e critérios da diarista, por decisão do dono. Os limites
+  // não são declarados aqui: vêm de FeatureLimit por `plan` (BASIC/PREMIUM),
+  // que já vale para os dois papéis.
+  montador_basico_mensal: {
+    id: "montador_basico_mensal",
+    name: "Básico Mensal",
+    description: "Até 10 serviços por mês",
+    role: "MONTADOR",
+    mode: "subscription",
+    interval: "month",
+    priceInCents: 1990, // R$19,90
+    plan: "BASIC",
+  },
+  montador_pro_mensal: {
+    id: "montador_pro_mensal",
+    name: "Pro Mensal",
+    description: "Serviços ilimitados por mês",
+    role: "MONTADOR",
+    mode: "subscription",
+    interval: "month",
+    priceInCents: 3990, // R$39,90
+    plan: "PREMIUM",
+  },
+  montador_pro_anual: {
+    id: "montador_pro_anual",
+    name: "Pro Anual",
+    description: "Serviços ilimitados por 1 ano",
+    role: "MONTADOR",
     mode: "subscription",
     interval: "year",
     priceInCents: 35900, // R$359,00

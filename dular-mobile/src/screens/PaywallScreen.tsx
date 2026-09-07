@@ -156,7 +156,7 @@ export default function PaywallScreen({ onClose }: Props) {
   }, [planoEscolhido]);
 
   return (
-    <View style={s.root}>
+    <View style={[s.root, { paddingTop: insets.top + spacing.md, paddingBottom: insets.bottom + spacing.md }]}>
       {/* Fundo desfocado: a tela flutua sobre o que estava atrás. */}
       <BlurView intensity={38} tint="dark" style={StyleSheet.absoluteFill} />
       <Pressable
@@ -166,29 +166,14 @@ export default function PaywallScreen({ onClose }: Props) {
         accessibilityLabel="Fechar"
       />
 
-      <View style={[s.cartao, { marginTop: insets.top + spacing.xl, marginBottom: insets.bottom + spacing.lg }]}>
+      <View style={s.cartao}>
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.conteudo} bounces={false}>
-          <View style={s.cabecalho}>
-            {planoEscolhido ? (
-              <Pressable
-                onPress={() => setEscolhido(null)}
-                hitSlop={10}
-                style={s.voltar}
-                accessibilityRole="button"
-                accessibilityLabel="Ver outros planos"
-              >
-                <AppIcon name="ArrowLeft" size={16} color={tema.primary} strokeWidth={2.5} />
-                <Text style={[s.voltarTexto, { color: tema.primary }]}>Ver outros planos</Text>
-              </Pressable>
-            ) : (
-              <View style={[s.selo, { backgroundColor: tema.primarySoft }]}>
-                <AppIcon name="Sparkles" size={13} color={tema.primary} strokeWidth={2.4} />
-                <Text style={[s.seloTexto, { color: tema.primary }]}>PLANOS</Text>
-              </View>
-            )}
-            <Pressable onPress={fechar} hitSlop={12} accessibilityRole="button" accessibilityLabel="Fechar">
-              <AppIcon name="XCircle" size={22} color={colors.textSecondary} strokeWidth={2.4} />
-            </Pressable>
+          {/* Sem "X": a saída fica no rodapé ("Agora não"), e no passo 2 o
+              rodapé vira "Ver outros planos". Dois fechos na mesma tela
+              disputavam atenção com a ação principal. */}
+          <View style={[s.selo, { backgroundColor: tema.primarySoft }]}>
+            <AppIcon name="Sparkles" size={13} color={tema.primary} strokeWidth={2.4} />
+            <Text style={[s.seloTexto, { color: tema.primary }]}>PLANOS</Text>
           </View>
 
           {planoEscolhido ? (
@@ -303,9 +288,21 @@ export default function PaywallScreen({ onClose }: Props) {
             </>
           )}
 
-          <Pressable onPress={fechar} hitSlop={8}>
-            <Text style={s.depois}>Agora não</Text>
-          </Pressable>
+          {planoEscolhido ? (
+            <Pressable
+              onPress={() => setEscolhido(null)}
+              style={s.secundario}
+              accessibilityRole="button"
+              accessibilityLabel="Ver outros planos"
+            >
+              <AppIcon name="ArrowLeft" size={16} color={colors.textSecondary} strokeWidth={2.5} />
+              <Text style={s.secundarioTexto}>Ver outros planos</Text>
+            </Pressable>
+          ) : (
+            <Pressable onPress={fechar} style={s.secundario} accessibilityRole="button">
+              <Text style={s.secundarioTexto}>Agora não</Text>
+            </Pressable>
+          )}
         </ScrollView>
       </View>
     </View>
@@ -318,6 +315,11 @@ const s = StyleSheet.create({
     backgroundColor: colors.surface,
     borderRadius: 28,
     overflow: "hidden",
+    // Teto em vez de margens: com marginTop/marginBottom brigando contra o
+    // justifyContent:"center" o cartão saía descentralizado, e a altura pulava
+    // entre a lista e o detalhe. Agora ele cresce com o conteúdo até 84% e
+    // rola por dentro.
+    maxHeight: "84%",
     shadowColor: "#1B1235",
     shadowOpacity: 0.28,
     shadowRadius: 32,
@@ -416,5 +418,18 @@ const s = StyleSheet.create({
   beneficioTexto: { ...typography.bodySm, color: colors.textPrimary, flex: 1 },
 
   legal: { ...typography.caption, color: colors.textMuted, textAlign: "center" },
-  depois: { ...typography.bodySm, color: colors.textSecondary, textAlign: "center", fontWeight: "600" },
+  /** Ação secundária com corpo próprio: como link de texto solto ela não
+   *  parecia clicável e competia mal com o CTA. */
+  secundario: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    minHeight: 46,
+    borderRadius: radius.lg,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  secundarioTexto: { ...typography.bodySm, color: colors.textSecondary, fontWeight: "700" },
 });

@@ -40,18 +40,24 @@ type PlanoApi = {
 /** Benefícios por plano. O primeiro item é sempre o LIMITE — é o que o plano
  *  de fato faz (`FeatureLimit.SOLICITACOES_MES`) e o que o catálogo descreve
  *  em lib/stripe.ts. Os demais são o que vem junto. */
+/** Benefícios por NÍVEL, não por id de plano: diarista e montador têm ids
+ *  diferentes (`pro_mensal` vs `montador_pro_mensal`) para o mesmo nível, e
+ *  indexar por id deixaria o montador sem texto. A chave é `plan_interval`.
+ *
+ *  O primeiro item é sempre o LIMITE — é o que o plano de fato faz
+ *  (`FeatureLimit.SOLICITACOES_MES`) e o que o catálogo descreve. */
 const BENEFICIOS: Record<string, string[]> = {
-  basico_mensal: [
+  BASIC_month: [
     "Até 10 serviços aceitos por mês",
     "Selo de assinante no seu perfil",
     "Suporte prioritário no atendimento",
   ],
-  pro_mensal: [
+  PREMIUM_month: [
     "Serviços ilimitados por mês",
     "Tudo do Básico Mensal",
     "Destaque na busca dos empregadores",
   ],
-  pro_anual: [
+  PREMIUM_year: [
     "Serviços ilimitados o ano todo",
     "Tudo do Pro Mensal",
     "Preço travado por 12 meses",
@@ -60,9 +66,17 @@ const BENEFICIOS: Record<string, string[]> = {
 
 const BENEFICIOS_PADRAO = ["Mais serviços por mês", "Suporte prioritário"];
 
+function chaveBeneficio(p: { plan: string; interval: string | null }): string {
+  return `${p.plan}_${p.interval === "year" ? "year" : "month"}`;
+}
+
+function beneficiosDe(p: { plan: string; interval: string | null }): string[] {
+  return BENEFICIOS[chaveBeneficio(p)] ?? BENEFICIOS_PADRAO;
+}
+
 /** Resumo de uma linha para a lista; a tela de detalhe mostra tudo. */
-function resumo(planoId: string): string {
-  const [primeiro] = BENEFICIOS[planoId] ?? BENEFICIOS_PADRAO;
+function resumo(p: { plan: string; interval: string | null }): string {
+  const [primeiro] = beneficiosDe(p);
   return primeiro ?? "";
 }
 
@@ -209,7 +223,7 @@ export default function PaywallScreen({ onClose }: Props) {
 
               <Text style={s.secao}>O que este plano libera</Text>
               <View style={s.beneficios}>
-                {(BENEFICIOS[planoEscolhido.id] ?? BENEFICIOS_PADRAO).map((b) => (
+                {beneficiosDe(planoEscolhido).map((b) => (
                   <View key={b} style={s.beneficio}>
                     <View style={[s.beneficioIcone, { backgroundColor: tema.primarySoft }]}>
                       <AppIcon name="Check" size={13} color={tema.primary} strokeWidth={3} />
@@ -298,7 +312,7 @@ export default function PaywallScreen({ onClose }: Props) {
                               </View>
                             ) : null}
                           </View>
-                          <Text style={s.opcaoBeneficio} numberOfLines={1}>{resumo(p.id)}</Text>
+                          <Text style={s.opcaoBeneficio} numberOfLines={1}>{resumo(p)}</Text>
                         </View>
 
                         <View style={s.precoCol}>

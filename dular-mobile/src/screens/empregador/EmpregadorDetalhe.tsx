@@ -27,7 +27,7 @@ import { DularBadge } from "@/components/DularBadge";
 import { MotivoModal } from "@/components/MotivoModal";
 import { AvaliacaoModal, DAvatar } from "@/components/ui";
 import { formatPrice } from "@/utils/formatPrice";
-import { parseDataServico, protocoloServico } from "@/utils/formatters";
+import { formatHorario, parseDataServico, protocoloServico } from "@/utils/formatters";
 import { isStatusEncerrado } from "@/utils/servicoStatus";
 import { colors, radius, shadow, spacing, typography } from "@/theme/tokens";
 
@@ -40,9 +40,8 @@ function fmtReagendamento(svc: Servico) {
   const d = svc.reagendamentoData ? new Date(svc.reagendamentoData) : null;
   const dataLabel =
     d && !Number.isNaN(d.getTime()) ? d.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }) : "—";
-  const t = statusUp(svc.reagendamentoTurno);
-  const turnoLabel = t === "MANHA" ? "Manhã" : t === "TARDE" ? "Tarde" : "";
-  return `${dataLabel}${turnoLabel ? " · " + turnoLabel : ""}`;
+  const horario = formatHorario(svc.reagendamentoHora, svc.reagendamentoTurno);
+  return `${dataLabel}${horario && horario !== "--" ? " · " + horario : ""}`;
 }
 const FINAL = ["CONFIRMADO", "FINALIZADO", "FINALIZADO_CLIENTE", "PAGO", "AVALIADO"];
 const POLL_MS = 5000;
@@ -90,10 +89,6 @@ function categoriaLabelFmt(c?: string | null) {
     .replace(/_/g, " ")
     .toLowerCase()
     .replace(/^\w/, (m) => m.toUpperCase());
-}
-function turnoLabel(t?: string | null) {
-  const v = statusUp(t);
-  return v === "MANHA" ? "Manhã" : v === "TARDE" ? "Tarde" : "A combinar";
 }
 function formatDateTime(v?: string | number | Date | null) {
   if (!v) return null;
@@ -445,7 +440,7 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
             </>
           ) : null}
           <View style={s.divider} />
-          <RowKV label="Turno" value={turnoLabel(svc.turno)} />
+          <RowKV label="Horário" value={formatHorario(svc.hora, svc.turno)} />
         </View>
 
         {/* PROFISSIONAL */}

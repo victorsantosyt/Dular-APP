@@ -104,9 +104,20 @@ const TURNO_LABEL: Record<string, string> = {
   INTEGRAL: "Integral",
 };
 
-export function formatHora(turno?: string): string {
-  if (!turno) return "--";
-  return TURNO_LABEL[turno] ?? turno;
+/**
+ * Horário do serviço para exibição.
+ *
+ * `Servico.hora` ("HH:MM") é o que o empregador realmente escolheu; `turno`
+ * é a faixa grossa usada pela agenda do profissional. Antes só o turno era
+ * persistido, então serviços antigos não têm hora — nesses, cai no turno.
+ *
+ * Ex.: ("10:00", "MANHA") → "10:00 · Manhã"; (null, "MANHA") → "Manhã".
+ */
+export function formatHorario(hora?: string | null, turno?: string | null): string {
+  const faixa = turno ? TURNO_LABEL[turno] ?? turno : "";
+  const h = hora?.trim();
+  if (!h) return faixa || "--";
+  return faixa ? `${h} · ${faixa}` : h;
 }
 
 export function formatCurrency(value?: number): string {

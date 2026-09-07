@@ -27,7 +27,7 @@ import { AvaliacaoModal } from "@/components/ui";
 import { useLimiteDePlano } from "@/hooks/useLimiteDePlano";
 import { useSeguranca } from "@/hooks/useSeguranca";
 import { formatPrice } from "@/utils/formatPrice";
-import { formatDate, formatHora, protocoloServico } from "@/utils/formatters";
+import { formatDate, formatHorario, protocoloServico } from "@/utils/formatters";
 import { isStatusEncerrado } from "@/utils/servicoStatus";
 
 // ── Tokens ──────────────────────────────────────────────────────────────────
@@ -368,7 +368,7 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
               mostrar a data em lugar nenhum — só o card da lista trazia. */}
           <InfoRow icon="calendar-outline" label="Data">
             <Text style={s.infoValue}>
-              {formatDate(svc.data as any)} · {formatHora(svc.turno as any)}
+              {formatDate(svc.data as any)} · {formatHorario(svc.hora, svc.turno)}
             </Text>
           </InfoRow>
 

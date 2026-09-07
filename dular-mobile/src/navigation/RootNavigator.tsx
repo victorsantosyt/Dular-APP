@@ -13,6 +13,7 @@ import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { hasSeenOnboarding, resetOnboardingSeen, shouldResetOnboardingInDev } from "@/lib/onboarding";
 import { ThemeScope } from "@/contexts/ThemeContext";
 import { CadastroEnderecoScreen } from "@/screens/shared/CadastroEnderecoScreen";
+import { DadosPessoaisGateScreen } from "@/screens/onboarding/DadosPessoaisGateScreen";
 import { fetchEnderecos } from "@/api/enderecoApi";
 import { colors } from "@/theme";
 
@@ -69,6 +70,18 @@ function AuthenticatedFlow({ role, onboardingSeen }: { role: string | null; onbo
     return (
       <ThemeScope forceLight>
         <GeneroGateScreen />
+      </ThemeScope>
+    );
+  }
+
+  // Gate de dados pessoais (mesmo padrão do gênero): CPF e data de nascimento
+  // contam na completude do perfil e não tinham NENHUMA tela que os coletasse
+  // — todo mundo ficava travado em "Perfil incompleto" para sempre. Vale para
+  // os três papéis e aparece uma vez só.
+  if (user && (!user.cpf || !user.dataNascimento)) {
+    return (
+      <ThemeScope forceLight>
+        <DadosPessoaisGateScreen />
       </ThemeScope>
     );
   }

@@ -74,6 +74,20 @@ export async function updateGenero(genero: "MASCULINO" | "FEMININO"): Promise<Me
   return res.data?.user ?? res.data;
 }
 
+/**
+ * Completa CPF e data de nascimento (PATCH /api/me/profile).
+ *
+ * O backend valida o CPF por dígito verificador e devolve 409 quando o CPF
+ * já pertence a outra conta. `dataNascimento` vai como "AAAA-MM-DD".
+ */
+export async function atualizarDadosPessoais(payload: {
+  cpf: string;
+  dataNascimento: string;
+}): Promise<{ cpf?: string | null; dataNascimento?: string | null }> {
+  const res = await api.patch("/api/me/profile", payload);
+  return res.data?.user ?? res.data;
+}
+
 export async function getDiaristaMe() {
   const res = await api.get("/api/diarista/me");
   return res.data?.profile ?? res.data;

@@ -113,3 +113,16 @@ export function formatCurrency(value?: number): string {
   if (!value) return "--";
   return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
+
+/**
+ * Protocolo legível de um serviço, a partir do id real.
+ * Ex.: "cmtro5w9m0001..." → "#DL-CMTRO5W9"
+ *
+ * Fonte única: a tela de sucesso mostrava "#DL-XXXXXXXX" e o comprovante
+ * "#XXXXXXXX" para o MESMO serviço — o suporte recebia dois formatos.
+ */
+export function protocoloServico(servicoId?: string | null): string {
+  const limpo = String(servicoId ?? "").replace(/-/g, "");
+  if (!limpo) return "—";
+  return `#DL-${limpo.slice(0, 8).toUpperCase()}`;
+}

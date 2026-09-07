@@ -27,7 +27,7 @@ import { DularBadge } from "@/components/DularBadge";
 import { MotivoModal } from "@/components/MotivoModal";
 import { AvaliacaoModal, DAvatar } from "@/components/ui";
 import { formatPrice } from "@/utils/formatPrice";
-import { parseDataServico } from "@/utils/formatters";
+import { parseDataServico, protocoloServico } from "@/utils/formatters";
 import { isStatusEncerrado } from "@/utils/servicoStatus";
 import { colors, radius, shadow, spacing, typography } from "@/theme/tokens";
 
@@ -191,7 +191,7 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
   // (cuid) logo abaixo deste — dois "protocolos" diferentes para o mesmo
   // serviço, e o suporte recebia ora um, ora outro.
   const protocolo = useMemo(
-    () => (svc?.id ? `#${svc.id.slice(0, 8).toUpperCase()}` : "—"),
+    () => protocoloServico(svc?.id),
     [svc?.id],
   );
 

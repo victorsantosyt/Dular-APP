@@ -55,11 +55,19 @@ export async function checkFeatureAccess(
 
     const role = user?.role;
 
+    // Cada papel conta o que ele de fato faz. O MONTADOR caía no ramo do
+    // cliente e contava serviços onde ele é contratante — sempre zero, então
+    // nunca seria limitado.
+    const escopoPorPapel =
+      role === "DIARISTA"
+        ? { diaristaId: userId }
+        : role === "MONTADOR"
+          ? { montadorId: userId }
+          : { clientId: userId };
+
     used = await prisma.servico.count({
       where: {
-        ...(role === "DIARISTA"
-          ? { diaristaId: userId }
-          : { clientId: userId }),
+        ...escopoPorPapel,
         status: { notIn: ["CANCELADO", "RECUSADO", "RASCUNHO"] },
         createdAt: { gte: startOfMonth, lt: startOfNextMonth },
       },

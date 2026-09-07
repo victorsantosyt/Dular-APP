@@ -26,6 +26,7 @@ import {
   upperStatus,
 } from "./montadorUtils";
 import { plural } from "@/utils/formatters";
+import { useLimiteDePlano } from "@/hooks/useLimiteDePlano";
 
 type Navigation = BottomTabNavigationProp<MontadorTabParamList>;
 type Tab = "novas" | "aceitas" | "historico" | "recusadas" | "expiradas";
@@ -199,6 +200,8 @@ export default function MontadorSolicitacoes() {
   const data = useMemo(() => servicos.filter((item) => inTab(item, tab)), [servicos, tab]);
 
   const carregarSolicitacoesMontador = reload;
+  const { tratar: tratarLimite } = useLimiteDePlano();
+
   const aceitarSolicitacao = async (servicoId: string) => {
     try {
       setActionLoading(servicoId);
@@ -208,6 +211,7 @@ export default function MontadorSolicitacoes() {
       await reload();
       setTab("aceitas");
     } catch (err: any) {
+      if (tratarLimite(err)) return;
       // 409 = serviço já aceito por outro fluxo. Sincroniza estado e segue.
       if (err?.response?.status === 409) {
         await reload();

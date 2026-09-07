@@ -10,6 +10,7 @@ import type { ProfileTheme } from "@/theme/profileTheme";
 import type { DiaristaTabParamList } from "@/navigation/DiaristaNavigator";
 import { useAgendamentosDiarista } from "@/hooks/useAgendamentosDiarista";
 import { aceitarServicoDiarista, concluirServicoDiarista } from "@/api/diaristaApi";
+import { parseDataServico } from "@/utils/formatters";
 import { useMensagens } from "@/hooks/useMensagens";
 
 type Navigation = BottomTabNavigationProp<DiaristaTabParamList>;
@@ -61,6 +62,18 @@ function servicoCompleto(a: Agendamento): string {
   return a.servico;
 }
 
+/** Diferença em dias inteiros entre a data do serviço e hoje (0 = hoje).
+ *  Mesma regra usada em `MontadorAgenda`, que já filtrava por período certo. */
+function diasAte(value?: string | null): number | null {
+  const date = parseDataServico(value);
+  if (!date) return null;
+  const inicio = new Date();
+  inicio.setHours(0, 0, 0, 0);
+  const outro = new Date(date);
+  outro.setHours(0, 0, 0, 0);
+  return Math.round((outro.getTime() - inicio.getTime()) / 86_400_000);
+}
+
 const FILTROS: { label: string; value: Filtro }[] = [
   { label: "Hoje", value: "hoje" },
   { label: "Amanhã", value: "amanha" },
@@ -69,6 +82,18 @@ const FILTROS: { label: string; value: Filtro }[] = [
   { label: "Confirmados", value: "confirmados" },
   { label: "Concluídos", value: "concluidos" },
 ];
+
+/** O contador acima da lista mostra o total carregado. Sem dizer qual recorte
+ *  está vazio, "Nenhum agendamento encontrado" logo abaixo de "5 agendamentos
+ *  carregados" parece defeito em vez de filtro. */
+const VAZIO_POR_FILTRO: Record<Filtro, string> = {
+  hoje: "Nenhum agendamento para hoje",
+  amanha: "Nenhum agendamento para amanhã",
+  semana: "Nenhum agendamento nos próximos 7 dias",
+  pendentes: "Nenhum agendamento pendente",
+  confirmados: "Nenhum agendamento confirmado",
+  concluidos: "Nenhum agendamento concluído",
+};
 
 function FilterChip({
   label,
@@ -289,18 +314,17 @@ export function AgendamentosDiaristaScreen() {
     if (activeFilter === "concluidos") {
       return sourceData.filter((item) => item.status === "finalizado");
     }
-    if (activeFilter === "amanha") {
-      return sourceData.filter((item) => item.data === "Amanhã");
-    }
-    if (activeFilter === "hoje") {
-      // "Hoje" = solicitações ativas: chegaram, foram aceitas, em andamento ou
-      // aguardando confirmação. Finalizadas saem (ficam na aba "Concluídos");
-      // canceladas/recusadas nem chegam a esta lista.
-      return sourceData.filter(
-        (item) => item.status !== "finalizado" && item.status !== "cancelado",
-      );
-    }
-    return sourceData;
+    // Hoje/Amanhã/Semana são filtros de PERÍODO — os três de status já são os
+    // outros chips. Comparam a data crua (`dataISO`); comparar o rótulo
+    // (`item.data === "Amanhã"`) dependia do texto de exibição, e "semana"
+    // nem era tratado: caía no retorno geral e listava serviços de meses atrás.
+    return sourceData.filter((item) => {
+      const diff = diasAte(item.dataISO);
+      if (diff == null) return false;
+      if (activeFilter === "hoje") return diff === 0;
+      if (activeFilter === "amanha") return diff === 1;
+      return diff >= 0 && diff <= 7; // semana
+    });
   }, [sourceData, activeFilter]);
 
   return (
@@ -360,7 +384,7 @@ export function AgendamentosDiaristaScreen() {
                 <View style={[styles.emptyIconBox, { backgroundColor: theme.primarySoft }]}>
                   <AppIcon name="Calendar" size={32} color={theme.primary} strokeWidth={2} />
                 </View>
-                <Text style={styles.emptyText}>Nenhum agendamento encontrado</Text>
+                <Text style={styles.emptyText}>{VAZIO_POR_FILTRO[activeFilter]}</Text>
               </View>
             }
             refreshControl={<RefreshControl refreshing={loading} onRefresh={refetch} tintColor={theme.primary} colors={[theme.primary]} />}

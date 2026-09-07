@@ -20,7 +20,11 @@ export interface AgendamentoDiarista {
   /** Rótulo do serviço já resolvido: a categoria/intensidade quando houver
    *  (ex.: "Limpeza pesada"), senão o tipo (ex.: "Limpeza"). */
   servicoLabel: string;
+  /** Rótulo pronto para exibir: "Hoje", "Amanhã" ou "sex., 10 de jul.". */
   data: string;
+  /** Data crua do serviço. Necessária para filtrar por período — o rótulo
+   *  acima é texto de exibição e não serve para comparar datas. */
+  dataISO: string | null;
   hora: string;
   preco: string;
   status: StatusDiarista;
@@ -82,6 +86,7 @@ function mapServico(raw: any): AgendamentoDiarista {
     servico: tipoLabel,
     servicoLabel: (categoria && CATEGORIA_LABEL[categoria]) || tipoLabel,
     data: formatDate(raw.data),
+    dataISO: raw.data ?? null,
     hora: formatHora(raw.turno),
     preco: raw.precoFinal != null ? String(raw.precoFinal) : "--",
     status: STATUS_DIARISTA_MAP[baseStatus] ?? "pendente",

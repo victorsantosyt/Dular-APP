@@ -9,7 +9,7 @@
  * - Diarista/Montador: formulário único, salvo como RESIDENCIAL, sem ponto de ref.
  * - CEP com máscara 00000-000 + auto-preenchimento via ViaCEP (campos editáveis).
  */
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -28,6 +28,8 @@ import { radius, shadows, spacing, typography } from "@/theme";
 import {
   atualizarEndereco,
   buscarCep,
+  fetchBairrosDaCidade,
+  normalizarBairro,
   salvarEndereco,
   type Endereco,
   type TipoEndereco,
@@ -82,6 +84,11 @@ export function CadastroEnderecoScreen({ role, mode = "onboarding", initial, onD
   const [uf, setUf] = useState(initial?.uf ?? "");
   const [ponto, setPonto] = useState(initial?.pontoReferencia ?? "");
   const [cepStatus, setCepStatus] = useState<"idle" | "loading" | "notfound">("idle");
+  // Catálogo de bairros atendidos na cidade. O autofill por CEP traz o bairro
+  // dos Correios, que nem sempre existe no catálogo do Dular — o endereço era
+  // salvo assim mesmo e TODA solicitação depois falhava com "Bairro não
+  // cadastrado.", sem o usuário saber por quê.
+  const [bairrosCatalogo, setBairrosCatalogo] = useState<string[] | null>(null);
   const [saving, setSaving] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
@@ -99,6 +106,33 @@ export function CadastroEnderecoScreen({ role, mode = "onboarding", initial, onD
     setCepStatus("idle");
     setErro(null);
   };
+
+  useEffect(() => {
+    const c = cidade.trim();
+    const u = uf.trim();
+    if (!c || u.length !== 2) {
+      setBairrosCatalogo(null);
+      return;
+    }
+    let alive = true;
+    fetchBairrosDaCidade(c, u)
+      .then((lista) => {
+        if (alive) setBairrosCatalogo(lista.length > 0 ? lista : null);
+      })
+      .catch(() => {
+        // Sem catálogo (rede ou cidade fora da operação) não validamos nada —
+        // o backend segue como fonte da verdade.
+        if (alive) setBairrosCatalogo(null);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [cidade, uf]);
+
+  const bairroReconhecido =
+    bairrosCatalogo === null ||
+    !bairro.trim() ||
+    bairrosCatalogo.some((n) => normalizarBairro(n) === normalizarBairro(bairro));
 
   const onCepChange = (raw: string) => {
     const masked = maskCep(raw);
@@ -132,6 +166,12 @@ export function CadastroEnderecoScreen({ role, mode = "onboarding", initial, onD
       uf.trim().length !== 2
     ) {
       setErro("Preencha CEP, rua, número, bairro, cidade e UF (2 letras).");
+      return;
+    }
+    if (!bairroReconhecido) {
+      setErro(
+        `Ainda não atendemos "${bairro.trim()}" em ${cidade.trim()}. Escolha um dos bairros disponíveis.`,
+      );
       return;
     }
     setSaving(true);
@@ -276,6 +316,20 @@ export function CadastroEnderecoScreen({ role, mode = "onboarding", initial, onD
 
           <Text style={s.fieldLabel}>Bairro</Text>
           <DInput placeholder="Bairro" value={bairro} onChangeText={setBairro} />
+          {!bairroReconhecido && bairrosCatalogo ? (
+            <View style={s.bairroAviso}>
+              <Text style={s.bairroAvisoTexto}>
+                Ainda não atendemos esse bairro em {cidade.trim()}. Toque em um dos disponíveis:
+              </Text>
+              <View style={s.bairroChips}>
+                {bairrosCatalogo.map((nome) => (
+                  <Pressable key={nome} onPress={() => setBairro(nome)} style={s.bairroChip}>
+                    <Text style={s.bairroChipTexto}>{nome}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+          ) : null}
 
           <View style={s.row}>
             <View style={s.flexCidade}>
@@ -329,6 +383,18 @@ export default CadastroEnderecoScreen;
 
 function makeStyles(colors: ReturnType<typeof useDularColors>) {
   return StyleSheet.create({
+    bairroAviso: { gap: 8, marginTop: -4 },
+    bairroAvisoTexto: { color: colors.textSecondary, fontSize: 13, lineHeight: 18 },
+    bairroChips: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+    bairroChip: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radius.pill,
+      paddingHorizontal: 12,
+      paddingVertical: 7,
+      backgroundColor: colors.surface,
+    },
+    bairroChipTexto: { color: colors.textPrimary, fontSize: 13, fontWeight: "600" },
     safe: { flex: 1, backgroundColor: colors.background },
     flex: { flex: 1 },
     pressed: { opacity: 0.8 },

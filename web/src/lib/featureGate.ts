@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import type { FeatureKey } from "@prisma/client";
+import { Prisma, type FeatureKey, type ServicoStatus } from "@prisma/client";
 
 export type { FeatureKey };
 
@@ -58,6 +58,7 @@ export async function checkFeatureAccess(
     // Cada papel conta o que ele de fato faz. O MONTADOR caía no ramo do
     // cliente e contava serviços onde ele é contratante — sempre zero, então
     // nunca seria limitado.
+    const ehProfissional = role === "DIARISTA" || role === "MONTADOR";
     const escopoPorPapel =
       role === "DIARISTA"
         ? { diaristaId: userId }
@@ -65,10 +66,29 @@ export async function checkFeatureAccess(
           ? { montadorId: userId }
           : { clientId: userId };
 
+    // Para o PROFISSIONAL o limite é de serviços ACEITOS: o gate roda em
+    // /aceitar. Contar SOLICITADO fazia a cota ser consumida por pedidos que
+    // ele nunca aceitou — bastavam 5 solicitações de terceiros para travar o
+    // mês inteiro de uma diarista no plano gratuito, sem ela fazer nada.
+    // Para o EMPREGADOR o que conta é ter solicitado, então SOLICITADO entra.
+    // Sem `as const`: o Prisma exige ServicoStatus[] mutável.
+    const aceitosEmDiante: ServicoStatus[] = [
+      "ACEITO",
+      "EM_ANDAMENTO",
+      "AGUARDANDO_FINALIZACAO",
+      "CONCLUIDO",
+      "CONFIRMADO",
+      "FINALIZADO",
+    ];
+    const naoContam: ServicoStatus[] = ["CANCELADO", "RECUSADO", "RASCUNHO"];
+    const statusQueContam: Prisma.ServicoWhereInput = ehProfissional
+      ? { status: { in: aceitosEmDiante } }
+      : { status: { notIn: naoContam } };
+
     used = await prisma.servico.count({
       where: {
         ...escopoPorPapel,
-        status: { notIn: ["CANCELADO", "RECUSADO", "RASCUNHO"] },
+        ...statusQueContam,
         createdAt: { gte: startOfMonth, lt: startOfNextMonth },
       },
     });

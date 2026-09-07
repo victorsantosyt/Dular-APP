@@ -187,6 +187,14 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
     return () => clearTimeout(t);
   }, [toast]);
 
+  // Protocolo que o usuário vê e copia. O rodapé mostrava o id cru do banco
+  // (cuid) logo abaixo deste — dois "protocolos" diferentes para o mesmo
+  // serviço, e o suporte recebia ora um, ora outro.
+  const protocolo = useMemo(
+    () => (svc?.id ? `#${svc.id.slice(0, 8).toUpperCase()}` : "—"),
+    [svc?.id],
+  );
+
   const statusRaw = useMemo(() => statusUp(svc?.status), [svc?.status]);
   const isFinal = useMemo(() => FINAL.includes(statusRaw), [statusRaw]);
   const alreadyConfirmed = useMemo(
@@ -392,7 +400,9 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
           <Ionicons name="arrow-back" size={22} color={colors.primary} />
         </Pressable>
         <Text style={s.topBarTitle}>Comprovante</Text>
-        <View style={s.backBtn} />
+        {/* Espaçador para centrar o título. Usava `s.backBtn`, que tem fundo e
+            borda — aparecia como um círculo vazio no canto direito. */}
+        <View style={s.topBarSpacer} />
       </View>
 
       <ScrollView
@@ -411,13 +421,13 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
           <View style={s.protocoloRow}>
             <Pressable
               onPress={async () => {
-                await Clipboard.setStringAsync(svc.id);
+                await Clipboard.setStringAsync(protocolo);
                 setToast("Protocolo copiado.");
               }}
               hitSlop={8}
               style={s.protocoloPress}
             >
-              <Text style={s.protocolo}>#{svc.id.slice(0, 8).toUpperCase()}</Text>
+              <Text style={s.protocolo}>{protocolo}</Text>
               <Ionicons name="copy-outline" size={15} color={colors.sub} />
             </Pressable>
             <DularBadge text={statusLabel(svc.status)} variant={statusVariant(svc.status)} />
@@ -628,7 +638,9 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
         ) : null}
 
         {/* RODAPÉ */}
-        <Text style={s.rodape}>Guarde este protocolo para suporte: {svc.id}</Text>
+        <Text style={s.rodape}>
+          Guarde este protocolo para suporte: {protocolo}
+        </Text>
       </ScrollView>
 
       <MotivoModal
@@ -677,6 +689,7 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.stroke,
   },
+  topBarSpacer: { width: 40, height: 40 },
   topBarTitle: { fontSize: 15, fontWeight: "800", color: colors.ink },
   section: { gap: 6 },
   sectionLabel: {

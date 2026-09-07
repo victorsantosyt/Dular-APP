@@ -17,6 +17,7 @@ import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/nativ
 import { api } from "@/lib/api";
 import { AppIcon } from "@/components/ui";
 import { colors, radius, spacing, typography } from "@/theme/tokens";
+import { useGenderTheme } from "@/hooks/useProfileTheme";
 import { formatMoneyFromCents } from "@/utils/formatters";
 
 type Props = {
@@ -37,12 +38,33 @@ type PlanoApi = {
 /** Benefícios são texto de marketing e não estão no catálogo do backend.
  *  O PREÇO vem sempre da API — era cravado aqui e não batia com a cobrança. */
 const BENEFICIOS: Record<string, string[]> = {
-  basico_mensal: ["Aceites ilimitados", "Badge Plus", "Suporte prioritário"],
-  pro_mensal: ["Tudo do Básico", "Destaque na busca", "Acesso a mais clientes"],
-  pro_anual: ["Tudo do Pro", "Dois meses grátis no ano"],
+  basico_mensal: [
+    "Aceites ilimitados por mês",
+    "Selo de assinante no seu perfil",
+    "Suporte prioritário no atendimento",
+    "Histórico completo de serviços",
+  ],
+  pro_mensal: [
+    "Tudo do Básico Mensal",
+    "Destaque na busca dos empregadores",
+    "Acesso a mais clientes na sua região",
+    "Prioridade nas novas solicitações",
+  ],
+  pro_anual: [
+    "Tudo do Pro Mensal",
+    "Dois meses grátis em relação ao mensal",
+    "Preço travado por 12 meses",
+    "Sem renovação surpresa: você é avisado antes",
+  ],
 };
 
 const BENEFICIOS_PADRAO = ["Aceites ilimitados", "Suporte prioritário"];
+
+/** Resumo de uma linha para a lista; a tela de detalhe mostra tudo. */
+function resumo(planoId: string): string {
+  const [primeiro] = BENEFICIOS[planoId] ?? BENEFICIOS_PADRAO;
+  return primeiro ?? "";
+}
 
 function sufixoPeriodo(interval: string | null) {
   return interval === "year" ? "/ano" : "/mês";
@@ -61,6 +83,8 @@ export default function PaywallScreen({ onClose }: Props) {
   const navigation = useNavigation<any>();
   const route = useRoute();
   const insets = useSafeAreaInsets();
+  // Antes usava o roxo global: no perfil verde da diarista a tela destoava.
+  const tema = useGenderTheme();
 
   const [planoAtual, setPlanoAtual] = useState<string | null>(null);
 
@@ -104,6 +128,10 @@ export default function PaywallScreen({ onClose }: Props) {
 
   const noPlanoGratuito = (planoAtual ?? "FREE") === "FREE";
   const planoEscolhido = planos.find((p) => p.id === escolhido) ?? null;
+  const economiaDoAnual =
+    planoEscolhido && planoEscolhido.interval === "year"
+      ? economiaAnual(planoEscolhido, planos)
+      : null;
 
   const fechar = useCallback(() => {
     if (onClose) return onClose();
@@ -139,114 +167,141 @@ export default function PaywallScreen({ onClose }: Props) {
       />
 
       <View style={[s.cartao, { marginTop: insets.top + spacing.xl, marginBottom: insets.bottom + spacing.lg }]}>
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={s.conteudo}
-          bounces={false}
-        >
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.conteudo} bounces={false}>
           <View style={s.cabecalho}>
-            <View style={s.selo}>
-              <AppIcon name="Sparkles" size={13} color={colors.primary} strokeWidth={2.4} />
-              <Text style={s.seloTexto}>PLANOS</Text>
-            </View>
+            {planoEscolhido ? (
+              <Pressable
+                onPress={() => setEscolhido(null)}
+                hitSlop={10}
+                style={s.voltar}
+                accessibilityRole="button"
+                accessibilityLabel="Ver outros planos"
+              >
+                <AppIcon name="ArrowLeft" size={16} color={tema.primary} strokeWidth={2.5} />
+                <Text style={[s.voltarTexto, { color: tema.primary }]}>Ver outros planos</Text>
+              </Pressable>
+            ) : (
+              <View style={[s.selo, { backgroundColor: tema.primarySoft }]}>
+                <AppIcon name="Sparkles" size={13} color={tema.primary} strokeWidth={2.4} />
+                <Text style={[s.seloTexto, { color: tema.primary }]}>PLANOS</Text>
+              </View>
+            )}
             <Pressable onPress={fechar} hitSlop={12} accessibilityRole="button" accessibilityLabel="Fechar">
               <AppIcon name="XCircle" size={22} color={colors.textSecondary} strokeWidth={2.4} />
             </Pressable>
           </View>
 
-          <Text style={s.titulo}>Escolha seu plano</Text>
-          <Text style={s.subtitulo}>Mais aceites, mais destaque, mais clientes.</Text>
-
-          {mensagem ? (
-            <View style={s.aviso}>
-              <AppIcon name="Info" size={15} color={colors.warning} strokeWidth={2.3} />
-              <Text style={s.avisoTexto}>{mensagem}</Text>
-            </View>
-          ) : null}
-
-          {/* Plano atual */}
-          {noPlanoGratuito ? (
-            <View style={s.atual}>
-              <View style={s.atualEsq}>
-                <Text style={s.atualNome}>Básico</Text>
-                <Text style={s.atualDesc}>Até 3 aceites por mês</Text>
-              </View>
-              <View style={s.atualTag}>
-                <Text style={s.atualTagTexto}>Plano atual</Text>
-              </View>
-            </View>
-          ) : null}
-
-          {carregando ? (
-            <View style={s.carregando}>
-              <ActivityIndicator color={colors.primary} />
-            </View>
-          ) : planos.length === 0 ? (
-            <Text style={s.vazio}>Não foi possível carregar os planos agora.</Text>
-          ) : (
-            <View style={s.lista}>
-              {planos.map((p) => {
-                const sel = p.id === escolhido;
-                const economia = p.interval === "year" ? economiaAnual(p, planos) : null;
-                return (
-                  <Pressable
-                    key={p.id}
-                    onPress={() => setEscolhido(p.id)}
-                    accessibilityRole="radio"
-                    accessibilityState={{ selected: sel }}
-                    style={[s.opcao, sel && s.opcaoSel]}
-                  >
-                    <View style={[s.radio, sel && s.radioSel]}>
-                      {sel ? <View style={s.radioPonto} /> : null}
-                    </View>
-
-                    <View style={s.opcaoTexto}>
-                      <View style={s.opcaoLinha}>
-                        <Text style={s.opcaoNome}>{p.name}</Text>
-                        {economia ? (
-                          <View style={s.etiqueta}>
-                            <Text style={s.etiquetaTexto}>{economia}</Text>
-                          </View>
-                        ) : null}
-                      </View>
-                      <Text style={s.opcaoBeneficio} numberOfLines={1}>
-                        {(BENEFICIOS[p.id] ?? BENEFICIOS_PADRAO).join(" · ")}
-                      </Text>
-                    </View>
-
-                    <View style={s.precoCol}>
-                      <Text style={s.preco}>{formatMoneyFromCents(p.priceInCents)}</Text>
-                      <Text style={s.periodo}>{sufixoPeriodo(p.interval)}</Text>
-                    </View>
-                  </Pressable>
-                );
-              })}
-            </View>
-          )}
-
-          {/* CTA único: só aparece depois da escolha. */}
           {planoEscolhido ? (
-            <Pressable onPress={assinar} disabled={assinando} style={s.ctaWrap}>
-              <LinearGradient
-                colors={[colors.primaryLight, colors.primary]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={s.cta}
-              >
-                {assinando ? (
-                  <ActivityIndicator color={colors.textOnPrimary} />
-                ) : (
-                  <Text style={s.ctaTexto}>Assinar {planoEscolhido.name}</Text>
-                )}
-              </LinearGradient>
-            </Pressable>
-          ) : (
-            <View style={s.ctaVazio}>
-              <Text style={s.ctaVazioTexto}>Selecione um plano para continuar</Text>
-            </View>
-          )}
+            /* ── Passo 2: o que o plano libera + assinar ─────────────────── */
+            <>
+              <Text style={s.titulo}>{planoEscolhido.name}</Text>
+              <View style={s.precoLinha}>
+                <Text style={[s.precoGrande, { color: tema.primary }]}>
+                  {formatMoneyFromCents(planoEscolhido.priceInCents)}
+                </Text>
+                <Text style={s.precoPeriodo}>{sufixoPeriodo(planoEscolhido.interval)}</Text>
+              </View>
+              {economiaDoAnual ? (
+                <View style={s.etiquetaSolta}>
+                  <Text style={s.etiquetaTexto}>{economiaDoAnual}</Text>
+                </View>
+              ) : null}
 
-          <Text style={s.legal}>Cancele quando quiser. Sem fidelidade.</Text>
+              <Text style={s.secao}>O que este plano libera</Text>
+              <View style={s.beneficios}>
+                {(BENEFICIOS[planoEscolhido.id] ?? BENEFICIOS_PADRAO).map((b) => (
+                  <View key={b} style={s.beneficio}>
+                    <View style={[s.beneficioIcone, { backgroundColor: tema.primarySoft }]}>
+                      <AppIcon name="Check" size={13} color={tema.primary} strokeWidth={3} />
+                    </View>
+                    <Text style={s.beneficioTexto}>{b}</Text>
+                  </View>
+                ))}
+              </View>
+
+              <Pressable onPress={assinar} disabled={assinando} style={s.ctaWrap}>
+                <LinearGradient
+                  colors={[tema.primaryLight, tema.primary]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={s.cta}
+                >
+                  {assinando ? (
+                    <ActivityIndicator color={colors.textOnPrimary} />
+                  ) : (
+                    <Text style={s.ctaTexto}>Assinar {planoEscolhido.name}</Text>
+                  )}
+                </LinearGradient>
+              </Pressable>
+              <Text style={s.legal}>Cancele quando quiser. Sem fidelidade.</Text>
+            </>
+          ) : (
+            /* ── Passo 1: só as opções, sem botão de ação ─────────────────── */
+            <>
+              <Text style={s.titulo}>Escolha seu plano</Text>
+              <Text style={s.subtitulo}>Toque em um plano para ver o que ele libera.</Text>
+
+              {mensagem ? (
+                <View style={s.aviso}>
+                  <AppIcon name="Info" size={15} color={colors.warning} strokeWidth={2.3} />
+                  <Text style={s.avisoTexto}>{mensagem}</Text>
+                </View>
+              ) : null}
+
+              {noPlanoGratuito ? (
+                <View style={s.atual}>
+                  <View style={s.atualEsq}>
+                    <Text style={s.atualNome}>Básico</Text>
+                    <Text style={s.atualDesc}>Até 3 aceites por mês</Text>
+                  </View>
+                  <View style={s.atualTag}>
+                    <Text style={s.atualTagTexto}>Plano atual</Text>
+                  </View>
+                </View>
+              ) : null}
+
+              {carregando ? (
+                <View style={s.carregando}>
+                  <ActivityIndicator color={tema.primary} />
+                </View>
+              ) : planos.length === 0 ? (
+                <Text style={s.vazio}>Não foi possível carregar os planos agora.</Text>
+              ) : (
+                <View style={s.lista}>
+                  {planos.map((p) => {
+                    const economia = p.interval === "year" ? economiaAnual(p, planos) : null;
+                    return (
+                      <Pressable
+                        key={p.id}
+                        onPress={() => setEscolhido(p.id)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Ver o que o plano ${p.name} libera`}
+                        style={({ pressed }) => [s.opcao, pressed && { borderColor: tema.primary }]}
+                      >
+                        <View style={s.opcaoTexto}>
+                          <View style={s.opcaoLinha}>
+                            <Text style={s.opcaoNome}>{p.name}</Text>
+                            {economia ? (
+                              <View style={s.etiqueta}>
+                                <Text style={s.etiquetaTexto}>{economia}</Text>
+                              </View>
+                            ) : null}
+                          </View>
+                          <Text style={s.opcaoBeneficio} numberOfLines={1}>{resumo(p.id)}</Text>
+                        </View>
+
+                        <View style={s.precoCol}>
+                          <Text style={s.preco}>{formatMoneyFromCents(p.priceInCents)}</Text>
+                          <Text style={s.periodo}>{sufixoPeriodo(p.interval)}</Text>
+                        </View>
+                        <AppIcon name="ChevronRight" size={18} color={colors.textMuted} strokeWidth={2.4} />
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              )}
+            </>
+          )}
 
           <Pressable onPress={fechar} hitSlop={8}>
             <Text style={s.depois}>Agora não</Text>
@@ -326,20 +381,6 @@ const s = StyleSheet.create({
     padding: spacing.md,
     backgroundColor: colors.surface,
   },
-  opcaoSel: { borderColor: colors.primary, backgroundColor: colors.lavenderSoft },
-
-  radio: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    borderWidth: 2,
-    borderColor: colors.border,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  radioSel: { borderColor: colors.primary },
-  radioPonto: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.primary },
-
   opcaoTexto: { flex: 1, minWidth: 0 },
   opcaoLinha: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   opcaoNome: { ...typography.bodyMedium, color: colors.textPrimary, fontWeight: "700", flexShrink: 1 },
@@ -354,16 +395,25 @@ const s = StyleSheet.create({
   ctaWrap: { borderRadius: radius.lg, overflow: "hidden" },
   cta: { minHeight: 52, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.lg },
   ctaTexto: { ...typography.bodyMedium, color: colors.textOnPrimary, fontWeight: "800" },
-  ctaVazio: {
-    minHeight: 52,
-    borderRadius: radius.lg,
-    borderWidth: 1.5,
-    borderStyle: "dashed",
-    borderColor: colors.border,
-    alignItems: "center",
-    justifyContent: "center",
+
+  // ── passo 2: detalhe do plano ──────────────────────────────────────────
+  voltar: { flexDirection: "row", alignItems: "center", gap: 6 },
+  voltarTexto: { ...typography.caption, fontWeight: "700" },
+  precoLinha: { flexDirection: "row", alignItems: "baseline", gap: 4, marginTop: -spacing.xs },
+  precoGrande: { ...typography.h1, fontWeight: "800" },
+  precoPeriodo: { ...typography.bodySm, color: colors.textSecondary },
+  etiquetaSolta: {
+    alignSelf: "flex-start",
+    backgroundColor: colors.successSoft,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
   },
-  ctaVazioTexto: { ...typography.bodySm, color: colors.textMuted, fontWeight: "600" },
+  secao: { ...typography.bodySm, color: colors.textSecondary, fontWeight: "700", marginTop: spacing.xs },
+  beneficios: { gap: spacing.sm },
+  beneficio: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  beneficioIcone: { width: 24, height: 24, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  beneficioTexto: { ...typography.bodySm, color: colors.textPrimary, flex: 1 },
 
   legal: { ...typography.caption, color: colors.textMuted, textAlign: "center" },
   depois: { ...typography.bodySm, color: colors.textSecondary, textAlign: "center", fontWeight: "600" },

@@ -25,6 +25,7 @@ import {
   statusLabel,
   upperStatus,
 } from "./montadorUtils";
+import { plural } from "@/utils/formatters";
 
 type Navigation = BottomTabNavigationProp<MontadorTabParamList>;
 type Tab = "novas" | "aceitas" | "historico" | "recusadas" | "expiradas";
@@ -241,7 +242,7 @@ export default function MontadorSolicitacoes() {
   };
   const verFotosDoServico = (servicoId: string) => {
     const total = servicos.find((item) => item.id === servicoId)?.fotos?.length ?? 0;
-    Alert.alert("Fotos do serviço", total > 0 ? `${total} foto(s) vinculadas ao pedido.` : "Nenhuma foto vinculada.");
+    Alert.alert("Fotos do serviço", total > 0 ? `${plural(total, "foto vinculada", "fotos vinculadas")} ao pedido.` : "Nenhuma foto vinculada.");
   };
   const abrirChatDoServico = (servico: MontadorServico) => {
     if (!canOpenChat(servico)) {

@@ -14,7 +14,7 @@ import { acionarSosDiarista, getDiaristaPerfilMe, patchDiaristaPerfil } from "@/
 import { useAgendamentosDiarista, type AgendamentoDiarista, type StatusDiarista } from "@/hooks/useAgendamentosDiarista";
 import { useMensagens } from "@/hooks/useMensagens";
 import { useNotificacoes } from "@/hooks/useNotificacoes";
-import { diasAteServico } from "@/utils/formatters";
+import { diasAteServico, plural } from "@/utils/formatters";
 
 type Navigation = BottomTabNavigationProp<DiaristaTabParamList>;
 type BadgeType = "default" | "success" | "warning" | "error" | "info" | "accent";
@@ -308,7 +308,7 @@ export function DiaristaHomeScreen() {
             <Text style={styles.heroTitle}>{brlFromCents(ganhosTotais)}</Text>
             <Text style={styles.heroSub}>
               {finalizados.length > 0
-                ? `${finalizados.length} serviço(s) finalizado(s) no Dular.`
+                ? `${plural(finalizados.length, "serviço finalizado", "serviços finalizados")} no Dular.`
                 : "Seus ganhos aparecerão após finalizar serviços."}
             </Text>
           </View>

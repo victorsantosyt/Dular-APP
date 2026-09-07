@@ -32,6 +32,16 @@ export function parseDataServico(value?: string | number | Date | null): Date | 
   return new Date(parsed.getUTCFullYear(), parsed.getUTCMonth(), parsed.getUTCDate());
 }
 
+/** Concorda número e substantivo: `plural(1, "serviço", "serviços")` → "1 serviço".
+ *  Passe a frase inteira quando houver adjetivo, para ele concordar também:
+ *  `plural(n, "serviço concluído", "serviços concluídos")`.
+ *
+ *  Existe para acabar com o "serviço(s) concluído(s)" espalhado pelas telas —
+ *  parte do código já concordava certo, então era inconsistência, não padrão. */
+export function plural(quantidade: number, singular: string, plural: string): string {
+  return `${quantidade} ${quantidade === 1 ? singular : plural}`;
+}
+
 /** Diferença em dias inteiros entre a data do serviço e hoje (0 = hoje,
  *  1 = amanhã, negativo = passado). Devolve null quando não há data válida.
  *  Existe porque `formatDate` produz TEXTO de exibição ("Hoje", "sex., 10 de

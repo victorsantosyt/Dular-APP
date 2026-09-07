@@ -78,6 +78,7 @@ import {
 } from "../empregador/profile/components";
 import type { ServicoOferecido } from "@/types/diarista";
 import { OFERTAS_DIARISTA } from "@/constants/categorias";
+import { plural } from "@/utils/formatters";
 
 type Props = { onLogout: () => void };
 type Navigation = BottomTabNavigationProp<DiaristaTabParamList>;
@@ -552,7 +553,7 @@ export default function DiaristaPerfil({ onLogout }: Props) {
     const uf = profile?.estado ?? profile?.bairros?.[0]?.bairro?.uf ?? null;
     if (!cidade || !uf) return "Área de atendimento não definida";
     if (profile?.atendeTodaCidade) return `${cidade} • ${uf} — atende toda a cidade`;
-    return `${cidade} • ${uf}${bairroNomes.length ? ` — ${bairroNomes.length} bairro(s)` : ""}`;
+    return `${cidade} • ${uf}${bairroNomes.length ? ` — ${plural(bairroNomes.length, "bairro", "bairros")}` : ""}`;
   }, [profile?.cidade, profile?.estado, profile?.atendeTodaCidade, profile?.bairros, bairroNomes.length]);
   const heroLocation = useMemo(() => {
     const cidade = profile?.cidade ?? profile?.bairros?.[0]?.bairro?.cidade ?? null;
@@ -1495,7 +1496,7 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                   title="Avaliações"
                   subtitle={
                     profile?.avaliacoes?.total
-                      ? `${profile.avaliacoes.total} avaliação(ões)`
+                      ? `${plural(profile.avaliacoes.total, "avaliação", "avaliações")}`
                       : "Sem avaliações ainda"
                   }
                   onPress={() => openModal("avaliacoes")}

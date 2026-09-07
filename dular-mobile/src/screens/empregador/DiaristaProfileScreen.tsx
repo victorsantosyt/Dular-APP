@@ -22,6 +22,7 @@ import type { PrecoInfo } from "@/screens/empregador/service-flow/ServiceFlowCon
 import { goToTab } from "@/navigation/navHelpers";
 import type { ServicoOferecido } from "@/types/diarista";
 import { PerfilPublicoLayout, type PerfilSection } from "@/screens/empregador/PerfilPublicoLayout";
+import { plural } from "@/utils/formatters";
 
 type RouteProps = RouteProp<EmpregadorTabParamList, "DiaristaProfile">;
 type Navigation = BottomTabNavigationProp<EmpregadorTabParamList>;
@@ -313,7 +314,7 @@ export function DiaristaProfileScreen() {
       key: "portfolio",
       kind: "text",
       label: "Portfólio",
-      text: portfolioFotos.length > 0 ? `${portfolioFotos.length} foto(s) cadastrada(s).` : null,
+      text: portfolioFotos.length > 0 ? `${plural(portfolioFotos.length, "foto cadastrada", "fotos cadastradas")}.` : null,
       empty: "Portfólio ainda não informado.",
     },
     {

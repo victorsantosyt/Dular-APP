@@ -45,6 +45,7 @@ import type { ProfileTheme } from "@/theme/profileTheme";
 import { platformSelect } from "@/utils/platform";
 import { VerifiedBadge } from "@/components/ui/VerifiedBadge";
 import { firstName, formatMoneyFromCents, upperStatus } from "./montadorUtils";
+import { plural } from "@/utils/formatters";
 
 type ModalType = "dados" | "especialidades" | "area" | "precos" | "portfolio" | "avaliacoes" | null;
 
@@ -420,7 +421,7 @@ export default function MontadorPerfil() {
     ? perfil.especialidades.map(especialidadeLabel).join(", ")
     : "Selecione ao menos uma especialidade";
   const areaResumo = perfil?.cidade && perfil.estado
-    ? `${perfil.cidade}, ${perfil.estado}${perfil.bairros.length ? ` • ${perfil.bairros.length} bairro(s)` : ""}`
+    ? `${perfil.cidade}, ${perfil.estado}${perfil.bairros.length ? ` • ${plural(perfil.bairros.length, "bairro", "bairros")}` : ""}`
     : "Defina cidade, UF e bairros";
   const precoResumo = (() => {
     const esps = perfil?.especialidades ?? [];
@@ -431,7 +432,7 @@ export default function MontadorPerfil() {
       return p && !p.aCombinar && p.preco != null;
     }).length;
     if (comValor === 0) return "Todos a combinar";
-    if (comValor === esps.length) return `${comValor} serviço(s) com valor`;
+    if (comValor === esps.length) return `${plural(comValor, "serviço com valor", "serviços com valor")}`;
     return `${comValor} c/ valor · ${esps.length - comValor} a combinar`;
   })();
 
@@ -1041,8 +1042,8 @@ export default function MontadorPerfil() {
         <Row icon="Wrench" title="Especialidades" subtitle={especialidadesResumo} theme={profileTheme} onPress={() => openModal("especialidades")} />
         <Row icon="MapPin" title="Área de atendimento" subtitle={areaResumo} theme={profileTheme} onPress={() => openModal("area")} />
         <Row icon="Wallet" title="Preços" subtitle={precoResumo} theme={profileTheme} onPress={() => openModal("precos")} />
-        <Row icon="Camera" title="Portfólio" subtitle={perfil.portfolioFotos.length ? `${perfil.portfolioFotos.length} foto(s)` : "Sem fotos no portfólio"} theme={profileTheme} onPress={() => openModal("portfolio")} />
-        <Row icon="Star" title="Avaliações" subtitle={perfil.avaliacoes?.total ? `${perfil.avaliacoes.total} avaliação(ões)` : "Sem avaliações ainda"} theme={profileTheme} onPress={() => openModal("avaliacoes")} />
+        <Row icon="Camera" title="Portfólio" subtitle={perfil.portfolioFotos.length ? `${plural(perfil.portfolioFotos.length, "foto", "fotos")}` : "Sem fotos no portfólio"} theme={profileTheme} onPress={() => openModal("portfolio")} />
+        <Row icon="Star" title="Avaliações" subtitle={perfil.avaliacoes?.total ? `${plural(perfil.avaliacoes.total, "avaliação", "avaliações")}` : "Sem avaliações ainda"} theme={profileTheme} onPress={() => openModal("avaliacoes")} />
         <Row icon="CreditCard" title="Carteira/Ganhos" subtitle={formatMoneyFromCents(ganhos)} theme={profileTheme} onPress={() => navigation.navigate("Carteira", { from: "MontadorPerfil" })} />
         <Row icon="Landmark" title="Recebimentos" subtitle="Receber pelo PIX" theme={profileTheme} onPress={() => navigation.navigate("Recebimentos")} />
       </Section>

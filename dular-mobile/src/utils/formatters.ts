@@ -137,3 +137,64 @@ export function protocoloServico(servicoId?: string | null): string {
   if (!limpo) return "—";
   return `#DL-${limpo.slice(0, 8).toUpperCase()}`;
 }
+
+/** Máscara de CPF: "12345678909" → "123.456.789-09". */
+export function mascaraCPF(raw: string): string {
+  const d = somenteDigitos(raw).slice(0, 11);
+  if (d.length <= 3) return d;
+  if (d.length <= 6) return `${d.slice(0, 3)}.${d.slice(3)}`;
+  if (d.length <= 9) return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6)}`;
+  return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`;
+}
+
+/** Máscara de data: "01012000" → "01/01/2000". */
+export function mascaraData(raw: string): string {
+  const d = somenteDigitos(raw).slice(0, 8);
+  if (d.length <= 2) return d;
+  if (d.length <= 4) return `${d.slice(0, 2)}/${d.slice(2)}`;
+  return `${d.slice(0, 2)}/${d.slice(2, 4)}/${d.slice(4)}`;
+}
+
+/**
+ * Mesmo algoritmo de dígitos verificadores do backend (`validarCPF` em
+ * web/src/lib/pixKey.ts). Aqui serve só para feedback imediato — o backend
+ * continua sendo a fonte da verdade e revalida.
+ */
+export function cpfValido(raw: string): boolean {
+  const d = somenteDigitos(raw);
+  if (d.length !== 11) return false;
+  if (/^(\d)\1+$/.test(d)) return false;
+  const calc = (mod: number) => {
+    let soma = 0;
+    for (let i = 0; i < mod - 1; i++) soma += Number(d[i]) * (mod - i);
+    const resto = (soma * 10) % 11;
+    return resto === 10 || resto === 11 ? 0 : resto;
+  };
+  return calc(10) === Number(d[9]) && calc(11) === Number(d[10]);
+}
+
+/**
+ * "DD/MM/AAAA" → "AAAA-MM-DD" (formato que o backend espera), ou null se a
+ * data não existir no calendário ou não fizer sentido para um cadastro
+ * (futuro, ou idade fora de 16–120 anos).
+ */
+export function dataNascimentoISO(raw: string): string | null {
+  const d = somenteDigitos(raw);
+  if (d.length !== 8) return null;
+  const dia = Number(d.slice(0, 2));
+  const mes = Number(d.slice(2, 4));
+  const ano = Number(d.slice(4));
+  const data = new Date(ano, mes - 1, dia);
+  // Rejeita datas que "transbordam" (31/02 vira 03/03).
+  if (data.getFullYear() !== ano || data.getMonth() !== mes - 1 || data.getDate() !== dia) {
+    return null;
+  }
+  const hoje = new Date();
+  if (data > hoje) return null;
+  let idade = hoje.getFullYear() - ano;
+  const passouAniversario =
+    hoje.getMonth() > mes - 1 || (hoje.getMonth() === mes - 1 && hoje.getDate() >= dia);
+  if (!passouAniversario) idade -= 1;
+  if (idade < 16 || idade > 120) return null;
+  return `${String(ano).padStart(4, "0")}-${String(mes).padStart(2, "0")}-${String(dia).padStart(2, "0")}`;
+}

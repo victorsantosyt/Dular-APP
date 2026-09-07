@@ -32,6 +32,18 @@ export function parseDataServico(value?: string | number | Date | null): Date | 
   return new Date(parsed.getUTCFullYear(), parsed.getUTCMonth(), parsed.getUTCDate());
 }
 
+export function formatMoneyFromCents(value?: number | string | null) {
+  // precoBase/taxaMinima vêm do backend como Decimal, que o JSON serializa como
+  // string ("12000"). Sem coerção, o typeof falharia e mostraria "A combinar"
+  // mesmo com preço definido.
+  const cents = typeof value === "string" ? (value.trim() ? Number(value) : NaN) : value;
+  if (typeof cents !== "number" || !Number.isFinite(cents)) return "A combinar";
+  return (cents / 100).toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  });
+}
+
 /** Só os dígitos — para enviar ao backend, que guarda telefone sem máscara. */
 export function somenteDigitos(valor: string): string {
   return valor.replace(/\D/g, "");

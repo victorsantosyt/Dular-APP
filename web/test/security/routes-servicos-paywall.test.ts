@@ -99,7 +99,7 @@ describe("POST /api/servicos — paywall server-side", () => {
     assert.equal(res.status, 403);
   });
 
-  it("retorna 403 LIMIT_EXCEEDED quando EMPREGADOR atinge limite do plano", async () => {
+  it("EMPREGADOR não é bloqueado nem com limite estourado (ele não tem plano)", async () => {
     const userId = "u-empregador-blocked";
     setupEmpregadorGuardianOk(userId);
 
@@ -126,20 +126,16 @@ describe("POST /api/servicos — paywall server-side", () => {
       ),
     );
 
-    assert.equal(res.status, 403);
-    const body = await res.json();
-    assert.equal(body.ok, false);
-    assert.equal(body.error, "LIMIT_EXCEEDED");
-    assert.equal(body.feature, "SOLICITACOES_MES");
-    assert.equal(body.plan, "FREE");
-    assert.equal(body.usage.used, 3);
-    assert.equal(body.usage.limit, 3);
-    assert.equal(typeof body.message, "string");
-    assert.ok(body.message.length > 0);
-    assert.equal(createCalled, false, "servico.create não deve ser chamado quando paywall bloqueia");
+    // Não pode devolver LIMIT_EXCEEDED: o gate de plano saiu desta rota.
+    // Ela é exclusiva do EMPREGADOR, e o Empregador nunca paga
+    // (lib/stripe.ts não tem plano com role "EMPREGADOR"). O limite passou
+    // para /servicos/[id]/aceitar, onde está quem assina.
+    const body = await res.json().catch(() => ({}) as Record<string, unknown>);
+    assert.notEqual(body.error, "LIMIT_EXCEEDED", "Empregador não deve ser barrado por plano");
+    assert.equal(createCalled, false, "este teste não chega a criar: o body é validado depois");
   });
 
-  it("retorna 403 LIMIT_EXCEEDED quando feature está DESABILITADA para o plano", async () => {
+  it("EMPREGADOR não é bloqueado nem com a feature desabilitada", async () => {
     const userId = "u-empregador-feature-off";
     setupEmpregadorGuardianOk(userId);
     mockPrisma.subscription.findUnique = async () => null;
@@ -162,9 +158,9 @@ describe("POST /api/servicos — paywall server-side", () => {
       ),
     );
 
-    assert.equal(res.status, 403);
-    const body = await res.json();
-    assert.equal(body.error, "LIMIT_EXCEEDED");
+    // Gate de plano não vive mais nesta rota — ver comentário no primeiro caso.
+    const body = await res.json().catch(() => ({}) as Record<string, unknown>);
+    assert.notEqual(body.error, "LIMIT_EXCEEDED", "Empregador não deve ser barrado por plano");
     assert.equal(createCalled, false);
   });
 
@@ -254,7 +250,7 @@ describe("POST /api/servicos — paywall server-side", () => {
     }
   });
 
-  it("subscription CANCELED é tratada como FREE (ativa o limite do FREE)", async () => {
+  it("EMPREGADOR não é bloqueado nem com assinatura cancelada", async () => {
     const userId = "u-canceled";
     setupEmpregadorGuardianOk(userId);
     mockPrisma.subscription.findUnique = async () => ({
@@ -280,10 +276,10 @@ describe("POST /api/servicos — paywall server-side", () => {
       ),
     );
 
-    assert.equal(res.status, 403);
-    const body = await res.json();
-    assert.equal(body.error, "LIMIT_EXCEEDED");
-    assert.equal(body.plan, "FREE", "status CANCELED deve cair para FREE");
+    // O rebaixamento de CANCELED para FREE segue existindo no featureGate — o
+    // que mudou é onde ele importa: no aceite do profissional, não aqui.
+    const body = await res.json().catch(() => ({}) as Record<string, unknown>);
+    assert.notEqual(body.error, "LIMIT_EXCEEDED", "Empregador não deve ser barrado por plano");
     assert.equal(createCalled, false);
   });
 });

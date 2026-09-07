@@ -3,6 +3,7 @@ import { Alert, Image, Pressable, StyleSheet, Text, View } from "react-native";
 import type { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
 import { AppIcon, DEmptyState, DErrorState, DLoadingState, DScreen } from "@/components/ui";
 import { aceitarSolicitacaoMontador, recusarSolicitacaoMontador } from "@/api/montadorApi";
+import { useLimiteDePlano } from "@/hooks/useLimiteDePlano";
 import { MotivoModal } from "@/components/MotivoModal";
 import { useMontadorServicos } from "@/hooks/useMontadorServicos";
 import { useProfileTheme } from "@/hooks/useProfileTheme";
@@ -33,6 +34,8 @@ export default function MontadorDetalheSolicitacao({ route, navigation }: Props)
   // a tela ainda não navegou, permitindo um segundo clique que volta 409.
   const podeResponder = !!servico && isSolicitacaoPendente(servico);
 
+  const { tratar: tratarLimite } = useLimiteDePlano();
+
   const aceitar = async () => {
     if (!servico) return;
     try {
@@ -43,6 +46,7 @@ export default function MontadorDetalheSolicitacao({ route, navigation }: Props)
       await reload();
       goToTab(navigation, "MontadorTabs", "MontadorAgenda");
     } catch (err: any) {
+      if (tratarLimite(err)) return;
       // 409 = aceito por outro fluxo; sincroniza e leva para a agenda.
       if (err?.response?.status === 409) {
         await reload();

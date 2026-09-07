@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -17,6 +17,7 @@ import { useRestricoes } from "@/hooks/useRestricoes";
 import { AppIcon } from "@/components/ui";
 import PlanoCard from "@/components/ui/PlanoCard";
 import { colors, radius, spacing, typography } from "@/theme/tokens";
+import { formatMoneyFromCents } from "@/utils/formatters";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -37,29 +38,45 @@ type Props = {
 
 // ─── Plan data ────────────────────────────────────────────────────────────────
 
-const PLANOS_DIARISTA: PlanoInfo[] = [
-  {
-    id: "BASICO",
-    nome: "Básico",
-    preco: "Grátis",
-    beneficios: ["Até 3 aceites por mês", "Perfil básico"],
-    destaque: false,
-  },
-  {
-    id: "PLUS",
-    nome: "Plus",
-    preco: "R$ 9/mês",
-    beneficios: ["Aceites ilimitados", "Badge Plus", "Suporte prioritário"],
-    destaque: true,
-  },
-  {
-    id: "PREMIUM",
-    nome: "Premium",
-    preco: "R$ 19/mês",
-    beneficios: ["Tudo do Plus", "Destaque na busca", "Acesso a mais clientes"],
-    destaque: false,
-  },
-];
+/** Plano vindo de GET /api/billing/plans. */
+type PlanoApi = {
+  id: string;
+  name: string;
+  role: string;
+  interval: string | null;
+  priceInCents: number;
+  plan: "BASIC" | "PREMIUM";
+};
+
+/** Nível gratuito: não existe no catálogo do backend porque é a AUSÊNCIA de
+ *  assinatura. Só ele fica descrito aqui. */
+const PLANO_GRATUITO: PlanoInfo = {
+  id: "BASICO",
+  nome: "Básico",
+  preco: "Grátis",
+  beneficios: ["Até 3 aceites por mês", "Perfil básico"],
+  destaque: false,
+};
+
+/** Benefícios são texto de marketing, não vêm da API. O PREÇO vem — era
+ *  cravado aqui ("R$ 9/mês", "R$ 19/mês") e não batia com a cobrança real
+ *  (R$ 19,90 e R$ 39,90): a tela prometia um valor e o Stripe cobrava outro. */
+const BENEFICIOS: Record<"PLUS" | "PREMIUM", string[]> = {
+  PLUS: ["Aceites ilimitados", "Badge Plus", "Suporte prioritário"],
+  PREMIUM: ["Tudo do Plus", "Destaque na busca", "Acesso a mais clientes"],
+};
+
+/** O checkout ainda fala o nome legado (PLUS/PREMIUM) e o backend traduz para
+ *  o id do catálogo — ver legacyPlanoToPlanId em billing/checkout. */
+const LEGADO_POR_PLAN: Record<"BASIC" | "PREMIUM", "PLUS" | "PREMIUM"> = {
+  BASIC: "PLUS",
+  PREMIUM: "PREMIUM",
+};
+
+function precoMensal(cents: number, interval: string | null): string {
+  const valor = formatMoneyFromCents(cents);
+  return interval === "year" ? `${valor}/ano` : `${valor}/mês`;
+}
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -86,7 +103,42 @@ export default function PaywallScreen({ onClose }: Props) {
 
   // Tela de planos exclusiva do profissional. Hoje só o Diarista alcança este
   // paywall (Montador não o registra; Empregador nunca paga — 00-fonte-unica-verdade.md).
-  const planos = PLANOS_DIARISTA;
+  const [planosApi, setPlanosApi] = useState<PlanoApi[] | null>(null);
+
+  useEffect(() => {
+    let vivo = true;
+    api
+      .get<{ plans: PlanoApi[] }>("/api/billing/plans")
+      .then((res) => {
+        if (vivo) setPlanosApi(res.data?.plans ?? []);
+      })
+      .catch(() => {
+        // Sem o catálogo não dá para mostrar preço. Melhor listar só o
+        // gratuito do que arriscar exibir um valor diferente do cobrado.
+        if (vivo) setPlanosApi([]);
+      });
+    return () => {
+      vivo = false;
+    };
+  }, []);
+
+  const planos: PlanoInfo[] = useMemo(() => {
+    if (!planosApi) return [PLANO_GRATUITO];
+    const pagos = planosApi
+      // mensais apenas: o checkout legado só resolve plano mensal
+      .filter((p) => p.interval !== "year")
+      .map((p): PlanoInfo => {
+        const id = LEGADO_POR_PLAN[p.plan];
+        return {
+          id,
+          nome: p.name,
+          preco: precoMensal(p.priceInCents, p.interval),
+          beneficios: BENEFICIOS[id],
+          destaque: id === "PLUS",
+        };
+      });
+    return [PLANO_GRATUITO, ...pagos];
+  }, [planosApi]);
   const planoAtual: Plano = restricoes?.plano ?? "BASICO";
 
   const canGoBack = !onClose && navigation.canGoBack();

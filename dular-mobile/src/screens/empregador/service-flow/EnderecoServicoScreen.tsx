@@ -8,7 +8,7 @@ import { DInput } from "@/components/ui/DInput";
 import type { EmpregadorServiceFlowStackParamList } from "@/navigation/EmpregadorServiceFlowNavigator";
 import { colors, radius, shadows, spacing } from "@/theme";
 import { useAuth } from "@/stores/authStore";
-import { fetchEnderecos, type Endereco } from "@/api/enderecoApi";
+import { fetchBairrosDaCidade, fetchEnderecos, normalizarBairro, type Endereco } from "@/api/enderecoApi";
 import { useServiceFlow } from "./ServiceFlowContext";
 import { FlowPrimaryButton, flowStyles, StepHeader } from "./components";
 import { getServiceFlowTheme } from "@/theme/serviceFlowTheme";
@@ -85,6 +85,36 @@ export function EnderecoServicoScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadFailed, perfilCidade, perfilUf, perfilBairro]);
 
+  // O backend só aceita bairro que exista no catálogo (`Bairro`), com match
+  // normalizado. Antes nada checava isso aqui: o empregador seguia por mais
+  // três passos e só levava "Bairro não cadastrado." no envio, sem saber quais
+  // valem. Carregamos a lista da cidade e validamos neste passo.
+  const [bairrosCatalogo, setBairrosCatalogo] = useState<string[] | null>(null);
+  useEffect(() => {
+    const cidade = draft.cidade.trim();
+    const uf = draft.uf.trim();
+    if (!cidade || !uf) return;
+    let alive = true;
+    fetchBairrosDaCidade(cidade, uf)
+      .then((lista) => {
+        if (alive) setBairrosCatalogo(lista);
+      })
+      .catch(() => {
+        // Falha de rede não pode travar o fluxo: sem lista, não validamos e o
+        // backend segue como fonte da verdade.
+        if (alive) setBairrosCatalogo(null);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [draft.cidade, draft.uf]);
+
+  const bairroInformado = draft.bairro.trim();
+  const bairroReconhecido =
+    bairrosCatalogo === null ||
+    bairroInformado === "" ||
+    bairrosCatalogo.some((n) => normalizarBairro(n) === normalizarBairro(bairroInformado));
+
   const carregando = enderecos === null && !loadFailed;
   const bloqueado = enderecos !== null && enderecos.length === 0 && !loadFailed;
   const precisaSelecionar = (enderecos?.length ?? 0) >= 2;
@@ -109,6 +139,17 @@ export function EnderecoServicoScreen() {
     }
     if (!draft.rua.trim() || !draft.numero.trim()) {
       Alert.alert("Endereço incompleto", "Informe ao menos a rua e o número do endereço do serviço.");
+      return;
+    }
+    if (!bairroInformado) {
+      Alert.alert("Bairro necessário", "Informe o bairro do endereço do serviço.");
+      return;
+    }
+    if (!bairroReconhecido) {
+      Alert.alert(
+        "Bairro não atendido",
+        `Ainda não atendemos "${bairroInformado}" em ${draft.cidade}. Escolha um dos bairros sugeridos abaixo do campo.`,
+      );
       return;
     }
     navigation.navigate("ObservacoesServico");
@@ -219,6 +260,24 @@ export function EnderecoServicoScreen() {
             onChangeText={(bairro) => updateDraft({ bairro })}
             icon={<AppIcon name="MapPin" size={18} color={colors.textMuted} />}
           />
+          {!bairroReconhecido && bairrosCatalogo ? (
+            <View style={s.bairroAviso}>
+              <Text style={s.bairroAvisoTexto}>
+                Ainda não atendemos esse bairro em {draft.cidade}. Toque em um dos disponíveis:
+              </Text>
+              <View style={s.bairroChips}>
+                {bairrosCatalogo.map((nome) => (
+                  <Pressable
+                    key={nome}
+                    onPress={() => updateDraft({ bairro: nome })}
+                    style={[s.bairroChip, { borderColor: flowTheme.border }]}
+                  >
+                    <Text style={s.bairroChipTexto}>{nome}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+          ) : null}
           <DInput
             placeholder="Complemento"
             value={draft.complemento}
@@ -243,7 +302,7 @@ export function EnderecoServicoScreen() {
             </View>
           </View>
           <View style={s.mapLegend}>
-            <Text style={s.mapTitle}>Area do atendimento</Text>
+            <Text style={s.mapTitle}>Área do atendimento</Text>
             <Text style={s.mapSubtitle}>Mapa ilustrativo para revisão visual do endereço.</Text>
           </View>
         </DCard>
@@ -342,6 +401,32 @@ const s = StyleSheet.create({
   form: {
     marginTop: spacing.lg,
     gap: 12,
+  },
+  bairroAviso: {
+    gap: 8,
+    marginTop: -4,
+  },
+  bairroAvisoTexto: {
+    color: colors.textSecondary,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  bairroChips: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  bairroChip: {
+    borderWidth: 1,
+    borderRadius: radius.pill,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    backgroundColor: colors.surface,
+  },
+  bairroChipTexto: {
+    color: colors.textPrimary,
+    fontSize: 13,
+    fontWeight: "600",
   },
   mapCard: {
     marginTop: spacing.lg,

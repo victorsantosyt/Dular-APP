@@ -10,6 +10,7 @@ import { ServiceCategory, useServiceFlow, type PrecoInfo } from "./ServiceFlowCo
 import { categoriaTemIntensidade } from "./EscolherIntensidadeScreen";
 import { FlowPrimaryButton, flowStyles, ServiceOptionCard, StepHeader } from "./components";
 import { MONTADOR_ESPECIALIDADES } from "./montadorEspecialidades";
+import { AppIcon } from "@/components/ui";
 import { getServiceFlowTheme } from "@/theme/serviceFlowTheme";
 import { CATEGORIAS, CATEGORIAS_DIARISTA } from "@/constants/categorias";
 import { colors, radius, spacing, typography } from "@/theme";
@@ -71,7 +72,14 @@ export function SolicitarServicoScreen() {
     () => opcoesDeValor(draft.categoria, draft.precoInfo),
     [draft.categoria, draft.precoInfo],
   );
-  const precisaValor = hasSelectedProfessional && !isMontador && opcoesValor.length > 0;
+  // Quando as opções de valor JÁ SÃO as intensidades (caso diarista — só elas
+  // carregam `categoriaBackend`), o passo 2 "Escolha a intensidade" pede
+  // exatamente a mesma coisa. Exigir aqui duplicava a pergunta; aqui a tabela
+  // vira referência de preço e quem escolhe é o passo 2.
+  const valoresSaoIntensidade =
+    categoriaTemIntensidade(draft.categoria) && opcoesValor.some((op) => op.categoriaBackend != null);
+  const precisaValor =
+    hasSelectedProfessional && !isMontador && opcoesValor.length > 0 && !valoresSaoIntensidade;
   const canContinue = isMontador
     ? Boolean(draft.especialidadeId)
     : Boolean(draft.profissionalId) && (!precisaValor || draft.valorSelecionado != null);
@@ -189,7 +197,11 @@ export function SolicitarServicoScreen() {
           onBack={leaveFlow}
           theme={flowTheme}
         />
-        <ScrollView contentContainerStyle={s.list} scrollEnabled={false}>
+        {/* View, não ScrollView: um ScrollView aninhado (mesmo com
+            scrollEnabled={false}) recebe flex:1 e estica até o fim do espaço
+            disponível, empurrando a tabela de valores para o rodapé e abrindo
+            um vão vazio no meio da tela. */}
+        <View style={s.list}>
           {isMontador
             ? MONTADOR_ESPECIALIDADES.map((especialidade) => {
                 const preco = precoEspecialidade(especialidade.id, draft.precoInfo);
@@ -227,19 +239,29 @@ export function SolicitarServicoScreen() {
                   onPress={() => selectGeneralService(cat.key as ServiceCategory)}
                 />
               ))}
-        </ScrollView>
+        </View>
 
         {/* Tabela de valores por intensidade — só com profissional escolhido e
             categoria definida. Vazio = "a combinar" (sem tabela). */}
         {hasSelectedProfessional && !isMontador && draft.categoria ? (
           <View style={s.valoresWrap}>
-            <Text style={s.valoresTitle}>Valor do serviço</Text>
+            <Text style={s.valoresTitle}>
+              {valoresSaoIntensidade ? "Preços da profissional" : "Valor do serviço"}
+            </Text>
+            {opcoesValor.length > 0 ? (
+              <Text style={s.valoresHint}>
+                {valoresSaoIntensidade
+                  ? "Você escolhe a intensidade no próximo passo."
+                  : "Escolha uma opção para continuar."}
+              </Text>
+            ) : null}
             {opcoesValor.length > 0 ? (
               opcoesValor.map((op) => {
-                const sel = draft.intensidadeLabel === op.label;
+                const sel = !valoresSaoIntensidade && draft.intensidadeLabel === op.label;
                 return (
                   <Pressable
                     key={op.id}
+                    disabled={valoresSaoIntensidade}
                     onPress={() =>
                       updateDraft({
                         valorSelecionado: op.valor,
@@ -253,6 +275,16 @@ export function SolicitarServicoScreen() {
                       sel && { backgroundColor: flowTheme.primarySoft },
                     ]}
                   >
+                    {valoresSaoIntensidade ? null : (
+                      <View
+                        style={[
+                          s.valorMark,
+                          sel && { borderColor: flowTheme.primary, backgroundColor: flowTheme.primary },
+                        ]}
+                      >
+                        {sel ? <AppIcon name="Check" size={13} color={colors.white} strokeWidth={3} /> : null}
+                      </View>
+                    )}
                     <Text style={s.valorLabel}>{op.label}</Text>
                     <Text style={[s.valorValue, { color: flowTheme.primary }]}>{formatBRL(op.valor)}</Text>
                   </Pressable>
@@ -301,17 +333,35 @@ const s = StyleSheet.create({
     ...typography.bodyMedium,
     fontWeight: "800",
   },
+  valoresHint: {
+    color: colors.textSecondary,
+    ...typography.bodySm,
+    marginTop: -4,
+  },
   valorCard: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    gap: spacing.sm,
     borderWidth: 1.5,
     borderRadius: radius.lg,
     paddingHorizontal: spacing.md,
     paddingVertical: 14,
     backgroundColor: colors.surface,
   },
+  // Mesmo indicador do card de categoria (components.tsx `selectMark`): sem
+  // ele a tabela de valores parecia informativa, e o "Continuar" ficava
+  // desabilitado sem nada na tela dizendo que faltava escolher.
+  valorMark: {
+    width: 21,
+    height: 21,
+    borderRadius: 11,
+    borderWidth: 1.5,
+    borderColor: colors.lavenderStrong,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   valorLabel: {
+    flex: 1,
     color: colors.textPrimary,
     ...typography.bodySmMedium,
     fontWeight: "700",

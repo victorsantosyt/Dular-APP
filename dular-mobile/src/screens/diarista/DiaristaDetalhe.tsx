@@ -26,6 +26,7 @@ import { SafeScoreBadge } from "@/components/SafeScoreBadge";
 import { AvaliacaoModal } from "@/components/ui";
 import { useSeguranca } from "@/hooks/useSeguranca";
 import { formatPrice } from "@/utils/formatPrice";
+import { formatDate, formatHora, protocoloServico } from "@/utils/formatters";
 import { isStatusEncerrado } from "@/utils/servicoStatus";
 
 // ── Tokens ──────────────────────────────────────────────────────────────────
@@ -317,13 +318,13 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
         <View style={s.titleRow}>
           <Pressable
             onPress={async () => {
-              await Clipboard.setStringAsync(`#${svc.id.slice(0, 6).toUpperCase()}`);
+              await Clipboard.setStringAsync(protocoloServico(svc.id));
               Alert.alert("Copiado", "Número do serviço copiado.");
             }}
             hitSlop={8}
             style={{ flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 1 }}
           >
-            <Text style={s.title}>Serviço #{svc.id.slice(0, 6).toUpperCase()}</Text>
+            <Text style={s.title} numberOfLines={1}>{protocoloServico(svc.id)}</Text>
             <Ionicons name="copy-outline" size={16} color={colors.sub} />
           </Pressable>
           <DularBadge text={statusLabel(svc.status)} variant={statusVariant(svc.status)} />
@@ -333,6 +334,16 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
         <View style={s.card}>
           <InfoRow icon="briefcase-outline" label="Serviço">
             <Text style={s.infoValue}>{servicoLabelDetalhe(svc)}</Text>
+          </InfoRow>
+
+          <View style={s.divider} />
+
+          {/* Quando é. Estava ausente: a tela pedia para ACEITAR o serviço sem
+              mostrar a data em lugar nenhum — só o card da lista trazia. */}
+          <InfoRow icon="calendar-outline" label="Data">
+            <Text style={s.infoValue}>
+              {formatDate(svc.data as any)} · {formatHora(svc.turno as any)}
+            </Text>
           </InfoRow>
 
           <View style={s.divider} />

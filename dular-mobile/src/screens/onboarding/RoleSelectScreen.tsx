@@ -46,24 +46,24 @@ const GRAY_FEAT = tc.grayText;
 type Feature = { icon: IoniconsName; text: string };
 
 const empregadorFeatures: Feature[] = [
-  { icon: "search-outline", text: "Encontre\nprofissionais\nqualificadas" },
-  { icon: "calendar-outline", text: "Agende em\npoucos cliques\ne economize tempo" },
-  { icon: "shield-checkmark-outline", text: "Pagamento\nseguro e\nprotegido" },
-  { icon: "star-outline", text: "Avaliações e\nrecomendações\nde quem já usou" },
+  { icon: "search-outline", text: "Profissionais qualificadas" },
+  { icon: "calendar-outline", text: "Agende em poucos cliques" },
+  { icon: "shield-checkmark-outline", text: "Pagamento seguro" },
+  { icon: "star-outline", text: "Avaliações reais" },
 ];
 
 const diaristaFeatures: Feature[] = [
-  { icon: "star-outline", text: "Destaque seu\nperfil e seja\nencontrada" },
-  { icon: "calendar-outline", text: "Receba\nagendamentos\nna sua região" },
-  { icon: "wallet-outline", text: "Ganhos\nseguros e\ntransparentes" },
-  { icon: "bar-chart-outline", text: "Acompanhe seu\ndesempenho e\nevolua sempre" },
+  { icon: "star-outline", text: "Seja encontrada" },
+  { icon: "calendar-outline", text: "Agenda na sua região" },
+  { icon: "wallet-outline", text: "Ganhos transparentes" },
+  { icon: "bar-chart-outline", text: "Acompanhe seu desempenho" },
 ];
 
 const montadorFeatures: Feature[] = [
-  { icon: "construct-outline", text: "Monte com\nprecisão e\nqualidade" },
-  { icon: "calendar-outline", text: "Receba\noportunidades\nna sua região" },
-  { icon: "wallet-outline", text: "Ganhos\nseguros e\ntransparentes" },
-  { icon: "star-outline", text: "Construa sua\nreputação\nprofissional" },
+  { icon: "construct-outline", text: "Monte com precisão" },
+  { icon: "calendar-outline", text: "Trabalho na sua região" },
+  { icon: "wallet-outline", text: "Ganhos transparentes" },
+  { icon: "star-outline", text: "Construa reputação" },
 ];
 
 // ─── Step Indicator ──────────────────────────────────────────────────────────
@@ -156,7 +156,7 @@ function RoleCard({
               <Ionicons name={f.icon} size={22} color={accent} />
               <Text
                 allowFontScaling={false}
-                numberOfLines={3}
+                numberOfLines={4}
                 style={styles.featureText}
               >
                 {f.text}

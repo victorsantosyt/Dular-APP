@@ -32,6 +32,20 @@ export function parseDataServico(value?: string | number | Date | null): Date | 
   return new Date(parsed.getUTCFullYear(), parsed.getUTCMonth(), parsed.getUTCDate());
 }
 
+/** Só os dígitos — para enviar ao backend, que guarda telefone sem máscara. */
+export function somenteDigitos(valor: string): string {
+  return valor.replace(/\D/g, "");
+}
+
+/** Telefone BR para exibição: "55999842393" → "(55) 99984-2393".
+ *  Estava definido dentro de RecebimentosScreen e só valia para a chave PIX;
+ *  o perfil mostrava os dígitos crus. */
+export function mascaraTelefone(raw: string): string {
+  const d = somenteDigitos(raw).slice(0, 11);
+  if (d.length <= 10) return d.replace(/(\d{2})(\d{4})(\d{0,4})/, "($1) $2-$3").trim();
+  return d.replace(/(\d{2})(\d{5})(\d{0,4})/, "($1) $2-$3").trim();
+}
+
 /** Concorda número e substantivo: `plural(1, "serviço", "serviços")` → "1 serviço".
  *  Passe a frase inteira quando houver adjetivo, para ele concordar também:
  *  `plural(n, "serviço concluído", "serviços concluídos")`.

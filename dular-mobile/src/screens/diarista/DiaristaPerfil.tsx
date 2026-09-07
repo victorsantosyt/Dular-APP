@@ -78,7 +78,7 @@ import {
 } from "../empregador/profile/components";
 import type { ServicoOferecido } from "@/types/diarista";
 import { OFERTAS_DIARISTA } from "@/constants/categorias";
-import { plural } from "@/utils/formatters";
+import { mascaraTelefone, plural, somenteDigitos } from "@/utils/formatters";
 
 type Props = { onLogout: () => void };
 type Navigation = BottomTabNavigationProp<DiaristaTabParamList>;
@@ -724,7 +724,7 @@ export default function DiaristaPerfil({ onLogout }: Props) {
         case "dados":
           setDadosForm({
             nome: profile?.user?.nome ?? me?.nome ?? user?.nome ?? "",
-            telefone: profile?.user?.telefone ?? me?.telefone ?? user?.telefone ?? "",
+            telefone: mascaraTelefone(profile?.user?.telefone ?? me?.telefone ?? user?.telefone ?? ""),
             bio: profile?.bio ?? "",
             anosExperiencia:
               profile?.anosExperiencia != null ? String(profile.anosExperiencia) : "",
@@ -847,7 +847,7 @@ export default function DiaristaPerfil({ onLogout }: Props) {
       // da diarista → /api/diarista/me (mesma estrutura dos dados do montador).
       await updatePerfilBase({
         nome: nomeTrim,
-        telefone: dadosForm.telefone.trim(),
+        telefone: somenteDigitos(dadosForm.telefone),
         bio: dadosForm.bio.trim(),
       });
       await patchDiaristaPerfil({ anosExperiencia });
@@ -860,7 +860,7 @@ export default function DiaristaPerfil({ onLogout }: Props) {
           ? {
               ...cur,
               nome: nomeTrim,
-              telefone: dadosForm.telefone.trim(),
+              telefone: somenteDigitos(dadosForm.telefone),
               bio: dadosForm.bio.trim() || null,
             }
           : cur,
@@ -1672,7 +1672,7 @@ export default function DiaristaPerfil({ onLogout }: Props) {
               <Text style={s.modalLabel}>Telefone</Text>
               <TextInput
                 value={dadosForm.telefone}
-                onChangeText={(v) => setDadosForm((cur) => ({ ...cur, telefone: v }))}
+                onChangeText={(v) => setDadosForm((cur) => ({ ...cur, telefone: mascaraTelefone(v) }))}
                 placeholder="Telefone"
                 placeholderTextColor={colors.textMuted}
                 style={s.modalInput}
@@ -2566,11 +2566,14 @@ function makeStyles(colors: ThemeColors, theme: ProfileTheme) {
       borderColor: colors.border,
       paddingHorizontal: spacing.md,
       paddingVertical: 10,
-      backgroundColor: colors.background,
+      // Fundo preenchido em vez do mesmo dos editáveis: antes a única
+      // diferença era 0,5px de borda, então o campo travado convidava ao
+      // toque e não respondia.
+      backgroundColor: colors.divider,
       justifyContent: "center",
     },
     modalReadonlyValue: {
-      color: colors.textPrimary,
+      color: colors.textSecondary,
       fontSize: 15,
       fontWeight: "600",
     },

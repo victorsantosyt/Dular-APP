@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import {
   isDiaristaProfileCompleteForServico,
   getDiaristaProfileCompleteness,
+  nichoFromTipo,
   type ServicoOferecido,
 } from "@/lib/diaristaProfile";
 // Gate do Guardian agora em LOTE na própria busca (sem N+1); ver abaixo.
@@ -125,25 +126,48 @@ export async function GET(req: Request) {
     // `user.status`/`tipo` via Prisma. A comparação de cidade/UF/bairro é
     // feita em memória para usar normalização (case + acentos + sufixos
     // entre parênteses) consistente com o que o app envia.
+    // Filtro por `tipo`: aceita DUAS fontes, unidas por OR.
+    //
+    // `DiaristaHabilidade` só é gravada por `PUT /api/diarista/habilidades`,
+    // que NENHUMA tela do app chama (o wrapper existe em `diaristaApi.ts` e
+    // está morto) — na prática só o seed popula essa tabela. Exigir habilidade
+    // tornava invisível toda profissional cadastrada pelo app: ela passa na
+    // completude (que cobra `servicosOferecidos`, não habilidades), aparece na
+    // busca sem filtro, e some assim que o empregador escolhe uma categoria —
+    // que é o caminho padrão da Home. `servicosOferecidos` é o campo que o app
+    // realmente escreve, então ele passa a valer como equivalente.
+    //
+    // `categoria` só refina dentro do ramo de habilidades: o nicho não tem essa
+    // granularidade (não existe onde gravá-la hoje), e descartar o fallback
+    // quando há categoria recriaria o mesmo buraco.
+    const nichoDoTipo = tipo ? nichoFromTipo(tipo) : null;
+    const filtroTipo: Prisma.DiaristaProfileWhereInput[] = [];
+    if (tipo) {
+      filtroTipo.push({
+        user: {
+          is: {
+            habilidades: {
+              some: {
+                tipo: tipo as any,
+                ...(categoria ? { categoria: categoria as any } : {}),
+              },
+            },
+          },
+        },
+      });
+      if (nichoDoTipo) filtroTipo.push({ servicosOferecidos: { has: nichoDoTipo } });
+    }
+
     const diaristasRaw = await prisma.diaristaProfile.findMany({
       where: {
         ativo: true,
         verificacao: "VERIFICADO",
         ...(servico ? { servicosOferecidos: { has: servico } } : {}),
+        ...(filtroTipo.length ? { OR: filtroTipo } : {}),
         user: {
           is: {
             status: "ATIVO",
             restrictions: restrictionFilter,
-            ...(tipo
-              ? {
-                  habilidades: {
-                    some: {
-                      tipo: tipo as any,
-                      ...(categoria ? { categoria: categoria as any } : {}),
-                    },
-                  },
-                }
-              : {}),
           },
         },
       },

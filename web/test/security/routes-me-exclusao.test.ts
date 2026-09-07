@@ -139,3 +139,37 @@ describe("DELETE /api/me — exclusão de conta (LGPD)", () => {
     assert.match(cookie, /Max-Age=0/i);
   });
 });
+
+describe("Guardian — conta excluída não passa com token antigo", () => {
+  beforeEach(() => resetMockPrisma());
+
+  it("hard-block em REMOVIDO, não só em BLOQUEADO", async () => {
+    // O JWT vale 7 dias e não é revogado na exclusão. Se o guardian só
+    // olhasse BLOQUEADO, um token antigo de conta excluída criaria serviço.
+    const { getGuardianStatusForUser } = await import("../../src/lib/safeScoreGuardian");
+
+    for (const [status, motivo] of [
+      ["REMOVIDO", "conta_removida"],
+      ["BLOQUEADO", "usuario_bloqueado"],
+    ] as const) {
+      mockPrisma.user.findUnique = async () => ({ id: USER_ID, role: "EMPREGADOR", status });
+      const res = await getGuardianStatusForUser(USER_ID);
+
+      assert.equal(res.canCreateServico, false, `${status} deveria bloquear criação de serviço`);
+      assert.ok(res.motivos.includes(motivo), `${status} deveria informar "${motivo}"`);
+    }
+  });
+
+  it("deixa passar quem está ATIVO (não vira bloqueio geral)", async () => {
+    const { getGuardianStatusForUser } = await import("../../src/lib/safeScoreGuardian");
+    mockPrisma.user.findUnique = async () => ({ id: USER_ID, role: "EMPREGADOR", status: "ATIVO" });
+
+    // Não chega a decidir aqui — o importante é NÃO cair no hard-block, ou seja
+    // seguir para a coleta de dados (que o mock não tem, e por isso lança).
+    await assert.rejects(
+      () => getGuardianStatusForUser(USER_ID),
+      /Prisma mock not configured/,
+      "ATIVO deve seguir para a avaliação normal, não ser cortado no hard-block",
+    );
+  });
+});

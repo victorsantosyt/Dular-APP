@@ -16,6 +16,7 @@ import { useGenderTheme } from "@/hooks/useProfileTheme";
 import { radius, spacing, typography } from "@/theme";
 import { platformSelect } from "@/utils/platform";
 import { apiMsg } from "@/utils/apiMsg";
+import { mascaraTelefone } from "@/utils/formatters";
 import {
   getPaymentInfo,
   salvarPaymentInfo,
@@ -48,12 +49,6 @@ function maskCpf(raw: string): string {
     .replace(/(\d{3})(\d)/, "$1.$2")
     .replace(/(\d{3})(\d)/, "$1.$2")
     .replace(/(\d{3})(\d{1,2})$/, "$1-$2");
-}
-
-function maskPhone(raw: string): string {
-  const d = raw.replace(/\D/g, "").slice(0, 11);
-  if (d.length <= 10) return d.replace(/(\d{2})(\d{4})(\d{0,4})/, "($1) $2-$3").trim();
-  return d.replace(/(\d{2})(\d{5})(\d{0,4})/, "($1) $2-$3").trim();
 }
 
 /** Validação de CPF com dígitos verificadores (mesma regra do backend). */
@@ -129,7 +124,7 @@ export function RecebimentosScreen() {
   const onChaveChange = (valor: string) => {
     setErro(null);
     if (pixType === "CPF") return setPixKey(maskCpf(valor));
-    if (pixType === "CELULAR") return setPixKey(maskPhone(valor));
+    if (pixType === "CELULAR") return setPixKey(mascaraTelefone(valor));
     setPixKey(valor);
   };
 

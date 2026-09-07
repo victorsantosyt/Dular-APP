@@ -175,6 +175,9 @@ type Props = {
   variant?: IconVariant;
   background?: boolean;
   style?: ViewStyle;
+  /** Preenchimento do traçado (ex.: estrela cheia de avaliação). O variant
+   *  "filled" é outra coisa: desenha uma bolha com gradiente atrás do ícone. */
+  fill?: string;
 };
 
 const TONE = {
@@ -210,6 +213,7 @@ export function AppIcon({
   variant = "outline",
   background,
   style,
+  fill,
 }: Props) {
   const Icon = ICONS[name];
   const tone = resolveTone(color, variant);
@@ -234,7 +238,7 @@ export function AppIcon({
     );
   }
 
-  return <Icon size={size} color={iconColor} strokeWidth={strokeWidth} />;
+  return <Icon size={size} color={iconColor} strokeWidth={strokeWidth} fill={fill ?? "none"} />;
 }
 
 export type AppIconName = keyof typeof ICONS;

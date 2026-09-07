@@ -78,6 +78,7 @@ import {
 } from "../empregador/profile/components";
 import type { ServicoOferecido } from "@/types/diarista";
 import { OFERTAS_DIARISTA } from "@/constants/categorias";
+import { mascaraTelefone, plural, somenteDigitos } from "@/utils/formatters";
 
 type Props = { onLogout: () => void };
 type Navigation = BottomTabNavigationProp<DiaristaTabParamList>;
@@ -196,7 +197,16 @@ function StarRow({
   return (
     <View style={{ flexDirection: "row", gap: 2 }}>
       {[1, 2, 3, 4, 5].map((i) => (
-        <AppIcon key={i} name="Star" size={size} color={i <= filled ? color : emptyColor} strokeWidth={2} />
+        <AppIcon
+          key={i}
+          name="Star"
+          size={size}
+          color={i <= filled ? color : emptyColor}
+          // Sem preencher, nota 5,0 e nota 0 ficavam iguais: cinco contornos,
+          // mudando só a cor.
+          fill={i <= filled ? color : "none"}
+          strokeWidth={2}
+        />
       ))}
     </View>
   );
@@ -552,7 +562,7 @@ export default function DiaristaPerfil({ onLogout }: Props) {
     const uf = profile?.estado ?? profile?.bairros?.[0]?.bairro?.uf ?? null;
     if (!cidade || !uf) return "Área de atendimento não definida";
     if (profile?.atendeTodaCidade) return `${cidade} • ${uf} — atende toda a cidade`;
-    return `${cidade} • ${uf}${bairroNomes.length ? ` — ${bairroNomes.length} bairro(s)` : ""}`;
+    return `${cidade} • ${uf}${bairroNomes.length ? ` — ${plural(bairroNomes.length, "bairro", "bairros")}` : ""}`;
   }, [profile?.cidade, profile?.estado, profile?.atendeTodaCidade, profile?.bairros, bairroNomes.length]);
   const heroLocation = useMemo(() => {
     const cidade = profile?.cidade ?? profile?.bairros?.[0]?.bairro?.cidade ?? null;
@@ -723,7 +733,7 @@ export default function DiaristaPerfil({ onLogout }: Props) {
         case "dados":
           setDadosForm({
             nome: profile?.user?.nome ?? me?.nome ?? user?.nome ?? "",
-            telefone: profile?.user?.telefone ?? me?.telefone ?? user?.telefone ?? "",
+            telefone: mascaraTelefone(profile?.user?.telefone ?? me?.telefone ?? user?.telefone ?? ""),
             bio: profile?.bio ?? "",
             anosExperiencia:
               profile?.anosExperiencia != null ? String(profile.anosExperiencia) : "",
@@ -846,7 +856,7 @@ export default function DiaristaPerfil({ onLogout }: Props) {
       // da diarista → /api/diarista/me (mesma estrutura dos dados do montador).
       await updatePerfilBase({
         nome: nomeTrim,
-        telefone: dadosForm.telefone.trim(),
+        telefone: somenteDigitos(dadosForm.telefone),
         bio: dadosForm.bio.trim(),
       });
       await patchDiaristaPerfil({ anosExperiencia });
@@ -859,7 +869,7 @@ export default function DiaristaPerfil({ onLogout }: Props) {
           ? {
               ...cur,
               nome: nomeTrim,
-              telefone: dadosForm.telefone.trim(),
+              telefone: somenteDigitos(dadosForm.telefone),
               bio: dadosForm.bio.trim() || null,
             }
           : cur,
@@ -1495,7 +1505,7 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                   title="Avaliações"
                   subtitle={
                     profile?.avaliacoes?.total
-                      ? `${profile.avaliacoes.total} avaliação(ões)`
+                      ? `${plural(profile.avaliacoes.total, "avaliação", "avaliações")}`
                       : "Sem avaliações ainda"
                   }
                   onPress={() => openModal("avaliacoes")}
@@ -1507,6 +1517,17 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                   title="Carteira / Ganhos"
                   subtitle="Histórico e ganhos dos serviços"
                   onPress={() => navigation.navigate("Carteira", { from: "Perfil" })}
+                />
+                {/* Entrada voluntária para o plano. Até aqui o Paywall só abria
+                    pelo `usePaywallGuard`, ou seja, depois de estourar o limite —
+                    não havia como assinar antes. */}
+                <ProfileRow
+                  accentColor={theme.primary}
+                  accentSoft={theme.primarySoft}
+                  icon="Sparkles"
+                  title="Meu plano"
+                  subtitle="Assine antes de atingir o limite de serviços"
+                  onPress={() => navigation.navigate("Paywall", {})}
                 />
                 <ProfileRow
                   accentColor={theme.primary}
@@ -1671,7 +1692,7 @@ export default function DiaristaPerfil({ onLogout }: Props) {
               <Text style={s.modalLabel}>Telefone</Text>
               <TextInput
                 value={dadosForm.telefone}
-                onChangeText={(v) => setDadosForm((cur) => ({ ...cur, telefone: v }))}
+                onChangeText={(v) => setDadosForm((cur) => ({ ...cur, telefone: mascaraTelefone(v) }))}
                 placeholder="Telefone"
                 placeholderTextColor={colors.textMuted}
                 style={s.modalInput}
@@ -2250,7 +2271,7 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                   <Text style={s.ratingScore}>{(profile.avaliacoes.media ?? 0).toFixed(1)}</Text>
                   <View style={{ gap: 4 }}>
                     <StarRow value={profile.avaliacoes.media ?? 0} size={16} color={theme.primary} emptyColor={theme.border} />
-                    <Text style={s.ratingSummaryText}>{profile.avaliacoes.total} avaliação(ões)</Text>
+                    <Text style={s.ratingSummaryText}>{plural(profile.avaliacoes.total, "avaliação", "avaliações")}</Text>
                   </View>
                 </View>
                 {profile.avaliacoes.itens.map((item) => (
@@ -2565,11 +2586,14 @@ function makeStyles(colors: ThemeColors, theme: ProfileTheme) {
       borderColor: colors.border,
       paddingHorizontal: spacing.md,
       paddingVertical: 10,
-      backgroundColor: colors.background,
+      // Fundo preenchido em vez do mesmo dos editáveis: antes a única
+      // diferença era 0,5px de borda, então o campo travado convidava ao
+      // toque e não respondia.
+      backgroundColor: colors.divider,
       justifyContent: "center",
     },
     modalReadonlyValue: {
-      color: colors.textPrimary,
+      color: colors.textSecondary,
       fontSize: 15,
       fontWeight: "600",
     },

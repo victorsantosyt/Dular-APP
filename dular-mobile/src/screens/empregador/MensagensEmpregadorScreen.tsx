@@ -121,8 +121,14 @@ export function MensagensEmpregadorScreen() {
               </View>
             </View>
             <View style={s.infoCopy}>
-              <Text style={s.infoTitle}>Profissionais que confirmaram</Text>
-              <Text style={s.infoText}>Inicie uma conversa para combinar os detalhes do serviço.</Text>
+              <Text style={s.infoTitle}>
+                {activeTab === "arquivadas" ? "Conversas de serviços encerrados" : "Profissionais que confirmaram"}
+              </Text>
+              <Text style={s.infoText}>
+                {activeTab === "arquivadas"
+                  ? "Ficam disponíveis apenas para consulta."
+                  : "Inicie uma conversa para combinar os detalhes do serviço."}
+              </Text>
             </View>
           </DCard>
 

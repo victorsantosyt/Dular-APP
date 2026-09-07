@@ -18,6 +18,7 @@ import { fetchServicosMinhas } from "@/api/sharedFetcher";
 import { useGenderTheme } from "@/hooks/useProfileTheme";
 import type { DiaristaTabParamList } from "@/navigation/DiaristaNavigator";
 import { colors, radius, shadows, spacing, typography } from "@/theme";
+import { plural } from "@/utils/formatters";
 
 type Navigation = BottomTabNavigationProp<DiaristaTabParamList>;
 
@@ -190,7 +191,7 @@ export default function DiaristaCarteira() {
                 <Text style={styles.heroValue}>{brl(resumo.ganhosTotais)}</Text>
                 <Text style={styles.heroSub}>
                   {resumo.concluidos.length > 0
-                    ? `${resumo.concluidos.length} serviço(s) concluído(s) no Dular.`
+                    ? `${plural(resumo.concluidos.length, "serviço concluído", "serviços concluídos")} no Dular.`
                     : "Seus ganhos aparecem aqui após concluir serviços."}
                 </Text>
               </View>

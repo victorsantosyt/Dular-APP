@@ -19,6 +19,12 @@ export type IntensidadeOpcao = {
   title: string;
   subtitle: string;
   icon: AppIconName;
+  /**
+   * Valor da opção em REAIS (mesma unidade de `draft.valorSelecionado`).
+   * Ausente quando o nicho não tem preço por intensidade (babá, cozinheira,
+   * passadeira). Sem isto, escolher aqui trocava o serviço mas não o preço.
+   */
+  valor?: number;
 };
 
 /**
@@ -48,10 +54,13 @@ export function intensidadeOpcoes(
   if (categoria === "diarista") {
     const linha = (valor: number | null | undefined, base: string) =>
       valor != null && valor > 0 ? `${base} · ${formatBRL(valor)}` : base;
+    // `valor` em reais (o campo do perfil vem em centavos).
+    const reais = (valor: number | null | undefined) =>
+      valor != null && valor > 0 ? valor / 100 : undefined;
     return [
-      { categoriaBackend: "FAXINA_LEVE", title: "Limpeza leve", subtitle: linha(precos?.leve, "Manutenção do dia a dia"), icon: "BrushCleaning" },
-      { categoriaBackend: "FAXINA_COMPLETA", title: "Limpeza completa", subtitle: linha(precos?.medio, "Limpeza mais detalhada"), icon: "Sparkles" },
-      { categoriaBackend: "FAXINA_PESADA", title: "Limpeza pesada", subtitle: linha(precos?.pesada, "Pós-obra / faxina pesada"), icon: "Hammer" },
+      { categoriaBackend: "FAXINA_LEVE", title: "Limpeza leve", subtitle: linha(precos?.leve, "Manutenção do dia a dia"), icon: "BrushCleaning", valor: reais(precos?.leve) },
+      { categoriaBackend: "FAXINA_COMPLETA", title: "Limpeza completa", subtitle: linha(precos?.medio, "Limpeza mais detalhada"), icon: "Sparkles", valor: reais(precos?.medio) },
+      { categoriaBackend: "FAXINA_PESADA", title: "Limpeza pesada", subtitle: linha(precos?.pesada, "Pós-obra / faxina pesada"), icon: "Hammer", valor: reais(precos?.pesada) },
     ];
   }
   if (categoria === "baba") {
@@ -108,7 +117,17 @@ export function EscolherIntensidadeScreen() {
               icon={op.icon}
               selected={draft.categoriaBackend === op.categoriaBackend}
               theme={flowTheme}
-              onPress={() => updateDraft({ categoriaBackend: op.categoriaBackend })}
+              // Grava o pacote inteiro. Antes só `categoriaBackend` era
+              // atualizado: trocar a intensidade aqui mudava o serviço mas
+              // deixava rótulo e preço do passo 1, e a tela de confirmação
+              // exibia "Limpeza leve · R$ 100,00" para uma faxina pesada.
+              onPress={() =>
+                updateDraft({
+                  categoriaBackend: op.categoriaBackend,
+                  intensidadeLabel: op.title,
+                  ...(op.valor != null ? { valorSelecionado: op.valor } : {}),
+                })
+              }
             />
           ))}
         </View>

@@ -32,7 +32,10 @@ export function BackCircleButton({ onPress, color, borderColor }: Props) {
         pressed && styles.pressed,
       ]}
     >
-      <AppIcon name="ChevronRight" size={20} color={color ?? colors.textPrimary} strokeWidth={2.4} />
+      {/* ArrowLeft, não ChevronRight: o botão chama goBack() e se anuncia como
+          "Voltar", mas desenhava uma seta para a FRENTE — em 12 telas. É o
+          mesmo ícone que as demais telas de detalhe já usam para voltar. */}
+      <AppIcon name="ArrowLeft" size={20} color={color ?? colors.textPrimary} strokeWidth={2.4} />
     </Pressable>
   );
 }

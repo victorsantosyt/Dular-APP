@@ -92,6 +92,23 @@ function servicoLabelDetalhe(s: Servico): string {
 
 // ── Componente ────────────────────────────────────────────────────────────────
 
+// O sucesso mostrava o nome interno do endpoint ("Ação \"aceitar\" executada
+// com sucesso.") para a profissional. Cada ação tem sua mensagem.
+const MENSAGEM_SUCESSO: Record<string, { titulo: string; texto: string }> = {
+  aceitar: {
+    titulo: "Serviço aceito!",
+    texto: "O cliente foi avisado. Você já pode combinar os detalhes pelo chat.",
+  },
+  iniciar: {
+    titulo: "Serviço iniciado",
+    texto: "Bom trabalho! Marque como concluído quando terminar.",
+  },
+  concluir: {
+    titulo: "Serviço concluído",
+    texto: "Agora é só aguardar a confirmação do cliente.",
+  },
+};
+
 export default function DiaristaDetalhe({ route, navigation }: any) {
   const theme = useGenderTheme("DIARISTA");
   const params = route.params as any;
@@ -148,7 +165,7 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
       const updated = res.data?.servico ?? res.data;
       if (updated?.id) setSvc(updated);
       else await reloadFromList();
-      Alert.alert("Sucesso", `Ação "${name}" executada com sucesso.`);
+      Alert.alert(MENSAGEM_SUCESSO[name]?.titulo ?? "Pronto", MENSAGEM_SUCESSO[name]?.texto ?? "");
       navigation.goBack();
     } catch (e: any) {
       Alert.alert("Erro", e?.response?.data?.error ?? e?.message);

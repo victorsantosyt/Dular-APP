@@ -40,8 +40,11 @@ export type Servico = {
   categoria: ServicoCategoria | null;
   data: DateString;
   turno: Turno;
+  /** Horário escolhido, "HH:MM". Null nos serviços criados antes da coluna. */
+  hora?: string | null;
   reagendamentoData?: DateString | null;
   reagendamentoTurno?: Turno | null;
+  reagendamentoHora?: string | null;
   reagendamentoPor?: string | null;
   reagendamentoEm?: DateString | null;
   cidade: string;
@@ -100,6 +103,8 @@ export type CriarServicoPayload = {
   categoria?: ServicoCategoria;
   dataISO: string;
   turno: Turno;
+  /** Horário escolhido, "HH:MM" 24h. */
+  hora?: string;
   cidade: string;
   uf: string;
   bairro: string;

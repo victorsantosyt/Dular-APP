@@ -2,7 +2,7 @@ import { useState, useCallback } from "react";
 import { useFocusEffect } from "@react-navigation/native";
 import { apiService } from "@/services/api";
 import { useAuth } from "@/stores/authStore";
-import { formatDate, formatHora, mapStatus } from "@/utils/formatters";
+import { formatDate, formatHorario, mapStatus } from "@/utils/formatters";
 
 export type StatusDiarista =
   | "pendente"
@@ -88,7 +88,7 @@ function mapServico(raw: any): AgendamentoDiarista {
     servicoLabel: (categoria && CATEGORIA_LABEL[categoria]) || tipoLabel,
     data: formatDate(raw.data),
     dataISO: raw.data ?? null,
-    hora: formatHora(raw.turno),
+    hora: formatHorario(raw.hora, raw.turno),
     preco: raw.precoFinal != null ? String(raw.precoFinal) : "--",
     status: STATUS_DIARISTA_MAP[baseStatus] ?? "pendente",
     avatarUrl: raw.cliente?.avatarUrl ?? undefined,

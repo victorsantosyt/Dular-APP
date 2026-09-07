@@ -10,7 +10,7 @@ import type { ProfileTheme } from "@/theme/profileTheme";
 import type { DiaristaTabParamList } from "@/navigation/DiaristaNavigator";
 import { useAgendamentosDiarista } from "@/hooks/useAgendamentosDiarista";
 import { aceitarServicoDiarista, concluirServicoDiarista } from "@/api/diaristaApi";
-import { parseDataServico } from "@/utils/formatters";
+import { diasAteServico } from "@/utils/formatters";
 import { useMensagens } from "@/hooks/useMensagens";
 
 type Navigation = BottomTabNavigationProp<DiaristaTabParamList>;
@@ -60,18 +60,6 @@ const CATEGORIA_LABEL: Record<string, string> = {
 function servicoCompleto(a: Agendamento): string {
   if (a.categoria && CATEGORIA_LABEL[a.categoria]) return CATEGORIA_LABEL[a.categoria];
   return a.servico;
-}
-
-/** Diferença em dias inteiros entre a data do serviço e hoje (0 = hoje).
- *  Mesma regra usada em `MontadorAgenda`, que já filtrava por período certo. */
-function diasAte(value?: string | null): number | null {
-  const date = parseDataServico(value);
-  if (!date) return null;
-  const inicio = new Date();
-  inicio.setHours(0, 0, 0, 0);
-  const outro = new Date(date);
-  outro.setHours(0, 0, 0, 0);
-  return Math.round((outro.getTime() - inicio.getTime()) / 86_400_000);
 }
 
 const FILTROS: { label: string; value: Filtro }[] = [
@@ -319,7 +307,7 @@ export function AgendamentosDiaristaScreen() {
     // (`item.data === "Amanhã"`) dependia do texto de exibição, e "semana"
     // nem era tratado: caía no retorno geral e listava serviços de meses atrás.
     return sourceData.filter((item) => {
-      const diff = diasAte(item.dataISO);
+      const diff = diasAteServico(item.dataISO);
       if (diff == null) return false;
       if (activeFilter === "hoje") return diff === 0;
       if (activeFilter === "amanha") return diff === 1;

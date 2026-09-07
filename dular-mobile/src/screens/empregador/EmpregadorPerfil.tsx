@@ -528,6 +528,14 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
   const emailText = textValue(profileData?.email) ?? "Não informado";
   const roleText = roleLabel(profileData?.role);
   const createdAtText = memberSince || "Não informado";
+  // "Usuária desde" era fixo aqui — homens viam o feminino. Sem gênero
+  // declarado, fica neutro em vez de assumir um.
+  const generoPrefixo =
+    profileData?.genero === "MASCULINO"
+      ? "Usuário desde"
+      : profileData?.genero === "FEMININO"
+        ? "Usuária desde"
+        : "Na Dular desde";
   const locationText =
     enderecoLocation || heroLocation || (locationIsEnabled ? "Localização ativada" : "Localização não informada");
   const progressLabel = completion.completo ? "Perfil completo" : "Perfil incompleto";
@@ -578,6 +586,7 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
                 subtitle={roleText}
                 location={locationText}
                 memberSince={memberSince}
+                memberSincePrefix={generoPrefixo}
                 avatarUri={avatarUri}
                 avatarFallback={avatarFallback}
                 uploading={avatarUploading}
@@ -658,7 +667,12 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
                     {completion.completo ? "Cadastro básico completo." : missingText}
                   </Text>
                   <Text style={s.statusHint}>{statusCopy.text}</Text>
-                  {!podeSolicitar ? (
+                  {/* O botão só faz sentido quando o pendente É documento. No
+                      caso "Perfil incompleto" (cadastro faltando) ele dizia
+                      "Ver documentos" e levava para a verificação — que já
+                      estava aprovada — enquanto o texto logo acima pedia
+                      e-mail/CPF/nascimento. */}
+                  {!podeSolicitar && statusCardCase !== "INCOMPLETO" ? (
                     <DButton
                       label={ctaLabel}
                       variant="warning"

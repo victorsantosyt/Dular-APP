@@ -14,6 +14,7 @@ import { acionarSosDiarista, getDiaristaPerfilMe, patchDiaristaPerfil } from "@/
 import { useAgendamentosDiarista, type AgendamentoDiarista, type StatusDiarista } from "@/hooks/useAgendamentosDiarista";
 import { useMensagens } from "@/hooks/useMensagens";
 import { useNotificacoes } from "@/hooks/useNotificacoes";
+import { diasAteServico } from "@/utils/formatters";
 
 type Navigation = BottomTabNavigationProp<DiaristaTabParamList>;
 type BadgeType = "default" | "success" | "warning" | "error" | "info" | "accent";
@@ -94,18 +95,25 @@ function AgendamentoItem({
   return (
     <View style={styles.appointmentRow}>
       <View style={[styles.timeBox, { backgroundColor: softBg }]}>
-        <AppIcon name="Clock" size={18} color={accentColor} />
-        <Text style={[styles.timeText, { color: accentColor }]}>{agendamento.hora}</Text>
+        <AppIcon name="Clock" size={16} color={accentColor} />
+        <Text style={[styles.timeText, { color: accentColor }]} numberOfLines={1}>
+          {agendamento.hora}
+        </Text>
       </View>
       <View style={styles.appointmentText}>
-        <Text style={styles.appointmentFamily} numberOfLines={1}>{agendamento.nomeCliente}</Text>
+        {/* Badge sobe para a linha do nome: antes ficava no fim da linha
+            externa, centralizado contra um bloco de 3 linhas, e comprimia a
+            coluna de texto — o endereço truncava em "Cent...". */}
+        <View style={styles.appointmentTopRow}>
+          <Text style={styles.appointmentFamily} numberOfLines={1}>{agendamento.nomeCliente}</Text>
+          <DBadge type={badge.type} label={badge.label} />
+        </View>
         <Text style={styles.appointmentType} numberOfLines={1}>{agendamento.servicoLabel}</Text>
         <View style={styles.appointmentLocationRow}>
           <AppIcon name="MapPin" size={12} color={colors.textSecondary} />
           <Text style={styles.appointmentLocation} numberOfLines={1}>{agendamento.localizacao}</Text>
         </View>
       </View>
-      <DBadge type={badge.type} label={badge.label} />
     </View>
   );
 }
@@ -146,7 +154,17 @@ export function DiaristaHomeScreen() {
   const [sosLoading, setSosLoading] = useState(false);
   const [online, setOnline] = useState(true);
   const [onlineSaving, setOnlineSaving] = useState(false);
-  const nextAgendamento = agendamentos[0];
+  // "Agendamentos de hoje" precisa ser de HOJE. Antes pegava `agendamentos[0]`
+  // — o primeiro da lista inteira — então um serviço finalizado de meses atrás
+  // aparecia como se fosse do dia. Cancelados saem; finalizados de hoje ficam,
+  // porque continuam sendo a agenda do dia.
+  const agendamentosHoje = useMemo(
+    () =>
+      agendamentos.filter(
+        (a) => diasAteServico(a.dataISO) === 0 && a.status !== "cancelado",
+      ),
+    [agendamentos],
+  );
   const unreadMessages = useMemo(
     () => rooms.reduce((total, room) => total + Math.max(0, Number(room.naoLidas) || 0), 0),
     [rooms],
@@ -216,8 +234,19 @@ export function DiaristaHomeScreen() {
     if (action === "suporte") navigation.navigate("Suporte");
   }, [navigation, abrirCarteira]);
 
+  // O SOS precisa apontar para um serviço EM ABERTO. Antes usava
+  // `agendamentos[0]` — o primeiro da lista, que podia estar finalizado —
+  // enquanto o alerta abaixo já prometia "confirmado ou em andamento".
+  const servicoAtivo = useMemo(
+    () =>
+      agendamentos.find(
+        (a) => a.status === "confirmado" || a.status === "andamento" || a.status === "aguardando",
+      ),
+    [agendamentos],
+  );
+
   const acionarSOS = useCallback(async () => {
-    const servicoId = nextAgendamento?.id ?? agendamentos[0]?.id;
+    const servicoId = servicoAtivo?.id;
     if (!servicoId) {
       Alert.alert("SOS indisponível", "O SOS fica disponível quando houver um agendamento confirmado ou em andamento.");
       return;
@@ -231,7 +260,7 @@ export function DiaristaHomeScreen() {
     } finally {
       setSosLoading(false);
     }
-  }, [nextAgendamento?.id, agendamentos]);
+  }, [servicoAtivo?.id]);
 
   return (
     <DScreen
@@ -343,10 +372,15 @@ export function DiaristaHomeScreen() {
           </View>
         ) : agendamentosError ? (
           <Text style={styles.appointmentStateText}>Não foi possível carregar seus agendamentos agora.</Text>
-        ) : nextAgendamento ? (
-          <AgendamentoItem agendamento={nextAgendamento} accentColor={profileTheme.primary} softBg={profileTheme.primarySoft} />
+        ) : agendamentosHoje.length > 0 ? (
+          agendamentosHoje.slice(0, 3).map((item, i) => (
+            <View key={item.id}>
+              {i > 0 ? <View style={styles.appointmentSeparator} /> : null}
+              <AgendamentoItem agendamento={item} accentColor={profileTheme.primary} softBg={profileTheme.primarySoft} />
+            </View>
+          ))
         ) : (
-          <Text style={styles.appointmentStateText}>Nenhum agendamento encontrado.</Text>
+          <Text style={styles.appointmentStateText}>Nenhum agendamento para hoje.</Text>
         )}
         <View style={styles.divider} />
         <Pressable onPress={() => navigation.navigate("Agendamentos")}>
@@ -614,18 +648,29 @@ const styles = StyleSheet.create({
   appointmentRow: {
     flexDirection: "row",
     gap: spacing.md,
-    alignItems: "center",
+    // topo, não centro: com o badge na linha do nome, centralizar deixava a
+    // caixa do turno desalinhada do texto.
+    alignItems: "flex-start",
   },
   timeBox: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
+    // 48 não comportava "Manhã": a palavra encostava nas bordas da caixa.
+    width: 58,
+    height: 58,
+    borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
+    gap: 2,
+    paddingHorizontal: 4,
   },
   timeText: {
-    ...typography.bodySmMedium,
+    ...typography.caption,
     fontWeight: "700",
+  },
+  appointmentTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.sm,
   },
   appointmentText: {
     flex: 1,
@@ -635,6 +680,7 @@ const styles = StyleSheet.create({
     ...typography.bodySmMedium,
     fontWeight: "700",
     color: colors.textPrimary,
+    flexShrink: 1,
   },
   appointmentType: {
     ...typography.bodySm,
@@ -651,6 +697,11 @@ const styles = StyleSheet.create({
     flex: 1,
     ...typography.caption,
     color: colors.textSecondary,
+  },
+  appointmentSeparator: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: colors.border,
+    marginVertical: spacing.md,
   },
   appointmentState: {
     minHeight: 56,

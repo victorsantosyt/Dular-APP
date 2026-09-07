@@ -32,6 +32,20 @@ export function parseDataServico(value?: string | number | Date | null): Date | 
   return new Date(parsed.getUTCFullYear(), parsed.getUTCMonth(), parsed.getUTCDate());
 }
 
+/** Diferença em dias inteiros entre a data do serviço e hoje (0 = hoje,
+ *  1 = amanhã, negativo = passado). Devolve null quando não há data válida.
+ *  Existe porque `formatDate` produz TEXTO de exibição ("Hoje", "sex., 10 de
+ *  jul.") — filtrar por período comparando esse rótulo é frágil. */
+export function diasAteServico(value?: string | number | Date | null): number | null {
+  const date = parseDataServico(value);
+  if (!date) return null;
+  const inicio = new Date();
+  inicio.setHours(0, 0, 0, 0);
+  const outro = new Date(date);
+  outro.setHours(0, 0, 0, 0);
+  return Math.round((outro.getTime() - inicio.getTime()) / 86_400_000);
+}
+
 export function formatDate(dateStr?: string): string {
   const date = parseDataServico(dateStr);
   if (!date) return "--";

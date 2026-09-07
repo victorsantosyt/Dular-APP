@@ -1052,6 +1052,9 @@ export default function MontadorPerfil() {
         <Row icon="Camera" title="Portfólio" subtitle={perfil.portfolioFotos.length ? `${plural(perfil.portfolioFotos.length, "foto", "fotos")}` : "Sem fotos no portfólio"} theme={profileTheme} onPress={() => openModal("portfolio")} />
         <Row icon="Star" title="Avaliações" subtitle={perfil.avaliacoes?.total ? `${plural(perfil.avaliacoes.total, "avaliação", "avaliações")}` : "Sem avaliações ainda"} theme={profileTheme} onPress={() => openModal("avaliacoes")} />
         <Row icon="CreditCard" title="Carteira/Ganhos" subtitle={formatMoneyFromCents(ganhos)} theme={profileTheme} onPress={() => navigation.navigate("Carteira", { from: "MontadorPerfil" })} />
+        {/* Mesma entrada voluntária da diarista: sem isso o paywall só abria
+            depois de estourar o limite, e não havia como assinar antes. */}
+        <Row icon="Sparkles" title="Meu plano" subtitle="Assine antes de atingir o limite de serviços" theme={profileTheme} onPress={() => navigation.navigate("Paywall", {})} />
         <Row icon="Landmark" title="Recebimentos" subtitle="Receber pelo PIX" theme={profileTheme} onPress={() => navigation.navigate("Recebimentos")} />
       </Section>
 

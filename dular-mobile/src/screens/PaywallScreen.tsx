@@ -90,6 +90,10 @@ export default function PaywallScreen({ onClose }: Props) {
   const [uso, setUso] = useState<{ used: number; limit: number | null } | null>(null);
 
   const [planosApi, setPlanosApi] = useState<PlanoApi[] | null>(null);
+  // Distingue "a busca falhou" de "não existe plano para este papel": hoje o
+  // catálogo só tem planos de DIARISTA, então o montador cai no segundo caso
+  // e dizer "não foi possível carregar" seria mentira.
+  const [falhouBusca, setFalhouBusca] = useState(false);
   const [escolhido, setEscolhido] = useState<string | null>(null);
   const [assinando, setAssinando] = useState(false);
 
@@ -124,7 +128,11 @@ export default function PaywallScreen({ onClose }: Props) {
       .then((res) => vivo && setPlanosApi(res.data?.plans ?? []))
       // Sem catálogo não há preço confiável: melhor lista vazia do que um
       // valor diferente do que o Stripe vai cobrar.
-      .catch(() => vivo && setPlanosApi([]));
+      .catch(() => {
+        if (!vivo) return;
+        setPlanosApi([]);
+        setFalhouBusca(true);
+      });
     return () => {
       vivo = false;
     };
@@ -264,7 +272,11 @@ export default function PaywallScreen({ onClose }: Props) {
                   <ActivityIndicator color={tema.primary} />
                 </View>
               ) : planos.length === 0 ? (
-                <Text style={s.vazio}>Não foi possível carregar os planos agora.</Text>
+                <Text style={s.vazio}>
+                  {falhouBusca
+                    ? "Não foi possível carregar os planos agora."
+                    : "Ainda não há planos disponíveis para o seu perfil."}
+                </Text>
               ) : (
                 <View style={s.lista}>
                   {planos.map((p) => {

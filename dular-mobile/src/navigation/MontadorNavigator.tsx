@@ -12,6 +12,7 @@ import MontadorNotificacoes from "@/screens/montador/MontadorNotificacoes";
 import MontadorDetalheSolicitacao from "@/screens/montador/MontadorDetalheSolicitacao";
 import MontadorDetalheServico from "@/screens/montador/MontadorDetalheServico";
 import CarteiraScreen from "@/screens/montador/CarteiraScreen";
+import PaywallScreen from "@/screens/PaywallScreen";
 import { ChatAbertoScreen } from "@/screens/shared/ChatAbertoScreen";
 import type { ChatAbertoParams } from "@/screens/shared/ChatAbertoScreen";
 import VerificacaoDocs from "@/screens/perfil/VerificacaoDocs";
@@ -39,6 +40,7 @@ export type MontadorTabParamList = {
   MontadorDetalheServico: { servicoId: string };
   MontadorChat: ChatAbertoParams;
   Carteira: { from?: keyof MontadorTabParamList } | undefined;
+  Paywall: { mensagem?: string };
   VerificacaoDocs: undefined;
   SafeScore: undefined;
   SosFlow: undefined;
@@ -95,6 +97,15 @@ export function MontadorNavigator() {
       <RootStack.Screen name="MontadorDetalheServico" component={MontadorDetalheServico} />
       <RootStack.Screen name="MontadorChat" component={ChatAbertoScreen} />
       <RootStack.Screen name="Carteira" component={CarteiraScreen} />
+      {/* Faltava aqui: `useLimiteDePlano` navega para "Paywall" a partir das
+          telas de aceite do montador. Sem o registro, o montador que
+          estourasse o limite era bloqueado e a navegação falhava em silêncio —
+          ele ficava sem entender o motivo. */}
+      <RootStack.Screen
+        name="Paywall"
+        component={PaywallScreen}
+        options={{ presentation: "transparentModal", animation: "fade" }}
+      />
       <RootStack.Screen name="VerificacaoDocs" component={VerificacaoDocs} />
       <RootStack.Screen name="SafeScore" component={SafeScoreScreen} />
       <RootStack.Screen name="SosFlow" component={SosFlowScreen} />

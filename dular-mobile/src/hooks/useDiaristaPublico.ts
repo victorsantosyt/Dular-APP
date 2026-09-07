@@ -78,16 +78,21 @@ interface ScoreResponse {
   totalIncidentes: number;
 }
 
-interface TrustSignalsResponse {
-  verificado: boolean;
-  tempoPlataforma: number;
-  totalServicos: number;
-  mediaAvaliacao: number;
-  totalAvaliacoes: number;
-  nome?: string;
-  bio?: string;
-  avatarUrl?: string;
-}
+/**
+ * Formato REAL de `/api/usuarios/[id]/trust-signals`.
+ *
+ * Este hook declarava um contrato inventado (`verificado`, `tempoPlataforma`,
+ * `mediaAvaliacao`, `totalAvaliacoes`, `nome`, `bio`, `avatarUrl`) — nenhum
+ * desses campos existe na rota, que devolve `tier`/`isVerified`/`totalServicos`/
+ * `emObservacao`/`lastUpdated`. Como é uma fronteira HTTP, o `tsc` não pegava:
+ * tudo virava `undefined` e caía no `?? 0` / `?? false`. Efeito visível: TODO
+ * perfil público mostrava "Verificação pendente" e "Sem avaliações", inclusive
+ * profissionais VERIFICADO com nota 5,0.
+ *
+ * O tipo correto já existia em `@/api/safeScoreApi` (`TrustSignals`) — este é o
+ * mesmo, reexportado aqui só para manter o hook autocontido.
+ */
+type TrustSignalsResponse = import("@/api/safeScoreApi").TrustSignals;
 
 interface DiaristaPerfilResponse {
   ok: boolean;
@@ -98,6 +103,9 @@ interface DiaristaPerfilResponse {
     avatarUrl: string | null;
     bio: string | null;
     verificacao: string;
+    verificado?: boolean;
+    /** Meses desde o cadastro — alimenta o bloco "Na plataforma". */
+    mesesPlataforma?: number;
     servicosOferecidos: ServicoOferecido[];
     bairros: DiaristaPublicoBairro[];
     cidade?: string | null;
@@ -169,8 +177,8 @@ export function useDiaristaPublico(diaristaId: string): UseDiaristaPublicoReturn
         const uf = perfil?.estado ?? bairros[0]?.uf ?? null;
 
         const servicosOferecidos = (perfil?.servicosOferecidos ?? []) as ServicoOferecido[];
-        const bio = perfil?.bio ?? trust.bio ?? "";
-        const nome = perfil?.nome ?? trust.nome ?? "";
+        const bio = perfil?.bio ?? "";
+        const nome = perfil?.nome ?? "";
 
         const atendeTodaCidade = perfil?.atendeTodaCidade ?? false;
         const raioAtendimentoKm = perfil?.raioAtendimentoKm ?? null;
@@ -225,12 +233,14 @@ export function useDiaristaPublico(diaristaId: string): UseDiaristaPublicoReturn
           userId: perfil?.userId ?? diaristaId,
           nome,
           bio,
-          avatarUrl: perfil?.avatarUrl ?? trust.avatarUrl ?? undefined,
-          mediaAvaliacao: trust.mediaAvaliacao ?? 0,
-          totalAvaliacoes: trust.totalAvaliacoes ?? 0,
+          avatarUrl: perfil?.avatarUrl ?? undefined,
+          // Nota e contagem vêm do perfil (`avaliacoes.media/total`, com
+          // `notaMedia` como reserva). trust-signals não carrega avaliação.
+          mediaAvaliacao: perfil?.avaliacoes?.media ?? perfil?.notaMedia ?? 0,
+          totalAvaliacoes: perfil?.avaliacoes?.total ?? 0,
           totalServicos: perfil?.totalServicos ?? trust.totalServicos ?? 0,
-          tempoPlataforma: trust.tempoPlataforma ?? 0,
-          verificado: trust.verificado ?? false,
+          tempoPlataforma: perfil?.mesesPlataforma ?? 0,
+          verificado: trust.isVerified ?? perfil?.verificado ?? false,
           safeScore: {
             faixa: score.faixa ?? "—",
             totalIncidentes: score.totalIncidentes ?? 0,

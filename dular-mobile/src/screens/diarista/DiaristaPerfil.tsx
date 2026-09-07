@@ -1518,6 +1518,17 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                   subtitle="Histórico e ganhos dos serviços"
                   onPress={() => navigation.navigate("Carteira", { from: "Perfil" })}
                 />
+                {/* Entrada voluntária para o plano. Até aqui o Paywall só abria
+                    pelo `usePaywallGuard`, ou seja, depois de estourar o limite —
+                    não havia como assinar antes. */}
+                <ProfileRow
+                  accentColor={theme.primary}
+                  accentSoft={theme.primarySoft}
+                  icon="Sparkles"
+                  title="Meu plano"
+                  subtitle="Assine antes de atingir o limite de serviços"
+                  onPress={() => navigation.navigate("Paywall", {})}
+                />
                 <ProfileRow
                   accentColor={theme.primary}
                   accentSoft={theme.primarySoft}

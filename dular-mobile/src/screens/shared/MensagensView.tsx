@@ -105,6 +105,9 @@ export function MensagensView({ theme, infoTitle, infoText, onOpenChat }: Props)
 
           <MessagesTabs activeTab={activeTab} onChange={setActiveTab} accent={theme.primary} border={theme.border} />
 
+          {/* O texto acompanha a aba: em "Arquivadas" o chat é somente leitura
+              (web/src/app/api/chat/route.ts), então convidar a "conversar" ali
+              prometia uma ação que não existe. */}
           <DCard style={[s.infoCard, { backgroundColor: theme.primarySoft, borderColor: theme.border }]}>
             <View style={s.infoIcon}>
               <AppIcon name="MessageCircle" size={30} color={theme.primary} strokeWidth={2.1} />
@@ -113,8 +116,14 @@ export function MensagensView({ theme, infoTitle, infoText, onOpenChat }: Props)
               </View>
             </View>
             <View style={s.infoCopy}>
-              <Text style={[s.infoTitle, { color: theme.textAccent }]}>{infoTitle}</Text>
-              <Text style={s.infoText}>{infoText}</Text>
+              <Text style={[s.infoTitle, { color: theme.textAccent }]}>
+                {activeTab === "arquivadas" ? "Conversas de serviços encerrados" : infoTitle}
+              </Text>
+              <Text style={s.infoText}>
+                {activeTab === "arquivadas"
+                  ? "Ficam disponíveis apenas para consulta."
+                  : infoText}
+              </Text>
             </View>
           </DCard>
 

@@ -20,6 +20,7 @@ import {
   localResumo,
   upperStatus,
 } from "./montadorUtils";
+import { plural } from "@/utils/formatters";
 
 type Navigation = BottomTabNavigationProp<MontadorTabParamList>;
 
@@ -151,7 +152,7 @@ export function MontadorHome() {
             <Text style={styles.heroTitle}>{formatMoneyFromCents(ganhosTotais)}</Text>
             <Text style={styles.heroSub}>
               {concluIds.length > 0
-                ? `${concluIds.length} serviço(s) finalizado(s) no Dular.`
+                ? `${plural(concluIds.length, "serviço finalizado", "serviços finalizados")} no Dular.`
                 : "Seus ganhos aparecerão após finalizar serviços."}
             </Text>
           </View>

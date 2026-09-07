@@ -25,17 +25,10 @@ export function firstName(value?: string | null, fallback = "Montador") {
   return (value || "").trim().split(/\s+/)[0] || fallback;
 }
 
-export function formatMoneyFromCents(value?: number | string | null) {
-  // precoBase/taxaMinima vêm do backend como Decimal, que o JSON serializa como
-  // string ("12000"). Sem coerção, o typeof falharia e mostraria "A combinar"
-  // mesmo com preço definido.
-  const cents = typeof value === "string" ? (value.trim() ? Number(value) : NaN) : value;
-  if (typeof cents !== "number" || !Number.isFinite(cents)) return "A combinar";
-  return (cents / 100).toLocaleString("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-  });
-}
+// Mora em utils/formatters: formatar dinheiro não é específico do montador,
+// e a tela de planos (compartilhada) também precisa. Reexportado aqui para
+// não mexer nos consumidores existentes.
+export { formatMoneyFromCents } from "@/utils/formatters";
 
 export function labelServico(servico: MontadorServico) {
   const raw = servico.tipoServico ?? servico.tipo ?? "Serviço";

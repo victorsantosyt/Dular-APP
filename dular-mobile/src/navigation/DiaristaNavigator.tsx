@@ -117,7 +117,14 @@ export function DiaristaNavigator() {
       <RootStack.Screen name="ProfissionalPerfil" component={ProfissionalPerfilScreen} />
       <RootStack.Screen name="DetalheServico" component={DetalheServicoScreen} />
       <RootStack.Screen name="DiaristaDetalhe" component={DetalheServicoScreen} />
-      <RootStack.Screen name="Paywall" component={PaywallScreen} />
+      {/* transparentModal: a tela de planos flutua sobre o que estava atrás,
+          que é o que o desfoque do fundo mostra. Como tela normal, o fundo
+          seria branco e o blur não teria o que desfocar. */}
+      <RootStack.Screen
+        name="Paywall"
+        component={PaywallScreen}
+        options={{ presentation: "transparentModal", animation: "fade" }}
+      />
       <RootStack.Screen name="Seguranca" component={SegurancaScreen} />
       <RootStack.Screen name="Carteira" component={DiaristaCarteira} />
       <RootStack.Screen name="VerificacaoDocs" component={VerificacaoDocs} />

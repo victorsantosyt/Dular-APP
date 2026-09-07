@@ -18,6 +18,7 @@ import { isStatusEncerrado } from "@/utils/servicoStatus";
 import { useFavoritos } from "@/hooks/useFavoritos";
 import { PerfilPublicoLayout, type PerfilSection } from "@/screens/empregador/PerfilPublicoLayout";
 import { goToTab } from "@/navigation/navHelpers";
+import { plural } from "@/utils/formatters";
 
 type Navigation = BottomTabNavigationProp<EmpregadorTabParamList>;
 type RouteProps = RouteProp<EmpregadorTabParamList, "MontadorPublicProfile">;
@@ -233,7 +234,7 @@ export default function MontadorPublicProfile() {
       key: "portfolio",
       kind: "text",
       label: "Portfólio",
-      text: portfolioFotos.length > 0 ? `${portfolioFotos.length} foto(s) cadastrada(s).` : null,
+      text: portfolioFotos.length > 0 ? `${plural(portfolioFotos.length, "foto cadastrada", "fotos cadastradas")}.` : null,
       empty: "Portfólio ainda não informado.",
     },
     {

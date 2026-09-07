@@ -19,8 +19,13 @@ import { DButton } from "@/components/DButton";
 import { useAuth } from "@/stores/authStore";
 import { useProfileTheme } from "@/hooks/useProfileTheme";
 import { colors, radius, shadow } from "@/theme/tokens";
+import { sosWhatsapp } from "@/config/api";
 
-const SUPORTE_WHATSAPP = "5566996293033";
+// Mesmo número do SOS, lido da configuração. Estava cravado aqui como
+// "5566..." (DDD 66) enquanto o real é 65 — um dígito de diferença mandava
+// o suporte para outro número. Duas fontes para o mesmo dado, e a cravada
+// foi a que divergiu.
+const SUPORTE_WHATSAPP = sosWhatsapp;
 
 const INSTRUCOES = [
   "Toque no número do serviço (no topo do detalhe) para copiá-lo e cole na conversa com o suporte — agiliza muito o atendimento.",

@@ -32,6 +32,56 @@ export function parseDataServico(value?: string | number | Date | null): Date | 
   return new Date(parsed.getUTCFullYear(), parsed.getUTCMonth(), parsed.getUTCDate());
 }
 
+export function formatMoneyFromCents(value?: number | string | null) {
+  // precoBase/taxaMinima vêm do backend como Decimal, que o JSON serializa como
+  // string ("12000"). Sem coerção, o typeof falharia e mostraria "A combinar"
+  // mesmo com preço definido.
+  const cents = typeof value === "string" ? (value.trim() ? Number(value) : NaN) : value;
+  if (typeof cents !== "number" || !Number.isFinite(cents)) return "A combinar";
+  return (cents / 100).toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  });
+}
+
+/** Só os dígitos — para enviar ao backend, que guarda telefone sem máscara. */
+export function somenteDigitos(valor: string): string {
+  return valor.replace(/\D/g, "");
+}
+
+/** Telefone BR para exibição: "55999842393" → "(55) 99984-2393".
+ *  Estava definido dentro de RecebimentosScreen e só valia para a chave PIX;
+ *  o perfil mostrava os dígitos crus. */
+export function mascaraTelefone(raw: string): string {
+  const d = somenteDigitos(raw).slice(0, 11);
+  if (d.length <= 10) return d.replace(/(\d{2})(\d{4})(\d{0,4})/, "($1) $2-$3").trim();
+  return d.replace(/(\d{2})(\d{5})(\d{0,4})/, "($1) $2-$3").trim();
+}
+
+/** Concorda número e substantivo: `plural(1, "serviço", "serviços")` → "1 serviço".
+ *  Passe a frase inteira quando houver adjetivo, para ele concordar também:
+ *  `plural(n, "serviço concluído", "serviços concluídos")`.
+ *
+ *  Existe para acabar com o "serviço(s) concluído(s)" espalhado pelas telas —
+ *  parte do código já concordava certo, então era inconsistência, não padrão. */
+export function plural(quantidade: number, singular: string, plural: string): string {
+  return `${quantidade} ${quantidade === 1 ? singular : plural}`;
+}
+
+/** Diferença em dias inteiros entre a data do serviço e hoje (0 = hoje,
+ *  1 = amanhã, negativo = passado). Devolve null quando não há data válida.
+ *  Existe porque `formatDate` produz TEXTO de exibição ("Hoje", "sex., 10 de
+ *  jul.") — filtrar por período comparando esse rótulo é frágil. */
+export function diasAteServico(value?: string | number | Date | null): number | null {
+  const date = parseDataServico(value);
+  if (!date) return null;
+  const inicio = new Date();
+  inicio.setHours(0, 0, 0, 0);
+  const outro = new Date(date);
+  outro.setHours(0, 0, 0, 0);
+  return Math.round((outro.getTime() - inicio.getTime()) / 86_400_000);
+}
+
 export function formatDate(dateStr?: string): string {
   const date = parseDataServico(dateStr);
   if (!date) return "--";

@@ -12,16 +12,10 @@ import { colors, radius, spacing } from "@/theme";
 import { useServiceFlow } from "./ServiceFlowContext";
 import { FlowPrimaryButton, flowStyles, SuccessBadge } from "./components";
 import { getServiceFlowTheme } from "@/theme/serviceFlowTheme";
+import { protocoloServico as derivarProtocolo } from "@/utils/formatters";
 
 type Navigation = NativeStackNavigationProp<EmpregadorServiceFlowStackParamList, "SolicitacaoSucesso">;
 type RouteParams = RouteProp<EmpregadorServiceFlowStackParamList, "SolicitacaoSucesso">;
-
-/** Deriva um protocolo legível a partir do servicoId real.
- *  Ex.: servicoId = "abc123..." → "#DL-ABC123" */
-function derivarProtocolo(servicoId: string): string {
-  const sufixo = servicoId.replace(/-/g, "").slice(0, 8).toUpperCase();
-  return `#DL-${sufixo}`;
-}
 
 export function SolicitacaoSucessoScreen() {
   const navigation = useNavigation<Navigation>();

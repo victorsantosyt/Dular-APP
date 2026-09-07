@@ -15,6 +15,7 @@ import { useAgendamentosDiarista, type AgendamentoDiarista, type StatusDiarista 
 import { useMensagens } from "@/hooks/useMensagens";
 import { useNotificacoes } from "@/hooks/useNotificacoes";
 import { api } from "@/lib/api";
+import { LimitePlanoBarra } from "@/components/ui/LimitePlanoBarra";
 import { diasAteServico, plural } from "@/utils/formatters";
 
 /** Some quando o app reinicia — que é o efeito desejado: uma apresentação por
@@ -362,6 +363,15 @@ export function DiaristaHomeScreen() {
           </Text>
         </Pressable>
       </LinearGradient>
+
+      {/* Acompanhamento do limite do gratuito, logo abaixo da carteira. Ela
+          mesma decide se aparece: só depois do primeiro serviço concluído e
+          enquanto o plano for FREE. */}
+      <LimitePlanoBarra
+        cor={profileTheme.primary}
+        corSuave={profileTheme.primarySoft}
+        concluidos={finalizados.length}
+      />
 
       {/* ── Segurança / atalhos (estilo Montador, com SOS) ── */}
       <View style={styles.securityGrid}>

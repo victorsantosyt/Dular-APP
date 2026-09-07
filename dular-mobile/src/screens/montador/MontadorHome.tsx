@@ -21,6 +21,7 @@ import {
   upperStatus,
 } from "./montadorUtils";
 import { plural } from "@/utils/formatters";
+import { LimitePlanoBarra } from "@/components/ui/LimitePlanoBarra";
 
 type Navigation = BottomTabNavigationProp<MontadorTabParamList>;
 
@@ -175,6 +176,14 @@ export function MontadorHome() {
           </Text>
         </Pressable>
       </LinearGradient>
+
+      {/* Mesma barra da home da diarista: acompanhamento do limite do
+          gratuito, logo abaixo da carteira. Ela decide sozinha se aparece. */}
+      <LimitePlanoBarra
+        cor={profileTheme.primary}
+        corSuave={profileTheme.primarySoft}
+        concluidos={concluIds.length}
+      />
 
       <DCard style={styles.nextCard} onPress={proximoServico ? () => abrirDetalheServico(proximoServico.id) : undefined}>
         <View style={styles.nextHeader}>

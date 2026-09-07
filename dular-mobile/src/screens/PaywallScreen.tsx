@@ -18,7 +18,7 @@ import { api } from "@/lib/api";
 import { AppIcon } from "@/components/ui";
 import { colors, radius, spacing, typography } from "@/theme/tokens";
 import { useGenderTheme } from "@/hooks/useProfileTheme";
-import { formatMoneyFromCents } from "@/utils/formatters";
+import { formatMoneyFromCents, plural } from "@/utils/formatters";
 
 type Props = {
   /** Compatibilidade com o uso inline em Modal que já existia. */
@@ -37,28 +37,28 @@ type PlanoApi = {
 
 /** Benefícios são texto de marketing e não estão no catálogo do backend.
  *  O PREÇO vem sempre da API — era cravado aqui e não batia com a cobrança. */
+/** Benefícios por plano. O primeiro item é sempre o LIMITE — é o que o plano
+ *  de fato faz (`FeatureLimit.SOLICITACOES_MES`) e o que o catálogo descreve
+ *  em lib/stripe.ts. Os demais são o que vem junto. */
 const BENEFICIOS: Record<string, string[]> = {
   basico_mensal: [
-    "Aceites ilimitados por mês",
+    "Até 10 serviços aceitos por mês",
     "Selo de assinante no seu perfil",
     "Suporte prioritário no atendimento",
-    "Histórico completo de serviços",
   ],
   pro_mensal: [
+    "Serviços ilimitados por mês",
     "Tudo do Básico Mensal",
     "Destaque na busca dos empregadores",
-    "Acesso a mais clientes na sua região",
-    "Prioridade nas novas solicitações",
   ],
   pro_anual: [
+    "Serviços ilimitados o ano todo",
     "Tudo do Pro Mensal",
-    "Dois meses grátis em relação ao mensal",
     "Preço travado por 12 meses",
-    "Sem renovação surpresa: você é avisado antes",
   ],
 };
 
-const BENEFICIOS_PADRAO = ["Aceites ilimitados", "Suporte prioritário"];
+const BENEFICIOS_PADRAO = ["Mais serviços por mês", "Suporte prioritário"];
 
 /** Resumo de uma linha para a lista; a tela de detalhe mostra tudo. */
 function resumo(planoId: string): string {
@@ -87,6 +87,7 @@ export default function PaywallScreen({ onClose }: Props) {
   const tema = useGenderTheme();
 
   const [planoAtual, setPlanoAtual] = useState<string | null>(null);
+  const [uso, setUso] = useState<{ used: number; limit: number | null } | null>(null);
 
   const [planosApi, setPlanosApi] = useState<PlanoApi[] | null>(null);
   const [escolhido, setEscolhido] = useState<string | null>(null);
@@ -101,8 +102,14 @@ export default function PaywallScreen({ onClose }: Props) {
     useCallback(() => {
       let vivo = true;
       api
-        .get<{ plan?: string }>("/api/me/subscription")
-        .then((res) => vivo && setPlanoAtual(res.data?.plan ?? "FREE"))
+        .get<{ plan?: string; usage?: { solicitacoesMes?: { used: number; limit: number | null } } }>(
+          "/api/me/subscription",
+        )
+        .then((res) => {
+          if (!vivo) return;
+          setPlanoAtual(res.data?.plan ?? "FREE");
+          setUso(res.data?.usage?.solicitacoesMes ?? null);
+        })
         .catch(() => vivo && setPlanoAtual("FREE"));
       return () => {
         vivo = false;
@@ -236,8 +243,15 @@ export default function PaywallScreen({ onClose }: Props) {
               {noPlanoGratuito ? (
                 <View style={s.atual}>
                   <View style={s.atualEsq}>
-                    <Text style={s.atualNome}>Básico</Text>
-                    <Text style={s.atualDesc}>Até 3 aceites por mês</Text>
+                    <Text style={s.atualNome}>Gratuito</Text>
+                    {/* Limite e uso vêm de /api/me/subscription (FeatureLimit),
+                        não de texto fixo: se o limite mudar no banco, a tela
+                        acompanha em vez de mentir. */}
+                    <Text style={s.atualDesc}>
+                      {uso?.limit != null
+                        ? `${uso.used} de ${plural(uso.limit, "serviço", "serviços")} usados neste mês`
+                        : "Serviços limitados por mês"}
+                    </Text>
                   </View>
                   <View style={s.atualTag}>
                     <Text style={s.atualTagTexto}>Plano atual</Text>

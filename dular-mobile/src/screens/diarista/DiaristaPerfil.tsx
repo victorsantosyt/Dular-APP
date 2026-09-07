@@ -197,7 +197,16 @@ function StarRow({
   return (
     <View style={{ flexDirection: "row", gap: 2 }}>
       {[1, 2, 3, 4, 5].map((i) => (
-        <AppIcon key={i} name="Star" size={size} color={i <= filled ? color : emptyColor} strokeWidth={2} />
+        <AppIcon
+          key={i}
+          name="Star"
+          size={size}
+          color={i <= filled ? color : emptyColor}
+          // Sem preencher, nota 5,0 e nota 0 ficavam iguais: cinco contornos,
+          // mudando só a cor.
+          fill={i <= filled ? color : "none"}
+          strokeWidth={2}
+        />
       ))}
     </View>
   );
@@ -2251,7 +2260,7 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                   <Text style={s.ratingScore}>{(profile.avaliacoes.media ?? 0).toFixed(1)}</Text>
                   <View style={{ gap: 4 }}>
                     <StarRow value={profile.avaliacoes.media ?? 0} size={16} color={theme.primary} emptyColor={theme.border} />
-                    <Text style={s.ratingSummaryText}>{profile.avaliacoes.total} avaliação(ões)</Text>
+                    <Text style={s.ratingSummaryText}>{plural(profile.avaliacoes.total, "avaliação", "avaliações")}</Text>
                   </View>
                 </View>
                 {profile.avaliacoes.itens.map((item) => (

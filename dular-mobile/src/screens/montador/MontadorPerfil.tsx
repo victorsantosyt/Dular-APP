@@ -358,7 +358,14 @@ function StarRow({ value, size = 14, color }: { value: number; size?: number; co
   return (
     <View style={styles.starRow}>
       {[1, 2, 3, 4, 5].map((i) => (
-        <AppIcon key={i} name="Star" size={size} color={i <= filled ? color : colors.border} strokeWidth={2} />
+        <AppIcon
+          key={i}
+          name="Star"
+          size={size}
+          color={i <= filled ? color : colors.border}
+          fill={i <= filled ? color : "none"}
+          strokeWidth={2}
+        />
       ))}
     </View>
   );

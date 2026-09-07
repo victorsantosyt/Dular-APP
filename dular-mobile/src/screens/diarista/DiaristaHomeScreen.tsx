@@ -14,7 +14,12 @@ import { acionarSosDiarista, getDiaristaPerfilMe, patchDiaristaPerfil } from "@/
 import { useAgendamentosDiarista, type AgendamentoDiarista, type StatusDiarista } from "@/hooks/useAgendamentosDiarista";
 import { useMensagens } from "@/hooks/useMensagens";
 import { useNotificacoes } from "@/hooks/useNotificacoes";
+import { api } from "@/lib/api";
 import { diasAteServico, plural } from "@/utils/formatters";
+
+/** Some quando o app reinicia — que é o efeito desejado: uma apresentação por
+ *  login, não uma por render da home. */
+let jaApresentouPlanos = false;
 
 type Navigation = BottomTabNavigationProp<DiaristaTabParamList>;
 type BadgeType = "default" | "success" | "warning" | "error" | "info" | "accent";
@@ -190,6 +195,32 @@ export function DiaristaHomeScreen() {
   useEffect(() => {
     loadRestrictions();
   }, [loadRestrictions]);
+
+  // Apresentação dos planos logo após entrar: abre UMA vez por sessão e só
+  // para quem ainda não assina. `jaApresentouPlanos` é de módulo, então zera
+  // quando o app reinicia (= no próximo login) e não a cada volta para a home
+  // — sem isso a tela reapareceria toda vez que a aba fosse tocada.
+  //
+  // A fonte é /api/me/subscription. NÃO dá para usar `useRestricoes`: ele tipa
+  // a resposta com um campo `plano`, mas /api/me/restrictions devolve só
+  // `{ restrictions: [] }` (restrições administrativas). `plano` é sempre
+  // undefined em runtime.
+  useEffect(() => {
+    if (jaApresentouPlanos) return;
+    let vivo = true;
+    api
+      .get<{ plan?: string }>("/api/me/subscription")
+      .then((res) => {
+        if (!vivo || jaApresentouPlanos) return;
+        if ((res.data?.plan ?? "FREE") !== "FREE") return; // já assina
+        jaApresentouPlanos = true;
+        navigation.navigate("Paywall", {});
+      })
+      .catch(() => undefined); // sem plano conhecido, não incomoda
+    return () => {
+      vivo = false;
+    };
+  }, [navigation]);
 
   // Disponibilidade ("ativo") — carrega do perfil e permite alternar na home,
   // espelhando o toggle rápido da home do montador.

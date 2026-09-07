@@ -24,6 +24,7 @@ import { DularBadge } from "@/components/DularBadge";
 import { MotivoModal } from "@/components/MotivoModal";
 import { SafeScoreBadge } from "@/components/SafeScoreBadge";
 import { AvaliacaoModal } from "@/components/ui";
+import { useLimiteDePlano } from "@/hooks/useLimiteDePlano";
 import { useSeguranca } from "@/hooks/useSeguranca";
 import { formatPrice } from "@/utils/formatPrice";
 import { formatDate, formatHora, protocoloServico } from "@/utils/formatters";
@@ -133,6 +134,7 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
 
   // Check-in real de segurança (mesmo hook do montador): POST /api/seguranca/checkin.
   const { checkInRealizado, checkInLoading, fazerCheckIn } = useSeguranca();
+  const { tratar: tratarLimite } = useLimiteDePlano();
   const checkinAlertRef = useRef(false);
   useEffect(() => {
     if (checkInRealizado && !checkinAlertRef.current) {
@@ -168,7 +170,14 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
       Alert.alert(MENSAGEM_SUCESSO[name]?.titulo ?? "Pronto", MENSAGEM_SUCESSO[name]?.texto ?? "");
       navigation.goBack();
     } catch (e: any) {
-      Alert.alert("Erro", e?.response?.data?.error ?? e?.message);
+      // Limite do plano → paywall, não alerta. Este era o quarto ponto de
+      // aceite e o único sem o tratamento: a diarista via "Erro /
+      // LIMIT_EXCEEDED", o código cru do backend.
+      if (tratarLimite(e)) return;
+      Alert.alert(
+        "Erro",
+        e?.response?.data?.message ?? e?.response?.data?.error ?? e?.message ?? "Não foi possível concluir.",
+      );
     } finally {
       setLoading(false);
     }

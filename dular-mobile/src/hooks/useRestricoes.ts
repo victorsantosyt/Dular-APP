@@ -3,13 +3,28 @@ import { api } from "@/lib/api";
 
 type Plano = "BASICO" | "PLUS" | "PREMIUM";
 
+/**
+ * O que /api/me/restrictions devolve HOJE é `{ restrictions: [...] }` —
+ * restrições administrativas (UserRestriction[]). Ela NÃO traz plano, limites
+ * nem uso.
+ *
+ * Estes campos ficam OPCIONAIS de propósito: o tipo antes os declarava
+ * obrigatórios e o TypeScript garantia algo que a API não entrega. Quem lesse
+ * `restricoes.plano` recebia `undefined` em runtime sem nenhum aviso — foi
+ * assim que a apresentação automática dos planos deixou de disparar.
+ *
+ * Para saber o plano do usuário use a rota /api/me/subscription, que devolve
+ * `plan: "FREE" | "BASIC" | "PREMIUM"`.
+ */
 interface Restricoes {
-  plano: Plano;
-  limites: {
+  /** Restrições administrativas — o único campo que a rota realmente emite. */
+  restrictions?: unknown[];
+  plano?: Plano;
+  limites?: {
     servicosMes: number | null;
     aceiteMes: number | null;
   };
-  uso: {
+  uso?: {
     servicosMes: number;
     aceiteMes: number;
   };
@@ -66,7 +81,7 @@ export function useRestricoes(): UseRestricoesReturn {
       // administrativos (UserRestriction[]), não limites de plano. Sem esta guarda,
       // restricoes.limites é undefined e o acesso [tipo] lança em runtime ao aceitar
       // serviço. Beta 0 não aplica limite de plano (00/06) → fail-open seguro.
-      if (!restricoes || !restricoes.limites) return false;
+      if (!restricoes?.limites || !restricoes.uso) return false;
       const limite = restricoes.limites[tipo];
       if (limite === null) return false;
       return restricoes.uso[tipo] >= limite;

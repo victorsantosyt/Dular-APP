@@ -20,7 +20,6 @@ import {
   GuardianBlockedError,
   guardianErrorResponseBody,
 } from "@/lib/safeScoreGuardian";
-import { checkFeatureAccess } from "@/lib/featureGate";
 
 export const dynamic = "force-dynamic";
 
@@ -97,23 +96,11 @@ export async function POST(req: Request) {
     // T-18.5 (que só olhava DocumentVerification do empregador).
     await assertGuardianCanCreateServico(auth.userId);
 
-    const solicitacoesAccess = await checkFeatureAccess(auth.userId, "SOLICITACOES_MES");
-    if (!solicitacoesAccess.allowed) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error: "LIMIT_EXCEEDED",
-          message: "Você atingiu o limite de solicitações do seu plano atual.",
-          feature: "SOLICITACOES_MES",
-          plan: solicitacoesAccess.plan,
-          usage: {
-            used: solicitacoesAccess.used,
-            limit: solicitacoesAccess.limit,
-          },
-        },
-        { status: 403 },
-      );
-    }
+    // Sem limite de plano aqui: esta rota é exclusiva do EMPREGADOR (checado
+    // acima) e o Empregador NUNCA paga — não existe plano com role
+    // "EMPREGADOR" em lib/stripe.ts. O gate de plano ficava justamente sobre
+    // quem não tem plano, enquanto o aceite do profissional (que paga) não
+    // tinha gate nenhum. Foi movido para /servicos/[id]/aceitar.
 
     const body = await req.json();
     const parsed = criarServicoSchema.safeParse(body);

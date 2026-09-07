@@ -11,6 +11,7 @@ import type { DiaristaTabParamList } from "@/navigation/DiaristaNavigator";
 import { useAgendamentosDiarista } from "@/hooks/useAgendamentosDiarista";
 import { aceitarServicoDiarista, concluirServicoDiarista } from "@/api/diaristaApi";
 import { diasAteServico } from "@/utils/formatters";
+import { useLimiteDePlano } from "@/hooks/useLimiteDePlano";
 import { useMensagens } from "@/hooks/useMensagens";
 
 type Navigation = BottomTabNavigationProp<DiaristaTabParamList>;
@@ -179,6 +180,8 @@ function AgendamentoDiaristaCard({
       ? "A combinar"
       : `R$ ${(Number(agendamento.preco) / 100).toFixed(2).replace(".", ",")}`;
 
+  const { tratar: tratarLimite } = useLimiteDePlano();
+
   const runAction = (
     fn: (id: string) => Promise<unknown>,
     title: string,
@@ -194,7 +197,10 @@ function AgendamentoDiaristaCard({
             setBusy(true);
             await fn(agendamento.id);
             onChanged();
-          } catch {
+          } catch (err) {
+            // Limite do plano leva ao paywall em vez de um alerta genérico:
+            // o serviço só é aceito depois da assinatura.
+            if (tratarLimite(err)) return;
             Alert.alert("Erro", "Não foi possível concluir a ação agora. Tente novamente.");
           } finally {
             setBusy(false);

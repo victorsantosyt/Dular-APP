@@ -15,6 +15,7 @@ import {
   guardianErrorResponseBody,
 } from "@/lib/safeScoreGuardian";
 import { congelarPixSnapshot } from "@/lib/pagamentoPix";
+import { checkFeatureAccess } from "@/lib/featureGate";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -30,6 +31,31 @@ export async function POST(req: Request, { params }: Params) {
       auth.userId,
       auth.role as "DIARISTA" | "MONTADOR",
     );
+
+    // Limite do plano do PROFISSIONAL. É aqui que ele precisa estar: quem paga
+    // é quem aceita. Antes o único gate de plano do sistema ficava em
+    // POST /api/servicos, rota exclusiva do Empregador — perfil que não tem
+    // plano nenhum —, e o aceite passava livre.
+    //
+    // Bloqueia tanto por estourar o limite do gratuito quanto por assinatura
+    // vencida: `checkFeatureAccess` rebaixa CANCELED/EXPIRED para FREE.
+    const limitePlano = await checkFeatureAccess(auth.userId, "SOLICITACOES_MES");
+    if (!limitePlano.allowed) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "LIMIT_EXCEEDED",
+          message:
+            limitePlano.plan === "FREE"
+              ? "Você usou os serviços do plano gratuito neste mês. Assine para continuar aceitando."
+              : "Você atingiu o limite do seu plano neste mês.",
+          feature: "SOLICITACOES_MES",
+          plan: limitePlano.plan,
+          usage: { used: limitePlano.used, limit: limitePlano.limit },
+        },
+        { status: 403 },
+      );
+    }
 
     const { id } = await params;
     const body = await req.json().catch(() => ({}));

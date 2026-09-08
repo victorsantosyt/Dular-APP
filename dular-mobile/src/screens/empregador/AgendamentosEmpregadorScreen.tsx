@@ -215,6 +215,9 @@ export function AgendamentosEmpregadorScreen() {
               <Text style={s.title}>Solicitações</Text>
               <Text style={s.subtitle}>Acompanhe todas as suas solicitações</Text>
             </View>
+            {/* Espaçador do tamanho do botão de voltar, para o título ficar no
+                centro da linha e não no centro do que sobra. */}
+            <View style={s.headerSlot} />
           </View>
 
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.horizontalChips}>
@@ -330,6 +333,7 @@ const s = StyleSheet.create({
     justifyContent: "space-between",
     gap: spacing.md,
   },
+  headerSlot: { width: 42, height: 42 },
   headerCopy: {
     flex: 1,
     gap: 2,
@@ -352,12 +356,16 @@ const s = StyleSheet.create({
     
     fontWeight: "700",
     letterSpacing: 0,
+
+    textAlign: "center",
+
   },
   subtitle: {
     color: colors.textSecondary,
     ...typography.caption,
     
     fontWeight: "500",
+    textAlign: "center",
   },
   horizontalChips: {
     gap: 7,

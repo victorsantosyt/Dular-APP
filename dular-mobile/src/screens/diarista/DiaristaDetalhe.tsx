@@ -654,6 +654,7 @@ const s = StyleSheet.create({
     fontSize: 22,
     lineHeight: 27,
     fontWeight: "700",
+    textAlign: "center",
   },
 
   card: {

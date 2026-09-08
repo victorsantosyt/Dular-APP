@@ -477,10 +477,12 @@ const styles = StyleSheet.create({
     lineHeight: 29,
     fontWeight: "700",
     letterSpacing: 0,
+    textAlign: "center",
   },
   subtitle: {
     ...typography.bodySm,
     color: colors.textSecondary,
+    textAlign: "center",
   },
   filters: {
     flexDirection: "row",

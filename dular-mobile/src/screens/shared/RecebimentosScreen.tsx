@@ -290,7 +290,9 @@ function makeStyles(colors: ReturnType<typeof useDularColors>) {
       textAlign: "center",
       flex: 1,
     },
-    subtitle: { ...typography.caption, color: colors.textSecondary },
+    subtitle: { ...typography.caption, color: colors.textSecondary,
+      textAlign: "center",
+    },
     scroll: {
       paddingHorizontal: spacing.lg,
       paddingTop: spacing.lg,

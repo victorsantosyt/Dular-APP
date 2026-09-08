@@ -184,6 +184,7 @@ const s = StyleSheet.create({
     ...typography.h1,
     fontWeight: "700",
     letterSpacing: 0,
+    textAlign: "center",
   },
   infoCard: {
     borderRadius: radius.lg,

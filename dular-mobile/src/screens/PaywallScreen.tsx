@@ -671,6 +671,14 @@ export default function PaywallScreen({ onClose }: Props) {
             </>
           )}
 
+        </ScrollView>
+
+        {/* Ação de saída ANCORADA, fora da rolagem. Dentro do ScrollView ela
+            era empurrada para baixo quando o conteúdo crescia — bastava a
+            mensagem de aviso aparecer (o caso de limite atingido) para o
+            "Agora não" ficar meio escondido na borda do cartão. Agora o
+            conteúdo rola por dentro e a saída continua sempre inteira. */}
+        <View style={s.rodape}>
           {planoEscolhido ? (
             <Pressable
               onPress={() => setEscolhido(null)}
@@ -686,7 +694,7 @@ export default function PaywallScreen({ onClose }: Props) {
               <Text style={s.secundarioTexto}>Agora não</Text>
             </Pressable>
           )}
-        </ScrollView>
+        </View>
       </View>
     </View>
   );
@@ -709,7 +717,14 @@ const s = StyleSheet.create({
     shadowOffset: { width: 0, height: 18 },
     elevation: 16,
   },
-  conteudo: { padding: spacing.lg, gap: spacing.md },
+  conteudo: { padding: spacing.lg, paddingBottom: spacing.sm, gap: spacing.md },
+  /** Rodapé fixo do cartão: a ação de saída nunca entra na rolagem. */
+  rodape: {
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.lg,
+    paddingTop: spacing.sm,
+    backgroundColor: colors.surface,
+  },
 
 
   /** Bloco de cabeçalho centralizado: ícone → título → apoio. */

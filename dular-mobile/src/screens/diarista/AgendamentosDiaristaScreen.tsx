@@ -326,17 +326,9 @@ export function AgendamentosDiaristaScreen() {
       <View style={styles.content}>
         <View style={styles.header}>
           <View style={styles.headerText}>
-            <Text style={styles.greeting}>Agenda</Text>
+            <Text style={[styles.greeting, { color: theme.textAccent }]}>Agenda</Text>
             <Text style={styles.subtitle}>Seus agendamentos</Text>
           </View>
-          <Pressable
-            hitSlop={spacing.sm}
-            onPress={() => Alert.alert("Em breve", "Calendário completo ainda não está disponível.")}
-          >
-            <View style={[styles.calendarButton, { borderColor: theme.border, borderWidth: 1 }]}>
-              <AppIcon name="Calendar" size={20} color={theme.icon} />
-            </View>
-          </Pressable>
         </View>
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filters}>
@@ -411,22 +403,15 @@ const styles = StyleSheet.create({
     paddingRight: spacing.md,
   },
   greeting: {
-    ...typography.h2,
-    color: colors.textPrimary,
+    // Título de aba principal: h1 na cor do perfil, como as demais.
+    ...typography.h1,
+    textAlign: "center",
   },
   subtitle: {
     ...typography.caption,
     color: colors.textSecondary,
     marginTop: 2,
     textAlign: "center",
-  },
-  calendarButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.surface,
-    alignItems: "center",
-    justifyContent: "center",
   },
   filters: {
     marginVertical: spacing.md,

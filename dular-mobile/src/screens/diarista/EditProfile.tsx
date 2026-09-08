@@ -21,9 +21,12 @@ import { AppIcon } from "@/components/ui";
 import { DButton } from "@/components/DButton";
 import { DInput } from "@/components/DInput";
 import { colors, radius, shadow, spacing, typography } from "@/theme/tokens";
+import { useGenderTheme } from "@/hooks/useProfileTheme";
 import { platformSelect } from "@/utils/platform";
 
 export default function EditProfile({ navigation }: any) {
+  // Cor do título seguindo o perfil.
+  const theme = useGenderTheme();
   const insets = useSafeAreaInsets();
   const setUser = useAuth((s) => s.setUser);
   const busyRef = useRef(false);
@@ -125,7 +128,7 @@ export default function EditProfile({ navigation }: any) {
           keyboardShouldPersistTaps="handled"
         >
           {/* Header */}
-          <Text style={s.screenTitle}>Editar dados</Text>
+          <Text style={[s.screenTitle, { color: theme.textAccent }]}>Editar dados</Text>
 
           {loading ? (
             <View style={s.center}>
@@ -220,7 +223,6 @@ const s = StyleSheet.create({
   },
   screenTitle: {
     ...typography.h2,
-    color: colors.textPrimary,
     marginBottom: spacing.sm,
     textAlign: "center",
   },

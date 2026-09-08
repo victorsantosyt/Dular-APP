@@ -79,7 +79,7 @@ export function PerfilPublicoLayout({
         >
           <AppIcon name="ArrowLeft" size={20} color={theme.primary} strokeWidth={2.5} />
         </Pressable>
-        <Text style={s.headerTitle} numberOfLines={1}>{title}</Text>
+        <Text style={[s.headerTitle, { color: theme.textAccent }]} numberOfLines={1}>{title}</Text>
         {showFav ? (
           <Pressable
             onPress={onToggleFavorito}
@@ -262,7 +262,6 @@ function makeStyles({
       ...typography.h2,
       flex: 1,
       textAlign: "center",
-      color: colors.textPrimary,
       fontWeight: "700",
     },
     headerSpacer: { width: 40 },

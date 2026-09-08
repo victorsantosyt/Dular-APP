@@ -333,9 +333,16 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
         showsVerticalScrollIndicator={false}
       >
 
-        {/* ── Voltar ── */}
+        {/* ── Cabeçalho ──────────────────────────────────────────────────
+            Tinha só o botão de voltar: era a única tela do fluxo sem título,
+            enquanto o equivalente do empregador mostra "Comprovante". O
+            espaçador à direita mantém o título no centro da linha. */}
         <View style={s.navRow}>
           <BackCircleButton onPress={() => navigation.goBack()} color={theme.icon} borderColor={theme.border} />
+          <Text style={[s.headerTitulo, { color: theme.textAccent }]} numberOfLines={1}>
+            Detalhe do serviço
+          </Text>
+          <View style={s.headerSlot} />
         </View>
 
         {/* ── Título + status ── */}
@@ -643,10 +650,13 @@ const s = StyleSheet.create({
     gap: 16,
   },
 
-  navRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
+  navRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+
+  /** Mesma largura do BackCircleButton, para centrar o título. */
+
+  headerSlot: { width: 42, height: 42 },
+
+  headerTitulo: { ...typography.h2, flex: 1, textAlign: "center", fontWeight: "700" },
   titleRow: {
     flexDirection: "row",
     alignItems: "center",

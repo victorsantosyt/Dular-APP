@@ -237,7 +237,7 @@ export function CadastroEnderecoScreen({ role, mode = "onboarding", initial, onD
           </View>
         ) : null}
         <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
-          <Text style={s.title}>Qual endereço você quer cadastrar?</Text>
+          <Text style={[s.title, { color: theme.textAccent }]}>Qual endereço você quer cadastrar?</Text>
           <Text style={s.subtitle}>Você precisa de um endereço para solicitar serviços.</Text>
           <View style={s.optionList}>
             {opcoes.map((o) => (

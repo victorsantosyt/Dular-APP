@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
@@ -304,9 +304,10 @@ export function AgendamentosEmpregadorScreen() {
 
         </ScrollView>
         <View pointerEvents="box-none" style={[s.bannerDock, { bottom: bannerBottom }]}>
-          <BottomInfoBanner
-            onPress={() => Alert.alert("Histórico", "Histórico completo em breve.")}
-          />
+          {/* A tela de Histórico existe e está registrada no navegador; aqui
+              tinha ficado um Alert de "em breve" do tempo em que ela ainda não
+              existia, então o botão não levava a lugar nenhum. */}
+          <BottomInfoBanner onPress={() => navigation.navigate("Historico")} />
         </View>
       </View>
     </SafeAreaView>

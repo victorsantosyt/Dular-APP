@@ -369,53 +369,54 @@ export default function PaywallScreen({ onClose }: Props) {
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.conteudo} bounces={false}>
           {/* Sem "X": a saída fica no rodapé ("Agora não"), e no passo 2 o
               rodapé vira "Ver outros planos". Dois fechos na mesma tela
-              disputavam atenção com a ação principal. */}
-          <View style={[s.selo, { backgroundColor: tema.primarySoft }]}>
-            <AppIcon name="Sparkles" size={13} color={tema.primary} strokeWidth={2.4} />
-            <Text style={[s.seloTexto, { color: tema.primary }]}>PLANOS</Text>
-          </View>
+              disputavam atenção com a ação principal.
+
+              A pílula "PLANOS" saiu: com o ícone acima do título ela virava
+              um segundo rótulo dizendo a mesma coisa. */}
 
           {planoEscolhido ? (
             /* ── Passo 2: o que o plano libera + assinar ─────────────────── */
             <>
               {/* Repete a identidade da lista: quem tocou em "Pro Mensal"
                   reconhece a coroa e sabe que continua no mesmo plano. */}
-              {identidadeDe(planoEscolhido).forte ? (
-                <LinearGradient
-                  colors={[tema.primaryLight, tema.primary]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={s.detalheIcone}
-                >
-                  <AppIcon
-                    name={identidadeDe(planoEscolhido).icone}
-                    size={26}
-                    color={colors.white}
-                    strokeWidth={2.1}
-                  />
-                </LinearGradient>
-              ) : (
-                <View style={[s.detalheIcone, { backgroundColor: tema.primarySoft }]}>
-                  <AppIcon
-                    name={identidadeDe(planoEscolhido).icone}
-                    size={26}
-                    color={tema.primary}
-                    strokeWidth={2.1}
-                  />
+              <View style={s.cabecalhoCentro}>
+                {identidadeDe(planoEscolhido).forte ? (
+                  <LinearGradient
+                    colors={[tema.primaryLight, tema.primary]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={s.cabecalhoIcone}
+                  >
+                    <AppIcon
+                      name={identidadeDe(planoEscolhido).icone}
+                      size={24}
+                      color={colors.white}
+                      strokeWidth={2.1}
+                    />
+                  </LinearGradient>
+                ) : (
+                  <View style={[s.cabecalhoIcone, { backgroundColor: tema.primarySoft }]}>
+                    <AppIcon
+                      name={identidadeDe(planoEscolhido).icone}
+                      size={24}
+                      color={tema.primary}
+                      strokeWidth={2.1}
+                    />
+                  </View>
+                )}
+                <Text style={s.titulo}>{planoEscolhido.name}</Text>
+                <View style={s.precoLinha}>
+                  <Text style={[s.precoGrande, { color: tema.primary }]}>
+                    {formatMoneyFromCents(planoEscolhido.priceInCents)}
+                  </Text>
+                  <Text style={s.precoPeriodo}>{sufixoPeriodo(planoEscolhido.interval)}</Text>
                 </View>
-              )}
-              <Text style={s.titulo}>{planoEscolhido.name}</Text>
-              <View style={s.precoLinha}>
-                <Text style={[s.precoGrande, { color: tema.primary }]}>
-                  {formatMoneyFromCents(planoEscolhido.priceInCents)}
-                </Text>
-                <Text style={s.precoPeriodo}>{sufixoPeriodo(planoEscolhido.interval)}</Text>
+                {economiaDoAnual ? (
+                  <View style={s.etiquetaSolta}>
+                    <Text style={s.etiquetaTexto}>{economiaDoAnual}</Text>
+                  </View>
+                ) : null}
               </View>
-              {economiaDoAnual ? (
-                <View style={s.etiquetaSolta}>
-                  <Text style={s.etiquetaTexto}>{economiaDoAnual}</Text>
-                </View>
-              ) : null}
 
               <Text style={s.secao}>O que este plano libera</Text>
               <View style={s.beneficios}>
@@ -448,8 +449,13 @@ export default function PaywallScreen({ onClose }: Props) {
           ) : (
             /* ── Passo 1: só as opções, sem botão de ação ─────────────────── */
             <>
-              <Text style={s.titulo}>Escolha seu plano</Text>
-              <Text style={s.subtitulo}>Toque em um plano para ver o que ele libera.</Text>
+              <View style={s.cabecalhoCentro}>
+                <View style={[s.cabecalhoIcone, { backgroundColor: tema.primarySoft }]}>
+                  <AppIcon name="Sparkles" size={24} color={tema.primary} strokeWidth={2.1} />
+                </View>
+                <Text style={s.titulo}>Escolha seu plano</Text>
+                <Text style={s.subtitulo}>Toque em um plano para ver o que ele libera.</Text>
+              </View>
 
               {mensagem ? (
                 <View style={s.aviso}>
@@ -554,20 +560,41 @@ const s = StyleSheet.create({
   },
   conteudo: { padding: spacing.lg, gap: spacing.md },
 
-  cabecalho: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  selo: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    backgroundColor: colors.lavender,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 999,
-  },
-  seloTexto: { ...typography.caption, color: colors.primary, fontWeight: "800", letterSpacing: 0.8 },
 
-  titulo: { ...typography.h2, color: colors.textPrimary, fontWeight: "800" },
-  subtitulo: { ...typography.bodySm, color: colors.textSecondary, marginTop: -spacing.xs },
+  /** Bloco de cabeçalho centralizado: ícone → título → apoio. */
+  cabecalhoCentro: { alignItems: "center", gap: 6 },
+  cabecalhoIcone: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 2,
+  },
+  /**
+   * Peso 700 (era 800) e um pouco mais de corpo: no 800 o título ficava
+   * pesado e "gordo" ao lado do resto da tela. Com mais tamanho e o
+   * letter-spacing negativo, ele lê como título de destaque em vez de bloco
+   * em negrito.
+   *
+   * A família continua sendo a do sistema — o app não carrega nenhuma fonte
+   * própria hoje (expo-font está instalado, mas sem arquivo e sem useFonts).
+   */
+  titulo: {
+    ...typography.h2,
+    fontSize: 26,
+    lineHeight: 32,
+    letterSpacing: -0.5,
+    fontWeight: "700",
+    color: colors.textPrimary,
+    textAlign: "center",
+  },
+  subtitulo: {
+    ...typography.bodySm,
+    color: colors.textSecondary,
+    textAlign: "center",
+    paddingHorizontal: spacing.sm,
+  },
 
   aviso: {
     flexDirection: "row",
@@ -619,14 +646,6 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  detalheIcone: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    alignItems: "center",
-    justifyContent: "center",
-    alignSelf: "flex-start",
-  },
   selinho: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 },
   selinhoTexto: { ...typography.caption, color: colors.white, fontWeight: "800", fontSize: 10 },
   opcaoTexto: { flex: 1, minWidth: 0, gap: 3 },
@@ -647,11 +666,11 @@ const s = StyleSheet.create({
   // ── passo 2: detalhe do plano ──────────────────────────────────────────
   voltar: { flexDirection: "row", alignItems: "center", gap: 6 },
   voltarTexto: { ...typography.caption, fontWeight: "700" },
-  precoLinha: { flexDirection: "row", alignItems: "baseline", gap: 4, marginTop: -spacing.xs },
+  precoLinha: { flexDirection: "row", alignItems: "baseline", gap: 4, marginTop: 2 },
   precoGrande: { ...typography.h1, fontWeight: "800" },
   precoPeriodo: { ...typography.bodySm, color: colors.textSecondary },
   etiquetaSolta: {
-    alignSelf: "flex-start",
+    alignSelf: "center",
     backgroundColor: colors.successSoft,
     paddingHorizontal: 10,
     paddingVertical: 4,

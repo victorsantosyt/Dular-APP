@@ -2,8 +2,10 @@ import React, { useMemo, useState } from "react";
 import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import { AppIcon, BackCircleButton, DEmptyState, DLoadingState, DScreen, type AppIconName } from "@/components/ui";
 import { useNotificacoes } from "@/hooks/useNotificacoes";
+import { SimuladorDePopup } from "@/components/dev/SimuladorDePopup";
 import type { Notificacao } from "@/api/notificacoesApi";
 import type { ProfileTheme } from "@/theme/profileTheme";
+import { CHAT_TYPES, metaDoTipo, tonePalette, type NotificationTone } from "@/constants/notificacoes";
 import { colors, radius, shadows, typography } from "@/theme";
 
 /**
@@ -13,7 +15,6 @@ import { colors, radius, shadows, typography } from "@/theme";
  */
 
 type NotificationTab = "todas" | "nao_lidas" | "lidas";
-type NotificationTone = "primary" | "urgent" | "success" | "security" | "info" | "support";
 
 type UINotification = {
   id: string;
@@ -28,26 +29,6 @@ type UINotification = {
   servicoId?: string;
   chatRoomId?: string;
   remoteId?: string;
-};
-
-const CHAT_TYPES = new Set<string>(["CHAT_NOVA_MENSAGEM", "MENSAGEM_RECEBIDA"]);
-
-const TYPE_META: Record<string, { icon: AppIconName; badge: string; tone: NotificationTone }> = {
-  SERVICO_SOLICITADO: { icon: "BriefcaseBusiness", badge: "Solicitação", tone: "primary" },
-  SERVICO_ACEITO: { icon: "CheckCircle", badge: "Aceito", tone: "success" },
-  SERVICO_RECUSADO: { icon: "XCircle", badge: "Recusado", tone: "urgent" },
-  SERVICO_INICIADO: { icon: "Clock", badge: "Em andamento", tone: "info" },
-  SERVICO_FINALIZADO: { icon: "CheckCircle", badge: "Concluído", tone: "success" },
-  SERVICO_CANCELADO: { icon: "XCircle", badge: "Cancelado", tone: "urgent" },
-  SERVICO_REAGENDAMENTO_PROPOSTO: { icon: "Clock", badge: "Reagendamento", tone: "info" },
-  SERVICO_REAGENDAMENTO_CONFIRMADO: { icon: "CheckCircle", badge: "Reagendado", tone: "success" },
-  SERVICO_REAGENDAMENTO_RECUSADO: { icon: "XCircle", badge: "Reagendamento", tone: "urgent" },
-  MENSAGEM_RECEBIDA: { icon: "MessageCircle", badge: "Mensagem", tone: "support" },
-  CHAT_NOVA_MENSAGEM: { icon: "MessageCircle", badge: "Mensagem", tone: "support" },
-  AVALIACAO_RECEBIDA: { icon: "Star", badge: "Avaliação", tone: "success" },
-  ALERTA_SEGURANCA: { icon: "AlertTriangle", badge: "Urgente", tone: "urgent" },
-  SISTEMA: { icon: "Sparkles", badge: "Novidade", tone: "primary" },
-  NOVIDADE: { icon: "Megaphone", badge: "Novidade", tone: "primary" },
 };
 
 function tempoRelativo(iso: string): string {
@@ -65,7 +46,7 @@ function tempoRelativo(iso: string): string {
 }
 
 function fromRemote(n: Notificacao): UINotification {
-  const meta = TYPE_META[n.type] ?? { icon: "Bell" as AppIconName, badge: "Aviso", tone: "primary" as NotificationTone };
+  const meta = metaDoTipo(n.type);
   return {
     id: `remote-${n.id}`,
     remoteId: n.id,
@@ -80,15 +61,6 @@ function fromRemote(n: Notificacao): UINotification {
     servicoId: n.servicoId ?? undefined,
     chatRoomId: n.chatRoomId ?? undefined,
   };
-}
-
-function tonePalette(tone: NotificationTone, theme: ProfileTheme) {
-  if (tone === "urgent") return { accent: colors.danger, soft: colors.dangerSoft };
-  if (tone === "success") return { accent: colors.success, soft: colors.successSoft };
-  if (tone === "security") return { accent: theme.primary, soft: theme.primarySoft };
-  if (tone === "support") return { accent: colors.info, soft: colors.infoLight };
-  if (tone === "info") return { accent: colors.warning, soft: colors.warningSoft };
-  return { accent: theme.primary, soft: theme.primarySoft };
 }
 
 function NotificationTabs({
@@ -244,6 +216,8 @@ export function NotificacoesView({ theme, onVoltar, onOpenChat, onOpenServico }:
         <AppIcon name="CheckCircle" size={15} color={theme.primary} strokeWidth={2.3} />
         <Text style={[styles.markText, { color: theme.primary }]}>Marcar todas como lidas</Text>
       </Pressable>
+
+      <SimuladorDePopup theme={theme} servicoId={notifications.find((n) => n.servicoId)?.servicoId} />
 
       {loading && notifications.length === 0 ? (
         <DLoadingState text="Carregando notificações" color={theme.primary} />

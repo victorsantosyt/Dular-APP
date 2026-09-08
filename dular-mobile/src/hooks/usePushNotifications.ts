@@ -6,11 +6,17 @@ import { Platform } from "react-native";
 import { api } from "@/lib/api";
 import { navRef } from "@/navigation/nav";
 import { useAuth } from "@/stores/authStore";
+import { useNotificacaoPopup } from "@/stores/notificacaoPopupStore";
 import { colors } from "@/theme/tokens";
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
-    shouldShowBanner: true,
+    // Banner do SISTEMA desligado com o app em primeiro plano: nesse caso quem
+    // aparece é o popup do próprio app (NotificacaoPopup), que segue o tema do
+    // perfil e leva direto para a tela certa. Mostrar os dois empilharia dois
+    // avisos da mesma coisa. Com o app fechado ou em segundo plano o sistema
+    // continua entregando normalmente — este handler só roda em primeiro plano.
+    shouldShowBanner: false,
     shouldShowList: true,
     shouldPlaySound: true,
     shouldSetBadge: true,
@@ -97,7 +103,21 @@ export function usePushNotifications() {
       }
     });
 
-    notificationListener.current = Notifications.addNotificationReceivedListener(() => {});
+    // Chegou com o app aberto: mostra o aviso do próprio app. Antes este
+    // listener era vazio e a notificação passava despercebida.
+    notificationListener.current = Notifications.addNotificationReceivedListener((n) => {
+      const conteudo = n.request.content;
+      const dados = (conteudo.data ?? {}) as NotificationData & {
+        chatRoomId?: unknown;
+      };
+      useNotificacaoPopup.getState().mostrar({
+        tipo: typeof dados.tipo === "string" ? dados.tipo : "SISTEMA",
+        titulo: conteudo.title ?? "Dular",
+        corpo: conteudo.body ?? "",
+        servicoId: typeof dados.servicoId === "string" ? dados.servicoId : null,
+        chatRoomId: typeof dados.chatRoomId === "string" ? dados.chatRoomId : null,
+      });
+    });
 
     responseListener.current = Notifications.addNotificationResponseReceivedListener((response) => {
       handleNotificationResponse(response.notification.request.content.data as NotificationData);

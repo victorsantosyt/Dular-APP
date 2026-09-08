@@ -7,6 +7,7 @@ import { AppIcon, BackCircleButton, DEmptyState, DErrorState, DLoadingState } fr
 import { useNotificacoes } from "@/hooks/useNotificacoes";
 import type { Notificacao } from "@/api/notificacoesApi";
 import type { EmpregadorTabParamList } from "@/navigation/EmpregadorNavigator";
+import { SimuladorDePopup } from "@/components/dev/SimuladorDePopup";
 import { colors, radius, shadows, spacing, typography } from "@/theme";
 import { useGenderTheme } from "@/hooks/useProfileTheme";
 import {
@@ -216,6 +217,8 @@ export function NotificacoesEmpregadorScreen() {
               <Text style={s.markAllText}>Marcar todas como lidas</Text>
             </Pressable>
           </View>
+
+          <SimuladorDePopup theme={theme} servicoId={items.find((it) => it._raw.servicoId)?._raw.servicoId ?? undefined} />
 
           {loading && items.length === 0 ? (
             <DLoadingState text="Carregando notificações" color={colors.primary} />

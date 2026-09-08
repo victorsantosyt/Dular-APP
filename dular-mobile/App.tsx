@@ -15,6 +15,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { navRef } from "@/navigation/nav";
 import RootNavigator from "@/navigation/RootNavigator";
+import { NotificacaoPopup } from "@/components/ui/NotificacaoPopup";
 import { colors } from "@/theme/tokens";
 import { aplicarFonteGlobal } from "@/theme/fonte";
 
@@ -61,6 +62,9 @@ export default function App() {
     <SafeAreaProvider>
       <NavigationContainer theme={navTheme} ref={navRef}>
         <RootNavigator />
+        {/* Dentro do NavigationContainer (usa navRef para abrir a tela ao
+            toque) e depois do navegador, para ficar por cima de tudo. */}
+        <NotificacaoPopup />
       </NavigationContainer>
       <StatusBar style="dark" />
     </SafeAreaProvider>

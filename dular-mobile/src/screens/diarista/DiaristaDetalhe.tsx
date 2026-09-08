@@ -633,7 +633,7 @@ const ir = StyleSheet.create({
   row:     { flexDirection: "row", alignItems: "flex-start", gap: 10 },
   iconWrap:{
     width: 32, height: 32, borderRadius: radius.sm,
-    backgroundColor: colors.greenLight,
+    backgroundColor: colors.successSoft,
     alignItems: "center", justifyContent: "center",
     marginTop: 2,
   },
@@ -726,11 +726,11 @@ const s = StyleSheet.create({
     gap: 10,
     padding: 12,
     borderRadius: radius.lg,
-    backgroundColor: colors.greenLight,
+    backgroundColor: colors.successSoft,
     borderWidth: 1,
-    borderColor: colors.green,
+    borderColor: colors.success,
   },
-  doneText: { fontSize: 12, fontWeight: "700", color: colors.greenDark },
+  doneText: { fontSize: 12, fontWeight: "700", color: colors.success },
   waitingCard: {
     flexDirection: "row",
     alignItems: "center",

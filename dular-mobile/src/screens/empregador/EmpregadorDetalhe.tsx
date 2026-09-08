@@ -778,11 +778,11 @@ const s = StyleSheet.create({
     gap: 10,
     padding: 12,
     borderRadius: radius.lg,
-    backgroundColor: colors.greenLight,
+    backgroundColor: colors.successSoft,
     borderWidth: 1,
     borderColor: colors.stroke,
   },
-  doneText: { fontSize: 12, fontWeight: "700", color: colors.greenDark },
+  doneText: { fontSize: 12, fontWeight: "700", color: colors.success },
 
   cancelBtn: {
     borderWidth: 1,

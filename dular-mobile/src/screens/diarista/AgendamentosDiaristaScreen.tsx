@@ -106,24 +106,6 @@ function FilterChip({
   );
 }
 
-function AgendaResumo({ total, accentColor, softBg }: { total: number; accentColor: string; softBg: string }) {
-  return (
-    <DCard style={styles.calendarCard}>
-      <View style={styles.calendarHeader}>
-        <View>
-          <Text style={styles.calendarTitle}>Agenda</Text>
-          <Text style={styles.calendarSummary}>
-            {total === 1 ? "1 agendamento carregado" : `${total} agendamentos carregados`}
-          </Text>
-        </View>
-        <View style={[styles.resumoIconBox, { backgroundColor: softBg }]}>
-          <AppIcon name="Calendar" size={22} color={accentColor} strokeWidth={2.1} />
-        </View>
-      </View>
-    </DCard>
-  );
-}
-
 function statusCardStyle(status: StatusAgendamento, accentColor: string) {
   switch (status) {
     case "pendente":
@@ -274,7 +256,7 @@ function AgendamentoDiaristaCard({
           <DButton
             variant="ghost"
             size="sm"
-            labelStyle={{ color: colors.warning }}
+            labelStyle={{ color: accentColor }}
             label="Detalhes"
             onPress={() => navigation.navigate("DetalheServico", { id: agendamento.id })}
           />
@@ -331,8 +313,19 @@ export function AgendamentosDiaristaScreen() {
           </View>
         </View>
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filters}>
-          <View style={styles.filtersRow}>
+        {/* Barra de filtros: os chips soltos sobre o fundo da tela não tinham
+            nada que os agrupasse, e pareciam avulsos. Agora vivem dentro de
+            uma barra própria, que rola na horizontal quando não cabem.
+
+            O card "Agenda / N agendamentos carregados" que ficava logo abaixo
+            saiu: repetia o título da tela imediatamente sob ele, e a contagem
+            já é visível na própria lista. */}
+        <View style={[styles.filtersBar, { borderColor: theme.border, backgroundColor: theme.primarySoft }]}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.filtersRow}
+          >
             {FILTROS.map((filter) => (
               <FilterChip
                 key={filter.value}
@@ -342,10 +335,8 @@ export function AgendamentosDiaristaScreen() {
                 onPress={() => setActiveFilter(filter.value)}
               />
             ))}
-          </View>
-        </ScrollView>
-
-        <AgendaResumo total={realAgendamentos.length} accentColor={theme.primary} softBg={theme.primarySoft} />
+          </ScrollView>
+        </View>
 
         {loading && realAgendamentos.length === 0 ? (
           <View style={styles.topState}>
@@ -413,19 +404,14 @@ const styles = StyleSheet.create({
     marginTop: 2,
     textAlign: "center",
   },
-  filters: {
+  filtersBar: {
+    marginHorizontal: spacing.screenPadding,
     marginVertical: spacing.md,
-    // ScrollView horizontal cresce verticalmente dentro de um flex column e
-    // empurra o conteúdo p/ o centro — travamos com flexGrow: 0 + maxHeight.
-    flexGrow: 0,
-    flexShrink: 0,
-    maxHeight: 48,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    padding: 4,
   },
-  filtersRow: {
-    flexDirection: "row",
-    gap: spacing.sm,
-    paddingHorizontal: spacing.screenPadding,
-  },
+  filtersRow: { flexDirection: "row", gap: 6, paddingHorizontal: 2 },
   filterChip: {
     borderRadius: radius.full,
     paddingVertical: 7,
@@ -447,18 +433,6 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontWeight: "400",
   },
-  calendarCard: {
-    marginHorizontal: spacing.screenPadding,
-    marginBottom: spacing.md,
-    padding: spacing.md,
-  },
-  resumoIconBox: {
-    width: 42,
-    height: 42,
-    borderRadius: radius.md,
-    alignItems: "center",
-    justifyContent: "center",
-  },
   emptyIconBox: {
     width: 64,
     height: 64,
@@ -466,22 +440,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginBottom: spacing.md,
-  },
-  calendarHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: spacing.sm,
-  },
-  calendarTitle: {
-    ...typography.bodySmMedium,
-    fontWeight: "700",
-    color: colors.textPrimary,
-  },
-  calendarSummary: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    marginTop: 2,
   },
   calendarArrows: {
     flexDirection: "row",

@@ -26,6 +26,7 @@ import {
 } from "@/components/ui";
 import { LocationPermissionCard } from "@/components/location/LocationPermissionCard";
 import { colors, radius, shadows, spacing, typography } from "@/theme";
+import { useGenderTheme } from "@/hooks/useProfileTheme";
 import type { EmpregadorTabParamList } from "@/navigation/EmpregadorNavigator";
 import { useBuscar, type ApiDiarista } from "@/hooks/useBuscar";
 import { CATEGORIAS as CATEGORIAS_FONTE, CATEGORIAS_DIARISTA, CATEGORIA_BY_KEY, type CategoriaKey } from "@/constants/categorias";
@@ -126,7 +127,8 @@ const CATEGORIAS: CategoriaCardItem[] = CATEGORIAS_FONTE.map((c) => ({
   key: c.key,
   icon: c.icon,
   title: c.label,
-  subtitle: c.subtitle,
+  // Rótulo curto: o card é estreito e o texto fica sobre a foto.
+  subtitle: c.subtitleCurto,
   bg: c.bg,
   iconColor: c.fg,
   imageSource: CATEGORIA_LOGOS[c.key]?.source,
@@ -205,7 +207,8 @@ function CategoryCard({
     >
       <AppIcon name={item.icon} size={20} color={item.iconColor} strokeWidth={2} />
       <Text style={s.catTitle}>{item.title}</Text>
-      <Text style={s.catSubtitle}>{item.subtitle}</Text>
+      {/* Uma linha só: o texto fica sobre a foto, e mais que isso a tapa. */}
+      <Text style={s.catSubtitle} numberOfLines={1}>{item.subtitle}</Text>
       {item.imageSource ? (
         <Image source={item.imageSource} resizeMode="contain" style={[s.catImage, item.imageStyle]} />
       ) : null}
@@ -234,9 +237,10 @@ function profToCardData(prof: Profissional): ProfissionalCardData {
 }
 
 export function BuscarScreen() {
+  // Cor do título seguindo o perfil (ver comentário em `title`).
+  const theme = useGenderTheme();
   const navigation = useNavigation<Navigation>();
   const route = useRoute<BuscarRoute>();
-  const [searchQuery, setSearchQuery] = useState("");
   const [selectedCat, setSelectedCat] = useState<CategoriaKey | null>(route.params?.categoriaInicial ?? null);
   const authUser = useAuth((state) => state.user);
   const setUser = useAuth((state) => state.setUser);
@@ -394,17 +398,8 @@ export function BuscarScreen() {
     if (selectedCat) {
       list = list.filter((p) => p.categoriaKey === selectedCat);
     }
-    if (searchQuery.trim().length > 0) {
-      const q = searchQuery.toLowerCase();
-      list = list.filter(
-        (p) =>
-          p.nome.toLowerCase().includes(q) ||
-          p.localizacao.toLowerCase().includes(q) ||
-          p.categoria.toLowerCase().includes(q),
-      );
-    }
     return list;
-  }, [baseList, selectedCat, searchQuery]);
+  }, [baseList, selectedCat]);
 
   const categoryError = selectedCat === "montador"
     ? montadoresError
@@ -416,7 +411,7 @@ export function BuscarScreen() {
     ? "Nenhum montador disponível nesta região ainda."
     : !regionConfirmed
       ? "Informe sua região para encontrar profissionais disponíveis."
-      : searchQuery || selectedCat
+      : selectedCat
       ? "Nenhum resultado encontrado"
       : "Nenhum profissional disponível";
 
@@ -434,22 +429,9 @@ export function BuscarScreen() {
         >
           <View style={s.header}>
             <View style={s.headerText}>
-              <Text style={s.title}>Buscar</Text>
-              <Text style={s.subtitle}>Encontre o profissional ideal{"\n"}para o que você precisa.</Text>
-            </View>
-          </View>
-
-          <View style={s.searchRow}>
-            <View style={s.searchBox}>
-              <AppIcon name="Search" size={19} color={colors.textMuted} strokeWidth={2} />
-              <TextInput
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-                placeholder="Buscar por nome ou bairro..."
-                placeholderTextColor="#8C84AA"
-                style={s.searchInput}
-                returnKeyType="search"
-              />
+              <Text style={[s.title, { color: theme.textAccent }]}>Buscar profissionais</Text>
+              {/* Sem quebra fixa: a frase se acomoda sozinha na largura do aparelho. */}
+              <Text style={s.subtitle}>Profissionais ideais para o que você precisa</Text>
             </View>
           </View>
 
@@ -576,44 +558,22 @@ const s = StyleSheet.create({
     paddingRight: spacing.md,
   },
   title: {
+    // Título das telas principais: um corpo (h1) e a cor de destaque do
+    // PERFIL — roxo no empregador, rosa na diarista, verde no montador.
+    // Antes cada tela escolhia um tamanho (h1, h2, h3, 22, 24) e umas
+    // usavam texto preto enquanto outras usavam um roxo fixo, que ficaria
+    // fora de lugar nos perfis não-roxos.
     ...typography.h1,
-    fontWeight: "700",
-    color: colors.textPrimary,
-    letterSpacing: 0,
+    textAlign: "center",
   },
   subtitle: {
     ...typography.bodySm,
     color: colors.textSecondary,
     fontWeight: "500",
     marginTop: 6,
+    textAlign: "center",
   },
 
-  searchRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 9,
-    paddingHorizontal: spacing.screenPadding,
-  },
-  searchBox: {
-    flex: 1,
-    minHeight: 48,
-    borderRadius: 14,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.lavenderDivider,
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 14,
-    gap: 10,
-    ...shadows.soft,
-  },
-  searchInput: {
-    flex: 1,
-    color: colors.textPrimary,
-    ...typography.bodySmMedium,
-    fontWeight: "500",
-    paddingVertical: 8,
-  },
   regionCardWrap: {
     width: "100%",
     alignItems: "center",

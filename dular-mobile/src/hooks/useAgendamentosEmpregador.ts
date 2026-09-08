@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from "react";
 import { apiService } from "@/services/api";
 import { useAuth } from "@/stores/authStore";
-import { formatDate, formatHora } from "@/utils/formatters";
+import { formatDate, formatHorario } from "@/utils/formatters";
 import type { AppIconName } from "@/components/ui";
 
 type CategoriaKey = "diarista" | "baba" | "cozinheira" | "exp";
@@ -75,7 +75,7 @@ function mapServicoEmpregador(raw: any): AgendamentoEmpregador {
     categoriaIcon: TIPO_TO_ICON[raw.tipo] ?? "User",
     localizacao: raw.endereco ?? (raw.bairro ? `${raw.bairro}, ${raw.uf}` : "--"),
     data: formatDate(raw.data),
-    hora: formatHora(raw.turno),
+    hora: formatHorario(raw.hora, raw.turno),
     avaliacao: "--",
     experiencia: "--",
     preco: raw.precoFinal != null ? String(raw.precoFinal) : "--",

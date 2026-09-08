@@ -85,3 +85,29 @@ export async function buscarCep(cepDigits: string): Promise<{
     return null;
   }
 }
+
+/**
+ * Bairros atendidos numa cidade (catálogo `Bairro` do backend).
+ *
+ * O `POST /api/servicos` recusa endereço cujo bairro não esteja nesse catálogo
+ * ("Bairro não cadastrado."). Usar isto no passo de endereço evita que o
+ * empregador descubra o problema só na confirmação, três passos depois.
+ */
+export async function fetchBairrosDaCidade(cidade: string, uf: string): Promise<string[]> {
+  const res = await api.get<{ ok: boolean; bairros?: Array<{ nome: string }> }>("/api/bairros", {
+    params: { cidade, uf },
+  });
+  return (res.data?.bairros ?? []).map((b) => b.nome);
+}
+
+/** Mesma normalização do backend (`/api/servicos`) para comparar bairros:
+ *  acentos, sufixo entre parênteses ("Água Boa (MT)"), espaços e caixa. */
+export function normalizarBairro(valor: string): string {
+  return String(valor ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\([^)]*\)/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}

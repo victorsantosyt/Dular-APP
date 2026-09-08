@@ -7,6 +7,7 @@ import { AppIcon, DAvatar, DCard, DEmptyState, DErrorState, DLoadingState, DScre
 import { acionarSosMontador, atualizarPerfilMontador, carregarPerfilMontador } from "@/api/montadorApi";
 import { getPublicScore } from "@/api/safeScoreApi";
 import { useMontadorServicos } from "@/hooks/useMontadorServicos";
+import { useApresentarPlanos } from "@/hooks/useApresentarPlanos";
 import { useNotificacoes } from "@/hooks/useNotificacoes";
 import { useProfileTheme } from "@/hooks/useProfileTheme";
 import { useAuth } from "@/stores/authStore";
@@ -31,6 +32,9 @@ export function MontadorHome() {
   const profileTheme = useProfileTheme("MONTADOR");
   const { servicos, agenda, pendentes, loading, error, refetch } = useMontadorServicos();
   const { unreadCount } = useNotificacoes();
+  // Mesma apresentação de planos da home da diarista: o montador também tem
+  // paywall e estava sem ela.
+  useApresentarPlanos();
   const [online, setOnline] = useState(true);
   const [onlineSaving, setOnlineSaving] = useState(false);
   const [safeFaixa, setSafeFaixa] = useState<string | null>(null);

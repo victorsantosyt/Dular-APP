@@ -1,7 +1,8 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback } from "react";
+import { useFocusEffect } from "@react-navigation/native";
 import { apiService } from "@/services/api";
 import { useAuth } from "@/stores/authStore";
-import { formatDate, formatHora, mapStatus } from "@/utils/formatters";
+import { formatDate, formatHorario, mapStatus } from "@/utils/formatters";
 
 export type StatusDiarista =
   | "pendente"
@@ -87,7 +88,7 @@ function mapServico(raw: any): AgendamentoDiarista {
     servicoLabel: (categoria && CATEGORIA_LABEL[categoria]) || tipoLabel,
     data: formatDate(raw.data),
     dataISO: raw.data ?? null,
-    hora: formatHora(raw.turno),
+    hora: formatHorario(raw.hora, raw.turno),
     preco: raw.precoFinal != null ? String(raw.precoFinal) : "--",
     status: STATUS_DIARISTA_MAP[baseStatus] ?? "pendente",
     avatarUrl: raw.cliente?.avatarUrl ?? undefined,
@@ -117,9 +118,15 @@ export function useAgendamentosDiarista() {
     }
   }, [token]);
 
-  useEffect(() => {
-    fetchAgendamentos();
-  }, [fetchAgendamentos]);
+  // Ao FOCAR, não só na montagem. A home monta uma vez e sobrevive à navegação
+  // por abas: sem isto, aceitar/concluir um serviço em outra tela não se
+  // refletia em "Agendamentos de hoje", nos ganhos nem na barra de limite —
+  // a home ficava velha até o pull-to-refresh.
+  useFocusEffect(
+    useCallback(() => {
+      fetchAgendamentos();
+    }, [fetchAgendamentos]),
+  );
 
   return { agendamentos, loading, error, refetch: fetchAgendamentos };
 }

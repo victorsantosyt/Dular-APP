@@ -222,6 +222,7 @@ const s = StyleSheet.create({
     ...typography.h2,
     color: colors.textPrimary,
     marginBottom: spacing.sm,
+    textAlign: "center",
   },
   center: {
     paddingVertical: 64,

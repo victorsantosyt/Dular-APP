@@ -25,11 +25,12 @@ import {
 import { DButton } from "@/components/DButton";
 import { DularBadge } from "@/components/DularBadge";
 import { MotivoModal } from "@/components/MotivoModal";
-import { AvaliacaoModal, DAvatar } from "@/components/ui";
+import { AvaliacaoModal, BackCircleButton, DAvatar } from "@/components/ui";
 import { formatPrice } from "@/utils/formatPrice";
-import { parseDataServico } from "@/utils/formatters";
+import { formatHorario, parseDataServico, protocoloServico } from "@/utils/formatters";
 import { isStatusEncerrado } from "@/utils/servicoStatus";
 import { colors, radius, shadow, spacing, typography } from "@/theme/tokens";
+import { useGenderTheme } from "@/hooks/useProfileTheme";
 
 // Data do serviço é meia-noite UTC — normaliza p/ não deslizar o dia (fuso).
 const formatDate = (v: string | number | Date) =>
@@ -40,9 +41,8 @@ function fmtReagendamento(svc: Servico) {
   const d = svc.reagendamentoData ? new Date(svc.reagendamentoData) : null;
   const dataLabel =
     d && !Number.isNaN(d.getTime()) ? d.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }) : "—";
-  const t = statusUp(svc.reagendamentoTurno);
-  const turnoLabel = t === "MANHA" ? "Manhã" : t === "TARDE" ? "Tarde" : "";
-  return `${dataLabel}${turnoLabel ? " · " + turnoLabel : ""}`;
+  const horario = formatHorario(svc.reagendamentoHora, svc.reagendamentoTurno);
+  return `${dataLabel}${horario && horario !== "--" ? " · " + horario : ""}`;
 }
 const FINAL = ["CONFIRMADO", "FINALIZADO", "FINALIZADO_CLIENTE", "PAGO", "AVALIADO"];
 const POLL_MS = 5000;
@@ -91,10 +91,6 @@ function categoriaLabelFmt(c?: string | null) {
     .toLowerCase()
     .replace(/^\w/, (m) => m.toUpperCase());
 }
-function turnoLabel(t?: string | null) {
-  const v = statusUp(t);
-  return v === "MANHA" ? "Manhã" : v === "TARDE" ? "Tarde" : "A combinar";
-}
 function formatDateTime(v?: string | number | Date | null) {
   if (!v) return null;
   const d = new Date(v);
@@ -119,6 +115,8 @@ function RowKV({ label, value }: { label: string; value: string }) {
 }
 
 export default function EmpregadorDetalhe({ route, navigation }: any) {
+  // Cor do voltar seguindo o perfil, como nas demais telas.
+  const theme = useGenderTheme();
   const params = route.params as any;
   const servicoId: string = params.servicoId ?? params.servico?.id ?? "";
 
@@ -186,6 +184,14 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
     const t = setTimeout(() => setToast(null), 2500);
     return () => clearTimeout(t);
   }, [toast]);
+
+  // Protocolo que o usuário vê e copia. O rodapé mostrava o id cru do banco
+  // (cuid) logo abaixo deste — dois "protocolos" diferentes para o mesmo
+  // serviço, e o suporte recebia ora um, ora outro.
+  const protocolo = useMemo(
+    () => protocoloServico(svc?.id),
+    [svc?.id],
+  );
 
   const statusRaw = useMemo(() => statusUp(svc?.status), [svc?.status]);
   const isFinal = useMemo(() => FINAL.includes(statusRaw), [statusRaw]);
@@ -384,15 +390,14 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
     <SafeAreaView style={s.safe} edges={["top", "bottom"]}>
       {/* Voltar — stack real (PR #103); goBack() volta à origem exata. */}
       <View style={s.topBar}>
-        <Pressable
-          onPress={() => navigation.goBack()}
-          hitSlop={10}
-          style={({ pressed }) => [s.backBtn, pressed && { opacity: 0.7 }]}
-        >
-          <Ionicons name="arrow-back" size={22} color={colors.primary} />
-        </Pressable>
-        <Text style={s.topBarTitle}>Comprovante</Text>
-        <View style={s.backBtn} />
+        <BackCircleButton onPress={() => navigation.goBack()} color={theme.icon} borderColor={theme.border} />
+        <Text style={[s.topBarTitle, { color: theme.textAccent }]}>Comprovante</Text>
+        {/* Espaçador: sem ele o título centraliza no espaço que sobra
+            e fica deslocado para a direita. */}
+        <View style={s.headerSlot} />
+        {/* Espaçador para centrar o título. Usava `s.backBtn`, que tem fundo e
+            borda — aparecia como um círculo vazio no canto direito. */}
+        <View style={s.topBarSpacer} />
       </View>
 
       <ScrollView
@@ -411,13 +416,13 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
           <View style={s.protocoloRow}>
             <Pressable
               onPress={async () => {
-                await Clipboard.setStringAsync(svc.id);
+                await Clipboard.setStringAsync(protocolo);
                 setToast("Protocolo copiado.");
               }}
               hitSlop={8}
               style={s.protocoloPress}
             >
-              <Text style={s.protocolo}>#{svc.id.slice(0, 8).toUpperCase()}</Text>
+              <Text style={s.protocolo}>{protocolo}</Text>
               <Ionicons name="copy-outline" size={15} color={colors.sub} />
             </Pressable>
             <DularBadge text={statusLabel(svc.status)} variant={statusVariant(svc.status)} />
@@ -435,7 +440,7 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
             </>
           ) : null}
           <View style={s.divider} />
-          <RowKV label="Turno" value={turnoLabel(svc.turno)} />
+          <RowKV label="Horário" value={formatHorario(svc.hora, svc.turno)} />
         </View>
 
         {/* PROFISSIONAL */}
@@ -628,7 +633,9 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
         ) : null}
 
         {/* RODAPÉ */}
-        <Text style={s.rodape}>Guarde este protocolo para suporte: {svc.id}</Text>
+        <Text style={s.rodape}>
+          Guarde este protocolo para suporte: {protocolo}
+        </Text>
       </ScrollView>
 
       <MotivoModal
@@ -667,17 +674,17 @@ const s = StyleSheet.create({
     paddingHorizontal: spacing.screenPadding,
     paddingVertical: 10,
   },
-  backBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.stroke,
+  topBarSpacer: { width: 42, height: 42 },
+  /** Mesma largura do BackCircleButton, para centrar o título. */
+  headerSlot: { width: 42, height: 42 },
+  topBarTitle: {
+    // Era `fontSize: 15` — do tamanho de um rótulo, não de um título de
+    // tela. Passa ao mesmo h2 dos outros cabeçalhos do app.
+    ...typography.h2,
+    color: colors.ink,
+    flex: 1,
+    textAlign: "center",
   },
-  topBarTitle: { fontSize: 15, fontWeight: "800", color: colors.ink },
   section: { gap: 6 },
   sectionLabel: {
     fontSize: 11,

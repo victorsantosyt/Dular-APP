@@ -1,13 +1,14 @@
 import { useCallback, useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
-import { AppIcon, DEmptyState, DErrorState, DLoadingState } from "@/components/ui";
+import { AppIcon, BackCircleButton, DEmptyState, DErrorState, DLoadingState } from "@/components/ui";
 import { useNotificacoes } from "@/hooks/useNotificacoes";
 import type { Notificacao } from "@/api/notificacoesApi";
 import type { EmpregadorTabParamList } from "@/navigation/EmpregadorNavigator";
-import { colors, radius, shadows, spacing } from "@/theme";
+import { colors, radius, shadows, spacing, typography } from "@/theme";
+import { useGenderTheme } from "@/hooks/useProfileTheme";
 import {
   NotificationCard,
   NotificationItem,
@@ -112,6 +113,8 @@ function toNotificationItem(n: Notificacao): NotificationItem & { _raw: Notifica
 }
 
 export function NotificacoesEmpregadorScreen() {
+  // Cor do voltar seguindo o perfil, como nas demais telas.
+  const theme = useGenderTheme();
   const navigation = useNavigation<Navigation>();
   const [activeTab, setActiveTab] = useState<NotificationTab>("todas");
   const {
@@ -173,28 +176,25 @@ export function NotificacoesEmpregadorScreen() {
   return (
     <SafeAreaView style={s.safe} edges={["top", "left", "right"]}>
       <View style={s.root}>
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.scroll}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={s.scroll}
+          // Puxar para atualizar, no lugar do sino: era o único jeito de
+          // recarregar a lista, e é o gesto que se espera numa lista.
+          refreshControl={<RefreshControl refreshing={loading} onRefresh={refetch} tintColor={colors.primary} />}
+        >
+          {/* Cabeçalho no padrão do app (ver "Dados da conta"): título à
+              esquerda e o BackCircleButton à direita.
+
+              O sino saiu: mostrar um sino com contador de não lidas DENTRO da
+              própria tela de notificações não leva a lugar nenhum — a pessoa
+              já está nelas. */}
           <View style={s.headerTop}>
-            <Pressable
-              onPress={() => navigation.goBack()}
-              style={({ pressed }) => [s.roundButton, pressed && { opacity: 0.78 }]}
-              hitSlop={10}
-            >
-              <AppIcon name="ArrowLeft" size={21} color={colors.textPrimary} strokeWidth={2.3} />
-            </Pressable>
+            <BackCircleButton onPress={() => navigation.goBack()} color={theme.icon} borderColor={theme.border} />
             <Text style={s.title}>Notificações</Text>
-            <Pressable
-              onPress={() => refetch()}
-              style={({ pressed }) => [s.bellButton, pressed && { opacity: 0.78 }]}
-              hitSlop={10}
-            >
-              <AppIcon name="Bell" size={21} color={colors.primary} strokeWidth={2.2} />
-              {unreadCount > 0 ? (
-                <View style={s.bellBadge}>
-                  <Text style={s.bellBadgeText}>{unreadCount > 9 ? "9+" : String(unreadCount)}</Text>
-                </View>
-              ) : null}
-            </Pressable>
+            {/* Espaçador: sem ele o título centraliza no espaço que sobra
+                e fica deslocado para a direita. */}
+            <View style={s.headerSlot} />
           </View>
 
           <Text style={s.subtitle}>
@@ -274,55 +274,15 @@ const s = StyleSheet.create({
     minHeight: 52,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
     gap: spacing.md,
   },
-  roundButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    ...shadows.soft,
-  },
-  bellButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    ...shadows.soft,
-  },
-  bellBadge: {
-    position: "absolute",
-    top: 4,
-    right: 4,
-    minWidth: 16,
-    height: 16,
-    borderRadius: 8,
-    paddingHorizontal: 3,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.danger,
-  },
-  bellBadgeText: {
-    color: colors.white,
-    fontSize: 9,
-    fontWeight: "700",
-  },
+  /** Mesma largura do BackCircleButton, para centrar o título. */
+  headerSlot: { width: 42, height: 42 },
   title: {
-    flex: 1,
+    ...typography.h2,
     color: colors.textPrimary,
-    fontSize: 22,
-    lineHeight: 27,
-    fontWeight: "700",
-    letterSpacing: 0,
+    // Ocupa o vão: sem isto o título encostava no botão de voltar.
+    flex: 1,
     textAlign: "center",
   },
   subtitle: {

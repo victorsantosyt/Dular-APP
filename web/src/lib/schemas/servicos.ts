@@ -24,6 +24,12 @@ export const criarServicoSchema = z.object({
     .optional(),
   dataISO: z.string().min(10), // "2026-01-08" ou ISO completo
   turno: z.enum(["MANHA", "TARDE"]),
+  // Horário escolhido, "HH:MM" 24h. Opcional para não quebrar clientes
+  // antigos, que continuam mandando só o turno.
+  hora: z
+    .string()
+    .regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Horário inválido. Use HH:MM.")
+    .optional(),
   cidade: z.string().min(2),
   uf: z.string().length(2),
   bairro: z.string().min(2),

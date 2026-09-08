@@ -11,16 +11,19 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 
-import { AppIcon } from "@/components/ui";
+import { AppIcon, BackCircleButton } from "@/components/ui";
 import { DButton } from "@/components/ui/DButton";
 import { useSeguranca } from "@/hooks/useSeguranca";
 import { colors, radius, spacing, typography } from "@/theme/tokens";
+import { useGenderTheme } from "@/hooks/useProfileTheme";
 import { shadow } from "@/utils/platform";
 import type { DiaristaTabParamList } from "@/navigation/DiaristaNavigator";
 
 type Route = RouteProp<DiaristaTabParamList, "Seguranca">;
 
 export default function SegurancaScreen() {
+  // Cor do voltar seguindo o perfil, como nas demais telas.
+  const theme = useGenderTheme();
   const navigation = useNavigation<any>();
   const route = useRoute<Route>();
   const { servicoId, enderecoServico } = route.params;
@@ -84,10 +87,11 @@ export default function SegurancaScreen() {
     <SafeAreaView style={s.safe} edges={["top", "bottom"]}>
       {/* Header */}
       <View style={s.header}>
-        <Pressable onPress={() => navigation.goBack()} hitSlop={12} style={s.backBtn}>
-          <AppIcon name="ArrowLeft" size={22} color={colors.textPrimary} strokeWidth={2.5} />
-        </Pressable>
+        <BackCircleButton onPress={() => navigation.goBack()} color={theme.icon} borderColor={theme.border} />
         <Text style={s.headerTitle}>Segurança do Serviço</Text>
+        {/* Espaçador: sem ele o título centraliza no espaço que sobra
+            e fica deslocado para a direita. */}
+        <View style={s.headerSlot} />
       </View>
 
       <ScrollView
@@ -177,17 +181,13 @@ const s = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
-  backBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: radius.full,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  /** Mesma largura do BackCircleButton, para centrar o título. */
+  headerSlot: { width: 42, height: 42 },
   headerTitle: {
     ...typography.h3,
     color: colors.textPrimary,
     flex: 1,
+    textAlign: "center",
   },
   scroll: {
     paddingHorizontal: spacing.lg,

@@ -143,7 +143,7 @@ export default function SosFlowScreen() {
   return (
     <Screen
       title={title}
-      rightAction={<BackCircleButton onPress={voltarPerfil} color={theme.icon} borderColor={theme.border} />}
+      leftAction={<BackCircleButton onPress={voltarPerfil} color={theme.icon} borderColor={theme.border} />}
       contentStyle={{ gap: 14 }}
     >
       {/* ───────────────── TIPO ───────────────── */}

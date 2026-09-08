@@ -10,7 +10,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
-import { AppIcon, DInput } from "@/components/ui";
+import { AppIcon, BackCircleButton, DInput } from "@/components/ui";
 import { useDularColors } from "@/hooks/useDularColors";
 import { useGenderTheme } from "@/hooks/useProfileTheme";
 import { radius, spacing, typography } from "@/theme";
@@ -161,20 +161,14 @@ export function RecebimentosScreen() {
   return (
     <SafeAreaView style={s.safe}>
       <View style={s.header}>
-        <Pressable
-          onPress={() => navigation.goBack()}
-          hitSlop={12}
-          accessibilityRole="button"
-          accessibilityLabel="Voltar"
-          style={s.backBtn}
-        >
-          <AppIcon name="ArrowLeft" size={20} color={colors.textPrimary} strokeWidth={2.5} />
-        </Pressable>
+        <BackCircleButton onPress={() => navigation.goBack()} color={theme.icon} borderColor={theme.border} />
         <View style={s.headerTextCol}>
           <Text style={s.title}>Recebimentos</Text>
           <Text style={s.subtitle}>Receber pelo PIX</Text>
         </View>
-        <View style={s.backBtn} />
+        {/* Espaçador para centrar o título. Usava `s.backBtn`, que tem fundo
+            e borda — aparecia como um círculo branco solto à direita. */}
+        <View style={s.headerSpacer} />
       </View>
 
       {carregando ? (
@@ -290,19 +284,15 @@ function makeStyles(colors: ReturnType<typeof useDularColors>) {
       paddingTop: spacing.sm,
       minHeight: 56,
     },
-    backBtn: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      alignItems: "center",
-      justifyContent: "center",
-      backgroundColor: colors.surface,
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
+    headerSpacer: { width: 40, height: 40 },
     headerTextCol: { alignItems: "center", gap: 1 },
-    title: { ...typography.h3, color: colors.textPrimary, fontWeight: "700" },
-    subtitle: { ...typography.caption, color: colors.textSecondary },
+    title: { ...typography.h3, color: colors.textPrimary, fontWeight: "700",
+      textAlign: "center",
+      flex: 1,
+    },
+    subtitle: { ...typography.caption, color: colors.textSecondary,
+      textAlign: "center",
+    },
     scroll: {
       paddingHorizontal: spacing.lg,
       paddingTop: spacing.lg,

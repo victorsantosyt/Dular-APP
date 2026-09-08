@@ -104,7 +104,7 @@ export default function Termos() {
   return (
     <Screen
       title="Termos de uso"
-      rightAction={<BackCircleButton onPress={voltarPerfil} color={theme.icon} borderColor={theme.border} />}
+      leftAction={<BackCircleButton onPress={voltarPerfil} color={theme.icon} borderColor={theme.border} />}
       contentStyle={{ gap: 12 }}
     >
       <View style={card}>

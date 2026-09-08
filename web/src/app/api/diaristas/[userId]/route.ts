@@ -74,6 +74,7 @@ export async function GET(_req: Request, { params }: Params) {
             nome: true,
             status: true,
             avatarUrl: true,
+            createdAt: true,
             habilidades: {
               select: {
                 id: true,
@@ -152,6 +153,13 @@ export async function GET(_req: Request, { params }: Params) {
         verificacao: diarista.verificacao,
         verificado: diarista.verificacao === "VERIFICADO",
         ativo: diarista.ativo,
+        // Tempo de casa para o bloco "Na plataforma" do perfil público. O app
+        // mostrava sempre "0 meses" porque nenhuma das duas rotas que ele
+        // consulta devolvia essa informação.
+        mesesPlataforma: Math.max(
+          0,
+          Math.floor((Date.now() - diarista.user.createdAt.getTime()) / (1000 * 60 * 60 * 24 * 30.44)),
+        ),
         servicosOferecidos: diarista.servicosOferecidos,
         cidade: diarista.cidade,
         estado: diarista.estado,

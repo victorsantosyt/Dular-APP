@@ -8,6 +8,7 @@ import { api } from "@/lib/api";
 import { fetchServicosMinhas } from "@/api/sharedFetcher";
 import type { EmpregadorTabParamList } from "@/navigation/EmpregadorNavigator";
 import { colors, shadows, spacing, typography } from "@/theme";
+import { useGenderTheme } from "@/hooks/useProfileTheme";
 import {
   AgendamentoItem,
   AppointmentCard,
@@ -148,6 +149,8 @@ function mapServicoToAgendamento(servico: ServicoEmpregador): AgendamentoItem {
 }
 
 export function AgendamentosEmpregadorScreen() {
+  // Cor do título seguindo o perfil (ver comentário em `title`).
+  const theme = useGenderTheme();
   const navigation = useNavigation<Navigation>();
   const insets = useSafeAreaInsets();
   const [categoriaAtiva, setCategoriaAtiva] = useState<CategoriaFiltro>("todas");
@@ -212,9 +215,12 @@ export function AgendamentosEmpregadorScreen() {
               <AppIcon name="ArrowLeft" size={20} color={colors.primary} strokeWidth={2.2} />
             </Pressable>
             <View style={s.headerCopy}>
-              <Text style={s.title}>Solicitações</Text>
+              <Text style={[s.title, { color: theme.textAccent }]}>Solicitações</Text>
               <Text style={s.subtitle}>Acompanhe todas as suas solicitações</Text>
             </View>
+            {/* Espaçador do tamanho do botão de voltar, para o título ficar no
+                centro da linha e não no centro do que sobra. */}
+            <View style={s.headerSlot} />
           </View>
 
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.horizontalChips}>
@@ -330,6 +336,7 @@ const s = StyleSheet.create({
     justifyContent: "space-between",
     gap: spacing.md,
   },
+  headerSlot: { width: 42, height: 42 },
   headerCopy: {
     flex: 1,
     gap: 2,
@@ -347,17 +354,28 @@ const s = StyleSheet.create({
   },
 
   title: {
-    color: colors.primaryDark,
+
+    // Título das telas principais: um corpo (h1) e a cor de destaque do
+
+    // PERFIL — roxo no empregador, rosa na diarista, verde no montador.
+
+    // Antes cada tela escolhia um tamanho (h1, h2, h3, 22, 24) e umas
+
+    // usavam texto preto enquanto outras usavam um roxo fixo, que ficaria
+
+    // fora de lugar nos perfis não-roxos.
+
     ...typography.h1,
-    
-    fontWeight: "700",
-    letterSpacing: 0,
+
+    textAlign: "center",
+
   },
   subtitle: {
     color: colors.textSecondary,
     ...typography.caption,
     
     fontWeight: "500",
+    textAlign: "center",
   },
   horizontalChips: {
     gap: 7,

@@ -386,9 +386,6 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
           <View style={s.divider} />
 
           <InfoRow icon="cash-outline" label="Valor">
-            {/* `colors.greenDark` vale #5F35B8 — é ROXO, apesar do nome (token
-                herdado de uma paleta antiga). Ficava roxo no perfil rosa da
-                diarista. Passa a seguir o tema. */}
             <Text style={[s.infoValue, { color: theme.textAccent, fontWeight: "700" }]}>
               {formatPrice(svc.precoFinal)}
             </Text>
@@ -536,7 +533,7 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
           {["CONFIRMADO", "FINALIZADO"].includes(svc.status.toUpperCase()) &&
             (jaAvaliouEmpregador ? (
               <View style={s.doneCard}>
-                <Ionicons name="checkmark-circle" size={24} color={colors.green} />
+                <Ionicons name="checkmark-circle" size={24} color={colors.success} />
                 <Text style={s.doneText}>Avaliação enviada. Obrigada!</Text>
               </View>
             ) : (
@@ -553,7 +550,7 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
             ))}
           {["CONCLUIDO","CONCLUÍDO"].includes(svc.status.toUpperCase()) && (
             <View style={s.doneCard}>
-              <Ionicons name="checkmark-circle" size={24} color={colors.green} />
+              <Ionicons name="checkmark-circle" size={24} color={colors.success} />
               <Text style={s.doneText}>Serviço finalizado. Obrigada!</Text>
             </View>
           )}

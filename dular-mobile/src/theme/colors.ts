@@ -61,10 +61,8 @@ export const colors = {
   info: "#7B4EDB",
   infoLight: "#F3ECFF",
   purpleSoft: "#F8F3FF",
-  greenSoft: "#E8F8ED",
   redSoft: "#FFE8EC",
   yellowSoft: "#FFF5DB",
-  blueSoft: "#F3ECFF",
 
   // Selo de conta verificada (estilo "selo azul"). verifiedGold/Black ficam
   // prontos para os planos assinantes (mensal = gold, anual = black).
@@ -73,9 +71,6 @@ export const colors = {
   verifiedBlack: "#1C1C1E",
 
   // Legacy token names used across older screens.
-  green: "#7B4EDB",
-  greenDark: "#5F35B8",
-  greenLight: "#F8F3FF",
   bg: "#FBFAFF",
   card: "#FFFFFF",
   ink: "#111827",

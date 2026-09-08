@@ -65,10 +65,8 @@ export const darkColors = {
   info: "#7C5CFF",
   infoLight: "#2D1F58",
   purpleSoft: "#2D1F58",
-  greenSoft: "#1A2E1B",
   redSoft: "#3A1414",
   yellowSoft: "#3A2A0F",
-  blueSoft: "#2D1F58",
 
   // Selo de conta verificada (estilo "selo azul"). verifiedGold/Black ficam
   // prontos para os planos assinantes (mensal = gold, anual = black).
@@ -77,9 +75,6 @@ export const darkColors = {
   verifiedBlack: "#0B0B0C",
 
   // Legacy token names used across older screens (verde no light = primary alias)
-  green: "#7C5CFF",
-  greenDark: "#5F35B8",
-  greenLight: "#2D1F58",
   bg: "#1A1035",
   card: "#241848",
   ink: "#F0F0F8",

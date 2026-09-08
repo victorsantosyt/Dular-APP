@@ -56,7 +56,7 @@ export function BenefitsScreen() {
 
         <View style={styles.benefits}>
           <Benefit icon="Calendar" text="Agendamentos rápidos e flexíveis" />
-          <Benefit icon="Heart" text="Recontrate suas favoritas com 1 clique" />
+          <Benefit icon="Heart" text="Recontrate seus favoritos com 1 clique" />
           <Benefit icon="FileText" text="Histórico completo de serviços" />
           <Benefit icon="Star" text="Avaliações e recomendações personalizadas" />
         </View>

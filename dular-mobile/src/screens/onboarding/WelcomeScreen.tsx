@@ -40,7 +40,7 @@ export function WelcomeScreen() {
 
           <View style={styles.titleBlock}>
             <Text style={styles.title} numberOfLines={1}>
-              Bem-vindo ao <Text style={styles.titleAccent}>Dular!</Text>
+              Boas-vindas ao <Text style={styles.titleAccent}>Dular!</Text>
             </Text>
             <Text style={styles.subtitle}>
               Uma forma mais simples, segura e acolhedora de cuidar da rotina da sua casa.

@@ -3,7 +3,6 @@ import {
   ActivityIndicator,
   Animated,
   Pressable,
-  StyleSheet,
   Text,
   TextStyle,
   View,
@@ -200,4 +199,3 @@ function gradientShadow(v: Variant, colors: ThemeColors, tint?: string): ViewSty
   };
 }
 
-const _styles = StyleSheet.create({}); // reserved for future static styles

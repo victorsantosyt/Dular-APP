@@ -94,7 +94,7 @@ export async function buscarCep(cepDigits: string): Promise<{
  * empregador descubra o problema só na confirmação, três passos depois.
  */
 export async function fetchBairrosDaCidade(cidade: string, uf: string): Promise<string[]> {
-  const res = await api.get<{ ok: boolean; bairros?: Array<{ nome: string }> }>("/api/bairros", {
+  const res = await api.get<{ ok: boolean; bairros?: { nome: string }[] }>("/api/bairros", {
     params: { cidade, uf },
   });
   return (res.data?.bairros ?? []).map((b) => b.nome);

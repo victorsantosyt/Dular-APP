@@ -31,10 +31,10 @@ export interface DiaristaPublico {
     faixa: string;
     totalIncidentes: number;
   };
-  servicos: Array<{
+  servicos: {
     tipo: string;
     precoMedio?: number;
-  }>;
+  }[];
   servicosOferecidos: ServicoOferecido[];
   bairros: DiaristaPublicoBairro[];
   cidade: string | null;
@@ -58,12 +58,12 @@ export interface DiaristaPublico {
   perfilCompleto: boolean;
   motivos: string[];
   /** Avaliações recebidas. Lista vazia se o endpoint ainda não retornar o campo. */
-  avaliacoes: Array<{
+  avaliacoes: {
     id: string;
     notaGeral: number;
     comentario: string | null;
     createdAt: string;
-  }>;
+  }[];
 }
 
 export interface UseDiaristaPublicoReturn {
@@ -132,12 +132,12 @@ interface DiaristaPerfilResponse {
     avaliacoes?: {
       media: number;
       total: number;
-      itens: Array<{
+      itens: {
         id: string;
         notaGeral: number;
         comentario: string | null;
         createdAt: string;
-      }>;
+      }[];
     };
   };
 }

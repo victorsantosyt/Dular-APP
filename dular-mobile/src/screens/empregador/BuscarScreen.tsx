@@ -7,7 +7,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
   type ImageSourcePropType,
 } from "react-native";
@@ -25,7 +24,7 @@ import {
   type ProfissionalCardData,
 } from "@/components/ui";
 import { LocationPermissionCard } from "@/components/location/LocationPermissionCard";
-import { colors, radius, shadows, spacing, typography } from "@/theme";
+import { colors, shadows, spacing, typography } from "@/theme";
 import { useGenderTheme } from "@/hooks/useProfileTheme";
 import type { EmpregadorTabParamList } from "@/navigation/EmpregadorNavigator";
 import { useBuscar, type ApiDiarista } from "@/hooks/useBuscar";

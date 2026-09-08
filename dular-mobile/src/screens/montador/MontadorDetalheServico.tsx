@@ -17,7 +17,7 @@ import { useSeguranca } from "@/hooks/useSeguranca";
 import { useProfileTheme } from "@/hooks/useProfileTheme";
 import type { MontadorTabParamList } from "@/navigation/MontadorNavigator";
 import { isStatusEncerrado } from "@/utils/servicoStatus";
-import { colors, radius, shadows, spacing, typography } from "@/theme";
+import { colors, radius, shadows, typography } from "@/theme";
 import {
   canOpenChat,
   formatDateTime,

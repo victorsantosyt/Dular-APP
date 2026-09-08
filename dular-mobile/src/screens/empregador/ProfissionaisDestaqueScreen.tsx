@@ -204,7 +204,9 @@ export function ProfissionaisDestaqueScreen() {
 
   return (
     <SafeAreaView style={s.safe} edges={["top", "left", "right"]}>
-      <DScreenHeader title="Profissionais em destaque" onBack={() => navigation.goBack()} />
+      {/* "Profissionais em destaque" não cabia na linha do cabeçalho e saía
+          cortado; "Destaques" diz a mesma coisa e cabe. */}
+      <DScreenHeader title="Destaques" onBack={() => navigation.goBack()} />
       <View style={s.root}>{content}</View>
     </SafeAreaView>
   );

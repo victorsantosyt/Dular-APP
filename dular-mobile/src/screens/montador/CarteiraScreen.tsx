@@ -1,7 +1,7 @@
 import React, { useMemo } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { useNavigation, useRoute } from "@react-navigation/native";
+import { useNavigation } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 
 import { AppIcon, BackCircleButton, DEmptyState, DErrorState, DLoadingState, DScreen } from "@/components/ui";
@@ -66,7 +66,6 @@ function statusBadge(status: unknown): Badge {
  */
 export default function CarteiraScreen() {
   const navigation = useNavigation<Navigation>();
-  const route = useRoute();
   const theme = useProfileTheme("MONTADOR");
   const { servicos, loading, error, refetch, refreshing } = useMontadorServicos();
 

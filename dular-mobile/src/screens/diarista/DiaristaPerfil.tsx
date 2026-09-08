@@ -63,7 +63,7 @@ import {
 } from "@/api/diaristaApi";
 import { apiMsg } from "@/utils/apiMsg";
 import { useAuth } from "@/stores/authStore";
-import { AppIcon, type AppIconName, DButton, DCard } from "@/components/ui";
+import { AppIcon, DButton, DCard } from "@/components/ui";
 import type { DiaristaTabParamList } from "@/navigation/DiaristaNavigator";
 import { radius, shadows, spacing, typography } from "@/theme";
 import { useDularColors } from "@/hooks/useDularColors";
@@ -138,7 +138,7 @@ function statusCardCopy(
 // Opções de "O que você oferece" vêm da FONTE ÚNICA de categorias.
 const SERVICOS_OPTIONS = OFERTAS_DIARISTA;
 
-const DIAS_SEMANA: Array<{ idx: number; label: string }> = [
+const DIAS_SEMANA: { idx: number; label: string }[] = [
   { idx: 0, label: "Dom" },
   { idx: 1, label: "Seg" },
   { idx: 2, label: "Ter" },
@@ -148,7 +148,7 @@ const DIAS_SEMANA: Array<{ idx: number; label: string }> = [
   { idx: 6, label: "Sáb" },
 ];
 
-const TURNOS: Array<{ key: string; label: string }> = [
+const TURNOS: { key: string; label: string }[] = [
   { key: "MANHA", label: "Manhã" },
   { key: "TARDE", label: "Tarde" },
 ];
@@ -210,13 +210,6 @@ function StarRow({
       ))}
     </View>
   );
-}
-
-function verificacaoSubtitle(status: VerificacaoStatus) {
-  if (status === "APROVADO") return "Profissional verificada";
-  if (status === "PENDENTE") return "Verificação pendente";
-  if (status === "REPROVADO") return "Verificação reprovada";
-  return "Envie seus documentos";
 }
 
 function toCents(value: string): number | null {
@@ -283,73 +276,6 @@ function decimalToInput(value: string | number | null | undefined): string {
  * Um card por nicho ofertado; cada card abre o formulário de valores do nicho.
  * `key` aponta para um campo string de `precosForm`.
  */
-type PrecoFieldKey =
-  | "leve"
-  | "medio"
-  | "pesada"
-  | "babaHora"
-  | "cozinheiraBase"
-  | "cuidadoraHora"
-  | "passadeira"
-  | "lavadeira";
-
-type PrecoNichoConfig = {
-  oferta: ServicoOferecido;
-  icon: AppIconName;
-  label: string;
-  hint: string;
-  campos: Array<{ key: PrecoFieldKey; label: string; placeholder: string }>;
-};
-
-const PRECO_NICHOS: PrecoNichoConfig[] = [
-  {
-    oferta: "DIARISTA",
-    icon: "BrushCleaning",
-    label: "Diarista",
-    hint: "Limpeza por intensidade",
-    campos: [
-      { key: "leve", label: "Limpeza leve (R$)", placeholder: "Ex.: 120,00" },
-      { key: "medio", label: "Limpeza média (R$) — opcional", placeholder: "Ex.: 160,00" },
-      { key: "pesada", label: "Limpeza pesada (R$)", placeholder: "Ex.: 200,00" },
-    ],
-  },
-  {
-    oferta: "BABA",
-    icon: "Baby",
-    label: "Babá",
-    hint: "Cuidado infantil",
-    campos: [{ key: "babaHora", label: "Valor por hora (R$)", placeholder: "Ex.: 35,00" }],
-  },
-  {
-    oferta: "CUIDADORA",
-    icon: "Heart",
-    label: "Cuidadora",
-    hint: "Cuidado a idosos/pessoas",
-    campos: [{ key: "cuidadoraHora", label: "Valor por hora (R$)", placeholder: "Ex.: 40,00" }],
-  },
-  {
-    oferta: "COZINHEIRA",
-    icon: "ChefHat",
-    label: "Cozinheira",
-    hint: "Preparo de refeições",
-    campos: [{ key: "cozinheiraBase", label: "Valor base (R$)", placeholder: "Ex.: 180,00" }],
-  },
-  {
-    oferta: "PASSADEIRA",
-    icon: "Shirt",
-    label: "Passadeira",
-    hint: "Passar roupa",
-    campos: [{ key: "passadeira", label: "Valor por hora (R$)", placeholder: "Ex.: 45,00" }],
-  },
-  {
-    oferta: "LAVADEIRA",
-    icon: "WashingMachine",
-    label: "Lavadeira",
-    hint: "Lavar roupa",
-    campos: [{ key: "lavadeira", label: "Valor por cesto/visita (R$)", placeholder: "Ex.: 50,00" }],
-  },
-];
-
 function joinBairros(bairros: string[]) {
   return bairros.join(", ");
 }
@@ -442,7 +368,6 @@ export default function DiaristaPerfil({ onLogout }: Props) {
     observacao: "",
   });
   // Qual card de nicho está aberto na tela "Valores por intensidade de serviço".
-  const [precoNichoAberto, setPrecoNichoAberto] = useState<ServicoOferecido | null>(null);
   const [disponibilidadeForm, setDisponibilidadeForm] = useState<{ dias: number[]; turnos: string[] }>({
     dias: [],
     turnos: [],

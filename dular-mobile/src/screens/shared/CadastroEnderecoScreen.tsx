@@ -209,7 +209,7 @@ export function CadastroEnderecoScreen({ role, mode = "onboarding", initial, onD
 
   // ── Empregador onboarding: seletor de tipo ──────────────────────────────────
   if (queue === null) {
-    const opcoes: Array<{ key: TipoEscolha; label: string; sub: string; icon: AppIconName }> = [
+    const opcoes: { key: TipoEscolha; label: string; sub: string; icon: AppIconName }[] = [
       { key: "RESIDENCIAL", label: "Residencial", sub: "Sua casa", icon: "Home" },
       { key: "EMPRESARIAL", label: "Empresarial", sub: "Seu trabalho/empresa", icon: "BriefcaseBusiness" },
       { key: "AMBOS", label: "Ambos", sub: "Casa e empresa", icon: "MapPin" },

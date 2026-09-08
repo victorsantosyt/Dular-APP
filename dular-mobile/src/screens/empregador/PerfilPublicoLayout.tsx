@@ -12,10 +12,9 @@
 import React from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { AppIcon } from "@/components/ui";
+import { AppIcon , DAvatar } from "@/components/ui";
 import { useDularColors } from "@/hooks/useDularColors";
 import { getProfileTheme } from "@/theme/profileTheme";
-import { DAvatar } from "@/components/ui";
 import { radius, shadows, spacing, typography } from "@/theme";
 
 export type PerfilHeroData = {
@@ -35,9 +34,9 @@ export type PerfilSection =
   | {
       key: string;
       kind: "infoGrid";
-      cells: Array<{ label: string; value: string; hint?: string | null }>;
+      cells: { label: string; value: string; hint?: string | null }[];
     }
-  | { key: string; kind: "stats"; stats: Array<{ value: string; label: string }> }
+  | { key: string; kind: "stats"; stats: { value: string; label: string }[] }
   | { key: string; kind: "custom"; render: () => React.ReactNode };
 
 type Props = {

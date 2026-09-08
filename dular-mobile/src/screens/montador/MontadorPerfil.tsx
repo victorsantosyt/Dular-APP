@@ -172,7 +172,7 @@ function splitBairros(value: string) {
   );
 }
 
-function totalGanhos(servicos: Array<{ status: string; precoFinal?: number | null; valorEstimado?: number | null }>) {
+function totalGanhos(servicos: { status: string; precoFinal?: number | null; valorEstimado?: number | null }[]) {
   return servicos
     .filter((item) => ["FINALIZADO", "CONCLUIDO"].includes(upperStatus(item.status)))
     .reduce((sum, item) => sum + (item.precoFinal ?? item.valorEstimado ?? 0), 0);

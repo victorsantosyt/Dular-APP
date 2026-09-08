@@ -15,7 +15,7 @@ import { colors, radius, typography } from "@/theme";
  * Fica em um componente só, e não copiado nas telas, porque cada perfil tem
  * a sua tela de Notificações — duas cópias divergiriam.
  */
-const EXEMPLOS: Array<{ label: string; tipo: string; titulo: string; corpo: string }> = [
+const EXEMPLOS: { label: string; tipo: string; titulo: string; corpo: string }[] = [
   {
     label: "Serviço",
     tipo: "SERVICO_SOLICITADO",

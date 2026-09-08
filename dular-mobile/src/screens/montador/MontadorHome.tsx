@@ -30,7 +30,7 @@ export function MontadorHome() {
   const navigation = useNavigation<Navigation>();
   const user = useAuth((state) => state.user);
   const profileTheme = useProfileTheme("MONTADOR");
-  const { servicos, agenda, pendentes, loading, error, refetch } = useMontadorServicos();
+  const { servicos, agenda, loading, error, refetch } = useMontadorServicos();
   const { unreadCount } = useNotificacoes();
   // Mesma apresentação de planos da home da diarista: o montador também tem
   // paywall e estava sem ela.

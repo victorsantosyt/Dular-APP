@@ -108,7 +108,7 @@ function NotificationTabs({
   soft: string;
   onChange: (tab: NotificationTab) => void;
 }) {
-  const tabs: Array<{ id: NotificationTab; label: string }> = [
+  const tabs: { id: NotificationTab; label: string }[] = [
     { id: "todas", label: "Todas" },
     { id: "nao_lidas", label: "Não lidas" },
     { id: "lidas", label: "Lidas" },

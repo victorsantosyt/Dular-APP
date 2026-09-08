@@ -6,13 +6,11 @@ import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import { AppIcon, DAvatar, DBadge, DButton, DCard } from "@/components/ui";
 import { colors, radius, spacing, typography } from "@/theme";
 import { useGenderTheme } from "@/hooks/useProfileTheme";
-import type { ProfileTheme } from "@/theme/profileTheme";
 import type { DiaristaTabParamList } from "@/navigation/DiaristaNavigator";
 import { useAgendamentosDiarista } from "@/hooks/useAgendamentosDiarista";
 import { aceitarServicoDiarista, concluirServicoDiarista } from "@/api/diaristaApi";
 import { diasAteServico } from "@/utils/formatters";
 import { useLimiteDePlano } from "@/hooks/useLimiteDePlano";
-import { useMensagens } from "@/hooks/useMensagens";
 
 type Navigation = BottomTabNavigationProp<DiaristaTabParamList>;
 type Filtro = "hoje" | "amanha" | "semana" | "pendentes" | "confirmados" | "concluidos";
@@ -267,16 +265,9 @@ function AgendamentoDiaristaCard({
 }
 
 export function AgendamentosDiaristaScreen() {
-  const navigation = useNavigation<Navigation>();
   const theme = useGenderTheme("DIARISTA");
   const [activeFilter, setActiveFilter] = useState<Filtro>("hoje");
   const { agendamentos: realAgendamentos, loading, error, refetch } = useAgendamentosDiarista();
-  const { rooms } = useMensagens();
-  const unreadMessages = useMemo(
-    () => rooms.reduce((total, room) => total + Math.max(0, Number(room.naoLidas) || 0), 0),
-    [rooms],
-  );
-  const messagesBadge = unreadMessages > 0 ? unreadMessages : undefined;
 
   const sourceData = realAgendamentos;
 

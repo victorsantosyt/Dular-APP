@@ -6,7 +6,6 @@ import {
   ImageSourcePropType,
   Keyboard,
   KeyboardAvoidingView,
-  Linking,
   Modal,
   Pressable,
   ScrollView,
@@ -24,7 +23,7 @@ import { salvarLocalizacaoAtual } from "@/api/localizacaoApi";
 import { api } from "@/lib/api";
 import { uploadAvatarDataUrl } from "@/api/perfilApi";
 import { fetchEnderecos, type Endereco } from "@/api/enderecoApi";
-import { AppIcon, DButton, DCard, type AppIconName } from "@/components/ui";
+import { AppIcon, DButton, DCard } from "@/components/ui";
 import { useCurrentRegion } from "@/hooks/useCurrentRegion";
 import { usePerfil } from "@/hooks/usePerfil";
 import type { PerfilUsuario } from "@/hooks/usePerfil";
@@ -135,13 +134,6 @@ function normalizeVerification(perfil: ProfileData | null): VerificationStatus |
   return null;
 }
 
-function verificationText(status: VerificationStatus | null) {
-  if (status === "APROVADO" || status === "VERIFICADO") return "Verificação aprovada";
-  if (status === "PENDENTE") return "Verificação pendente";
-  if (status === "REPROVADO") return "Verificação reprovada";
-  return "Não verificado";
-}
-
 function roleLabel(role?: ProfileData["role"] | null) {
   if (role === "EMPREGADOR") return "Empregador";
   if (role === "DIARISTA") return "Diarista";
@@ -165,38 +157,6 @@ function calculateProfileProgress(perfil: ProfileData | null, location: string) 
     completo: done === checks.length,
     faltantes: checks.filter((item) => !item.ok).map((item) => item.label),
   };
-}
-
-type ProfileStyles = ReturnType<typeof makeStyles>;
-
-function InfoLine({
-  icon,
-  label,
-  value,
-  styles,
-  colors,
-  isLast,
-}: {
-  icon: AppIconName;
-  label: string;
-  value: string;
-  styles: ProfileStyles;
-  colors: ThemeColors;
-  isLast?: boolean;
-}) {
-  return (
-    <View style={[styles.infoRow, !isLast && styles.infoDivider]}>
-      <View style={styles.infoIcon}>
-        <AppIcon name={icon} size={18} color={colors.primary} strokeWidth={2.2} />
-      </View>
-      <View style={styles.infoTextWrap}>
-        <Text style={styles.infoLabel}>{label}</Text>
-        <Text style={styles.infoValue} numberOfLines={1}>
-          {value}
-        </Text>
-      </View>
-    </View>
-  );
 }
 
 export default function EmpregadorPerfil({ onLogout }: Props) {
@@ -522,16 +482,7 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
   const avatarUri = avatarLocal ?? profileData?.avatarUrl ?? null;
   const avatarFallback: ImageSourcePropType | null = null;
   const memberSince = formatMemberSince(profileData?.createdAt ?? profileData?.criadoEm);
-  const telefoneText = textValue(profileData?.telefone) ?? "Não informado";
-  const generoText =
-    profileData?.genero === "FEMININO"
-      ? "Feminino"
-      : profileData?.genero === "MASCULINO"
-        ? "Masculino"
-        : "Não informado";
-  const emailText = textValue(profileData?.email) ?? "Não informado";
   const roleText = roleLabel(profileData?.role);
-  const createdAtText = memberSince || "Não informado";
   // "Usuária desde" era fixo aqui — homens viam o feminino. Sem gênero
   // declarado, fica neutro em vez de assumir um.
   const generoPrefixo =
@@ -542,7 +493,6 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
         : "Na Dular desde";
   const locationText =
     enderecoLocation || heroLocation || (locationIsEnabled ? "Localização ativada" : "Localização não informada");
-  const progressLabel = completion.completo ? "Perfil completo" : "Perfil incompleto";
   // Completo não é status a comunicar: a barra segue o tema do perfil. O
   // verde fixo (`colors.success`) era a única coisa fora da paleta ali. O
   // laranja fica para quando falta algo de verdade.

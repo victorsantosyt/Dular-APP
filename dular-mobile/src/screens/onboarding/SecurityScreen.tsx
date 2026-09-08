@@ -133,12 +133,18 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   illustration: {
-    height: 260,
+    // Proporção da própria arte (1619x971 = 5:3) em vez de altura fixa: a
+    // caixa acompanha a largura do aparelho e bate com a imagem, então o
+    // "cover" não corta nada em nenhuma tela. Altura cravada só acertava o
+    // aparelho onde foi calibrada; nas outras sobrava faixa ou cortava a arte.
+    width: "100%",
+    aspectRatio: 5 / 3,
+    maxHeight: 300,
     borderRadius: radius.xxl,
     backgroundColor: colors.lavenderSoft,
     overflow: "hidden",
-    borderWidth: 1,
-    borderColor: colors.lavenderStrong,
+    // Sem borda: a linha clara de 1px aparecia como moldura
+    // em volta da ilustração.
   },
   heroImage: {
     width: "100%",

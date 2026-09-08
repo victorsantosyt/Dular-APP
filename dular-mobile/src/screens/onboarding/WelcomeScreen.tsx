@@ -39,7 +39,7 @@ export function WelcomeScreen() {
           </View>
 
           <View style={styles.titleBlock}>
-            <Text style={styles.title}>
+            <Text style={styles.title} numberOfLines={1}>
               Bem-vindo ao <Text style={styles.titleAccent}>Dular!</Text>
             </Text>
             <Text style={styles.subtitle}>
@@ -119,9 +119,10 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   title: {
-    ...typography.h1,
-    
-    fontWeight: "700",
+    // Token compartilhado pelas quatro telas do onboarding — ver
+    // `onboardingTitle` em theme/typography. Antes cada tela definia o
+    // próprio corpo e eles divergiram.
+    ...typography.onboardingTitle,
     color: colors.textPrimary,
     textAlign: "center",
   },

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import Svg, { Path } from "react-native-svg";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import * as WebBrowser from "expo-web-browser";
@@ -134,26 +135,54 @@ function StepperComponent({ step, total }: { step: number; total: number }) {
   );
 }
 
+/**
+ * Marca oficial do Google (o "G" de quatro cores), em SVG.
+ *
+ * Antes era montada à mão: quatro quadrados coloridos num círculo com a letra
+ * "G" por cima. De longe lembrava, de perto não era o logo — as cores ficavam
+ * em blocos retos em vez do traço curvo, e a letra era a fonte do app, não a
+ * do Google. Ambas as marcas têm regras de uso; reproduzi-las aproximadamente
+ * é justamente o que elas proíbem.
+ */
 function GoogleLogo() {
   return (
     <View style={styles.googleLogoOuter}>
-      <View style={styles.googleLogoInner}>
-        <View style={[styles.googleQuadrant, styles.googleQuadrantTL]} />
-        <View style={[styles.googleQuadrant, styles.googleQuadrantTR]} />
-        <View style={[styles.googleQuadrant, styles.googleQuadrantBL]} />
-        <View style={[styles.googleQuadrant, styles.googleQuadrantBR]} />
-        <View style={styles.googleCenter}>
-          <Text style={styles.googleG}>G</Text>
-        </View>
-      </View>
+      <Svg width={18} height={18} viewBox="0 0 48 48">
+        <Path
+          fill="#4285F4"
+          d="M45.12 24.5c0-1.56-.14-3.06-.4-4.5H24v8.51h11.84c-.51 2.75-2.06 5.08-4.39 6.64v5.52h7.11c4.16-3.83 6.56-9.47 6.56-16.17z"
+        />
+        <Path
+          fill="#34A853"
+          d="M24 46c5.94 0 10.92-1.97 14.56-5.33l-7.11-5.52c-1.97 1.32-4.49 2.1-7.45 2.1-5.73 0-10.58-3.87-12.31-9.07H4.34v5.7C7.96 41.07 15.4 46 24 46z"
+        />
+        <Path
+          fill="#FBBC05"
+          d="M11.69 28.18C11.25 26.86 11 25.45 11 24s.25-2.86.69-4.18v-5.7H4.34C2.85 17.09 2 20.45 2 24s.85 6.91 2.34 9.88l7.35-5.7z"
+        />
+        <Path
+          fill="#EA4335"
+          d="M24 10.75c3.23 0 6.13 1.11 8.41 3.29l6.31-6.31C34.91 4.18 29.93 2 24 2 15.4 2 7.96 6.93 4.34 14.12l7.35 5.7c1.73-5.2 6.58-9.07 12.31-9.07z"
+        />
+      </Svg>
     </View>
   );
 }
 
+/**
+ * Maçã oficial da Apple, em SVG. O `logo-apple` do Ionicons é um desenho
+ * aproximado — a folha e a mordida têm proporções próprias, diferentes da
+ * marca registrada.
+ */
 function AppleLogo() {
   return (
     <View style={styles.appleLogoBox}>
-      <Ionicons name="logo-apple" size={19} color={colors.white} />
+      <Svg width={15} height={18} viewBox="0 0 814 1000">
+        <Path
+          fill={colors.black}
+          d="M788.1 340.9c-5.8 4.5-108.2 62.2-108.2 190.5 0 148.4 130.3 200.9 134.2 202.2-.6 3.2-20.7 71.9-68.7 141.9-42.8 61.6-87.5 123.1-155.5 123.1s-85.5-39.5-164-39.5c-76.5 0-103.7 40.8-165.9 40.8s-105.6-57-155.5-127C46.7 790.7 0 663 0 541.8c0-194.4 126.4-297.5 250.8-297.5 66.1 0 121.2 43.4 162.7 43.4 39.5 0 101.1-46 176.3-46 28.5 0 130.9 2.6 198.3 99.2zm-234-181.5c31.1-36.9 53.1-88.1 53.1-139.3 0-7.1-.6-14.3-1.9-20.1-50.6 1.9-110.8 33.7-147.1 75.8-28.5 32.4-55.1 83.6-55.1 135.5 0 7.8 1.3 15.6 1.9 18.1 3.2.6 8.4 1.3 13.6 1.3 45.4 0 102.5-30.4 135.5-71.3z"
+        />
+      </Svg>
     </View>
   );
 }
@@ -353,8 +382,8 @@ export function LoginScreen() {
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <View style={styles.titleBlock}>
-          <Text style={styles.title}>
-            Vamos fazer seu login <Text style={styles.titleAccent}>para continuar</Text>
+          <Text style={styles.title} numberOfLines={1}>
+            Faça seu <Text style={styles.titleAccent}>login</Text>
           </Text>
           <Text style={styles.subtitle}>
             Entre com uma conta segura para acessar seu perfil no Dular.
@@ -451,15 +480,19 @@ function LoginCard({
 }) {
   return (
     <DCard style={styles.loginCard} onPress={disabled ? undefined : onPress}>
+      {/* Marca + rótulo centralizados como um bloco só. A seta saiu junto:
+          ela sugere "abrir uma tela", e estes botões disparam uma ação de
+          login — e, com o conteúdo centralizado, um elemento preso à direita
+          deixava o grupo fora de eixo. O indicador de carregamento entra no
+          lugar da marca, mantendo o bloco no mesmo ponto. */}
       <View style={styles.loginRow}>
-        <View style={styles.loginLabelRow}>
-          {provider === "apple" ? <AppleLogo /> : <GoogleLogo />}
-          <Text style={styles.loginLabel}>{label}</Text>
-        </View>
         {loading ? (
           <ActivityIndicator color={colors.primary} />
         ) : (
-          <AppIcon name="ChevronRight" size={20} color={colors.textSecondary} />
+          <>
+            {provider === "apple" ? <AppleLogo /> : <GoogleLogo />}
+            <Text style={styles.loginLabel}>{label}</Text>
+          </>
         )}
       </View>
     </DCard>
@@ -574,11 +607,11 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   title: {
-    textAlign: "center",
-    ...typography.h1,
-    
-    fontWeight: "700",
+    // Mesmo token das telas de onboarding: um só lugar define o título do
+    // fluxo inteiro, do primeiro passo até o login.
+    ...typography.onboardingTitle,
     color: colors.textPrimary,
+    textAlign: "center",
   },
   titleAccent: {
     color: colors.accent,
@@ -614,78 +647,26 @@ const styles = StyleSheet.create({
   loginRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-  },
-  loginLabelRow: {
-    flexDirection: "row",
-    alignItems: "center",
+    justifyContent: "center",
     gap: spacing.md,
+    minHeight: 24,
   },
   appleLogoBox: {
+    // Sem caixa preta: o botão do Google mostra a marca solta sobre o cartão
+    // claro, e o quadrado escuro em volta da maçã destoava. A marca da Apple
+    // sobre fundo claro é usada em preto, sem contorno.
     width: 24,
     height: 24,
-    backgroundColor: colors.black,
-    borderRadius: 6,
     alignItems: "center",
     justifyContent: "center",
   },
   googleLogoOuter: {
+    // Sem círculo nem borda: o "G" já é a marca completa e o anel branco só
+    // criava uma diferença de tratamento em relação ao botão da Apple.
     width: 24,
     height: 24,
-    borderRadius: 12,
-    backgroundColor: colors.white,
-    borderWidth: 1,
-    borderColor: colors.border,
     alignItems: "center",
     justifyContent: "center",
-    overflow: "hidden",
-  },
-  googleLogoInner: {
-    width: 24,
-    height: 24,
-    position: "relative",
-  },
-  googleQuadrant: {
-    position: "absolute",
-    width: 12,
-    height: 12,
-  },
-  googleQuadrantTL: {
-    top: 0,
-    left: 0,
-    backgroundColor: colors.googleBlue,
-  },
-  googleQuadrantTR: {
-    top: 0,
-    right: 0,
-    backgroundColor: colors.googleRed,
-  },
-  googleQuadrantBL: {
-    bottom: 0,
-    left: 0,
-    backgroundColor: colors.googleGreen,
-  },
-  googleQuadrantBR: {
-    bottom: 0,
-    right: 0,
-    backgroundColor: colors.googleYellow,
-  },
-  googleCenter: {
-    position: "absolute",
-    top: 4,
-    left: 4,
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: colors.white,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  googleG: {
-    ...typography.caption,
-    fontWeight: "700",
-    color: colors.googleBlue,
-    
   },
   loginLabel: {
     ...typography.bodySmMedium,

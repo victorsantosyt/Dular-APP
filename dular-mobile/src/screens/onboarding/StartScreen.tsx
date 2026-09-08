@@ -50,7 +50,7 @@ export function StartScreen() {
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <View style={styles.titleBlock}>
           <Text style={styles.title} numberOfLines={1}>
-            Pronta para mais <Text style={styles.titleAccent}>liberdade</Text>?
+            Hora de ter mais <Text style={styles.titleAccent}>liberdade</Text>
           </Text>
           <Text style={styles.subtitle}>
             Comece escolhendo o perfil que combina com a sua jornada no Dular.

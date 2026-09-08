@@ -54,7 +54,7 @@ const empregadorFeatures: Feature[] = [
 ];
 
 const diaristaFeatures: Feature[] = [
-  { icon: "Star", text: "Seja encontrada" },
+  { icon: "Star", text: "Apareça na busca" },
   { icon: "Calendar", text: "Agenda na sua região" },
   { icon: "Wallet", text: "Ganhos transparentes" },
   { icon: "BarChart3", text: "Seu desempenho" },

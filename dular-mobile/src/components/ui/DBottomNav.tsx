@@ -45,7 +45,9 @@ const DIARISTA_ITEMS: Item[] = [
 ];
 
 const MONTADOR_ITEMS: Item[] = [
-  { id: "home",     label: "Home",      icon: "Home"          },
+  // "Início", como nos outros dois perfis — era o único rótulo em inglês
+  // da barra, no meio de um app todo em português.
+  { id: "home",     label: "Início",    icon: "Home"          },
   { id: "search",   label: "Agenda",    icon: "Calendar"      },
   { id: "new",      label: "Solicitações", icon: "BriefcaseBusiness" },
   { id: "messages", label: "Mensagens", icon: "MessageCircle" },

@@ -144,7 +144,7 @@ export function MensagensEmpregadorScreen() {
               <DEmptyState
                 icon="MessageCircle"
                 title="Nenhuma conversa ainda"
-                subtitle="O chat abre quando o serviço é aceito e fica registrado no Dular — combine tudo por aqui, sem passar telefone ou pagamento por fora."
+                subtitle="Converse pelo app: fica tudo registrado."
                 accentColor={colors.primary}
                 softBg={colors.lavenderSoft}
               />

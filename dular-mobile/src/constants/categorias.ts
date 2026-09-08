@@ -38,6 +38,13 @@ export type Categoria = {
   oferta: ServicoOferecido | null;
   label: string;
   subtitle: string;
+  /**
+   * Versão curta do subtítulo, para o card compacto da Busca — ali a área de
+   * texto tem 76px e fica POR CIMA da foto: com a frase inteira o texto
+   * quebrava em três linhas e tapava a pessoa da imagem. Nas listas com
+   * espaço (Categorias, gate de nichos) segue valendo o `subtitle`.
+   */
+  subtitleCurto: string;
   icon: AppIconName;
   /** Cor de fundo do card de categoria (busca do empregador). */
   bg: string;
@@ -48,13 +55,13 @@ export type Categoria = {
 };
 
 export const CATEGORIAS: Categoria[] = [
-  { key: "diarista",   tipo: "FAXINA",      oferta: "DIARISTA",   label: "Diarista",   subtitle: "Limpeza e organização",   icon: "BrushCleaning",   bg: "#FFF1F5", fg: "#F7658B", profissional: "diarista" },
-  { key: "baba",       tipo: "BABA",        oferta: "BABA",       label: "Babá",       subtitle: "Cuidados com crianças",    icon: "Baby",           bg: "#F2ECFF", fg: "#7B5CFA", profissional: "diarista" },
-  { key: "cuidadora",  tipo: "CUIDADORA",   oferta: "CUIDADORA",  label: "Cuidadora",  subtitle: "Cuidados a idosos/pessoas", icon: "Heart",          bg: "#EAF7EF", fg: "#2BA15F", profissional: "diarista" },
-  { key: "cozinheira", tipo: "COZINHEIRA",  oferta: "COZINHEIRA", label: "Cozinheira", subtitle: "Preparo de refeições",     icon: "ChefHat",        bg: "#FFF0E2", fg: "#F47A1F", profissional: "diarista" },
-  { key: "passadeira", tipo: "PASSA_ROUPA", oferta: "PASSADEIRA", label: "Passadeira", subtitle: "Passar roupa",             icon: "Shirt",          bg: "#EAF0FF", fg: "#5566E0", profissional: "diarista" },
-  { key: "lavadeira",  tipo: "LAVADEIRA",   oferta: "LAVADEIRA",  label: "Lavadeira",  subtitle: "Lavar roupa",              icon: "WashingMachine", bg: "#E6F7F8", fg: "#1AA6B7", profissional: "diarista" },
-  { key: "montador",   tipo: "MONTADOR",    oferta: null,         label: "Montador",   subtitle: "Montagem e reparos",       icon: "Wrench",         bg: "#E3F4EF", fg: "#2E6E61", profissional: "montador" },
+  { key: "diarista",   tipo: "FAXINA",      oferta: "DIARISTA",   label: "Diarista",   subtitle: "Limpeza e organização", subtitleCurto: "Limpeza",   icon: "BrushCleaning",   bg: "#FFF1F5", fg: "#F7658B", profissional: "diarista" },
+  { key: "baba",       tipo: "BABA",        oferta: "BABA",       label: "Babá",       subtitle: "Cuidados com crianças", subtitleCurto: "Crianças",    icon: "Baby",           bg: "#F2ECFF", fg: "#7B5CFA", profissional: "diarista" },
+  { key: "cuidadora",  tipo: "CUIDADORA",   oferta: "CUIDADORA",  label: "Cuidadora",  subtitle: "Cuidados a idosos/pessoas", subtitleCurto: "Idosos", icon: "Heart",          bg: "#EAF7EF", fg: "#2BA15F", profissional: "diarista" },
+  { key: "cozinheira", tipo: "COZINHEIRA",  oferta: "COZINHEIRA", label: "Cozinheira", subtitle: "Preparo de refeições", subtitleCurto: "Refeições",     icon: "ChefHat",        bg: "#FFF0E2", fg: "#F47A1F", profissional: "diarista" },
+  { key: "passadeira", tipo: "PASSA_ROUPA", oferta: "PASSADEIRA", label: "Passadeira", subtitle: "Passar roupa", subtitleCurto: "Passar",             icon: "Shirt",          bg: "#EAF0FF", fg: "#5566E0", profissional: "diarista" },
+  { key: "lavadeira",  tipo: "LAVADEIRA",   oferta: "LAVADEIRA",  label: "Lavadeira",  subtitle: "Lavar roupa", subtitleCurto: "Lavar",              icon: "WashingMachine", bg: "#E6F7F8", fg: "#1AA6B7", profissional: "diarista" },
+  { key: "montador",   tipo: "MONTADOR",    oferta: null,         label: "Montador",   subtitle: "Montagem e reparos", subtitleCurto: "Montagem",       icon: "Wrench",         bg: "#E3F4EF", fg: "#2E6E61", profissional: "montador" },
 ];
 
 /** Categorias atendidas pelo perfil da profissional de casa (diarista). */

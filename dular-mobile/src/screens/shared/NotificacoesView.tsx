@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
-import { AppIcon, DEmptyState, DLoadingState, DScreen, type AppIconName } from "@/components/ui";
+import { AppIcon, BackCircleButton, DEmptyState, DLoadingState, DScreen, type AppIconName } from "@/components/ui";
 import { useNotificacoes } from "@/hooks/useNotificacoes";
 import type { Notificacao } from "@/api/notificacoesApi";
 import type { ProfileTheme } from "@/theme/profileTheme";
@@ -214,17 +214,17 @@ export function NotificacoesView({ theme, onVoltar, onOpenChat, onOpenServico }:
 
   return (
     <DScreen scroll withBottomPadding backgroundColor={theme.background} contentContainerStyle={styles.scroll}>
-      {/* Header: sair (esq) · "Notificações" (centro) · sino (dir), alinhados. */}
+      {/* Header: voltar (esq) · "Notificações" (centro) · espaçador (dir).
+
+          O sino saiu: um sino DENTRO da tela de notificações não leva a
+          lugar nenhum — a pessoa já está nelas. O espaçador fica, com a
+          mesma largura do botão, para o título ficar no centro da linha. */}
       <View style={styles.header}>
-        <Pressable onPress={onVoltar} hitSlop={12} style={({ pressed }) => [styles.headerSide, pressed && styles.pressed]}>
-          <AppIcon name="ArrowLeft" size={23} color={theme.primary} strokeWidth={2.4} />
-        </Pressable>
-        <Text style={styles.title} numberOfLines={1}>
+        <BackCircleButton onPress={onVoltar} color={theme.icon} borderColor={theme.border} />
+        <Text style={[styles.title, { color: theme.textAccent }]} numberOfLines={1}>
           Notificações
         </Text>
-        <View style={styles.headerSide}>
-          <AppIcon name="Bell" size={22} color={theme.primary} strokeWidth={2.4} />
-        </View>
+        <View style={styles.headerSide} />
       </View>
 
       <NotificationTabs
@@ -271,12 +271,12 @@ export default NotificacoesView;
 const styles = StyleSheet.create({
   scroll: { gap: 14 },
   header: { minHeight: 52, flexDirection: "row", alignItems: "center" },
-  headerSide: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
+  /** Mesma largura do BackCircleButton, para centrar o título. */
+  headerSide: { width: 42, height: 42 },
   title: {
     // Título de tela secundária: h2 e cor de destaque do perfil.
     ...typography.h2,
     flex: 1,
-    color: colors.textPrimary,
     fontWeight: "700",
     textAlign: "center",
   },

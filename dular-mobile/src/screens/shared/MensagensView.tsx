@@ -187,6 +187,10 @@ const s = StyleSheet.create({
     // fora de lugar nos perfis não-roxos.
     ...typography.h1,
     textAlign: "center",
+    // O cabeçalho aqui é uma LINHA e o título é filho único: sem `flex: 1`
+    // ele tem só a largura do texto, e o `textAlign: center` não tem onde
+    // centralizar. (Nas outras telas o pai é coluna e não precisa disto.)
+    flex: 1,
   },
   infoCard: {
     borderRadius: radius.lg,

@@ -42,12 +42,8 @@ export function BenefitsScreen() {
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <View style={styles.titleBlock}>
-          {/* `\u00A0` (espaço inseparável) prende as duas últimas palavras:
-              sem ele a última caía sozinha na segunda linha. Não é quebra
-              fixa — se couber tudo numa linha, não quebra; quando falta
-              espaço, a quebra acontece antes do par em vez de deixar órfã. */}
-          <Text style={styles.title}>
-            Mais <Text style={styles.titleAccent}>praticidade</Text> para o{"\u00A0"}seu{"\u00A0"}dia
+          <Text style={styles.title} numberOfLines={1}>
+            Mais <Text style={styles.titleAccent}>praticidade</Text> para você
           </Text>
           <Text style={styles.subtitle}>
             O Dular organiza seus serviços e mantém tudo acessível em poucos toques.
@@ -122,12 +118,15 @@ const styles = StyleSheet.create({
   },
   titleBlock: {
     gap: spacing.sm,
+    alignItems: "center",
   },
   title: {
-    ...typography.h1,
-    
-    fontWeight: "700",
+    // Token compartilhado pelas quatro telas do onboarding — ver
+    // `onboardingTitle` em theme/typography. Antes cada tela definia o
+    // próprio corpo e eles divergiram.
+    ...typography.onboardingTitle,
     color: colors.textPrimary,
+    textAlign: "center",
   },
   titleAccent: {
     color: colors.accent,
@@ -135,6 +134,7 @@ const styles = StyleSheet.create({
   subtitle: {
     ...typography.bodyMd,
     color: colors.textSecondary,
+    textAlign: "center",
   },
   illustration: {
     // Proporção da própria arte (1619x971 = 5:3) em vez de altura fixa: a

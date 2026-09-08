@@ -348,7 +348,7 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
             hitSlop={8}
             style={{ flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 1 }}
           >
-            <Text style={s.title} numberOfLines={1}>{protocoloServico(svc.id)}</Text>
+            <Text style={[s.title, { color: theme.textAccent }]} numberOfLines={1}>{protocoloServico(svc.id)}</Text>
             <Ionicons name="copy-outline" size={16} color={colors.sub} />
           </Pressable>
           <DularBadge text={statusLabel(svc.status)} variant={statusVariant(svc.status)} />
@@ -650,9 +650,10 @@ const s = StyleSheet.create({
     justifyContent: "space-between",
   },
   title: {
-    color: colors.ink,
-    fontSize: 22,
-    lineHeight: 27,
+    // Título de tela secundária: h2 e cor de destaque do perfil. Antes cada
+    // uma escolhia entre h2, h3, 24, 22, bodyMedium ou `title`, com texto
+    // preto — seis tratamentos para a mesma função.
+    ...typography.h2,
     fontWeight: "700",
     textAlign: "center",
   },

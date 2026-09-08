@@ -273,12 +273,11 @@ const styles = StyleSheet.create({
   header: { minHeight: 52, flexDirection: "row", alignItems: "center" },
   headerSide: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
   title: {
+    // Título de tela secundária: h2 e cor de destaque do perfil.
+    ...typography.h2,
     flex: 1,
     color: colors.textPrimary,
-    fontSize: 22,
-    lineHeight: 27,
     fontWeight: "700",
-    letterSpacing: 0,
     textAlign: "center",
   },
   markRow: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 6, paddingHorizontal: 2 },

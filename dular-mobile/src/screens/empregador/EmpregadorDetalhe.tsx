@@ -735,12 +735,6 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
-  title: {
-    color: colors.ink,
-    fontSize: 22,
-    lineHeight: 27,
-    fontWeight: "700",
-  },
 
   card: {
     backgroundColor: colors.card,

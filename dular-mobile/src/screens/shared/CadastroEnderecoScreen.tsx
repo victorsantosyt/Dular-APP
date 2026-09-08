@@ -411,7 +411,11 @@ function makeStyles(colors: ReturnType<typeof useDularColors>) {
       alignItems: "center",
       justifyContent: "center",
     },
-    headerTitle: { flex: 1, textAlign: "center", ...typography.bodyMedium, color: colors.textPrimary, fontWeight: "700" },
+    headerTitle: {
+    // Título de tela secundária: h2 e cor de destaque do perfil.
+      ...typography.h2,
+      flex: 1, textAlign: "center",  color: colors.textPrimary, fontWeight: "700"
+    },
     scroll: { paddingHorizontal: spacing.screenPadding, paddingTop: spacing.sm, paddingBottom: 48, gap: 6 },
     title: { ...typography.h2, color: colors.textPrimary, fontWeight: "800", marginTop: spacing.lg,
       textAlign: "center",

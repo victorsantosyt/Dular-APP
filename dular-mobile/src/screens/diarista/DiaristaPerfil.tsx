@@ -1304,7 +1304,7 @@ export default function DiaristaPerfil({ onLogout }: Props) {
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.scroll}>
           <View style={s.header}>
             <View style={s.headerSide} />
-            <Text style={s.title}>Perfil</Text>
+            <Text style={[s.title, { color: theme.textAccent }]}>Perfil</Text>
             <View style={s.headerSide} />
           </View>
 
@@ -2333,11 +2333,11 @@ function makeStyles(colors: ThemeColors, theme: ProfileTheme) {
       width: 48,
     },
     title: {
-      color: colors.textPrimary,
-      fontSize: 24,
-      lineHeight: 29,
+    // Título de aba principal: mesmo corpo (h1) e cor de destaque do perfil
+    // das outras abas. Estava em 24 fixo com texto preto, destoando de
+    // Buscar/Solicitações/Mensagens.
+      ...typography.h1,
       fontWeight: "700",
-      letterSpacing: 0,
       textAlign: "center",
     },
     centerCard: {

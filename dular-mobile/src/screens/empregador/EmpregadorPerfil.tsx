@@ -30,8 +30,9 @@ import { usePerfil } from "@/hooks/usePerfil";
 import type { PerfilUsuario } from "@/hooks/usePerfil";
 import type { EmpregadorTabParamList } from "@/navigation/EmpregadorNavigator";
 import { useAuth } from "@/stores/authStore";
-import { radius, shadows, spacing } from "@/theme";
+import { radius, shadows, spacing, typography } from "@/theme";
 import { useDularColors } from "@/hooks/useDularColors";
+import { useGenderTheme } from "@/hooks/useProfileTheme";
 import { platformSelect } from "@/utils/platform";
 import {
   ProfileHeroCard,
@@ -201,6 +202,9 @@ function InfoLine({
 export default function EmpregadorPerfil({ onLogout }: Props) {
   const navigation = useNavigation<Navigation>();
   const colors = useDularColors();
+  // Cor de destaque do perfil para o título da aba (useDularColors só traz
+  // a paleta clara/escura, sem o acento do papel).
+  const tema = useGenderTheme();
   const insets = useSafeAreaInsets();
   const s = useMemo(() => makeStyles(colors), [colors]);
   const setUser = useAuth((state) => state.setUser);
@@ -566,7 +570,7 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.scroll}>
           <View style={s.header}>
             <View style={s.headerSide} />
-            <Text style={s.title}>Perfil</Text>
+            <Text style={[s.title, { color: tema.textAccent }]}>Perfil</Text>
             <View style={s.headerSide} />
           </View>
 
@@ -864,11 +868,11 @@ function makeStyles(colors: ThemeColors) {
     width: 48,
   },
   title: {
-    color: colors.textPrimary,
-    fontSize: 24,
-    lineHeight: 29,
+    // Título de aba principal: mesmo corpo (h1) e cor de destaque do perfil
+    // das outras abas. Estava em 24 fixo com texto preto, destoando de
+    // Buscar/Solicitações/Mensagens.
+    ...typography.h1,
     fontWeight: "700",
-    letterSpacing: 0,
     textAlign: "center",
   },
   centerCard: {

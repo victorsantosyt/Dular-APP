@@ -928,7 +928,7 @@ export default function MontadorPerfil() {
       refreshTintColor={profileTheme.primary}
     >
       <View style={styles.header}>
-        <Text style={styles.title}>Perfil</Text>
+        <Text style={[styles.title, { color: profileTheme.textAccent }]}>Perfil</Text>
       </View>
 
       <LinearGradient colors={profileTheme.gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
@@ -1320,11 +1320,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   title: {
-    color: colors.textPrimary,
-    fontSize: 24,
-    lineHeight: 29,
+    // Título de aba principal: mesmo corpo (h1) e cor de destaque do perfil
+    // das outras abas. Estava em 24 fixo com texto preto, destoando de
+    // Buscar/Solicitações/Mensagens.
+    ...typography.h1,
     fontWeight: "700",
-    letterSpacing: 0,
     textAlign: "center",
   },
   hero: {

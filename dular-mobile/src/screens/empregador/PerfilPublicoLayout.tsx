@@ -258,9 +258,10 @@ function makeStyles({
       borderColor: colors.border,
     },
     headerTitle: {
+    // Título de tela secundária: h2 e cor de destaque do perfil.
+      ...typography.h2,
       flex: 1,
       textAlign: "center",
-      ...typography.bodyMedium,
       color: colors.textPrimary,
       fontWeight: "700",
     },

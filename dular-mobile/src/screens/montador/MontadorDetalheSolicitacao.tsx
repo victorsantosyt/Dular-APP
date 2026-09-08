@@ -83,7 +83,7 @@ export default function MontadorDetalheSolicitacao({ route, navigation }: Props)
     <DScreen scroll withBottomPadding backgroundColor={profileTheme.background} contentContainerStyle={styles.scroll}>
       <View style={styles.header}>
         <BackCircleButton onPress={() => navigation.goBack()} color={profileTheme.icon} borderColor={profileTheme.border} />
-        <Text style={styles.title}>Detalhe da solicitação</Text>
+        <Text style={[styles.title, { color: profileTheme.textAccent }]}>Detalhe da solicitação</Text>
         {/* Espaçador: sem ele o título centraliza no espaço que sobra
             e fica deslocado para a direita. */}
         <View style={styles.headerSlot} />
@@ -181,9 +181,11 @@ const styles = StyleSheet.create({
   /** Mesma largura do BackCircleButton, para centrar o título. */
   headerSlot: { width: 42, height: 42 },
   title: {
+    // Título de tela secundária: h2 e cor de destaque do perfil. Antes cada
+    // uma escolhia entre h2, h3, 24, 22, bodyMedium ou `title`, com texto
+    // preto — seis tratamentos para a mesma função.
+    ...typography.h2,
     flex: 1,
-    ...typography.bodyMedium,
-    color: colors.textPrimary,
     fontWeight: "700",
     textAlign: "center",
   },

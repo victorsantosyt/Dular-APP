@@ -286,7 +286,10 @@ function makeStyles(colors: ReturnType<typeof useDularColors>) {
     },
     headerSpacer: { width: 40, height: 40 },
     headerTextCol: { alignItems: "center", gap: 1 },
-    title: { ...typography.h3, color: colors.textPrimary, fontWeight: "700" },
+    title: { ...typography.h3, color: colors.textPrimary, fontWeight: "700",
+      textAlign: "center",
+      flex: 1,
+    },
     subtitle: { ...typography.caption, color: colors.textSecondary },
     scroll: {
       paddingHorizontal: spacing.lg,

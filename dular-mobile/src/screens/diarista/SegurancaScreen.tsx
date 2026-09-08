@@ -86,6 +86,9 @@ export default function SegurancaScreen() {
       <View style={s.header}>
         <BackCircleButton onPress={() => navigation.goBack()} />
         <Text style={s.headerTitle}>Segurança do Serviço</Text>
+        {/* Espaçador: sem ele o título centraliza no espaço que sobra
+            e fica deslocado para a direita. */}
+        <View style={s.headerSlot} />
       </View>
 
       <ScrollView
@@ -175,10 +178,13 @@ const s = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
+  /** Mesma largura do BackCircleButton, para centrar o título. */
+  headerSlot: { width: 42, height: 42 },
   headerTitle: {
     ...typography.h3,
     color: colors.textPrimary,
     flex: 1,
+    textAlign: "center",
   },
   scroll: {
     paddingHorizontal: spacing.lg,

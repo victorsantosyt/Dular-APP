@@ -418,6 +418,7 @@ const styles = StyleSheet.create({
     ...typography.caption,
     color: colors.textSecondary,
     marginTop: 2,
+    textAlign: "center",
   },
   calendarButton: {
     width: 40,

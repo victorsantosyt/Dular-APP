@@ -288,6 +288,7 @@ const s = StyleSheet.create({
     
     fontWeight: "700",
     letterSpacing: 0,
+    textAlign: "center",
   },
   subtitle: {
     marginTop: 6,
@@ -295,6 +296,7 @@ const s = StyleSheet.create({
     ...typography.bodySm,
     
     fontWeight: "500",
+    textAlign: "center",
   },
   serviceCard: {
     minHeight: 72,

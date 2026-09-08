@@ -580,12 +580,14 @@ const s = StyleSheet.create({
     fontWeight: "700",
     color: colors.textPrimary,
     letterSpacing: 0,
+    textAlign: "center",
   },
   subtitle: {
     ...typography.bodySm,
     color: colors.textSecondary,
     fontWeight: "500",
     marginTop: 6,
+    textAlign: "center",
   },
 
   searchRow: {

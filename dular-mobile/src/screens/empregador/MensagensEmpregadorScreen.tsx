@@ -193,6 +193,7 @@ const s = StyleSheet.create({
 
     fontWeight: "700",
     letterSpacing: 0,
+    textAlign: "center",
   },
   subtitle: {
     maxWidth: 275,
@@ -200,6 +201,7 @@ const s = StyleSheet.create({
     ...typography.bodySm,
     
     fontWeight: "500",
+    textAlign: "center",
   },
 
   infoCard: {

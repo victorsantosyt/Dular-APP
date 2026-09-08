@@ -1,6 +1,7 @@
 import React, { ReactNode } from "react";
 import { LinearGradient } from "expo-linear-gradient";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View, ViewStyle } from "react-native";
+import { BackCircleButton } from "@/components/ui";
 import { AppIcon, type AppIconName } from "@/components/ui/AppIcon";
 import { DCard } from "@/components/ui/DCard";
 import { colors, radius, shadows, spacing, typography } from "@/theme";
@@ -20,9 +21,10 @@ export function StepHeader({ title, subtitle, step, total, onBack, theme }: Step
   return (
     <View style={s.header}>
       <View style={s.headerTop}>
-        <Pressable onPress={onBack} style={s.backButton} hitSlop={10}>
-          <AppIcon name="ArrowLeft" size={21} color={colors.textPrimary} />
-        </Pressable>
+        {/* Mesmo botão do resto do app. O daqui era 40px (contra 42), com
+            sombra própria e ícone em cinza fixo, enquanto todas as outras
+            telas usam a cor do tema — no fluxo, a cor da categoria. */}
+        <BackCircleButton onPress={onBack} color={flowTheme.icon} borderColor={flowTheme.border} />
         <View style={s.stepTrack}>
           {Array.from({ length: total }).map((_, index) => (
             <View
@@ -252,17 +254,6 @@ const s = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    ...shadows.soft,
   },
   headerSpacer: {
     width: 40,

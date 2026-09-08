@@ -13,7 +13,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import * as ImagePicker from "expo-image-picker";
-import { AppIcon, type AppIconName } from "@/components/ui";
+import { AppIcon, BackCircleButton, type AppIconName } from "@/components/ui";
 import { DAvatar } from "@/components/ui/DAvatar";
 import { MensagemBubble } from "@/components/ui/MensagemBubble";
 import { PagamentoChatBanner } from "@/components/ui/PagamentoChatBanner";
@@ -224,9 +224,7 @@ export function ChatAbertoScreen({ route }: Props) {
       {/* Botão de sair FORA do card; card arredondado (foto + nome + categoria)
           preenchido com a cor do gênero, centralizado. */}
       <View style={styles.headerRow}>
-        <Pressable onPress={() => navigation.goBack()} hitSlop={12} style={styles.backBtn}>
-          <AppIcon name="ArrowLeft" size={24} color={colors.textPrimary} strokeWidth={2.5} />
-        </Pressable>
+        <BackCircleButton onPress={() => navigation.goBack()} color={theme.icon} borderColor={theme.border} />
         <View style={[styles.header, { backgroundColor: theme.primary }]}>
           <DAvatar size="md" uri={avatarFinal} initials={initials} />
           <View style={styles.headerTextCol}>
@@ -247,8 +245,10 @@ export function ChatAbertoScreen({ route }: Props) {
           </View>
         </View>
         {/* Espaçador invisível = largura do botão voltar → card centralizado
-            com a mesma folga dos dois lados. */}
-        <View style={styles.backBtn} />
+            com a mesma folga dos dois lados. Sem estilo compartilhado com o
+            botão: o padrão do app tem fundo e borda, e aqui apareceria como
+            um círculo solto. */}
+        <View style={styles.headerSpacer} />
       </View>
 
       {/* Pagamento PIX — banner condicional (o componente decide se aparece:
@@ -373,6 +373,7 @@ const styles = StyleSheet.create({
     paddingBottom: 4,
     gap: 6,
   },
+  headerSpacer: { width: 42, height: 42 },
   header: {
     flex: 1,
     flexDirection: "row",
@@ -383,13 +384,6 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     backgroundColor: colors.primary,
     ...shadow(4),
-  },
-  backBtn: {
-    width: 36,
-    height: 40,
-    borderRadius: radius.full,
-    alignItems: "center",
-    justifyContent: "center",
   },
   headerTextCol: {
     flex: 1,

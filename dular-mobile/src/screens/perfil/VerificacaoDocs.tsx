@@ -373,7 +373,7 @@ export default function VerificacaoDocs() {
   return (
     <Screen
       title="Verificação"
-      rightAction={<BackCircleButton onPress={voltarPerfil} color={theme.icon} borderColor={theme.border} />}
+      leftAction={<BackCircleButton onPress={voltarPerfil} color={theme.icon} borderColor={theme.border} />}
       contentStyle={{ gap: 12 }}
     >
         {toast ? (

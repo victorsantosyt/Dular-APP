@@ -25,7 +25,7 @@ import {
 import { DButton } from "@/components/DButton";
 import { DularBadge } from "@/components/DularBadge";
 import { MotivoModal } from "@/components/MotivoModal";
-import { AvaliacaoModal, DAvatar } from "@/components/ui";
+import { AvaliacaoModal, BackCircleButton, DAvatar } from "@/components/ui";
 import { formatPrice } from "@/utils/formatPrice";
 import { formatHorario, parseDataServico, protocoloServico } from "@/utils/formatters";
 import { isStatusEncerrado } from "@/utils/servicoStatus";
@@ -387,13 +387,7 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
     <SafeAreaView style={s.safe} edges={["top", "bottom"]}>
       {/* Voltar — stack real (PR #103); goBack() volta à origem exata. */}
       <View style={s.topBar}>
-        <Pressable
-          onPress={() => navigation.goBack()}
-          hitSlop={10}
-          style={({ pressed }) => [s.backBtn, pressed && { opacity: 0.7 }]}
-        >
-          <Ionicons name="arrow-back" size={22} color={colors.primary} />
-        </Pressable>
+        <BackCircleButton onPress={() => navigation.goBack()} />
         <Text style={s.topBarTitle}>Comprovante</Text>
         {/* Espaçador para centrar o título. Usava `s.backBtn`, que tem fundo e
             borda — aparecia como um círculo vazio no canto direito. */}
@@ -673,16 +667,6 @@ const s = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: spacing.screenPadding,
     paddingVertical: 10,
-  },
-  backBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.stroke,
   },
   topBarSpacer: { width: 40, height: 40 },
   topBarTitle: { fontSize: 15, fontWeight: "800", color: colors.ink },

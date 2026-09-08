@@ -77,7 +77,7 @@ export default function Suporte() {
   return (
     <Screen
       title="Suporte"
-      rightAction={<BackCircleButton onPress={voltarPerfil} color={theme.icon} borderColor={theme.border} />}
+      leftAction={<BackCircleButton onPress={voltarPerfil} color={theme.icon} borderColor={theme.border} />}
       contentStyle={{ gap: 12 }}
     >
       {/* Canal de atendimento */}

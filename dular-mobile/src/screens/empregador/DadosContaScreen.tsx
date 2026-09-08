@@ -41,8 +41,8 @@ export function DadosContaScreen() {
   return (
     <SafeAreaView style={s.safe} edges={["top", "left", "right"]}>
       <View style={s.header}>
-        <Text style={s.title}>Dados da conta</Text>
         <BackCircleButton onPress={() => navigation.goBack()} color={THEME.icon} borderColor={THEME.border} />
+        <Text style={s.title}>Dados da conta</Text>
       </View>
 
       <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
@@ -85,12 +85,15 @@ const s = StyleSheet.create({
   header: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
     paddingHorizontal: spacing.screenPadding,
     paddingTop: 10,
     paddingBottom: 8,
+    gap: spacing.md,
   },
-  title: { ...typography.h2, color: colors.textPrimary },
+  title: { ...typography.h2, color: colors.textPrimary,
+    // Ocupa o vão: sem isto o título encostava no botão de voltar.
+    flex: 1,
+  },
   scroll: { paddingHorizontal: spacing.screenPadding, paddingBottom: 122, gap: 16 },
 
   hero: { alignItems: "center", gap: 8, paddingTop: 12 },

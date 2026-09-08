@@ -22,6 +22,14 @@ type Props = {
   scroll?: boolean;
   contentStyle?: ViewStyle;
   contentContainerStyle?: ViewStyle;
+  /**
+   * Ação à ESQUERDA do título — é onde mora o voltar. As duas plataformas
+   * colocam "voltar" no canto superior esquerdo (o gesto do iOS nasce na
+   * borda esquerda; no Android o botão fica à esquerda), então o botão à
+   * direita contrariava a memória do usuário.
+   */
+  leftAction?: React.ReactNode;
+  /** Ação à direita — reservada para avançar/confirmar, não para voltar. */
   rightAction?: React.ReactNode;
   padded?: boolean;
   /** Padding horizontal customizado (padrão: spacing.screenPadding = 24) */
@@ -34,6 +42,7 @@ export function Screen({
   scroll = true,
   contentStyle,
   contentContainerStyle,
+  leftAction,
   rightAction,
   padded = true,
   px = spacing.screenPadding,
@@ -69,6 +78,10 @@ export function Screen({
     <SafeAreaView edges={["top", "left", "right"]} style={styles.safe}>
       {title ? (
         <View style={[styles.header, { paddingHorizontal: horizontalPadding }]}>
+          {leftAction}
+          {/* `flex: 1` no título: empurra a ação da direita para a borda sem
+              depender de space-between, que com três filhos jogava o título
+              para o meio. */}
           <Text style={styles.headerTitle}>{title}</Text>
           {rightAction}
         </View>
@@ -86,13 +99,14 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    gap: spacing.md,
     paddingTop: 10,
     paddingBottom: 8,
     backgroundColor: colors.background,
   },
   headerTitle: {
     ...typography.h2,
+    flex: 1,
   },
   scrollContent: {
     paddingTop: 8,

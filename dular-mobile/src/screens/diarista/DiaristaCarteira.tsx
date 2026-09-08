@@ -169,8 +169,8 @@ export default function DiaristaCarteira() {
       refreshTintColor={theme.primary}
     >
       <View style={styles.header}>
-        <Text style={styles.title}>Carteira</Text>
         <BackCircleButton onPress={voltar} color={theme.icon} borderColor={theme.border} />
+        <Text style={styles.title}>Carteira</Text>
       </View>
 
       {loading ? (
@@ -276,13 +276,15 @@ const styles = StyleSheet.create({
     minHeight: 48,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    gap: spacing.md,
   },
   title: {
     color: colors.textPrimary,
     fontSize: 24,
     lineHeight: 29,
     fontWeight: "700",
+    // Ocupa o vão: sem isto o título encostava no botão de voltar.
+    flex: 1,
   },
   hero: {
     borderRadius: radius.xl,

@@ -127,7 +127,8 @@ const CATEGORIAS: CategoriaCardItem[] = CATEGORIAS_FONTE.map((c) => ({
   key: c.key,
   icon: c.icon,
   title: c.label,
-  subtitle: c.subtitle,
+  // Rótulo curto: o card é estreito e o texto fica sobre a foto.
+  subtitle: c.subtitleCurto,
   bg: c.bg,
   iconColor: c.fg,
   imageSource: CATEGORIA_LOGOS[c.key]?.source,
@@ -206,7 +207,8 @@ function CategoryCard({
     >
       <AppIcon name={item.icon} size={20} color={item.iconColor} strokeWidth={2} />
       <Text style={s.catTitle}>{item.title}</Text>
-      <Text style={s.catSubtitle}>{item.subtitle}</Text>
+      {/* Uma linha só: o texto fica sobre a foto, e mais que isso a tapa. */}
+      <Text style={s.catSubtitle} numberOfLines={1}>{item.subtitle}</Text>
       {item.imageSource ? (
         <Image source={item.imageSource} resizeMode="contain" style={[s.catImage, item.imageStyle]} />
       ) : null}

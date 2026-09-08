@@ -174,7 +174,9 @@ export function RecebimentosScreen() {
           <Text style={s.title}>Recebimentos</Text>
           <Text style={s.subtitle}>Receber pelo PIX</Text>
         </View>
-        <View style={s.backBtn} />
+        {/* Espaçador para centrar o título. Usava `s.backBtn`, que tem fundo
+            e borda — aparecia como um círculo branco solto à direita. */}
+        <View style={s.headerSpacer} />
       </View>
 
       {carregando ? (
@@ -300,6 +302,7 @@ function makeStyles(colors: ReturnType<typeof useDularColors>) {
       borderWidth: 1,
       borderColor: colors.border,
     },
+    headerSpacer: { width: 40, height: 40 },
     headerTextCol: { alignItems: "center", gap: 1 },
     title: { ...typography.h3, color: colors.textPrimary, fontWeight: "700" },
     subtitle: { ...typography.caption, color: colors.textSecondary },

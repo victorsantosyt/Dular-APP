@@ -43,6 +43,9 @@ export function DadosContaScreen() {
       <View style={s.header}>
         <BackCircleButton onPress={() => navigation.goBack()} color={THEME.icon} borderColor={THEME.border} />
         <Text style={s.title}>Dados da conta</Text>
+        {/* Espaçador: sem ele o título centraliza no espaço que sobra
+            e fica deslocado para a direita. */}
+        <View style={s.headerSlot} />
       </View>
 
       <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
@@ -90,9 +93,12 @@ const s = StyleSheet.create({
     paddingBottom: 8,
     gap: spacing.md,
   },
+  /** Mesma largura do BackCircleButton, para centrar o título. */
+  headerSlot: { width: 42, height: 42 },
   title: { ...typography.h2, color: colors.textPrimary,
     // Ocupa o vão: sem isto o título encostava no botão de voltar.
     flex: 1,
+    textAlign: "center",
   },
   scroll: { paddingHorizontal: spacing.screenPadding, paddingBottom: 122, gap: 16 },
 

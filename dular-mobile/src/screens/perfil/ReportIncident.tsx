@@ -259,6 +259,9 @@ export default function ReportIncident({ route }: any) {
         <View style={{ width: 42 }} />
         <BackCircleButton onPress={voltarPerfil} color={theme.icon} borderColor={theme.border} />
         <Text style={s.headerTitle}>Relatar incidente</Text>
+        {/* Espaçador: sem ele o título centraliza no espaço que sobra
+            e fica deslocado para a direita. */}
+        <View style={s.headerSlot} />
       </View>
 
       <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
@@ -473,11 +476,14 @@ const s = StyleSheet.create({
     paddingVertical: 12,
     gap: 10,
   },
+  /** Mesma largura do BackCircleButton, para centrar o título. */
+  headerSlot: { width: 42, height: 42 },
   headerTitle: {
     flex: 1,
     ...typography.title,
     fontWeight: "700",
     color: colors.foreground,
+    textAlign: "center",
   },
   scroll: {
     paddingHorizontal: spacing.lg,

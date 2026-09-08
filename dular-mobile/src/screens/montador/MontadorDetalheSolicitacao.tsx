@@ -84,6 +84,9 @@ export default function MontadorDetalheSolicitacao({ route, navigation }: Props)
       <View style={styles.header}>
         <BackCircleButton onPress={() => navigation.goBack()} color={profileTheme.icon} borderColor={profileTheme.border} />
         <Text style={styles.title}>Detalhe da solicitação</Text>
+        {/* Espaçador: sem ele o título centraliza no espaço que sobra
+            e fica deslocado para a direita. */}
+        <View style={styles.headerSlot} />
       </View>
 
       {loading ? (
@@ -175,11 +178,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 12,
   },
+  /** Mesma largura do BackCircleButton, para centrar o título. */
+  headerSlot: { width: 42, height: 42 },
   title: {
     flex: 1,
     ...typography.bodyMedium,
     color: colors.textPrimary,
     fontWeight: "700",
+    textAlign: "center",
   },
   hero: {
     flexDirection: "row",

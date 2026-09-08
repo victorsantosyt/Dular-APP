@@ -189,6 +189,9 @@ export function NotificacoesEmpregadorScreen() {
           <View style={s.headerTop}>
             <BackCircleButton onPress={() => navigation.goBack()} />
             <Text style={s.title}>Notificações</Text>
+            {/* Espaçador: sem ele o título centraliza no espaço que sobra
+                e fica deslocado para a direita. */}
+            <View style={s.headerSlot} />
           </View>
 
           <Text style={s.subtitle}>
@@ -270,11 +273,14 @@ const s = StyleSheet.create({
     alignItems: "center",
     gap: spacing.md,
   },
+  /** Mesma largura do BackCircleButton, para centrar o título. */
+  headerSlot: { width: 42, height: 42 },
   title: {
     ...typography.h2,
     color: colors.textPrimary,
     // Ocupa o vão: sem isto o título encostava no botão de voltar.
     flex: 1,
+    textAlign: "center",
   },
   subtitle: {
     marginTop: -5,

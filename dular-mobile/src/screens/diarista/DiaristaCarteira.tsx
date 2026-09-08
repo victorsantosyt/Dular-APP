@@ -171,6 +171,9 @@ export default function DiaristaCarteira() {
       <View style={styles.header}>
         <BackCircleButton onPress={voltar} color={theme.icon} borderColor={theme.border} />
         <Text style={styles.title}>Carteira</Text>
+        {/* Espaçador: sem ele o título centraliza no espaço que sobra
+            e fica deslocado para a direita. */}
+        <View style={styles.headerSlot} />
       </View>
 
       {loading ? (
@@ -278,6 +281,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: spacing.md,
   },
+  /** Mesma largura do BackCircleButton, para centrar o título. */
+  headerSlot: { width: 42, height: 42 },
   title: {
     color: colors.textPrimary,
     fontSize: 24,
@@ -285,6 +290,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     // Ocupa o vão: sem isto o título encostava no botão de voltar.
     flex: 1,
+    textAlign: "center",
   },
   hero: {
     borderRadius: radius.xl,

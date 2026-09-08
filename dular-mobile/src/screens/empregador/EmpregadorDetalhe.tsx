@@ -389,6 +389,9 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
       <View style={s.topBar}>
         <BackCircleButton onPress={() => navigation.goBack()} />
         <Text style={s.topBarTitle}>Comprovante</Text>
+        {/* Espaçador: sem ele o título centraliza no espaço que sobra
+            e fica deslocado para a direita. */}
+        <View style={s.headerSlot} />
         {/* Espaçador para centrar o título. Usava `s.backBtn`, que tem fundo e
             borda — aparecia como um círculo vazio no canto direito. */}
         <View style={s.topBarSpacer} />
@@ -669,7 +672,12 @@ const s = StyleSheet.create({
     paddingVertical: 10,
   },
   topBarSpacer: { width: 40, height: 40 },
-  topBarTitle: { fontSize: 15, fontWeight: "800", color: colors.ink },
+  /** Mesma largura do BackCircleButton, para centrar o título. */
+  headerSlot: { width: 42, height: 42 },
+  topBarTitle: { fontSize: 15, fontWeight: "800", color: colors.ink,
+    textAlign: "center",
+    flex: 1,
+  },
   section: { gap: 6 },
   sectionLabel: {
     fontSize: 11,

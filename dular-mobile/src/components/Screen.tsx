@@ -78,12 +78,12 @@ export function Screen({
     <SafeAreaView edges={["top", "left", "right"]} style={styles.safe}>
       {title ? (
         <View style={[styles.header, { paddingHorizontal: horizontalPadding }]}>
-          {leftAction}
-          {/* `flex: 1` no título: empurra a ação da direita para a borda sem
-              depender de space-between, que com três filhos jogava o título
-              para o meio. */}
+          {/* Espaçador do tamanho do botão quando não há ação daquele lado:
+              sem ele o título centraliza no espaço QUE SOBRA e fica deslocado
+              para o lado oposto ao botão, em vez de centralizado na linha. */}
+          {leftAction ?? <View style={styles.headerSlot} />}
           <Text style={styles.headerTitle}>{title}</Text>
-          {rightAction}
+          {rightAction ?? <View style={styles.headerSlot} />}
         </View>
       ) : null}
       {inner}
@@ -107,7 +107,10 @@ const styles = StyleSheet.create({
   headerTitle: {
     ...typography.h2,
     flex: 1,
+    textAlign: "center",
   },
+  /** Mesma largura do BackCircleButton. */
+  headerSlot: { width: 42, height: 42 },
   scrollContent: {
     paddingTop: 8,
     paddingBottom: 120,

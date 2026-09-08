@@ -138,7 +138,7 @@ export function MensagensView({ theme, infoTitle, infoText, onOpenChat }: Props)
               <DEmptyState
                 icon="MessageCircle"
                 title="Nenhuma conversa ainda"
-                subtitle="As conversas dos seus serviços aparecerão aqui."
+                subtitle="O chat abre quando o serviço é aceito e fica registrado no Dular — combine tudo por aqui, sem passar telefone ou pagamento por fora."
                 accentColor={theme.primary}
                 softBg={theme.primarySoft}
               />

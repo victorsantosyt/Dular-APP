@@ -239,7 +239,6 @@ export function BuscarScreen() {
   const theme = useGenderTheme();
   const navigation = useNavigation<Navigation>();
   const route = useRoute<BuscarRoute>();
-  const [searchQuery, setSearchQuery] = useState("");
   const [selectedCat, setSelectedCat] = useState<CategoriaKey | null>(route.params?.categoriaInicial ?? null);
   const authUser = useAuth((state) => state.user);
   const setUser = useAuth((state) => state.setUser);
@@ -397,17 +396,8 @@ export function BuscarScreen() {
     if (selectedCat) {
       list = list.filter((p) => p.categoriaKey === selectedCat);
     }
-    if (searchQuery.trim().length > 0) {
-      const q = searchQuery.toLowerCase();
-      list = list.filter(
-        (p) =>
-          p.nome.toLowerCase().includes(q) ||
-          p.localizacao.toLowerCase().includes(q) ||
-          p.categoria.toLowerCase().includes(q),
-      );
-    }
     return list;
-  }, [baseList, selectedCat, searchQuery]);
+  }, [baseList, selectedCat]);
 
   const categoryError = selectedCat === "montador"
     ? montadoresError
@@ -419,7 +409,7 @@ export function BuscarScreen() {
     ? "Nenhum montador disponível nesta região ainda."
     : !regionConfirmed
       ? "Informe sua região para encontrar profissionais disponíveis."
-      : searchQuery || selectedCat
+      : selectedCat
       ? "Nenhum resultado encontrado"
       : "Nenhum profissional disponível";
 
@@ -437,22 +427,9 @@ export function BuscarScreen() {
         >
           <View style={s.header}>
             <View style={s.headerText}>
-              <Text style={[s.title, { color: theme.textAccent }]}>Buscar</Text>
-              <Text style={s.subtitle}>Encontre o profissional ideal{"\n"}para o que você precisa.</Text>
-            </View>
-          </View>
-
-          <View style={s.searchRow}>
-            <View style={s.searchBox}>
-              <AppIcon name="Search" size={19} color={colors.textMuted} strokeWidth={2} />
-              <TextInput
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-                placeholder="Buscar por nome ou bairro..."
-                placeholderTextColor="#8C84AA"
-                style={s.searchInput}
-                returnKeyType="search"
-              />
+              <Text style={[s.title, { color: theme.textAccent }]}>Buscar profissionais</Text>
+              {/* Sem quebra fixa: a frase se acomoda sozinha na largura do aparelho. */}
+              <Text style={s.subtitle}>Profissionais ideais para o que você precisa</Text>
             </View>
           </View>
 
@@ -595,32 +572,6 @@ const s = StyleSheet.create({
     textAlign: "center",
   },
 
-  searchRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 9,
-    paddingHorizontal: spacing.screenPadding,
-  },
-  searchBox: {
-    flex: 1,
-    minHeight: 48,
-    borderRadius: 14,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.lavenderDivider,
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 14,
-    gap: 10,
-    ...shadows.soft,
-  },
-  searchInput: {
-    flex: 1,
-    color: colors.textPrimary,
-    ...typography.bodySmMedium,
-    fontWeight: "500",
-    paddingVertical: 8,
-  },
   regionCardWrap: {
     width: "100%",
     alignItems: "center",

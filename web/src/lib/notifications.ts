@@ -39,6 +39,8 @@ type PushMessage = {
   data?: Record<string, unknown>;
   sound?: "default";
   badge?: number;
+  /** iOS: linha em negrito entre título e corpo. Ver `subtituloDoServico`. */
+  subtitle?: string;
   /** iOS: agrupa visualmente os avisos. Ver `threadIdDe`. */
   threadId?: string;
 };
@@ -82,6 +84,97 @@ function threadIdDe(data?: Record<string, unknown>): string | undefined {
   return tipo ? `tipo:${tipo}` : undefined;
 }
 
+const ROTULO_TIPO: Record<string, string> = {
+  FAXINA: "Faxina",
+  FAXINEIRA: "Faxina",
+  BABA: "Babá",
+  COZINHEIRA: "Cozinheira",
+  PASSA_ROUPA: "Passar roupa",
+  LAVADEIRA: "Lavar roupa",
+  CUIDADORA: "Cuidadora",
+  MONTADOR: "Montagem",
+};
+
+/**
+ * Segunda linha do aviso (iOS mostra em negrito entre título e corpo).
+ *
+ * Diz DE QUAL serviço o aviso fala. Sem ela, quem tem três serviços em
+ * andamento lê "Sua solicitação foi aceita" e não sabe qual foi — precisa
+ * abrir o app para descobrir. Com ela: "Faxina · 12 de set, Centro".
+ *
+ * Fica aqui, e não em cada endpoint, porque são mais de dez lugares criando
+ * notificação: uma consulta central serve todos e não deixa nenhum de fora.
+ * Best-effort como o resto do envio — se falhar, o push vai sem a linha.
+ */
+async function subtituloDoServico(servicoId: string): Promise<string | undefined> {
+  try {
+    const servico = await prisma.servico.findUnique({
+      where: { id: servicoId },
+      select: { tipo: true, data: true, bairro: true },
+    });
+    if (!servico) return undefined;
+
+    const partes: string[] = [];
+    const rotulo = ROTULO_TIPO[servico.tipo];
+    if (rotulo) partes.push(rotulo);
+
+    if (servico.data) {
+      // `data` é data-pura gravada à meia-noite UTC; formatar em UTC evita
+      // que o fuso do servidor mostre o dia anterior.
+      partes.push(
+        new Intl.DateTimeFormat("pt-BR", { day: "numeric", month: "short", timeZone: "UTC" })
+          .format(servico.data)
+          .replace(".", ""),
+      );
+    }
+    if (servico.bairro) partes.push(servico.bairro);
+
+    return partes.length > 0 ? partes.join(" · ") : undefined;
+  } catch (err) {
+    console.error("[push] falha ao montar o subtítulo:", err);
+    return undefined;
+  }
+}
+
+/**
+ * Número no ícone do app.
+ *
+ * É a soma dos DOIS contadores que o app já mostra nas abas: avisos não lidos
+ * (o sino) e mensagens não lidas. É o total do que a pessoa ainda não viu.
+ *
+ * As notificações de chat ficam de fora da primeira parcela de propósito: elas
+ * nunca são marcadas como lidas (ler a conversa marca a MENSAGEM, não a row de
+ * notificação), então contá-las faria o número só crescer. Quem representa o
+ * chat aqui é a contagem de mensagens, que zera de verdade.
+ *
+ * O valor é ABSOLUTO, não um incremento: cada push reafirma o total, então um
+ * push perdido não desalinha o contador para sempre.
+ */
+async function badgeDoUsuario(userId: string): Promise<number | undefined> {
+  try {
+    const [avisos, mensagens] = await Promise.all([
+      prisma.notification.count({
+        where: { userId, readAt: null, type: { not: "CHAT_NOVA_MENSAGEM" } },
+      }),
+      prisma.chatMessage.count({
+        where: {
+          readAt: null,
+          senderId: { not: userId },
+          room: {
+            servico: {
+              OR: [{ clientId: userId }, { diaristaId: userId }, { montadorId: userId }],
+            },
+          },
+        },
+      }),
+    ]);
+    return avisos + mensagens;
+  } catch (err) {
+    console.error("[push] falha ao contar o badge:", err);
+    return undefined;
+  }
+}
+
 /**
  * Envia push remoto via Expo. Best-effort: nunca lança — erros são logados
  * e o fluxo principal segue normalmente. Em desenvolvimento (Expo Go) o
@@ -103,6 +196,13 @@ export async function sendPushNotification(
     if (!token || !token.startsWith("ExponentPushToken[")) return;
 
     const threadId = threadIdDe(data);
+    const servicoId = typeof data?.servicoId === "string" ? data.servicoId : null;
+
+    const [subtitle, badge] = await Promise.all([
+      servicoId ? subtituloDoServico(servicoId) : Promise.resolve(undefined),
+      badgeDoUsuario(userId),
+    ]);
+
     const message: PushMessage = {
       to: token,
       title,
@@ -110,6 +210,8 @@ export async function sendPushNotification(
       sound: "default",
       ...(data ? { data } : {}),
       ...(threadId ? { threadId } : {}),
+      ...(subtitle ? { subtitle } : {}),
+      ...(badge !== undefined ? { badge } : {}),
     };
 
     const headers: Record<string, string> = {

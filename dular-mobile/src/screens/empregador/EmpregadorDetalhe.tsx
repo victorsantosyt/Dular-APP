@@ -475,7 +475,7 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
         {/* VALOR */}
         <View style={s.card}>
           <Text style={s.sectionLabel}>Valor</Text>
-          <Text style={s.valor}>{valorLabel}</Text>
+          <Text style={[s.valor, { color: theme.textAccent }]}>{valorLabel}</Text>
         </View>
 
         {/* AVALIAÇÃO (só se houver) */}
@@ -719,7 +719,10 @@ const s = StyleSheet.create({
   profRow: { flexDirection: "row", alignItems: "center", gap: 12 },
   profNome: { fontSize: 15, fontWeight: "700", color: colors.ink },
   profTel: { fontSize: 13, fontWeight: "500", color: colors.sub },
-  valor: { fontSize: 20, fontWeight: "800", color: colors.greenDark },
+  // Sem cor fixa: usava `colors.greenDark`, que vale #5F35B8 — é ROXO,
+  // apesar do nome (token herdado de uma paleta antiga). A cor entra
+  // pelo tema no componente.
+  valor: { fontSize: 20, fontWeight: "800" },
   comentario: { fontSize: 13, fontWeight: "500", color: colors.ink, fontStyle: "italic" },
   rodape: { fontSize: 11, fontWeight: "500", color: colors.sub, textAlign: "center", marginTop: 6 },
 

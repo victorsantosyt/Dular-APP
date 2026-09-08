@@ -379,7 +379,10 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
           <View style={s.divider} />
 
           <InfoRow icon="cash-outline" label="Valor">
-            <Text style={[s.infoValue, { color: colors.greenDark, fontWeight: "700" }]}>
+            {/* `colors.greenDark` vale #5F35B8 — é ROXO, apesar do nome (token
+                herdado de uma paleta antiga). Ficava roxo no perfil rosa da
+                diarista. Passa a seguir o tema. */}
+            <Text style={[s.infoValue, { color: theme.textAccent, fontWeight: "700" }]}>
               {formatPrice(svc.precoFinal)}
             </Text>
           </InfoRow>

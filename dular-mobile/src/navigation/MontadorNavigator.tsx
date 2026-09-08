@@ -90,7 +90,21 @@ function MontadorTabs() {
 // bar). goBack() volta para a origem real (lista, notificações, solicitação…).
 export function MontadorNavigator() {
   return (
-    <RootStack.Navigator screenOptions={{ headerShown: false }}>
+    <RootStack.Navigator
+      screenOptions={{
+        headerShown: false,
+        // Transição lateral igual nos dois sistemas. Sem declarar, cada
+        // plataforma usa o próprio padrão (o Android entra de baixo em versões
+        // recentes do react-navigation), e a mesma navegação se comportava
+        // diferente conforme o aparelho.
+        animation: "slide_from_right",
+        // Arrastar da borda para voltar. No native-stack quem trata isso é o
+        // navegador nativo: no iOS habilita o swipe da borda; no Android não
+        // há gesto de borda por tela (o sistema já tem o back próprio), então
+        // lá é inócuo. Fica explícito para não parecer esquecimento.
+        gestureEnabled: true,
+      }}
+    >
       <RootStack.Screen name="MontadorTabs" component={MontadorTabs} />
       <RootStack.Screen name="MontadorNotificacoes" component={MontadorNotificacoes} />
       <RootStack.Screen name="MontadorDetalheSolicitacao" component={MontadorDetalheSolicitacao} />

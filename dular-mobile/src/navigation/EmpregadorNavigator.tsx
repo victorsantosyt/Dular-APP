@@ -146,7 +146,21 @@ function EmpregadorTabs() {
 // volta para a tela de origem exata.
 export function EmpregadorNavigator() {
   return (
-    <RootStack.Navigator screenOptions={{ headerShown: false }}>
+    <RootStack.Navigator
+      screenOptions={{
+        headerShown: false,
+        // Transição lateral igual nos dois sistemas. Sem declarar, cada
+        // plataforma usa o próprio padrão (o Android entra de baixo em versões
+        // recentes do react-navigation), e a mesma navegação se comportava
+        // diferente conforme o aparelho.
+        animation: "slide_from_right",
+        // Arrastar da borda para voltar. No native-stack quem trata isso é o
+        // navegador nativo: no iOS habilita o swipe da borda; no Android não
+        // há gesto de borda por tela (o sistema já tem o back próprio), então
+        // lá é inócuo. Fica explícito para não parecer esquecimento.
+        gestureEnabled: true,
+      }}
+    >
       <RootStack.Screen name="EmpregadorTabs" component={EmpregadorTabs} />
       <RootStack.Screen name="SolicitarServico" component={EmpregadorServiceFlowNavigator} />
       <RootStack.Screen name="Notificacoes" component={NotificacoesEmpregadorScreen} />

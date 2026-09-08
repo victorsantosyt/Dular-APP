@@ -443,7 +443,18 @@ export function DiaristaHomeScreen() {
           </View>
           <View style={styles.metricDivider} />
           <View style={styles.metricCard}>
-            <AppIcon name="ShieldCheck" size={20} color={restrictions.length > 0 ? colors.warning : colors.success} strokeWidth={2} />
+            {/* Sem restrição não há status a comunicar: o ícone segue o tema,
+                como os dois vizinhos. O verde fixo (`colors.success`, #34C759)
+                era o único elemento fora da paleta do perfil — gritava no rosa
+                e, no tema masculino, só não chamava atenção porque a paleta de
+                lá já é esverdeada. A cor de alerta fica reservada para quando
+                existe restrição de verdade. */}
+            <AppIcon
+              name="ShieldCheck"
+              size={20}
+              color={restrictions.length > 0 ? colors.warning : profileTheme.primary}
+              strokeWidth={2}
+            />
             <Text style={styles.metricValue}>{restrictions.length}</Text>
             <Text style={styles.metricLabel}>Restrições</Text>
           </View>

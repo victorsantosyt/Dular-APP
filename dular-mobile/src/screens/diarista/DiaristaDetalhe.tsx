@@ -23,9 +23,11 @@ import { DButton } from "@/components/DButton";
 import { DularBadge } from "@/components/DularBadge";
 import { MotivoModal } from "@/components/MotivoModal";
 import { SafeScoreBadge } from "@/components/SafeScoreBadge";
-import { AvaliacaoModal } from "@/components/ui";
+import { AvaliacaoModal, BackCircleButton } from "@/components/ui";
+import { useLimiteDePlano } from "@/hooks/useLimiteDePlano";
 import { useSeguranca } from "@/hooks/useSeguranca";
 import { formatPrice } from "@/utils/formatPrice";
+import { formatDate, formatHorario, protocoloServico } from "@/utils/formatters";
 import { isStatusEncerrado } from "@/utils/servicoStatus";
 
 // ── Tokens ──────────────────────────────────────────────────────────────────
@@ -91,6 +93,23 @@ function servicoLabelDetalhe(s: Servico): string {
 
 // ── Componente ────────────────────────────────────────────────────────────────
 
+// O sucesso mostrava o nome interno do endpoint ("Ação \"aceitar\" executada
+// com sucesso.") para a profissional. Cada ação tem sua mensagem.
+const MENSAGEM_SUCESSO: Record<string, { titulo: string; texto: string }> = {
+  aceitar: {
+    titulo: "Serviço aceito!",
+    texto: "O cliente foi avisado. Você já pode combinar os detalhes pelo chat.",
+  },
+  iniciar: {
+    titulo: "Serviço iniciado",
+    texto: "Bom trabalho! Marque como concluído quando terminar.",
+  },
+  concluir: {
+    titulo: "Serviço concluído",
+    texto: "Agora é só aguardar a confirmação do cliente.",
+  },
+};
+
 export default function DiaristaDetalhe({ route, navigation }: any) {
   const theme = useGenderTheme("DIARISTA");
   const params = route.params as any;
@@ -115,6 +134,7 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
 
   // Check-in real de segurança (mesmo hook do montador): POST /api/seguranca/checkin.
   const { checkInRealizado, checkInLoading, fazerCheckIn } = useSeguranca();
+  const { tratar: tratarLimite } = useLimiteDePlano();
   const checkinAlertRef = useRef(false);
   useEffect(() => {
     if (checkInRealizado && !checkinAlertRef.current) {
@@ -147,10 +167,17 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
       const updated = res.data?.servico ?? res.data;
       if (updated?.id) setSvc(updated);
       else await reloadFromList();
-      Alert.alert("Sucesso", `Ação "${name}" executada com sucesso.`);
+      Alert.alert(MENSAGEM_SUCESSO[name]?.titulo ?? "Pronto", MENSAGEM_SUCESSO[name]?.texto ?? "");
       navigation.goBack();
     } catch (e: any) {
-      Alert.alert("Erro", e?.response?.data?.error ?? e?.message);
+      // Limite do plano → paywall, não alerta. Este era o quarto ponto de
+      // aceite e o único sem o tratamento: a diarista via "Erro /
+      // LIMIT_EXCEEDED", o código cru do backend.
+      if (tratarLimite(e)) return;
+      Alert.alert(
+        "Erro",
+        e?.response?.data?.message ?? e?.response?.data?.error ?? e?.message ?? "Não foi possível concluir.",
+      );
     } finally {
       setLoading(false);
     }
@@ -308,22 +335,20 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
 
         {/* ── Voltar ── */}
         <View style={s.navRow}>
-          <Pressable onPress={() => navigation.goBack()} hitSlop={10} style={s.backBtn}>
-            <Ionicons name="arrow-back" size={22} color={colors.ink} />
-          </Pressable>
+          <BackCircleButton onPress={() => navigation.goBack()} color={theme.icon} borderColor={theme.border} />
         </View>
 
         {/* ── Título + status ── */}
         <View style={s.titleRow}>
           <Pressable
             onPress={async () => {
-              await Clipboard.setStringAsync(`#${svc.id.slice(0, 6).toUpperCase()}`);
+              await Clipboard.setStringAsync(protocoloServico(svc.id));
               Alert.alert("Copiado", "Número do serviço copiado.");
             }}
             hitSlop={8}
             style={{ flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 1 }}
           >
-            <Text style={s.title}>Serviço #{svc.id.slice(0, 6).toUpperCase()}</Text>
+            <Text style={s.title} numberOfLines={1}>{protocoloServico(svc.id)}</Text>
             <Ionicons name="copy-outline" size={16} color={colors.sub} />
           </Pressable>
           <DularBadge text={statusLabel(svc.status)} variant={statusVariant(svc.status)} />
@@ -333,6 +358,16 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
         <View style={s.card}>
           <InfoRow icon="briefcase-outline" label="Serviço">
             <Text style={s.infoValue}>{servicoLabelDetalhe(svc)}</Text>
+          </InfoRow>
+
+          <View style={s.divider} />
+
+          {/* Quando é. Estava ausente: a tela pedia para ACEITAR o serviço sem
+              mostrar a data em lugar nenhum — só o card da lista trazia. */}
+          <InfoRow icon="calendar-outline" label="Data">
+            <Text style={s.infoValue}>
+              {formatDate(svc.data as any)} · {formatHorario(svc.hora, svc.turno)}
+            </Text>
           </InfoRow>
 
           <View style={s.divider} />
@@ -609,16 +644,6 @@ const s = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
   },
-  backBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.stroke,
-  },
   titleRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -629,6 +654,7 @@ const s = StyleSheet.create({
     fontSize: 22,
     lineHeight: 27,
     fontWeight: "700",
+    textAlign: "center",
   },
 
   card: {

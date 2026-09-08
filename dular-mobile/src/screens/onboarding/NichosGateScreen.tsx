@@ -158,12 +158,14 @@ const s = StyleSheet.create({
     color: colors.primaryDark,
     fontWeight: "700",
     letterSpacing: 0,
+    textAlign: "center",
   },
   subtitle: {
     ...typography.bodySm,
     color: colors.textSecondary,
     fontWeight: "500",
     lineHeight: 21,
+    textAlign: "center",
   },
   options: {
     gap: spacing.md,

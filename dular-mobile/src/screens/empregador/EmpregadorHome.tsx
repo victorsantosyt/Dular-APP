@@ -10,7 +10,7 @@ import {
   View,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { useNavigation } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import * as Location from "expo-location";
 
@@ -316,6 +316,17 @@ export default function EmpregadorHome() {
     initialFetchRef.current = true;
     handleBuscarRef.current();
   }, [geo.loading]);
+
+  // Rebusca ao FOCAR (depois da primeira carga). A home monta uma vez e
+  // sobrevive à navegação por abas: sem isto a lista de profissionais ficava
+  // congelada na primeira busca — quem entrasse na plataforma depois só
+  // aparecia no pull-to-refresh ou reiniciando o app.
+  useFocusEffect(
+    useCallback(() => {
+      if (geo.loading || !initialFetchRef.current) return;
+      handleBuscarRef.current();
+    }, [geo.loading]),
+  );
 
   const profissionals: ProfissionalCardData[] = useMemo(() => {
     if (diaristas.length === 0) return [];

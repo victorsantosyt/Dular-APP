@@ -85,7 +85,7 @@ export default function SafeScoreScreen() {
   return (
     <Screen
       title="SafeScore"
-      rightAction={<BackCircleButton onPress={voltarPerfil} color={theme.icon} borderColor={theme.border} />}
+      leftAction={<BackCircleButton onPress={voltarPerfil} color={theme.icon} borderColor={theme.border} />}
       contentStyle={{ gap: 16 }}
     >
       {loading ? (

@@ -445,6 +445,13 @@ model Servico {
   categoria ServicoCategoria?
   data      DateTime
   turno     Turno
+  // Horário escolhido pelo empregador, "HH:MM" (ex.: "10:00"). `data` é
+  // data-pura em meia-noite UTC (ver parseDataServico no mobile) e `turno` é
+  // grosso demais: o app oferecia 6 horários, o empregador confirmava "às
+  // 10:00" e o profissional só via "Manhã". String em vez de DateTime para
+  // não reintroduzir fuso num campo que é local por natureza.
+  // Opcional: serviços criados antes desta coluna não têm horário.
+  hora      String?
 
   cidade String
   uf     String
@@ -471,6 +478,7 @@ model Servico {
   // empregador (client) confirma ou recusa. reagendamentoData != null = proposta pendente.
   reagendamentoData  DateTime?
   reagendamentoTurno Turno?
+  reagendamentoHora  String?
   reagendamentoPor   String?
   reagendamentoEm    DateTime?
 

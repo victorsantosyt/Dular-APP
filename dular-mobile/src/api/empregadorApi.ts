@@ -173,6 +173,10 @@ export function prepararPayload(draft: DraftSlice): PrepareResult {
     categoria: draft.categoriaBackend ?? undefined,
     dataISO: draft.dataISO,
     turno: horarioParaTurno(draft.horario || "10:00"),
+    // O turno sozinho perdia a escolha: o empregador confirmava "às 10:00" e
+    // o profissional via só "Manhã". `turno` continua indo porque a agenda do
+    // profissional é organizada por ele.
+    hora: draft.horario || undefined,
     cidade,
     uf,
     bairro,

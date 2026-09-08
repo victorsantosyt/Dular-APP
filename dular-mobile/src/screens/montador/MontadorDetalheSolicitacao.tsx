@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Alert, Image, Pressable, StyleSheet, Text, View } from "react-native";
 import type { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
-import { AppIcon, DEmptyState, DErrorState, DLoadingState, DScreen } from "@/components/ui";
+import { AppIcon, BackCircleButton, DEmptyState, DErrorState, DLoadingState, DScreen } from "@/components/ui";
 import { aceitarSolicitacaoMontador, recusarSolicitacaoMontador } from "@/api/montadorApi";
 import { useLimiteDePlano } from "@/hooks/useLimiteDePlano";
 import { MotivoModal } from "@/components/MotivoModal";
@@ -82,10 +82,11 @@ export default function MontadorDetalheSolicitacao({ route, navigation }: Props)
   return (
     <DScreen scroll withBottomPadding backgroundColor={profileTheme.background} contentContainerStyle={styles.scroll}>
       <View style={styles.header}>
-        <Pressable onPress={() => navigation.goBack()} hitSlop={12} style={styles.backButton}>
-          <AppIcon name="ArrowLeft" size={20} color={profileTheme.primary} />
-        </Pressable>
+        <BackCircleButton onPress={() => navigation.goBack()} color={profileTheme.icon} borderColor={profileTheme.border} />
         <Text style={styles.title}>Detalhe da solicitação</Text>
+        {/* Espaçador: sem ele o título centraliza no espaço que sobra
+            e fica deslocado para a direita. */}
+        <View style={styles.headerSlot} />
       </View>
 
       {loading ? (
@@ -177,21 +178,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 12,
   },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
+  /** Mesma largura do BackCircleButton, para centrar o título. */
+  headerSlot: { width: 42, height: 42 },
   title: {
     flex: 1,
     ...typography.bodyMedium,
     color: colors.textPrimary,
     fontWeight: "700",
+    textAlign: "center",
   },
   hero: {
     flexDirection: "row",

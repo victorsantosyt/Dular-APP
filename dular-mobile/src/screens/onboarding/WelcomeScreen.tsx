@@ -23,15 +23,24 @@ export function WelcomeScreen() {
         <View style={styles.headerSide} />
       </View>
 
-      <View style={styles.welcomeLogoWrap}>
-        <Image source={onboardingAssets.welcomeLogo} style={styles.welcomeLogo} resizeMode="contain" />
-      </View>
-
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <View style={styles.contentGroup}>
+          {/* O logo ficava FORA do ScrollView, preso no topo, enquanto o
+              conteúdo era centralizado no espaço restante — toda a sobra
+              vertical caía justamente entre os dois, virando um vão visível.
+              Dentro do grupo, logo e título centralizam juntos e a distância
+              entre eles passa a ser o `gap`, não o resto da divisão. */}
+          <View style={styles.welcomeLogoWrap}>
+            <Image
+              source={onboardingAssets.welcomeLogo}
+              style={styles.welcomeLogo}
+              resizeMode="contain"
+            />
+          </View>
+
           <View style={styles.titleBlock}>
-            <Text style={styles.title}>
-              Bem-vindo ao <Text style={styles.titleAccent}>Dular!</Text>
+            <Text style={styles.title} numberOfLines={1}>
+              Boas-vindas ao <Text style={styles.titleAccent}>Dular!</Text>
             </Text>
             <Text style={styles.subtitle}>
               Uma forma mais simples, segura e acolhedora de cuidar da rotina da sua casa.
@@ -89,8 +98,6 @@ const styles = StyleSheet.create({
   welcomeLogoWrap: {
     alignItems: "center",
     justifyContent: "center",
-    paddingTop: 6,
-    paddingBottom: 2,
   },
   welcomeLogo: {
     width: 212,
@@ -106,16 +113,16 @@ const styles = StyleSheet.create({
   contentGroup: {
     alignSelf: "stretch",
     gap: 14,
-    transform: [{ translateY: -8 }],
   },
   titleBlock: {
     alignItems: "center",
     gap: 6,
   },
   title: {
-    ...typography.h1,
-    
-    fontWeight: "700",
+    // Token compartilhado pelas quatro telas do onboarding — ver
+    // `onboardingTitle` em theme/typography. Antes cada tela definia o
+    // próprio corpo e eles divergiram.
+    ...typography.onboardingTitle,
     color: colors.textPrimary,
     textAlign: "center",
   },
@@ -129,14 +136,20 @@ const styles = StyleSheet.create({
     maxWidth: 316,
   },
   illustration: {
-    height: 248,
+    // Proporção da própria arte (1619x971 = 5:3) em vez de altura fixa: a
+    // caixa acompanha a largura do aparelho e bate com a imagem, então o
+    // "cover" não corta nada em nenhuma tela. Altura cravada só acertava o
+    // aparelho onde foi calibrada; nas outras sobrava faixa ou cortava a arte.
+    width: "100%",
+    aspectRatio: 5 / 3,
+    maxHeight: 300,
     borderRadius: radius.xxl,
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",
     backgroundColor: colors.lavenderSoft,
-    borderWidth: 1,
-    borderColor: colors.lavenderStrong,
+    // Sem borda: a linha clara de 1px aparecia como moldura
+    // em volta da ilustração.
   },
   heroImage: {
     width: "100%",

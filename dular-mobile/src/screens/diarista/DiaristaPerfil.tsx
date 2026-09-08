@@ -1402,8 +1402,13 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                         s.progressFill,
                         {
                           width: `${Math.max(4, completude.progresso)}%`,
+                          // Completo não é status a comunicar: a barra segue o
+                          // tema do perfil. O verde fixo (`colors.success`) era
+                          // a única coisa fora da paleta ali, e sumia junto com
+                          // o card — que só fica 20s depois da aprovação. O
+                          // laranja fica para quando falta algo de verdade.
                           backgroundColor: completude.completo
-                            ? colors.success
+                            ? theme.primary
                             : colors.warning,
                         },
                       ]}

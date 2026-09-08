@@ -3,7 +3,7 @@ import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-nati
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { AppIcon, type AppIconName, DButton } from "@/components/ui";
+import { AppIcon, BackCircleButton, DButton, type AppIconName } from "@/components/ui";
 import { onboardingAssets } from "@/assets/onboardingAssets";
 import { colors, radius, spacing, typography } from "@/theme";
 import { PageDots } from "@/components/onboarding/PageDots";
@@ -26,15 +26,7 @@ export function BenefitsScreen() {
     <SafeAreaView style={styles.safe}>
       <View style={styles.header}>
         <View style={styles.headerSide}>
-          <Pressable
-            onPress={handleBack}
-            hitSlop={12}
-            accessibilityRole="button"
-            accessibilityLabel="Voltar para introdução"
-            style={({ pressed }) => [styles.backButton, pressed && styles.backButtonPressed]}
-          >
-            <AppIcon name="ArrowLeft" size={20} color={colors.primary} strokeWidth={2.5} />
-          </Pressable>
+          <BackCircleButton onPress={handleBack} color={colors.primary} />
         </View>
         <PageDots total={4} active={1} />
         <View style={styles.headerSide} />
@@ -42,8 +34,8 @@ export function BenefitsScreen() {
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <View style={styles.titleBlock}>
-          <Text style={styles.title}>
-            Mais <Text style={styles.titleAccent}>praticidade</Text> para o seu dia
+          <Text style={styles.title} numberOfLines={1}>
+            Mais <Text style={styles.titleAccent}>praticidade</Text> para você
           </Text>
           <Text style={styles.subtitle}>
             O Dular organiza seus serviços e mantém tudo acessível em poucos toques.
@@ -56,7 +48,7 @@ export function BenefitsScreen() {
 
         <View style={styles.benefits}>
           <Benefit icon="Calendar" text="Agendamentos rápidos e flexíveis" />
-          <Benefit icon="Heart" text="Recontrate suas favoritas com 1 clique" />
+          <Benefit icon="Heart" text="Recontrate seus favoritos com 1 clique" />
           <Benefit icon="FileText" text="Histórico completo de serviços" />
           <Benefit icon="Star" text="Avaliações e recomendações personalizadas" />
         </View>
@@ -97,19 +89,6 @@ const styles = StyleSheet.create({
   headerSide: {
     flex: 1,
   },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  backButtonPressed: {
-    opacity: 0.72,
-  },
   scroll: {
     paddingHorizontal: spacing.xl,
     paddingTop: spacing.sm,
@@ -118,12 +97,15 @@ const styles = StyleSheet.create({
   },
   titleBlock: {
     gap: spacing.sm,
+    alignItems: "center",
   },
   title: {
-    ...typography.h1,
-    
-    fontWeight: "700",
+    // Token compartilhado pelas quatro telas do onboarding — ver
+    // `onboardingTitle` em theme/typography. Antes cada tela definia o
+    // próprio corpo e eles divergiram.
+    ...typography.onboardingTitle,
     color: colors.textPrimary,
+    textAlign: "center",
   },
   titleAccent: {
     color: colors.accent,
@@ -131,16 +113,23 @@ const styles = StyleSheet.create({
   subtitle: {
     ...typography.bodyMd,
     color: colors.textSecondary,
+    textAlign: "center",
   },
   illustration: {
-    height: 260,
+    // Proporção da própria arte (1619x971 = 5:3) em vez de altura fixa: a
+    // caixa acompanha a largura do aparelho e bate com a imagem, então o
+    // "cover" não corta nada em nenhuma tela. Altura cravada só acertava o
+    // aparelho onde foi calibrada; nas outras sobrava faixa ou cortava a arte.
+    width: "100%",
+    aspectRatio: 5 / 3,
+    maxHeight: 300,
     borderRadius: radius.xxl,
     backgroundColor: colors.lavenderSoft,
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",
-    borderWidth: 1,
-    borderColor: colors.lavenderStrong,
+    // Sem borda: a linha clara de 1px aparecia como moldura
+    // em volta da ilustração.
   },
   heroImage: {
     width: "100%",

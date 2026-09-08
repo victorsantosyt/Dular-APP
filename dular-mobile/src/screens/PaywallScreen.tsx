@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  AccessibilityInfo,
   ActivityIndicator,
   Alert,
+  Animated,
   Linking,
   Pressable,
   ScrollView,
@@ -15,7 +17,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
 
 import { api } from "@/lib/api";
-import { AppIcon } from "@/components/ui";
+import { AppIcon, type AppIconName } from "@/components/ui";
 import { colors, radius, spacing, typography } from "@/theme/tokens";
 import { useGenderTheme } from "@/hooks/useProfileTheme";
 import { formatMoneyFromCents, plural } from "@/utils/formatters";
@@ -66,6 +68,35 @@ const BENEFICIOS: Record<string, string[]> = {
 
 const BENEFICIOS_PADRAO = ["Mais serviços por mês", "Suporte prioritário"];
 
+/**
+ * Identidade visual por NÍVEL (mesma chave `plan_interval` dos benefícios —
+ * diarista e montador têm ids diferentes para o mesmo nível).
+ *
+ * Os quatro ícones contam uma progressão: broto → raio → coroa → gema. E
+ * `forte` marca os níveis que ganham bolha em gradiente com ícone branco, em
+ * vez da bolha suave — o card sobe de tom junto com o plano, em vez de os
+ * três serem a mesma linha com preços diferentes.
+ */
+type IdentidadePlano = {
+  icone: AppIconName;
+  /** Bolha em gradiente (níveis Pro) em vez do fundo suave. */
+  forte: boolean;
+  /** Selo de recomendação; só um plano deve ter. */
+  destaque?: string;
+};
+
+const IDENTIDADE: Record<string, IdentidadePlano> = {
+  BASIC_month: { icone: "Zap", forte: false },
+  PREMIUM_month: { icone: "Crown", forte: true, destaque: "Mais escolhido" },
+  PREMIUM_year: { icone: "Gem", forte: true },
+};
+
+const IDENTIDADE_PADRAO: IdentidadePlano = { icone: "Sparkles", forte: false };
+
+function identidadeDe(p: { plan: string; interval: string | null }): IdentidadePlano {
+  return IDENTIDADE[chaveBeneficio(p)] ?? IDENTIDADE_PADRAO;
+}
+
 function chaveBeneficio(p: { plan: string; interval: string | null }): string {
   return `${p.plan}_${p.interval === "year" ? "year" : "month"}`;
 }
@@ -81,7 +112,8 @@ function resumo(p: { plan: string; interval: string | null }): string {
 }
 
 function sufixoPeriodo(interval: string | null) {
-  return interval === "year" ? "/ano" : "/mês";
+  // Sem a barra: "R$ 39,90 /mês" deixava um traço solto colado no preço.
+  return interval === "year" ? "por ano" : "por mês";
 }
 
 /** Quanto o anual economiza contra 12 meses do mensal equivalente. */
@@ -91,6 +123,288 @@ function economiaAnual(anual: PlanoApi, mensais: PlanoApi[]): string | null {
   const diff = mensal.priceInCents * 12 - anual.priceInCents;
   if (diff <= 0) return null;
   return `Economize ${formatMoneyFromCents(diff)}`;
+}
+
+/**
+ * Card de plano da lista.
+ *
+ * Entra com fade + subida escalonada por índice e responde ao toque com uma
+ * leve compressão. Usa o `Animated` do próprio RN: o projeto não tem
+ * reanimated, e a animação é simples o bastante para não precisar.
+ *
+ * Respeita "reduzir movimento" do sistema: com a preferência ligada o card
+ * aparece direto, sem deslocamento nem escala.
+ */
+function PlanoCard({
+  plano,
+  identidade,
+  economia,
+  resumoTexto,
+  precoTexto,
+  periodoTexto,
+  indice,
+  tema,
+  selecionado,
+  onPress,
+}: {
+  plano: PlanoApi;
+  identidade: IdentidadePlano;
+  economia: string | null;
+  resumoTexto: string;
+  precoTexto: string;
+  periodoTexto: string;
+  indice: number;
+  tema: ReturnType<typeof useGenderTheme>;
+  /**
+   * Este é o card em foco agora. Exatamente um card por vez: começa no plano
+   * recomendado e passa para o que a pessoa abrir — nunca os dois juntos.
+   */
+  selecionado: boolean;
+  onPress: () => void;
+}) {
+  const [reduzirMovimento, setReduzirMovimento] = useState(false);
+  const entrada = useRef(new Animated.Value(0)).current;
+  const escala = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    let vivo = true;
+    AccessibilityInfo.isReduceMotionEnabled().then((v) => vivo && setReduzirMovimento(v));
+    return () => {
+      vivo = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (reduzirMovimento) {
+      entrada.setValue(1);
+      return;
+    }
+    const anim = Animated.timing(entrada, {
+      toValue: 1,
+      duration: 260,
+      delay: indice * 70,
+      useNativeDriver: true,
+    });
+    anim.start();
+    return () => anim.stop();
+  }, [entrada, indice, reduzirMovimento]);
+
+  const comprimir = (para: number) => {
+    if (reduzirMovimento) return;
+    Animated.spring(escala, { toValue: para, useNativeDriver: true, speed: 40, bounciness: 0 }).start();
+  };
+
+  // Foco do card escolhido: sobe um pouco e ganha sombra desfocada na cor do
+  // tema. A escala fica baixa (1.02) de propósito — o suficiente para o card
+  // "saltar", pouco o bastante para não invadir os vizinhos quando o usuário
+  // volta da tela de detalhe e encontra o card ainda em destaque.
+  //
+  // DOIS valores para o mesmo foco porque os drivers não se misturam: sombra
+  // e elevação só existem no driver JS, escala roda no nativo, e combinar os
+  // dois no mesmo nó derruba a tela ("animated node that has been moved to
+  // native earlier"). Um valor por camada, animados juntos.
+  const focoSombra = useRef(new Animated.Value(selecionado ? 1 : 0)).current;
+  const focoEscala = useRef(new Animated.Value(selecionado ? 1 : 0)).current;
+  useEffect(() => {
+    const alvo = selecionado ? 1 : 0;
+    if (reduzirMovimento) {
+      focoSombra.setValue(alvo);
+      focoEscala.setValue(alvo);
+      return;
+    }
+    const anim = Animated.parallel([
+      Animated.spring(focoSombra, { toValue: alvo, useNativeDriver: false, speed: 14, bounciness: 6 }),
+      Animated.spring(focoEscala, { toValue: alvo, useNativeDriver: true, speed: 14, bounciness: 6 }),
+    ]);
+    anim.start();
+    return () => anim.stop();
+  }, [focoSombra, focoEscala, selecionado, reduzirMovimento]);
+
+  return (
+    /* Camada externa: só sombra/elevação (driver JS). */
+    <Animated.View
+      style={{
+        borderRadius: radius.lg,
+        shadowColor: tema.primary,
+        shadowOpacity: focoSombra.interpolate({ inputRange: [0, 1], outputRange: [0, 0.38] }),
+        shadowRadius: focoSombra.interpolate({ inputRange: [0, 1], outputRange: [0, 18] }),
+        shadowOffset: { width: 0, height: 8 },
+        elevation: focoSombra.interpolate({ inputRange: [0, 1], outputRange: [0, 10] }),
+      }}
+    >
+    {/* Camada interna: opacidade e transform (driver nativo). */}
+    <Animated.View
+      style={{
+        opacity: entrada,
+        transform: [
+          {
+            scale: Animated.multiply(
+              escala,
+              focoEscala.interpolate({ inputRange: [0, 1], outputRange: [1, 1.02] }),
+            ),
+          },
+          { translateY: entrada.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) },
+        ],
+      }}
+    >
+      <Pressable
+        onPress={onPress}
+        onPressIn={() => comprimir(0.975)}
+        onPressOut={() => comprimir(1)}
+        accessibilityRole="button"
+        accessibilityLabel={`Ver o que o plano ${plano.name} libera`}
+        // Realce SÓ no plano escolhido. O "Mais escolhido" continua sendo
+        // informação (o selo), não destaque visual do card: com borda e fundo
+        // próprios ele parecia já selecionado antes de qualquer toque, e
+        // disputava com o card que a pessoa de fato abriu.
+        style={({ pressed }) => [
+          s.opcao,
+          selecionado && { borderColor: tema.primary, borderWidth: 2 },
+          pressed && { borderColor: tema.primary },
+        ]}
+      >
+        {/* Bolha com gradiente e halo próprio em TODOS os níveis: o disco
+            chapado com ícone de traço fino era o que deixava os cards sem
+            vida. Os níveis Pro usam o gradiente cheio com ícone branco; o
+            Básico e o gratuito usam o mesmo desenho em versão suave, então a
+            família se mantém e a escada continua legível. */}
+        <View
+          style={[
+            s.opcaoIconeHalo,
+            { shadowColor: tema.primary, shadowOpacity: identidade.forte ? 0.45 : 0.18 },
+          ]}
+        >
+          <LinearGradient
+            colors={
+              identidade.forte
+                ? [tema.primaryLight, tema.primary]
+                : [tema.primarySoft, tema.primarySoft]
+            }
+            start={{ x: 0.1, y: 0 }}
+            end={{ x: 0.9, y: 1 }}
+            style={s.opcaoIcone}
+          >
+            <AppIcon
+              name={identidade.icone}
+              size={21}
+              color={identidade.forte ? colors.white : tema.primary}
+              strokeWidth={2.4}
+            />
+          </LinearGradient>
+        </View>
+
+        {/* Nome, benefício e selos em LINHAS separadas. Tudo na mesma linha
+            espremia o nome contra os selos: "Pro Anual" quebrava no meio
+            ("Pro An / ual") e o benefício truncava em três palavras. */}
+        <View style={s.opcaoTexto}>
+          <Text style={s.opcaoNome} numberOfLines={1}>
+            {plano.name}
+          </Text>
+          <Text style={s.opcaoBeneficio} numberOfLines={2}>
+            {resumoTexto}
+          </Text>
+          {identidade.destaque || economia ? (
+            <View style={s.opcaoSelos}>
+              {identidade.destaque ? (
+                <View style={[s.selinho, { backgroundColor: tema.primary }]}>
+                  <Text style={s.selinhoTexto}>{identidade.destaque}</Text>
+                </View>
+              ) : null}
+              {economia ? (
+                <View style={s.etiqueta}>
+                  <Text style={s.etiquetaTexto}>{economia}</Text>
+                </View>
+              ) : null}
+            </View>
+          ) : null}
+        </View>
+
+        {/* Sem chevron: o card inteiro é tocável e o preço já ancora a
+            direita — o ícone só roubava largura do nome. */}
+        <View style={s.precoCol}>
+          <Text style={s.preco}>{precoTexto}</Text>
+          <Text style={s.periodo}>{periodoTexto}</Text>
+        </View>
+      </Pressable>
+    </Animated.View>
+    </Animated.View>
+  );
+}
+
+/**
+ * Botão de assinar com o mesmo foco dos cards: sombra desfocada na cor do
+ * tema e leve compressão ao toque, para a ação principal ter o mesmo peso
+ * visual da escolha que a levou até ela.
+ */
+function BotaoAssinar({
+  tema,
+  rotulo,
+  carregando,
+  onPress,
+}: {
+  tema: ReturnType<typeof useGenderTheme>;
+  rotulo: string;
+  carregando: boolean;
+  onPress: () => void;
+}) {
+  const [reduzirMovimento, setReduzirMovimento] = useState(false);
+  const escala = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    let vivo = true;
+    AccessibilityInfo.isReduceMotionEnabled().then((v) => vivo && setReduzirMovimento(v));
+    return () => {
+      vivo = false;
+    };
+  }, []);
+
+  const comprimir = (para: number) => {
+    if (reduzirMovimento) return;
+    Animated.spring(escala, { toValue: para, useNativeDriver: true, speed: 40, bounciness: 0 }).start();
+  };
+
+  return (
+    /* Mesmo destaque do card escolhido: anel na cor do tema + halo desfocado.
+       Como o botão é preenchido com o gradiente, o anel fica AFASTADO por um
+       padding — encostado nele, uma borda da mesma cor seria invisível. */
+    <Animated.View
+      style={{
+        transform: [{ scale: escala }],
+        shadowColor: tema.primary,
+        shadowOpacity: 0.45,
+        shadowRadius: 18,
+        shadowOffset: { width: 0, height: 8 },
+        elevation: 10,
+        borderRadius: radius.lg + 5,
+        borderWidth: 2,
+        borderColor: tema.primary + "55",
+        padding: 3,
+      }}
+    >
+      <Pressable
+        onPress={onPress}
+        disabled={carregando}
+        onPressIn={() => comprimir(0.97)}
+        onPressOut={() => comprimir(1)}
+        style={s.ctaWrap}
+        accessibilityRole="button"
+        accessibilityLabel={rotulo}
+      >
+        <LinearGradient
+          colors={[tema.primaryLight, tema.primary]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={s.cta}
+        >
+          {carregando ? (
+            <ActivityIndicator color={colors.textOnPrimary} />
+          ) : (
+            <Text style={s.ctaTexto}>{rotulo}</Text>
+          )}
+        </LinearGradient>
+      </Pressable>
+    </Animated.View>
+  );
 }
 
 export default function PaywallScreen({ onClose }: Props) {
@@ -109,6 +423,9 @@ export default function PaywallScreen({ onClose }: Props) {
   // e dizer "não foi possível carregar" seria mentira.
   const [falhouBusca, setFalhouBusca] = useState(false);
   const [escolhido, setEscolhido] = useState<string | null>(null);
+  // `escolhido` volta a null ao tocar em "Ver outros planos" — este guarda o
+  // último plano aberto para o card continuar em destaque na lista.
+  const [ultimoEscolhido, setUltimoEscolhido] = useState<string | null>(null);
   const [assinando, setAssinando] = useState(false);
 
   const mensagem = (route.params as { mensagem?: string } | undefined)?.mensagem;
@@ -199,27 +516,54 @@ export default function PaywallScreen({ onClose }: Props) {
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.conteudo} bounces={false}>
           {/* Sem "X": a saída fica no rodapé ("Agora não"), e no passo 2 o
               rodapé vira "Ver outros planos". Dois fechos na mesma tela
-              disputavam atenção com a ação principal. */}
-          <View style={[s.selo, { backgroundColor: tema.primarySoft }]}>
-            <AppIcon name="Sparkles" size={13} color={tema.primary} strokeWidth={2.4} />
-            <Text style={[s.seloTexto, { color: tema.primary }]}>PLANOS</Text>
-          </View>
+              disputavam atenção com a ação principal.
+
+              A pílula "PLANOS" saiu: com o ícone acima do título ela virava
+              um segundo rótulo dizendo a mesma coisa. */}
 
           {planoEscolhido ? (
             /* ── Passo 2: o que o plano libera + assinar ─────────────────── */
             <>
-              <Text style={s.titulo}>{planoEscolhido.name}</Text>
-              <View style={s.precoLinha}>
-                <Text style={[s.precoGrande, { color: tema.primary }]}>
-                  {formatMoneyFromCents(planoEscolhido.priceInCents)}
-                </Text>
-                <Text style={s.precoPeriodo}>{sufixoPeriodo(planoEscolhido.interval)}</Text>
-              </View>
-              {economiaDoAnual ? (
-                <View style={s.etiquetaSolta}>
-                  <Text style={s.etiquetaTexto}>{economiaDoAnual}</Text>
+              {/* Repete a identidade da lista: quem tocou em "Pro Mensal"
+                  reconhece a coroa e sabe que continua no mesmo plano. */}
+              <View style={s.cabecalhoCentro}>
+                {identidadeDe(planoEscolhido).forte ? (
+                  <LinearGradient
+                    colors={[tema.primaryLight, tema.primary]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={s.cabecalhoIcone}
+                  >
+                    <AppIcon
+                      name={identidadeDe(planoEscolhido).icone}
+                      size={24}
+                      color={colors.white}
+                      strokeWidth={2.1}
+                    />
+                  </LinearGradient>
+                ) : (
+                  <View style={[s.cabecalhoIcone, { backgroundColor: tema.primarySoft }]}>
+                    <AppIcon
+                      name={identidadeDe(planoEscolhido).icone}
+                      size={24}
+                      color={tema.primary}
+                      strokeWidth={2.1}
+                    />
+                  </View>
+                )}
+                <Text style={s.titulo}>{planoEscolhido.name}</Text>
+                <View style={s.precoLinha}>
+                  <Text style={[s.precoGrande, { color: tema.primary }]}>
+                    {formatMoneyFromCents(planoEscolhido.priceInCents)}
+                  </Text>
+                  <Text style={s.precoPeriodo}>{sufixoPeriodo(planoEscolhido.interval)}</Text>
                 </View>
-              ) : null}
+                {economiaDoAnual ? (
+                  <View style={s.etiquetaSolta}>
+                    <Text style={s.etiquetaTexto}>{economiaDoAnual}</Text>
+                  </View>
+                ) : null}
+              </View>
 
               <Text style={s.secao}>O que este plano libera</Text>
               <View style={s.beneficios}>
@@ -233,27 +577,24 @@ export default function PaywallScreen({ onClose }: Props) {
                 ))}
               </View>
 
-              <Pressable onPress={assinar} disabled={assinando} style={s.ctaWrap}>
-                <LinearGradient
-                  colors={[tema.primaryLight, tema.primary]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={s.cta}
-                >
-                  {assinando ? (
-                    <ActivityIndicator color={colors.textOnPrimary} />
-                  ) : (
-                    <Text style={s.ctaTexto}>Assinar {planoEscolhido.name}</Text>
-                  )}
-                </LinearGradient>
-              </Pressable>
+              <BotaoAssinar
+                tema={tema}
+                rotulo={`Assinar ${planoEscolhido.name}`}
+                carregando={assinando}
+                onPress={assinar}
+              />
               <Text style={s.legal}>Cancele quando quiser. Sem fidelidade.</Text>
             </>
           ) : (
             /* ── Passo 1: só as opções, sem botão de ação ─────────────────── */
             <>
-              <Text style={s.titulo}>Escolha seu plano</Text>
-              <Text style={s.subtitulo}>Toque em um plano para ver o que ele libera.</Text>
+              <View style={s.cabecalhoCentro}>
+                <View style={[s.cabecalhoIcone, { backgroundColor: tema.primarySoft }]}>
+                  <AppIcon name="Sparkles" size={24} color={tema.primary} strokeWidth={2.1} />
+                </View>
+                <Text style={s.titulo}>Escolha seu plano</Text>
+                <Text style={s.subtitulo}>Toque em um plano para ver o que ele libera.</Text>
+              </View>
 
               {mensagem ? (
                 <View style={s.aviso}>
@@ -264,6 +605,14 @@ export default function PaywallScreen({ onClose }: Props) {
 
               {noPlanoGratuito ? (
                 <View style={s.atual}>
+                  {/* Mesma bolha dos pagos: sem ela o gratuito parecia de
+                      outra família e a progressão broto → raio → coroa → gema
+                      começava do nada. */}
+                  <View style={s.opcaoIconeHalo}>
+                    <View style={[s.opcaoIcone, { backgroundColor: colors.border }]}>
+                      <AppIcon name="Sprout" size={21} color={colors.textSecondary} strokeWidth={2.4} />
+                    </View>
+                  </View>
                   <View style={s.atualEsq}>
                     <Text style={s.atualNome}>Gratuito</Text>
                     {/* Limite e uso vêm de /api/me/subscription (FeatureLimit),
@@ -293,36 +642,30 @@ export default function PaywallScreen({ onClose }: Props) {
                 </Text>
               ) : (
                 <View style={s.lista}>
-                  {planos.map((p) => {
-                    const economia = p.interval === "year" ? economiaAnual(p, planos) : null;
-                    return (
-                      <Pressable
-                        key={p.id}
-                        onPress={() => setEscolhido(p.id)}
-                        accessibilityRole="button"
-                        accessibilityLabel={`Ver o que o plano ${p.name} libera`}
-                        style={({ pressed }) => [s.opcao, pressed && { borderColor: tema.primary }]}
-                      >
-                        <View style={s.opcaoTexto}>
-                          <View style={s.opcaoLinha}>
-                            <Text style={s.opcaoNome}>{p.name}</Text>
-                            {economia ? (
-                              <View style={s.etiqueta}>
-                                <Text style={s.etiquetaTexto}>{economia}</Text>
-                              </View>
-                            ) : null}
-                          </View>
-                          <Text style={s.opcaoBeneficio} numberOfLines={1}>{resumo(p)}</Text>
-                        </View>
-
-                        <View style={s.precoCol}>
-                          <Text style={s.preco}>{formatMoneyFromCents(p.priceInCents)}</Text>
-                          <Text style={s.periodo}>{sufixoPeriodo(p.interval)}</Text>
-                        </View>
-                        <AppIcon name="ChevronRight" size={18} color={colors.textMuted} strokeWidth={2.4} />
-                      </Pressable>
-                    );
-                  })}
+                  {planos.map((p, i) => (
+                    <PlanoCard
+                      key={p.id}
+                      plano={p}
+                      identidade={identidadeDe(p)}
+                      economia={p.interval === "year" ? economiaAnual(p, planos) : null}
+                      resumoTexto={resumo(p)}
+                      precoTexto={formatMoneyFromCents(p.priceInCents)}
+                      periodoTexto={sufixoPeriodo(p.interval)}
+                      indice={i}
+                      tema={tema}
+                      // Sem escolha ainda, o foco fica no recomendado; a
+                      // partir da primeira escolha ele passa para ela.
+                      selecionado={
+                        ultimoEscolhido
+                          ? ultimoEscolhido === p.id
+                          : Boolean(identidadeDe(p).destaque)
+                      }
+                      onPress={() => {
+                        setUltimoEscolhido(p.id);
+                        setEscolhido(p.id);
+                      }}
+                    />
+                  ))}
                 </View>
               )}
             </>
@@ -368,20 +711,41 @@ const s = StyleSheet.create({
   },
   conteudo: { padding: spacing.lg, gap: spacing.md },
 
-  cabecalho: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  selo: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    backgroundColor: colors.lavender,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 999,
-  },
-  seloTexto: { ...typography.caption, color: colors.primary, fontWeight: "800", letterSpacing: 0.8 },
 
-  titulo: { ...typography.h2, color: colors.textPrimary, fontWeight: "800" },
-  subtitulo: { ...typography.bodySm, color: colors.textSecondary, marginTop: -spacing.xs },
+  /** Bloco de cabeçalho centralizado: ícone → título → apoio. */
+  cabecalhoCentro: { alignItems: "center", gap: 6 },
+  cabecalhoIcone: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 2,
+  },
+  /**
+   * Peso 700 (era 800) e um pouco mais de corpo: no 800 o título ficava
+   * pesado e "gordo" ao lado do resto da tela. Com mais tamanho e o
+   * letter-spacing negativo, ele lê como título de destaque em vez de bloco
+   * em negrito.
+   *
+   * A família continua sendo a do sistema — o app não carrega nenhuma fonte
+   * própria hoje (expo-font está instalado, mas sem arquivo e sem useFonts).
+   */
+  titulo: {
+    ...typography.h2,
+    fontSize: 26,
+    lineHeight: 32,
+    letterSpacing: -0.5,
+    fontWeight: "700",
+    color: colors.textPrimary,
+    textAlign: "center",
+  },
+  subtitulo: {
+    ...typography.bodySm,
+    color: colors.textSecondary,
+    textAlign: "center",
+    paddingHorizontal: spacing.sm,
+  },
 
   aviso: {
     flexDirection: "row",
@@ -396,7 +760,9 @@ const s = StyleSheet.create({
   atual: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    // `gap` no lugar de space-between: com o ícone à esquerda, o
+    // space-between empurrava a bolha e a tag para as bordas e abria um vão.
+    gap: spacing.md,
     backgroundColor: colors.background,
     borderWidth: 1,
     borderColor: colors.border,
@@ -412,10 +778,13 @@ const s = StyleSheet.create({
   carregando: { paddingVertical: spacing.xl, alignItems: "center" },
   vazio: { ...typography.bodySm, color: colors.textSecondary, textAlign: "center", paddingVertical: spacing.lg },
 
-  lista: { gap: spacing.sm },
+  // Espaço maior que o gap padrão: o card em foco sobe 2% e ganha uma
+  // sombra de 18px de desfoque — com o gap antigo ela encostava no vizinho.
+  lista: { gap: 14 },
   opcao: {
     flexDirection: "row",
     alignItems: "center",
+    minHeight: 72,
     gap: spacing.md,
     borderWidth: 1.5,
     borderColor: colors.border,
@@ -423,9 +792,25 @@ const s = StyleSheet.create({
     padding: spacing.md,
     backgroundColor: colors.surface,
   },
-  opcaoTexto: { flex: 1, minWidth: 0 },
-  opcaoLinha: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
-  opcaoNome: { ...typography.bodyMedium, color: colors.textPrimary, fontWeight: "700", flexShrink: 1 },
+  /** Halo colorido atrás da bolha — é o que tira o ícone do "adesivo chapado". */
+  opcaoIconeHalo: {
+    borderRadius: 21,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 10,
+    elevation: 4,
+  },
+  opcaoIcone: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  selinho: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 },
+  selinhoTexto: { ...typography.caption, color: colors.white, fontWeight: "800", fontSize: 10 },
+  opcaoTexto: { flex: 1, minWidth: 0, gap: 3 },
+  opcaoSelos: { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap", marginTop: 2 },
+  opcaoNome: { ...typography.bodyMedium, color: colors.textPrimary, fontWeight: "700" },
   opcaoBeneficio: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
   etiqueta: { backgroundColor: colors.successSoft, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 },
   etiquetaTexto: { ...typography.caption, color: colors.success, fontWeight: "700", fontSize: 10 },
@@ -441,11 +826,11 @@ const s = StyleSheet.create({
   // ── passo 2: detalhe do plano ──────────────────────────────────────────
   voltar: { flexDirection: "row", alignItems: "center", gap: 6 },
   voltarTexto: { ...typography.caption, fontWeight: "700" },
-  precoLinha: { flexDirection: "row", alignItems: "baseline", gap: 4, marginTop: -spacing.xs },
+  precoLinha: { flexDirection: "row", alignItems: "baseline", gap: 4, marginTop: 2 },
   precoGrande: { ...typography.h1, fontWeight: "800" },
   precoPeriodo: { ...typography.bodySm, color: colors.textSecondary },
   etiquetaSolta: {
-    alignSelf: "flex-start",
+    alignSelf: "center",
     backgroundColor: colors.successSoft,
     paddingHorizontal: 10,
     paddingVertical: 4,

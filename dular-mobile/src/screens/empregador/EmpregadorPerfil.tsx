@@ -528,11 +528,22 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
   const emailText = textValue(profileData?.email) ?? "Não informado";
   const roleText = roleLabel(profileData?.role);
   const createdAtText = memberSince || "Não informado";
+  // "Usuária desde" era fixo aqui — homens viam o feminino. Sem gênero
+  // declarado, fica neutro em vez de assumir um.
+  const generoPrefixo =
+    profileData?.genero === "MASCULINO"
+      ? "Usuário desde"
+      : profileData?.genero === "FEMININO"
+        ? "Usuária desde"
+        : "Na Dular desde";
   const locationText =
     enderecoLocation || heroLocation || (locationIsEnabled ? "Localização ativada" : "Localização não informada");
   const progressLabel = completion.completo ? "Perfil completo" : "Perfil incompleto";
-  const progressTone = completion.completo ? colors.success : colors.warning;
-  const progressSoft = completion.completo ? colors.successSoft : colors.warningSoft;
+  // Completo não é status a comunicar: a barra segue o tema do perfil. O
+  // verde fixo (`colors.success`) era a única coisa fora da paleta ali. O
+  // laranja fica para quando falta algo de verdade.
+  // (`progressSoft` existia sem nenhum consumidor e saiu.)
+  const progressTone = completion.completo ? colors.primary : colors.warning;
   const missingText = completion.faltantes.length
     ? `Pendente: ${completion.faltantes.join(", ")}`
     : "Dados principais preenchidos.";
@@ -578,6 +589,7 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
                 subtitle={roleText}
                 location={locationText}
                 memberSince={memberSince}
+                memberSincePrefix={generoPrefixo}
                 avatarUri={avatarUri}
                 avatarFallback={avatarFallback}
                 uploading={avatarUploading}
@@ -658,7 +670,12 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
                     {completion.completo ? "Cadastro básico completo." : missingText}
                   </Text>
                   <Text style={s.statusHint}>{statusCopy.text}</Text>
-                  {!podeSolicitar ? (
+                  {/* O botão só faz sentido quando o pendente É documento. No
+                      caso "Perfil incompleto" (cadastro faltando) ele dizia
+                      "Ver documentos" e levava para a verificação — que já
+                      estava aprovada — enquanto o texto logo acima pedia
+                      e-mail/CPF/nascimento. */}
+                  {!podeSolicitar && statusCardCase !== "INCOMPLETO" ? (
                     <DButton
                       label={ctaLabel}
                       variant="warning"

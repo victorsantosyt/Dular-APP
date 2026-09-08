@@ -16,6 +16,12 @@ const REAGENDAVEL = new Set(["ACEITO", "CONFIRMADO", "EM_ANDAMENTO"]);
 const proporSchema = z.object({
   data: z.string().datetime({ offset: true }),
   turno: z.enum(["MANHA", "TARDE"]),
+  // Mesmo formato de Servico.hora ("HH:MM"). Opcional: proposta sem horário
+  // mantém só o turno, como antes.
+  hora: z
+    .string()
+    .regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Horário inválido. Use HH:MM.")
+    .optional(),
 });
 
 const decisaoSchema = z.object({
@@ -57,6 +63,7 @@ export async function POST(req: Request, { params }: Params) {
       data: {
         reagendamentoData: novaData,
         reagendamentoTurno: parsed.data.turno,
+        reagendamentoHora: parsed.data.hora ?? null,
         reagendamentoPor: auth.userId,
         reagendamentoEm: new Date(),
       },
@@ -107,14 +114,19 @@ export async function PATCH(req: Request, { params }: Params) {
         ? {
             data: servico.reagendamentoData,
             turno: servico.reagendamentoTurno,
+            // Aceitar o reagendamento move o horário junto — senão a data
+            // mudava e a hora continuava a do agendamento antigo.
+            hora: servico.reagendamentoHora,
             reagendamentoData: null,
             reagendamentoTurno: null,
+            reagendamentoHora: null,
             reagendamentoPor: null,
             reagendamentoEm: null,
           }
         : {
             reagendamentoData: null,
             reagendamentoTurno: null,
+            reagendamentoHora: null,
             reagendamentoPor: null,
             reagendamentoEm: null,
           },

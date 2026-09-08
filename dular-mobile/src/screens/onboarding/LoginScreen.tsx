@@ -164,7 +164,11 @@ function LoginLogo() {
       <Image
         source={loginLogoCentral}
         style={styles.logoImage}
-        resizeMode="contain"
+        // "cover" é o ajuste automático: escala a arte para preencher a caixa
+        // em qualquer tela, centralizada, cortando o excesso. O "contain" de
+        // antes fazia o oposto — cabia a arte inteira e sobrava faixa da cor
+        // do cartão nas beiradas, que era a borda branca visível.
+        resizeMode="cover"
       />
     );
   }
@@ -561,8 +565,10 @@ const styles = StyleSheet.create({
   logoImage: {
     width: "100%",
     height: "100%",
-    backgroundColor: LOGIN_LOGO_EDGE_COLOR,
-    transform: [{ scale: 1.09 }, { translateY: 7 }],
+    // Sem `transform` nem cor de fundo: o scale 1.09 e o translateY 7 eram
+    // números calibrados num aparelho só, para empurrar a arte por cima da
+    // faixa do "contain". Em tela mais larga ou mais estreita eles erravam o
+    // alvo — ora sobrava borda, ora cortava a ilustração torto.
   },
   titleBlock: {
     gap: spacing.sm,
@@ -583,14 +589,20 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   illustration: {
-    height: 224,
+    // Proporção da própria arte (1536x1024 = 3:2) em vez de altura fixa: a
+    // caixa acompanha a largura do aparelho e bate exatamente com a imagem,
+    // então o "cover" não corta nada em nenhuma tela. O teto evita que ela
+    // domine a tela em aparelho muito largo.
+    width: "100%",
+    aspectRatio: 3 / 2,
+    maxHeight: 260,
     borderRadius: radius.xxl,
     backgroundColor: LOGIN_LOGO_EDGE_COLOR,
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",
-    borderWidth: 1,
-    borderColor: "#eadffd",
+    // Sem borda: a linha de 1px em #eadffd era a moldura clara em volta da
+    // ilustração.
     ...shadows.soft,
   },
   loginButtons: {

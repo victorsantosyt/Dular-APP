@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  AccessibilityInfo,
   ActivityIndicator,
   Alert,
+  Animated,
   Linking,
   Pressable,
   ScrollView,
@@ -15,7 +17,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
 
 import { api } from "@/lib/api";
-import { AppIcon } from "@/components/ui";
+import { AppIcon, type AppIconName } from "@/components/ui";
 import { colors, radius, spacing, typography } from "@/theme/tokens";
 import { useGenderTheme } from "@/hooks/useProfileTheme";
 import { formatMoneyFromCents, plural } from "@/utils/formatters";
@@ -66,6 +68,35 @@ const BENEFICIOS: Record<string, string[]> = {
 
 const BENEFICIOS_PADRAO = ["Mais serviços por mês", "Suporte prioritário"];
 
+/**
+ * Identidade visual por NÍVEL (mesma chave `plan_interval` dos benefícios —
+ * diarista e montador têm ids diferentes para o mesmo nível).
+ *
+ * Os quatro ícones contam uma progressão: broto → raio → coroa → gema. E
+ * `forte` marca os níveis que ganham bolha em gradiente com ícone branco, em
+ * vez da bolha suave — o card sobe de tom junto com o plano, em vez de os
+ * três serem a mesma linha com preços diferentes.
+ */
+type IdentidadePlano = {
+  icone: AppIconName;
+  /** Bolha em gradiente (níveis Pro) em vez do fundo suave. */
+  forte: boolean;
+  /** Selo de recomendação; só um plano deve ter. */
+  destaque?: string;
+};
+
+const IDENTIDADE: Record<string, IdentidadePlano> = {
+  BASIC_month: { icone: "Zap", forte: false },
+  PREMIUM_month: { icone: "Crown", forte: true, destaque: "Mais escolhido" },
+  PREMIUM_year: { icone: "Gem", forte: true },
+};
+
+const IDENTIDADE_PADRAO: IdentidadePlano = { icone: "Sparkles", forte: false };
+
+function identidadeDe(p: { plan: string; interval: string | null }): IdentidadePlano {
+  return IDENTIDADE[chaveBeneficio(p)] ?? IDENTIDADE_PADRAO;
+}
+
 function chaveBeneficio(p: { plan: string; interval: string | null }): string {
   return `${p.plan}_${p.interval === "year" ? "year" : "month"}`;
 }
@@ -91,6 +122,145 @@ function economiaAnual(anual: PlanoApi, mensais: PlanoApi[]): string | null {
   const diff = mensal.priceInCents * 12 - anual.priceInCents;
   if (diff <= 0) return null;
   return `Economize ${formatMoneyFromCents(diff)}`;
+}
+
+/**
+ * Card de plano da lista.
+ *
+ * Entra com fade + subida escalonada por índice e responde ao toque com uma
+ * leve compressão. Usa o `Animated` do próprio RN: o projeto não tem
+ * reanimated, e a animação é simples o bastante para não precisar.
+ *
+ * Respeita "reduzir movimento" do sistema: com a preferência ligada o card
+ * aparece direto, sem deslocamento nem escala.
+ */
+function PlanoCard({
+  plano,
+  identidade,
+  economia,
+  resumoTexto,
+  precoTexto,
+  periodoTexto,
+  indice,
+  tema,
+  onPress,
+}: {
+  plano: PlanoApi;
+  identidade: IdentidadePlano;
+  economia: string | null;
+  resumoTexto: string;
+  precoTexto: string;
+  periodoTexto: string;
+  indice: number;
+  tema: ReturnType<typeof useGenderTheme>;
+  onPress: () => void;
+}) {
+  const [reduzirMovimento, setReduzirMovimento] = useState(false);
+  const entrada = useRef(new Animated.Value(0)).current;
+  const escala = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    let vivo = true;
+    AccessibilityInfo.isReduceMotionEnabled().then((v) => vivo && setReduzirMovimento(v));
+    return () => {
+      vivo = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (reduzirMovimento) {
+      entrada.setValue(1);
+      return;
+    }
+    const anim = Animated.timing(entrada, {
+      toValue: 1,
+      duration: 260,
+      delay: indice * 70,
+      useNativeDriver: true,
+    });
+    anim.start();
+    return () => anim.stop();
+  }, [entrada, indice, reduzirMovimento]);
+
+  const comprimir = (para: number) => {
+    if (reduzirMovimento) return;
+    Animated.spring(escala, { toValue: para, useNativeDriver: true, speed: 40, bounciness: 0 }).start();
+  };
+
+  const destacado = Boolean(identidade.destaque);
+
+  return (
+    <Animated.View
+      style={{
+        opacity: entrada,
+        transform: [
+          { scale: escala },
+          { translateY: entrada.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) },
+        ],
+      }}
+    >
+      <Pressable
+        onPress={onPress}
+        onPressIn={() => comprimir(0.975)}
+        onPressOut={() => comprimir(1)}
+        accessibilityRole="button"
+        accessibilityLabel={`Ver o que o plano ${plano.name} libera`}
+        style={({ pressed }) => [
+          s.opcao,
+          destacado && { borderColor: tema.primary, backgroundColor: tema.primarySoft + "40" },
+          pressed && { borderColor: tema.primary },
+        ]}
+      >
+        {identidade.forte ? (
+          <LinearGradient
+            colors={[tema.primaryLight, tema.primary]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={s.opcaoIcone}
+          >
+            <AppIcon name={identidade.icone} size={19} color={colors.white} strokeWidth={2.2} />
+          </LinearGradient>
+        ) : (
+          <View style={[s.opcaoIcone, { backgroundColor: tema.primarySoft }]}>
+            <AppIcon name={identidade.icone} size={19} color={tema.primary} strokeWidth={2.2} />
+          </View>
+        )}
+
+        {/* Nome, benefício e selos em LINHAS separadas. Tudo na mesma linha
+            espremia o nome contra os selos: "Pro Anual" quebrava no meio
+            ("Pro An / ual") e o benefício truncava em três palavras. */}
+        <View style={s.opcaoTexto}>
+          <Text style={s.opcaoNome} numberOfLines={1}>
+            {plano.name}
+          </Text>
+          <Text style={s.opcaoBeneficio} numberOfLines={2}>
+            {resumoTexto}
+          </Text>
+          {identidade.destaque || economia ? (
+            <View style={s.opcaoSelos}>
+              {identidade.destaque ? (
+                <View style={[s.selinho, { backgroundColor: tema.primary }]}>
+                  <Text style={s.selinhoTexto}>{identidade.destaque}</Text>
+                </View>
+              ) : null}
+              {economia ? (
+                <View style={s.etiqueta}>
+                  <Text style={s.etiquetaTexto}>{economia}</Text>
+                </View>
+              ) : null}
+            </View>
+          ) : null}
+        </View>
+
+        {/* Sem chevron: o card inteiro é tocável e o preço já ancora a
+            direita — o ícone só roubava largura do nome. */}
+        <View style={s.precoCol}>
+          <Text style={s.preco}>{precoTexto}</Text>
+          <Text style={s.periodo}>{periodoTexto}</Text>
+        </View>
+      </Pressable>
+    </Animated.View>
+  );
 }
 
 export default function PaywallScreen({ onClose }: Props) {
@@ -208,6 +378,32 @@ export default function PaywallScreen({ onClose }: Props) {
           {planoEscolhido ? (
             /* ── Passo 2: o que o plano libera + assinar ─────────────────── */
             <>
+              {/* Repete a identidade da lista: quem tocou em "Pro Mensal"
+                  reconhece a coroa e sabe que continua no mesmo plano. */}
+              {identidadeDe(planoEscolhido).forte ? (
+                <LinearGradient
+                  colors={[tema.primaryLight, tema.primary]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={s.detalheIcone}
+                >
+                  <AppIcon
+                    name={identidadeDe(planoEscolhido).icone}
+                    size={26}
+                    color={colors.white}
+                    strokeWidth={2.1}
+                  />
+                </LinearGradient>
+              ) : (
+                <View style={[s.detalheIcone, { backgroundColor: tema.primarySoft }]}>
+                  <AppIcon
+                    name={identidadeDe(planoEscolhido).icone}
+                    size={26}
+                    color={tema.primary}
+                    strokeWidth={2.1}
+                  />
+                </View>
+              )}
               <Text style={s.titulo}>{planoEscolhido.name}</Text>
               <View style={s.precoLinha}>
                 <Text style={[s.precoGrande, { color: tema.primary }]}>
@@ -264,6 +460,12 @@ export default function PaywallScreen({ onClose }: Props) {
 
               {noPlanoGratuito ? (
                 <View style={s.atual}>
+                  {/* Mesma bolha dos pagos: sem ela o gratuito parecia de
+                      outra família e a progressão broto → raio → coroa → gema
+                      começava do nada. */}
+                  <View style={[s.opcaoIcone, { backgroundColor: colors.border }]}>
+                    <AppIcon name="Sprout" size={19} color={colors.textSecondary} strokeWidth={2.2} />
+                  </View>
                   <View style={s.atualEsq}>
                     <Text style={s.atualNome}>Gratuito</Text>
                     {/* Limite e uso vêm de /api/me/subscription (FeatureLimit),
@@ -293,36 +495,20 @@ export default function PaywallScreen({ onClose }: Props) {
                 </Text>
               ) : (
                 <View style={s.lista}>
-                  {planos.map((p) => {
-                    const economia = p.interval === "year" ? economiaAnual(p, planos) : null;
-                    return (
-                      <Pressable
-                        key={p.id}
-                        onPress={() => setEscolhido(p.id)}
-                        accessibilityRole="button"
-                        accessibilityLabel={`Ver o que o plano ${p.name} libera`}
-                        style={({ pressed }) => [s.opcao, pressed && { borderColor: tema.primary }]}
-                      >
-                        <View style={s.opcaoTexto}>
-                          <View style={s.opcaoLinha}>
-                            <Text style={s.opcaoNome}>{p.name}</Text>
-                            {economia ? (
-                              <View style={s.etiqueta}>
-                                <Text style={s.etiquetaTexto}>{economia}</Text>
-                              </View>
-                            ) : null}
-                          </View>
-                          <Text style={s.opcaoBeneficio} numberOfLines={1}>{resumo(p)}</Text>
-                        </View>
-
-                        <View style={s.precoCol}>
-                          <Text style={s.preco}>{formatMoneyFromCents(p.priceInCents)}</Text>
-                          <Text style={s.periodo}>{sufixoPeriodo(p.interval)}</Text>
-                        </View>
-                        <AppIcon name="ChevronRight" size={18} color={colors.textMuted} strokeWidth={2.4} />
-                      </Pressable>
-                    );
-                  })}
+                  {planos.map((p, i) => (
+                    <PlanoCard
+                      key={p.id}
+                      plano={p}
+                      identidade={identidadeDe(p)}
+                      economia={p.interval === "year" ? economiaAnual(p, planos) : null}
+                      resumoTexto={resumo(p)}
+                      precoTexto={formatMoneyFromCents(p.priceInCents)}
+                      periodoTexto={sufixoPeriodo(p.interval)}
+                      indice={i}
+                      tema={tema}
+                      onPress={() => setEscolhido(p.id)}
+                    />
+                  ))}
                 </View>
               )}
             </>
@@ -396,7 +582,9 @@ const s = StyleSheet.create({
   atual: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    // `gap` no lugar de space-between: com o ícone à esquerda, o
+    // space-between empurrava a bolha e a tag para as bordas e abria um vão.
+    gap: spacing.md,
     backgroundColor: colors.background,
     borderWidth: 1,
     borderColor: colors.border,
@@ -416,6 +604,7 @@ const s = StyleSheet.create({
   opcao: {
     flexDirection: "row",
     alignItems: "center",
+    minHeight: 72,
     gap: spacing.md,
     borderWidth: 1.5,
     borderColor: colors.border,
@@ -423,9 +612,26 @@ const s = StyleSheet.create({
     padding: spacing.md,
     backgroundColor: colors.surface,
   },
-  opcaoTexto: { flex: 1, minWidth: 0 },
-  opcaoLinha: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
-  opcaoNome: { ...typography.bodyMedium, color: colors.textPrimary, fontWeight: "700", flexShrink: 1 },
+  opcaoIcone: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  detalheIcone: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    alignItems: "center",
+    justifyContent: "center",
+    alignSelf: "flex-start",
+  },
+  selinho: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 },
+  selinhoTexto: { ...typography.caption, color: colors.white, fontWeight: "800", fontSize: 10 },
+  opcaoTexto: { flex: 1, minWidth: 0, gap: 3 },
+  opcaoSelos: { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap", marginTop: 2 },
+  opcaoNome: { ...typography.bodyMedium, color: colors.textPrimary, fontWeight: "700" },
   opcaoBeneficio: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
   etiqueta: { backgroundColor: colors.successSoft, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 },
   etiquetaTexto: { ...typography.caption, color: colors.success, fontWeight: "700", fontSize: 10 },

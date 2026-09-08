@@ -42,8 +42,12 @@ export function SecurityScreen() {
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <View style={styles.titleBlock}>
+          {/* `\u00A0` (espaço inseparável) prende as duas últimas palavras:
+              sem ele a última caía sozinha na segunda linha. Não é quebra
+              fixa — se couber tudo numa linha, não quebra; quando falta
+              espaço, a quebra acontece antes do par em vez de deixar órfã. */}
           <Text style={styles.title}>
-            <Text style={styles.titleAccent}>Segurança</Text> que você pode confiar
+            <Text style={styles.titleAccent}>Segurança</Text> que você{"\u00A0"}pode{"\u00A0"}confiar
           </Text>
           <Text style={styles.subtitle}>
             Recursos de confiança para proteger sua rotina, sua casa e seus dados.

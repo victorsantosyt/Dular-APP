@@ -49,8 +49,12 @@ export function StartScreen() {
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <View style={styles.titleBlock}>
+          {/* `\u00A0` (espaço inseparável) prende as duas últimas palavras:
+              sem ele a última caía sozinha na segunda linha. Não é quebra
+              fixa — se couber tudo numa linha, não quebra; quando falta
+              espaço, a quebra acontece antes do par em vez de deixar órfã. */}
           <Text style={styles.title}>
-            Pronta para ter <Text style={styles.titleAccent}>mais tempo</Text> para você?
+            Pronta para ter <Text style={styles.titleAccent}>mais tempo</Text> para{"\u00A0"}você?
           </Text>
           <Text style={styles.subtitle}>
             Comece escolhendo o perfil que combina com a sua jornada no Dular.

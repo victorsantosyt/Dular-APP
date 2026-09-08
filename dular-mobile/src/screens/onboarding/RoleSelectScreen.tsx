@@ -36,7 +36,7 @@ const montadorImg = require("../../../assets/images/roles/role_montador_card.png
 // FASE 4 — desacopladas do resolvedor de tema, que não infere mais gênero por
 // role. Constantes diretas preservam o visual histórico.
 const PURPLE = "#7B5CFA";  // Empregador
-const PINK   = "#F7658B";  // Profissional Casa
+const PINK   = "#F7658B";  // Profissional (diarista, babá, cozinheira…)
 const TEAL   = "#4FA38F";  // Montador
 
 const DARK = tc.navyDeep;
@@ -251,11 +251,15 @@ export function RoleSelectScreen() {
           bgTop="#FFE0EC"
           bgCard="#FFF0F5"
           borderHex={PINK + "4D"}
-          title="Casa"
+          // "Casa" ao lado de "Empregador" e "Montador" lia como um lugar, não
+          // como alguém. E este perfil não é só diarista: guarda babá,
+          // cozinheira, cuidadora, passadeira, lavadeira — "Profissional"
+          // cobre todas sem eleger uma.
+          title="Profissional"
           description={"Conquiste mais\noportunidades e\naumente sua renda."}
           badgeIcon="BriefcaseBusiness"
           features={diaristaFeatures}
-          buttonLabel="Sou profissional de casa"
+          buttonLabel="Sou Profissional"
           onPress={() => chooseRole("profissional_casa")}
         />
 

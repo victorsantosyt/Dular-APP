@@ -1,318 +1,36 @@
-import { useCallback, useMemo, useState } from "react";
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
-import { AppIcon, BackCircleButton, DEmptyState, DErrorState, DLoadingState } from "@/components/ui";
-import { useNotificacoes } from "@/hooks/useNotificacoes";
-import type { Notificacao } from "@/api/notificacoesApi";
-import type { EmpregadorTabParamList } from "@/navigation/EmpregadorNavigator";
-import { SimuladorDePopup } from "@/components/dev/SimuladorDePopup";
-import { colors, radius, shadows, spacing, typography } from "@/theme";
+
+import { NotificacoesView } from "@/screens/shared/NotificacoesView";
 import { useGenderTheme } from "@/hooks/useProfileTheme";
-import {
-  NotificationCard,
-  NotificationItem,
-  NotificationSection,
-  NotificationTab,
-  NotificationTabs,
-  NotificationTone,
-} from "./notifications/components";
-import type { AppIconName } from "@/components/ui";
+import type { EmpregadorTabParamList } from "@/navigation/EmpregadorNavigator";
 
 type Navigation = BottomTabNavigationProp<EmpregadorTabParamList>;
 
-type TypeMeta = {
-  icon: AppIconName;
-  tone: NotificationTone;
-  filter: "importantes" | "sistema";
-  typeLabel: string;
-  badge?: string;
-};
-
-const TYPE_META: Record<string, TypeMeta> = {
-  SERVICO_SOLICITADO: { icon: "BriefcaseBusiness", tone: "analysis", filter: "importantes", typeLabel: "Solicitação" },
-  SERVICO_ACEITO: { icon: "CheckCircle", tone: "success", filter: "importantes", typeLabel: "Solicitação", badge: "Aceito" },
-  SERVICO_RECUSADO: { icon: "XCircle", tone: "urgent", filter: "importantes", typeLabel: "Solicitação", badge: "Recusado" },
-  SERVICO_INICIADO: { icon: "Clock", tone: "analysis", filter: "importantes", typeLabel: "Serviço", badge: "Em andamento" },
-  SERVICO_FINALIZADO: { icon: "CheckCircle", tone: "success", filter: "importantes", typeLabel: "Serviço", badge: "Concluído" },
-  SERVICO_CANCELADO: { icon: "XCircle", tone: "urgent", filter: "importantes", typeLabel: "Serviço", badge: "Cancelado" },
-  CHAT_NOVA_MENSAGEM: { icon: "MessageCircle", tone: "analysis", filter: "importantes", typeLabel: "Mensagem" },
-  MENSAGEM_RECEBIDA: { icon: "MessageCircle", tone: "analysis", filter: "importantes", typeLabel: "Mensagem" },
-  AVALIACAO_RECEBIDA: { icon: "Star", tone: "success", filter: "importantes", typeLabel: "Avaliação" },
-  ALERTA_SEGURANCA: { icon: "AlertTriangle", tone: "urgent", filter: "importantes", typeLabel: "Segurança", badge: "Urgente" },
-  SISTEMA: { icon: "Sparkles", tone: "system", filter: "sistema", typeLabel: "Sistema" },
-  NOVIDADE: { icon: "Megaphone", tone: "news", filter: "sistema", typeLabel: "Novidades" },
-};
-
-const DEFAULT_META: TypeMeta = {
-  icon: "Bell",
-  tone: "system",
-  filter: "sistema",
-  typeLabel: "Aviso",
-};
-
-function metaFor(type: string): TypeMeta {
-  return TYPE_META[type] ?? DEFAULT_META;
-}
-
-function tempoRelativo(iso: string): string {
-  const now = Date.now();
-  const then = new Date(iso).getTime();
-  if (!Number.isFinite(then)) return "";
-  const diffMs = Math.max(0, now - then);
-  const minutes = Math.floor(diffMs / 60_000);
-  if (minutes < 1) return "Agora";
-  if (minutes < 60) return `${minutes} min`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours} h`;
-  const days = Math.floor(hours / 24);
-  if (days < 2) return "Ontem";
-  return `${days} dias`;
-}
-
-function sectionOf(iso: string): "Hoje" | "Ontem" | "Anteriores" {
-  const date = new Date(iso);
-  if (!Number.isFinite(date.getTime())) return "Anteriores";
-  const now = new Date();
-  const sameDay =
-    date.getFullYear() === now.getFullYear() &&
-    date.getMonth() === now.getMonth() &&
-    date.getDate() === now.getDate();
-  if (sameDay) return "Hoje";
-  const y = new Date(now);
-  y.setDate(now.getDate() - 1);
-  const isYesterday =
-    date.getFullYear() === y.getFullYear() &&
-    date.getMonth() === y.getMonth() &&
-    date.getDate() === y.getDate();
-  if (isYesterday) return "Ontem";
-  return "Anteriores";
-}
-
-// Mensagens de chat não entram na tela de Notificações (aparecem como contagem
-// no card da conversa, na tela de Mensagens).
-const CHAT_TYPES = new Set<string>(["CHAT_NOVA_MENSAGEM", "MENSAGEM_RECEBIDA"]);
-
-function toNotificationItem(n: Notificacao): NotificationItem & { _raw: Notificacao } {
-  const meta = metaFor(n.type);
-  const section = sectionOf(n.createdAt);
-  return {
-    id: n.id,
-    section: section === "Anteriores" ? "Ontem" : section,
-    filter: meta.filter,
-    type: meta.typeLabel,
-    title: n.title,
-    text: n.body,
-    time: tempoRelativo(n.createdAt),
-    icon: meta.icon,
-    tone: meta.tone,
-    badge: meta.badge,
-    unread: !n.readAt,
-    _raw: n,
-  };
-}
-
+/**
+ * Notificações do Empregador.
+ *
+ * Era uma tela inteira só dela (315 linhas + 254 de componentes próprios),
+ * fazendo o mesmo que a do montador e a da diarista com outro vocabulário de
+ * tons, outras abas e outro cartão. Duas cópias do mesmo ecrã divergem
+ * sozinhas — um ajuste caía num perfil e não no outro. Agora as três dividem
+ * `NotificacoesView`; aqui fica só o que é próprio deste perfil: o tema e
+ * para onde cada toque leva neste navegador.
+ */
 export function NotificacoesEmpregadorScreen() {
-  // Cor do voltar seguindo o perfil, como nas demais telas.
-  const theme = useGenderTheme();
   const navigation = useNavigation<Navigation>();
-  const [activeTab, setActiveTab] = useState<NotificationTab>("todas");
-  const {
-    notificacoes,
-    loading,
-    error,
-    unreadCount,
-    refetch,
-    marcarComoLida,
-    marcarTodasComoLidas,
-  } = useNotificacoes();
-
-  const items = useMemo(
-    () => notificacoes.map(toNotificationItem).filter((it) => !CHAT_TYPES.has(it._raw.type)),
-    [notificacoes],
-  );
-
-  const filtered = useMemo(() => {
-    if (activeTab === "todas") return items;
-    return items.filter((item) => item.filter === activeTab);
-  }, [activeTab, items]);
-
-  const grouped = useMemo(
-    () => ({
-      Hoje: filtered.filter((item) => item.section === "Hoje"),
-      Ontem: filtered.filter((item) => item.section === "Ontem"),
-    }),
-    [filtered],
-  );
-
-  const openNotification = useCallback(
-    (item: NotificationItem & { _raw: Notificacao }) => {
-      const raw = item._raw;
-      if (!raw.readAt) {
-        void marcarComoLida(raw.id);
-      }
-      if (raw.chatRoomId) {
-        const servicoId = raw.servicoId ?? raw.chatRoomId;
-        navigation.navigate("ChatAberto", {
-          roomId: servicoId,
-          servicoId,
-          nomeUsuario: "Conversa",
-        });
-        return;
-      }
-      if (raw.servicoId) {
-        navigation.navigate("EmpregadorDetalhe", { servicoId: raw.servicoId });
-      }
-    },
-    [marcarComoLida, navigation],
-  );
-
-  const handleMarcarTodas = useCallback(() => {
-    void marcarTodasComoLidas();
-  }, [marcarTodasComoLidas]);
-
-  const isEmpty = !loading && items.length === 0;
+  const theme = useGenderTheme();
 
   return (
-    <SafeAreaView style={s.safe} edges={["top", "left", "right"]}>
-      <View style={s.root}>
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={s.scroll}
-          // Puxar para atualizar, no lugar do sino: era o único jeito de
-          // recarregar a lista, e é o gesto que se espera numa lista.
-          refreshControl={<RefreshControl refreshing={loading} onRefresh={refetch} tintColor={colors.primary} />}
-        >
-          {/* Cabeçalho no padrão do app (ver "Dados da conta"): título à
-              esquerda e o BackCircleButton à direita.
-
-              O sino saiu: mostrar um sino com contador de não lidas DENTRO da
-              própria tela de notificações não leva a lugar nenhum — a pessoa
-              já está nelas. */}
-          <View style={s.headerTop}>
-            <BackCircleButton onPress={() => navigation.goBack()} color={theme.icon} borderColor={theme.border} />
-            <Text style={[s.title, { color: theme.textAccent }]}>Notificações</Text>
-            {/* Espaçador: sem ele o título centraliza no espaço que sobra
-                e fica deslocado para a direita. */}
-            <View style={s.headerSlot} />
-          </View>
-
-          <Text style={s.subtitle}>
-            Acompanhe alertas, novidades e atualizações importantes.
-          </Text>
-
-          <View style={s.actionsRow}>
-            <NotificationTabs activeTab={activeTab} onChange={setActiveTab} />
-            <Pressable
-              onPress={handleMarcarTodas}
-              disabled={unreadCount === 0}
-              style={({ pressed }) => [
-                s.markAllBtn,
-                pressed && { opacity: 0.78 },
-                unreadCount === 0 && s.markAllDisabled,
-              ]}
-              hitSlop={8}
-            >
-              <Text style={s.markAllText}>Marcar todas como lidas</Text>
-            </Pressable>
-          </View>
-
-          <SimuladorDePopup theme={theme} servicoId={items.find((it) => it._raw.servicoId)?._raw.servicoId ?? undefined} />
-
-          {loading && items.length === 0 ? (
-            <DLoadingState text="Carregando notificações" color={colors.primary} />
-          ) : error && items.length === 0 ? (
-            <DErrorState message={error} onRetry={refetch} />
-          ) : isEmpty ? (
-            <DEmptyState
-              icon="Bell"
-              title="Sem notificações"
-              subtitle="Atualizações de serviços, mensagens e segurança aparecerão aqui."
-              accentColor={colors.primary}
-              softBg={colors.lavenderSoft}
-            />
-          ) : (
-            <>
-              {grouped.Hoje.length > 0 ? (
-                <NotificationSection title="Hoje">
-                  {grouped.Hoje.map((item) => (
-                    <NotificationCard key={item.id} item={item} onPress={() => openNotification(item)} />
-                  ))}
-                </NotificationSection>
-              ) : null}
-
-              {grouped.Ontem.length > 0 ? (
-                <NotificationSection title="Anteriores">
-                  {grouped.Ontem.map((item) => (
-                    <NotificationCard key={item.id} item={item} onPress={() => openNotification(item)} />
-                  ))}
-                </NotificationSection>
-              ) : null}
-            </>
-          )}
-        </ScrollView>
-      </View>
-    </SafeAreaView>
+    <NotificacoesView
+      theme={theme}
+      onVoltar={() => navigation.goBack()}
+      onOpenChat={(servicoId) =>
+        navigation.navigate("ChatAberto", { roomId: servicoId, servicoId, nomeUsuario: "Conversa" })
+      }
+      onOpenServico={(servicoId) => navigation.navigate("EmpregadorDetalhe", { servicoId })}
+    />
   );
 }
 
 export default NotificacoesEmpregadorScreen;
-
-const s = StyleSheet.create({
-  safe: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  root: {
-    flex: 1,
-  },
-  scroll: {
-    paddingHorizontal: spacing.screenPadding,
-    paddingTop: 10,
-    paddingBottom: 122,
-    gap: 14,
-  },
-  headerTop: {
-    minHeight: 52,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-  },
-  /** Mesma largura do BackCircleButton, para centrar o título. */
-  headerSlot: { width: 42, height: 42 },
-  title: {
-    // Título de tela secundária: h2 e cor de destaque do perfil. Antes cada
-    // uma escolhia entre h2, h3, 24, 22, bodyMedium ou `title`, com texto
-    // preto — seis tratamentos para a mesma função.
-    ...typography.h2,
-    // Ocupa o vão: sem isto o título encostava no botão de voltar.
-    flex: 1,
-    textAlign: "center",
-  },
-  subtitle: {
-    marginTop: -5,
-    color: colors.textSecondary,
-    fontSize: 13,
-    lineHeight: 18,
-    fontWeight: "500",
-    textAlign: "center",
-    paddingHorizontal: spacing.md,
-  },
-  actionsRow: {
-    gap: 8,
-  },
-  markAllBtn: {
-    alignSelf: "flex-end",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  markAllDisabled: {
-    opacity: 0.4,
-  },
-  markAllText: {
-    color: colors.primary,
-    fontSize: 12,
-    fontWeight: "700",
-  },
-});

@@ -1,17 +1,24 @@
 import React, { useMemo, useState } from "react";
 import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
-import { AppIcon, BackCircleButton, DEmptyState, DLoadingState, DScreen, type AppIconName } from "@/components/ui";
+import { AppIcon, BackCircleButton, DEmptyState, DErrorState, DLoadingState, DScreen, type AppIconName } from "@/components/ui";
 import { useNotificacoes } from "@/hooks/useNotificacoes";
 import { SimuladorDePopup } from "@/components/dev/SimuladorDePopup";
 import type { Notificacao } from "@/api/notificacoesApi";
 import type { ProfileTheme } from "@/theme/profileTheme";
 import { CHAT_TYPES, metaDoTipo, tonePalette, type NotificationTone } from "@/constants/notificacoes";
-import { colors, radius, shadows, typography } from "@/theme";
+import { colors, radius, shadows, spacing, typography } from "@/theme";
 
 /**
- * NotificacoesView — corpo compartilhado da tela de Notificações (a mesma do
- * sininho do montador), parametrizado por tema (identidade de gênero) e
- * navegação. Usado pelo montador e pela diarista para ficarem iguais.
+ * NotificacoesView — a tela de Notificações dos TRÊS perfis, parametrizada por
+ * tema e navegação.
+ *
+ * O empregador tinha uma tela própria de 315 linhas (mais 254 de componentes
+ * só dela), com outro vocabulário de tons, outras abas e outro cartão. Duas
+ * implementações do mesmo ecrã divergem sozinhas: um ajuste caía num perfil e
+ * não no outro, e foi exatamente assim que os títulos e as cores saíram do
+ * lugar. Ficou uma só, que herdou o que cada lado tinha de melhor —
+ * puxar-para-atualizar, estado de erro e seções por data vieram da do
+ * empregador; abas por lido/não-lido, contador e cores do perfil vieram desta.
  */
 
 type NotificationTab = "todas" | "nao_lidas" | "lidas";
@@ -29,6 +36,7 @@ type UINotification = {
   servicoId?: string;
   chatRoomId?: string;
   remoteId?: string;
+  secao: Secao;
 };
 
 function tempoRelativo(iso: string): string {
@@ -43,6 +51,29 @@ function tempoRelativo(iso: string): string {
   const days = Math.floor(hours / 24);
   if (days < 2) return "Ontem";
   return `${days} dias`;
+}
+
+/**
+ * A que bloco da lista a notificação pertence.
+ *
+ * A versão do empregador tinha três nomes mas só dois blocos: colapsava
+ * "Anteriores" em "Ontem" e depois desenhava o bloco "Ontem" sob o título
+ * "Anteriores" — uma notificação de 20 h aparecia como "Anteriores". Aqui os
+ * três são de verdade.
+ */
+type Secao = "Hoje" | "Ontem" | "Anteriores";
+
+function secaoDe(iso: string): Secao {
+  const data = new Date(iso);
+  if (!Number.isFinite(data.getTime())) return "Anteriores";
+  const hoje = new Date();
+  const mesmoDia = (a: Date, b: Date) =>
+    a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  if (mesmoDia(data, hoje)) return "Hoje";
+  const ontem = new Date(hoje);
+  ontem.setDate(hoje.getDate() - 1);
+  if (mesmoDia(data, ontem)) return "Ontem";
+  return "Anteriores";
 }
 
 function fromRemote(n: Notificacao): UINotification {
@@ -60,6 +91,7 @@ function fromRemote(n: Notificacao): UINotification {
     type: n.type,
     servicoId: n.servicoId ?? undefined,
     chatRoomId: n.chatRoomId ?? undefined,
+    secao: secaoDe(n.createdAt),
   };
 }
 
@@ -143,7 +175,7 @@ type Props = {
 };
 
 export function NotificacoesView({ theme, onVoltar, onOpenChat, onOpenServico }: Props) {
-  const { notificacoes, loading, marcarComoLida, marcarTodasComoLidas } = useNotificacoes();
+  const { notificacoes, loading, error, refetch, marcarComoLida, marcarTodasComoLidas } = useNotificacoes();
   const [activeTab, setActiveTab] = useState<NotificationTab>("todas");
 
   // Mensagens de chat NÃO entram na tela de Notificações — elas aparecem como
@@ -159,6 +191,15 @@ export function NotificacoesView({ theme, onVoltar, onOpenChat, onOpenServico }:
     if (activeTab === "lidas") return notifications.filter((item) => !item.unread);
     return notifications;
   }, [activeTab, notifications]);
+
+  // Blocos por data, na ordem em que se lê. Só os não vazios são desenhados.
+  const secoes = useMemo(
+    () =>
+      (["Hoje", "Ontem", "Anteriores"] as const)
+        .map((titulo) => ({ titulo, itens: filtered.filter((n) => n.secao === titulo) }))
+        .filter((s) => s.itens.length > 0),
+    [filtered],
+  );
 
   const markAllAsRead = () => {
     void marcarTodasComoLidas();
@@ -185,7 +226,17 @@ export function NotificacoesView({ theme, onVoltar, onOpenChat, onOpenServico }:
   };
 
   return (
-    <DScreen scroll withBottomPadding backgroundColor={theme.background} contentContainerStyle={styles.scroll}>
+    <DScreen
+      scroll
+      withBottomPadding
+      backgroundColor={theme.background}
+      contentContainerStyle={styles.scroll}
+      // Puxar para atualizar: era o único jeito de recarregar depois que o
+      // sino saiu do cabeçalho, e é o gesto que se espera numa lista.
+      refreshing={loading}
+      onRefresh={refetch}
+      refreshTintColor={theme.primary}
+    >
       {/* Header: voltar (esq) · "Notificações" (centro) · espaçador (dir).
 
           O sino saiu: um sino DENTRO da tela de notificações não leva a
@@ -198,6 +249,8 @@ export function NotificacoesView({ theme, onVoltar, onOpenChat, onOpenServico }:
         </Text>
         <View style={styles.headerSide} />
       </View>
+
+      <Text style={styles.subtitle}>Acompanhe alertas, novidades e atualizações importantes.</Text>
 
       <NotificationTabs
         activeTab={activeTab}
@@ -221,12 +274,21 @@ export function NotificacoesView({ theme, onVoltar, onOpenChat, onOpenServico }:
 
       {loading && notifications.length === 0 ? (
         <DLoadingState text="Carregando notificações" color={theme.primary} />
-      ) : filtered.length > 0 ? (
-        <View style={styles.list}>
-          {filtered.map((item) => (
-            <NotificationCard key={item.id} item={item} theme={theme} onPress={() => openNotification(item)} />
-          ))}
-        </View>
+      ) : error && notifications.length === 0 ? (
+        // Sem isto, uma falha de rede aparecia como "Sem notificações" — dizia
+        // que não há nada quando na verdade não deu para saber.
+        <DErrorState message={error} onRetry={refetch} />
+      ) : secoes.length > 0 ? (
+        secoes.map((secao) => (
+          <View key={secao.titulo} style={styles.secao}>
+            <Text style={[styles.secaoTitulo, { color: theme.textAccent }]}>{secao.titulo}</Text>
+            <View style={styles.list}>
+              {secao.itens.map((item) => (
+                <NotificationCard key={item.id} item={item} theme={theme} onPress={() => openNotification(item)} />
+              ))}
+            </View>
+          </View>
+        ))
       ) : (
         <DEmptyState
           icon="Bell"
@@ -254,6 +316,15 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     textAlign: "center",
   },
+  subtitle: {
+    marginTop: -5,
+    color: colors.textSecondary,
+    ...typography.caption,
+    textAlign: "center",
+    paddingHorizontal: spacing.md,
+  },
+  secao: { gap: 8 },
+  secaoTitulo: { ...typography.bodySmMedium, fontWeight: "700" },
   markRow: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 6, paddingHorizontal: 2 },
   markText: { fontSize: 12, lineHeight: 15, fontWeight: "700" },
   disabled: { opacity: 0.45 },

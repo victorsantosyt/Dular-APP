@@ -157,10 +157,6 @@ export function StatusChip({
   );
 }
 
-export function StatusFilterBar({ children }: { children: React.ReactNode }) {
-  return <View style={s.statusBar}>{children}</View>;
-}
-
 export function AppointmentCard({
   item,
   onDetails,
@@ -312,19 +308,6 @@ const s = StyleSheet.create({
     color: colors.primary,
     ...typography.caption,
     fontWeight: "600",
-  },
-  statusBar: {
-    minHeight: 32,
-    borderRadius: radius.lg,
-    paddingHorizontal: 4,
-    paddingVertical: 3,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    ...shadows.soft,
   },
   statusChip: {
     minHeight: 22,

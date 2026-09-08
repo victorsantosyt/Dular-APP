@@ -7,7 +7,7 @@ import { AppIcon } from "@/components/ui";
 import { api } from "@/lib/api";
 import { fetchServicosMinhas } from "@/api/sharedFetcher";
 import type { EmpregadorTabParamList } from "@/navigation/EmpregadorNavigator";
-import { colors, shadows, spacing, typography } from "@/theme";
+import { colors, radius, shadows, spacing, typography } from "@/theme";
 import { useGenderTheme } from "@/hooks/useProfileTheme";
 import {
   AgendamentoItem,
@@ -17,7 +17,6 @@ import {
   CategoriaFiltro,
   CategoryChip,
   STATUS_FILTERS,
-  StatusFilterBar,
   StatusChip,
   StatusFiltro,
   statusMatchesFilter,
@@ -223,20 +222,27 @@ export function AgendamentosEmpregadorScreen() {
             <View style={s.headerSlot} />
           </View>
 
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.horizontalChips}>
-            {CATEGORIAS.map((chip) => (
-              <CategoryChip
-                key={chip.value}
-                label={chip.label}
-                icon={chip.icon}
-                active={categoriaAtiva === chip.value}
-                onPress={() => setCategoriaAtiva(chip.value)}
-              />
-            ))}
-          </ScrollView>
+          {/* As duas fileiras de filtro dentro da MESMA barra que a Agenda da
+              diarista e a do montador usam. Antes, na mesma tela, os chips de
+              categoria ficavam soltos sobre o fundo e os de status já tinham
+              uma barra própria — duas fileiras irmãs com tratamento
+              diferente. */}
+          <View style={[s.filtersBar, { borderColor: theme.border, backgroundColor: theme.primarySoft }]}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.filtersRow}>
+              {CATEGORIAS.map((chip) => (
+                <CategoryChip
+                  key={chip.value}
+                  label={chip.label}
+                  icon={chip.icon}
+                  active={categoriaAtiva === chip.value}
+                  onPress={() => setCategoriaAtiva(chip.value)}
+                />
+              ))}
+            </ScrollView>
+          </View>
 
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.horizontalChips}>
-            <StatusFilterBar>
+          <View style={[s.filtersBar, { borderColor: theme.border, backgroundColor: theme.primarySoft }]}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.filtersRow}>
               {STATUS_FILTERS.map((chip) => (
                 <StatusChip
                   key={chip.value}
@@ -246,8 +252,8 @@ export function AgendamentosEmpregadorScreen() {
                   onPress={() => setStatusAtivo(chip.value)}
                 />
               ))}
-            </StatusFilterBar>
-          </ScrollView>
+            </ScrollView>
+          </View>
 
           <View style={s.list}>
             {loading ? (
@@ -377,11 +383,12 @@ const s = StyleSheet.create({
     fontWeight: "500",
     textAlign: "center",
   },
-  horizontalChips: {
-    gap: 7,
-    paddingVertical: 1,
-    paddingRight: spacing.screenPadding,
+  filtersBar: {
+    borderRadius: radius.full,
+    borderWidth: 1,
+    padding: 4,
   },
+  filtersRow: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 2 },
   list: {
     gap: 9,
   },

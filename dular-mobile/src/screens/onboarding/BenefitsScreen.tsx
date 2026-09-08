@@ -42,8 +42,12 @@ export function BenefitsScreen() {
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <View style={styles.titleBlock}>
+          {/* `\u00A0` (espaço inseparável) prende as duas últimas palavras:
+              sem ele a última caía sozinha na segunda linha. Não é quebra
+              fixa — se couber tudo numa linha, não quebra; quando falta
+              espaço, a quebra acontece antes do par em vez de deixar órfã. */}
           <Text style={styles.title}>
-            Mais <Text style={styles.titleAccent}>praticidade</Text> para o seu dia
+            Mais <Text style={styles.titleAccent}>praticidade</Text> para o{"\u00A0"}seu{"\u00A0"}dia
           </Text>
           <Text style={styles.subtitle}>
             O Dular organiza seus serviços e mantém tudo acessível em poucos toques.

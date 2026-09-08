@@ -26,6 +26,7 @@ import {
 } from "@/components/ui";
 import { LocationPermissionCard } from "@/components/location/LocationPermissionCard";
 import { colors, radius, shadows, spacing, typography } from "@/theme";
+import { useGenderTheme } from "@/hooks/useProfileTheme";
 import type { EmpregadorTabParamList } from "@/navigation/EmpregadorNavigator";
 import { useBuscar, type ApiDiarista } from "@/hooks/useBuscar";
 import { CATEGORIAS as CATEGORIAS_FONTE, CATEGORIAS_DIARISTA, CATEGORIA_BY_KEY, type CategoriaKey } from "@/constants/categorias";
@@ -234,6 +235,8 @@ function profToCardData(prof: Profissional): ProfissionalCardData {
 }
 
 export function BuscarScreen() {
+  // Cor do título seguindo o perfil (ver comentário em `title`).
+  const theme = useGenderTheme();
   const navigation = useNavigation<Navigation>();
   const route = useRoute<BuscarRoute>();
   const [searchQuery, setSearchQuery] = useState("");
@@ -434,7 +437,7 @@ export function BuscarScreen() {
         >
           <View style={s.header}>
             <View style={s.headerText}>
-              <Text style={s.title}>Buscar</Text>
+              <Text style={[s.title, { color: theme.textAccent }]}>Buscar</Text>
               <Text style={s.subtitle}>Encontre o profissional ideal{"\n"}para o que você precisa.</Text>
             </View>
           </View>
@@ -576,10 +579,12 @@ const s = StyleSheet.create({
     paddingRight: spacing.md,
   },
   title: {
+    // Título das telas principais: um corpo (h1) e a cor de destaque do
+    // PERFIL — roxo no empregador, rosa na diarista, verde no montador.
+    // Antes cada tela escolhia um tamanho (h1, h2, h3, 22, 24) e umas
+    // usavam texto preto enquanto outras usavam um roxo fixo, que ficaria
+    // fora de lugar nos perfis não-roxos.
     ...typography.h1,
-    fontWeight: "700",
-    color: colors.textPrimary,
-    letterSpacing: 0,
     textAlign: "center",
   },
   subtitle: {

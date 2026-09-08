@@ -82,7 +82,7 @@ export function MeusEnderecosScreen() {
       {/* Header no padrão das demais telas: título (h2) à esquerda +
           BackCircleButton à direita. */}
       <View style={s.header}>
-        <BackCircleButton onPress={() => navigation.goBack()} color={accent} borderColor={theme.border} />
+        <BackCircleButton onPress={() => navigation.goBack()} color={theme.icon} borderColor={theme.border} />
         <Text style={s.title}>Endereço</Text>
         {/* Espaçador: sem ele o título centraliza no espaço que sobra
             e fica deslocado para a direita. */}

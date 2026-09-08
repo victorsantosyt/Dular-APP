@@ -100,7 +100,7 @@ export function MensagensView({ theme, infoTitle, infoText, onOpenChat }: Props)
       <View style={s.root}>
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.scroll}>
           <View style={s.header}>
-            <Text style={s.title}>Mensagens</Text>
+            <Text style={[s.title, { color: theme.textAccent }]}>Mensagens</Text>
           </View>
 
           <MessagesTabs activeTab={activeTab} onChange={setActiveTab} accent={theme.primary} border={theme.border} />
@@ -180,10 +180,12 @@ const s = StyleSheet.create({
     gap: spacing.md,
   },
   title: {
-    color: colors.textPrimary,
+    // Título das telas principais: um corpo (h1) e a cor de destaque do
+    // PERFIL — roxo no empregador, rosa na diarista, verde no montador.
+    // Antes cada tela escolhia um tamanho (h1, h2, h3, 22, 24) e umas
+    // usavam texto preto enquanto outras usavam um roxo fixo, que ficaria
+    // fora de lugar nos perfis não-roxos.
     ...typography.h1,
-    fontWeight: "700",
-    letterSpacing: 0,
     textAlign: "center",
   },
   infoCard: {

@@ -161,7 +161,7 @@ export function RecebimentosScreen() {
   return (
     <SafeAreaView style={s.safe}>
       <View style={s.header}>
-        <BackCircleButton onPress={() => navigation.goBack()} />
+        <BackCircleButton onPress={() => navigation.goBack()} color={theme.icon} borderColor={theme.border} />
         <View style={s.headerTextCol}>
           <Text style={s.title}>Recebimentos</Text>
           <Text style={s.subtitle}>Receber pelo PIX</Text>

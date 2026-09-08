@@ -337,7 +337,7 @@ export default function MontadorAgenda() {
       contentContainerStyle={styles.scroll}
     >
       <View style={styles.header}>
-        <Text style={styles.title}>Agenda</Text>
+        <Text style={[styles.title, { color: profileTheme.textAccent }]}>Agenda</Text>
         <Text style={styles.subtitle}>Serviços aceitos e agendados</Text>
       </View>
 
@@ -472,11 +472,12 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   title: {
-    color: colors.textPrimary,
-    fontSize: 24,
-    lineHeight: 29,
-    fontWeight: "700",
-    letterSpacing: 0,
+    // Título das telas principais: um corpo (h1) e a cor de destaque do
+    // PERFIL — roxo no empregador, rosa na diarista, verde no montador.
+    // Antes cada tela escolhia um tamanho (h1, h2, h3, 22, 24) e umas
+    // usavam texto preto enquanto outras usavam um roxo fixo, que ficaria
+    // fora de lugar nos perfis não-roxos.
+    ...typography.h1,
     textAlign: "center",
   },
   subtitle: {

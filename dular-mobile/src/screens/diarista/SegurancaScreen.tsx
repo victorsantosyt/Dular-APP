@@ -15,12 +15,15 @@ import { AppIcon, BackCircleButton } from "@/components/ui";
 import { DButton } from "@/components/ui/DButton";
 import { useSeguranca } from "@/hooks/useSeguranca";
 import { colors, radius, spacing, typography } from "@/theme/tokens";
+import { useGenderTheme } from "@/hooks/useProfileTheme";
 import { shadow } from "@/utils/platform";
 import type { DiaristaTabParamList } from "@/navigation/DiaristaNavigator";
 
 type Route = RouteProp<DiaristaTabParamList, "Seguranca">;
 
 export default function SegurancaScreen() {
+  // Cor do voltar seguindo o perfil, como nas demais telas.
+  const theme = useGenderTheme();
   const navigation = useNavigation<any>();
   const route = useRoute<Route>();
   const { servicoId, enderecoServico } = route.params;
@@ -84,7 +87,7 @@ export default function SegurancaScreen() {
     <SafeAreaView style={s.safe} edges={["top", "bottom"]}>
       {/* Header */}
       <View style={s.header}>
-        <BackCircleButton onPress={() => navigation.goBack()} />
+        <BackCircleButton onPress={() => navigation.goBack()} color={theme.icon} borderColor={theme.border} />
         <Text style={s.headerTitle}>Segurança do Serviço</Text>
         {/* Espaçador: sem ele o título centraliza no espaço que sobra
             e fica deslocado para a direita. */}

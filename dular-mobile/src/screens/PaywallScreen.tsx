@@ -112,7 +112,8 @@ function resumo(p: { plan: string; interval: string | null }): string {
 }
 
 function sufixoPeriodo(interval: string | null) {
-  return interval === "year" ? "/ano" : "/mês";
+  // Sem a barra: "R$ 39,90 /mês" deixava um traço solto colado no preço.
+  return interval === "year" ? "por ano" : "por mês";
 }
 
 /** Quanto o anual economiza contra 12 meses do mensal equivalente. */
@@ -143,6 +144,7 @@ function PlanoCard({
   periodoTexto,
   indice,
   tema,
+  selecionado,
   onPress,
 }: {
   plano: PlanoApi;
@@ -153,6 +155,8 @@ function PlanoCard({
   periodoTexto: string;
   indice: number;
   tema: ReturnType<typeof useGenderTheme>;
+  /** Último plano aberto: continua em destaque ao voltar da tela de detalhe. */
+  selecionado: boolean;
   onPress: () => void;
 }) {
   const [reduzirMovimento, setReduzirMovimento] = useState(false);
@@ -187,14 +191,57 @@ function PlanoCard({
     Animated.spring(escala, { toValue: para, useNativeDriver: true, speed: 40, bounciness: 0 }).start();
   };
 
+  // Foco do card escolhido: sobe um pouco e ganha sombra desfocada na cor do
+  // tema. A escala fica baixa (1.02) de propósito — o suficiente para o card
+  // "saltar", pouco o bastante para não invadir os vizinhos quando o usuário
+  // volta da tela de detalhe e encontra o card ainda em destaque.
+  //
+  // DOIS valores para o mesmo foco porque os drivers não se misturam: sombra
+  // e elevação só existem no driver JS, escala roda no nativo, e combinar os
+  // dois no mesmo nó derruba a tela ("animated node that has been moved to
+  // native earlier"). Um valor por camada, animados juntos.
+  const focoSombra = useRef(new Animated.Value(selecionado ? 1 : 0)).current;
+  const focoEscala = useRef(new Animated.Value(selecionado ? 1 : 0)).current;
+  useEffect(() => {
+    const alvo = selecionado ? 1 : 0;
+    if (reduzirMovimento) {
+      focoSombra.setValue(alvo);
+      focoEscala.setValue(alvo);
+      return;
+    }
+    const anim = Animated.parallel([
+      Animated.spring(focoSombra, { toValue: alvo, useNativeDriver: false, speed: 14, bounciness: 6 }),
+      Animated.spring(focoEscala, { toValue: alvo, useNativeDriver: true, speed: 14, bounciness: 6 }),
+    ]);
+    anim.start();
+    return () => anim.stop();
+  }, [focoSombra, focoEscala, selecionado, reduzirMovimento]);
+
   const destacado = Boolean(identidade.destaque);
 
   return (
+    /* Camada externa: só sombra/elevação (driver JS). */
+    <Animated.View
+      style={{
+        borderRadius: radius.lg,
+        shadowColor: tema.primary,
+        shadowOpacity: focoSombra.interpolate({ inputRange: [0, 1], outputRange: [0, 0.38] }),
+        shadowRadius: focoSombra.interpolate({ inputRange: [0, 1], outputRange: [0, 18] }),
+        shadowOffset: { width: 0, height: 8 },
+        elevation: focoSombra.interpolate({ inputRange: [0, 1], outputRange: [0, 10] }),
+      }}
+    >
+    {/* Camada interna: opacidade e transform (driver nativo). */}
     <Animated.View
       style={{
         opacity: entrada,
         transform: [
-          { scale: escala },
+          {
+            scale: Animated.multiply(
+              escala,
+              focoEscala.interpolate({ inputRange: [0, 1], outputRange: [1, 1.02] }),
+            ),
+          },
           { translateY: entrada.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) },
         ],
       }}
@@ -208,23 +255,39 @@ function PlanoCard({
         style={({ pressed }) => [
           s.opcao,
           destacado && { borderColor: tema.primary, backgroundColor: tema.primarySoft + "40" },
+          selecionado && { borderColor: tema.primary, borderWidth: 2, backgroundColor: colors.surface },
           pressed && { borderColor: tema.primary },
         ]}
       >
-        {identidade.forte ? (
+        {/* Bolha com gradiente e halo próprio em TODOS os níveis: o disco
+            chapado com ícone de traço fino era o que deixava os cards sem
+            vida. Os níveis Pro usam o gradiente cheio com ícone branco; o
+            Básico e o gratuito usam o mesmo desenho em versão suave, então a
+            família se mantém e a escada continua legível. */}
+        <View
+          style={[
+            s.opcaoIconeHalo,
+            { shadowColor: tema.primary, shadowOpacity: identidade.forte ? 0.45 : 0.18 },
+          ]}
+        >
           <LinearGradient
-            colors={[tema.primaryLight, tema.primary]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
+            colors={
+              identidade.forte
+                ? [tema.primaryLight, tema.primary]
+                : [tema.primarySoft, tema.primarySoft]
+            }
+            start={{ x: 0.1, y: 0 }}
+            end={{ x: 0.9, y: 1 }}
             style={s.opcaoIcone}
           >
-            <AppIcon name={identidade.icone} size={19} color={colors.white} strokeWidth={2.2} />
+            <AppIcon
+              name={identidade.icone}
+              size={21}
+              color={identidade.forte ? colors.white : tema.primary}
+              strokeWidth={2.4}
+            />
           </LinearGradient>
-        ) : (
-          <View style={[s.opcaoIcone, { backgroundColor: tema.primarySoft }]}>
-            <AppIcon name={identidade.icone} size={19} color={tema.primary} strokeWidth={2.2} />
-          </View>
-        )}
+        </View>
 
         {/* Nome, benefício e selos em LINHAS separadas. Tudo na mesma linha
             espremia o nome contra os selos: "Pro Anual" quebrava no meio
@@ -260,6 +323,77 @@ function PlanoCard({
         </View>
       </Pressable>
     </Animated.View>
+    </Animated.View>
+  );
+}
+
+/**
+ * Botão de assinar com o mesmo foco dos cards: sombra desfocada na cor do
+ * tema e leve compressão ao toque, para a ação principal ter o mesmo peso
+ * visual da escolha que a levou até ela.
+ */
+function BotaoAssinar({
+  tema,
+  rotulo,
+  carregando,
+  onPress,
+}: {
+  tema: ReturnType<typeof useGenderTheme>;
+  rotulo: string;
+  carregando: boolean;
+  onPress: () => void;
+}) {
+  const [reduzirMovimento, setReduzirMovimento] = useState(false);
+  const escala = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    let vivo = true;
+    AccessibilityInfo.isReduceMotionEnabled().then((v) => vivo && setReduzirMovimento(v));
+    return () => {
+      vivo = false;
+    };
+  }, []);
+
+  const comprimir = (para: number) => {
+    if (reduzirMovimento) return;
+    Animated.spring(escala, { toValue: para, useNativeDriver: true, speed: 40, bounciness: 0 }).start();
+  };
+
+  return (
+    <Animated.View
+      style={{
+        transform: [{ scale: escala }],
+        shadowColor: tema.primary,
+        shadowOpacity: 0.4,
+        shadowRadius: 16,
+        shadowOffset: { width: 0, height: 8 },
+        elevation: 8,
+        borderRadius: radius.lg,
+      }}
+    >
+      <Pressable
+        onPress={onPress}
+        disabled={carregando}
+        onPressIn={() => comprimir(0.97)}
+        onPressOut={() => comprimir(1)}
+        style={s.ctaWrap}
+        accessibilityRole="button"
+        accessibilityLabel={rotulo}
+      >
+        <LinearGradient
+          colors={[tema.primaryLight, tema.primary]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={s.cta}
+        >
+          {carregando ? (
+            <ActivityIndicator color={colors.textOnPrimary} />
+          ) : (
+            <Text style={s.ctaTexto}>{rotulo}</Text>
+          )}
+        </LinearGradient>
+      </Pressable>
+    </Animated.View>
   );
 }
 
@@ -279,6 +413,9 @@ export default function PaywallScreen({ onClose }: Props) {
   // e dizer "não foi possível carregar" seria mentira.
   const [falhouBusca, setFalhouBusca] = useState(false);
   const [escolhido, setEscolhido] = useState<string | null>(null);
+  // `escolhido` volta a null ao tocar em "Ver outros planos" — este guarda o
+  // último plano aberto para o card continuar em destaque na lista.
+  const [ultimoEscolhido, setUltimoEscolhido] = useState<string | null>(null);
   const [assinando, setAssinando] = useState(false);
 
   const mensagem = (route.params as { mensagem?: string } | undefined)?.mensagem;
@@ -430,20 +567,12 @@ export default function PaywallScreen({ onClose }: Props) {
                 ))}
               </View>
 
-              <Pressable onPress={assinar} disabled={assinando} style={s.ctaWrap}>
-                <LinearGradient
-                  colors={[tema.primaryLight, tema.primary]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={s.cta}
-                >
-                  {assinando ? (
-                    <ActivityIndicator color={colors.textOnPrimary} />
-                  ) : (
-                    <Text style={s.ctaTexto}>Assinar {planoEscolhido.name}</Text>
-                  )}
-                </LinearGradient>
-              </Pressable>
+              <BotaoAssinar
+                tema={tema}
+                rotulo={`Assinar ${planoEscolhido.name}`}
+                carregando={assinando}
+                onPress={assinar}
+              />
               <Text style={s.legal}>Cancele quando quiser. Sem fidelidade.</Text>
             </>
           ) : (
@@ -469,8 +598,10 @@ export default function PaywallScreen({ onClose }: Props) {
                   {/* Mesma bolha dos pagos: sem ela o gratuito parecia de
                       outra família e a progressão broto → raio → coroa → gema
                       começava do nada. */}
-                  <View style={[s.opcaoIcone, { backgroundColor: colors.border }]}>
-                    <AppIcon name="Sprout" size={19} color={colors.textSecondary} strokeWidth={2.2} />
+                  <View style={s.opcaoIconeHalo}>
+                    <View style={[s.opcaoIcone, { backgroundColor: colors.border }]}>
+                      <AppIcon name="Sprout" size={21} color={colors.textSecondary} strokeWidth={2.4} />
+                    </View>
                   </View>
                   <View style={s.atualEsq}>
                     <Text style={s.atualNome}>Gratuito</Text>
@@ -512,7 +643,11 @@ export default function PaywallScreen({ onClose }: Props) {
                       periodoTexto={sufixoPeriodo(p.interval)}
                       indice={i}
                       tema={tema}
-                      onPress={() => setEscolhido(p.id)}
+                      selecionado={ultimoEscolhido === p.id}
+                      onPress={() => {
+                        setUltimoEscolhido(p.id);
+                        setEscolhido(p.id);
+                      }}
                     />
                   ))}
                 </View>
@@ -627,7 +762,9 @@ const s = StyleSheet.create({
   carregando: { paddingVertical: spacing.xl, alignItems: "center" },
   vazio: { ...typography.bodySm, color: colors.textSecondary, textAlign: "center", paddingVertical: spacing.lg },
 
-  lista: { gap: spacing.sm },
+  // Espaço maior que o gap padrão: o card em foco sobe 2% e ganha uma
+  // sombra de 18px de desfoque — com o gap antigo ela encostava no vizinho.
+  lista: { gap: 14 },
   opcao: {
     flexDirection: "row",
     alignItems: "center",
@@ -639,10 +776,17 @@ const s = StyleSheet.create({
     padding: spacing.md,
     backgroundColor: colors.surface,
   },
+  /** Halo colorido atrás da bolha — é o que tira o ícone do "adesivo chapado". */
+  opcaoIconeHalo: {
+    borderRadius: 21,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 10,
+    elevation: 4,
+  },
   opcaoIcone: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     alignItems: "center",
     justifyContent: "center",
   },

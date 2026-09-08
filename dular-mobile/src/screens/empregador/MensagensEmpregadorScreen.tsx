@@ -108,9 +108,7 @@ export function MensagensEmpregadorScreen() {
           <View style={s.header}>
             <View style={s.headerCopy}>
               <Text style={[s.title, { color: theme.textAccent }]}>Mensagens</Text>
-              <Text style={s.subtitle}>
-                Converse com os profissionais que confirmaram suas solicitações.
-              </Text>
+              <Text style={s.subtitle}>Converse com seus profissionais</Text>
             </View>
           </View>
 
@@ -146,7 +144,7 @@ export function MensagensEmpregadorScreen() {
               <DEmptyState
                 icon="MessageCircle"
                 title="Nenhuma conversa ainda"
-                subtitle="As conversas dos seus serviços confirmados aparecerão aqui."
+                subtitle="O chat abre quando o serviço é aceito e fica registrado no Dular — combine tudo por aqui, sem passar telefone ou pagamento por fora."
                 accentColor={colors.primary}
                 softBg={colors.lavenderSoft}
               />
@@ -200,7 +198,8 @@ const s = StyleSheet.create({
     textAlign: "center",
   },
   subtitle: {
-    maxWidth: 275,
+    // Sem `maxWidth`: com a largura travada o texto centraliza dentro da
+    // caixa estreita, que começa na esquerda — parecia desalinhado.
     color: colors.textSecondary,
     ...typography.bodySm,
     

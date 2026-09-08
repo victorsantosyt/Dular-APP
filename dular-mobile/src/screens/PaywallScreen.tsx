@@ -155,7 +155,10 @@ function PlanoCard({
   periodoTexto: string;
   indice: number;
   tema: ReturnType<typeof useGenderTheme>;
-  /** Último plano aberto: continua em destaque ao voltar da tela de detalhe. */
+  /**
+   * Este é o card em foco agora. Exatamente um card por vez: começa no plano
+   * recomendado e passa para o que a pessoa abrir — nunca os dois juntos.
+   */
   selecionado: boolean;
   onPress: () => void;
 }) {
@@ -217,8 +220,6 @@ function PlanoCard({
     return () => anim.stop();
   }, [focoSombra, focoEscala, selecionado, reduzirMovimento]);
 
-  const destacado = Boolean(identidade.destaque);
-
   return (
     /* Camada externa: só sombra/elevação (driver JS). */
     <Animated.View
@@ -252,10 +253,13 @@ function PlanoCard({
         onPressOut={() => comprimir(1)}
         accessibilityRole="button"
         accessibilityLabel={`Ver o que o plano ${plano.name} libera`}
+        // Realce SÓ no plano escolhido. O "Mais escolhido" continua sendo
+        // informação (o selo), não destaque visual do card: com borda e fundo
+        // próprios ele parecia já selecionado antes de qualquer toque, e
+        // disputava com o card que a pessoa de fato abriu.
         style={({ pressed }) => [
           s.opcao,
-          destacado && { borderColor: tema.primary, backgroundColor: tema.primarySoft + "40" },
-          selecionado && { borderColor: tema.primary, borderWidth: 2, backgroundColor: colors.surface },
+          selecionado && { borderColor: tema.primary, borderWidth: 2 },
           pressed && { borderColor: tema.primary },
         ]}
       >
@@ -360,15 +364,21 @@ function BotaoAssinar({
   };
 
   return (
+    /* Mesmo destaque do card escolhido: anel na cor do tema + halo desfocado.
+       Como o botão é preenchido com o gradiente, o anel fica AFASTADO por um
+       padding — encostado nele, uma borda da mesma cor seria invisível. */
     <Animated.View
       style={{
         transform: [{ scale: escala }],
         shadowColor: tema.primary,
-        shadowOpacity: 0.4,
-        shadowRadius: 16,
+        shadowOpacity: 0.45,
+        shadowRadius: 18,
         shadowOffset: { width: 0, height: 8 },
-        elevation: 8,
-        borderRadius: radius.lg,
+        elevation: 10,
+        borderRadius: radius.lg + 5,
+        borderWidth: 2,
+        borderColor: tema.primary + "55",
+        padding: 3,
       }}
     >
       <Pressable
@@ -643,7 +653,13 @@ export default function PaywallScreen({ onClose }: Props) {
                       periodoTexto={sufixoPeriodo(p.interval)}
                       indice={i}
                       tema={tema}
-                      selecionado={ultimoEscolhido === p.id}
+                      // Sem escolha ainda, o foco fica no recomendado; a
+                      // partir da primeira escolha ele passa para ela.
+                      selecionado={
+                        ultimoEscolhido
+                          ? ultimoEscolhido === p.id
+                          : Boolean(identidadeDe(p).destaque)
+                      }
                       onPress={() => {
                         setUltimoEscolhido(p.id);
                         setEscolhido(p.id);

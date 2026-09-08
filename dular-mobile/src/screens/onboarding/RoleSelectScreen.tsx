@@ -47,7 +47,7 @@ const GRAY_FEAT = tc.grayText;
 type Feature = { icon: AppIconName; text: string };
 
 const empregadorFeatures: Feature[] = [
-  { icon: "Search", text: "Profissionais qualificadas" },
+  { icon: "Search", text: "Profissionais de confiança" },
   { icon: "Calendar", text: "Agende rápido" },
   { icon: "ShieldCheck", text: "Pagamento seguro" },
   { icon: "Star", text: "Avaliações reais" },
@@ -214,9 +214,11 @@ export function RoleSelectScreen() {
       >
         {/* Title + subtitle */}
         <View style={styles.titleBlock}>
-          <Text allowFontScaling={false} style={styles.title}>
-            {"Escolha seu perfil\n"}
-            <Text style={styles.titleAccent}>para começar</Text>
+          {/* Sem o "\n" fixo: a quebra era cravada no texto e não tinha
+              como caber em uma linha. Encurtado para seguir a regra das
+              telas anteriores — o subtítulo abaixo já explica o resto. */}
+          <Text allowFontScaling={false} style={styles.title} numberOfLines={1}>
+            Escolha seu <Text style={styles.titleAccent}>perfil</Text>
           </Text>
 
           <View style={styles.subtitleRow}>
@@ -334,9 +336,8 @@ const styles = StyleSheet.create({
   // Title
   titleBlock: { alignItems: "center", gap: 10 },
   title: {
-    ...typography.h1,
-    
-    fontWeight: "700",
+    // Mesmo token das telas de onboarding.
+    ...typography.onboardingTitle,
     color: DARK,
     textAlign: "center",
   },

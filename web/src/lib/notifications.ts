@@ -39,6 +39,8 @@ type PushMessage = {
   data?: Record<string, unknown>;
   sound?: "default";
   badge?: number;
+  /** iOS: agrupa visualmente os avisos. Ver `threadIdDe`. */
+  threadId?: string;
 };
 
 type PushTicket = {
@@ -47,6 +49,38 @@ type PushTicket = {
   message?: string;
   details?: unknown;
 };
+
+/**
+ * Em que pilha o aviso entra na tela de bloqueio do iPhone.
+ *
+ * Sem isto, TUDO cai num monte só: um pedido novo, três recados da mesma
+ * pessoa e uma avaliação viram cinco cartões soltos sob "Dular", e quem olha
+ * o telefone só lê o último. Conferido no simulador — com `thread-id` os
+ * mesmos cinco viram três pilhas, e a conversa colapsa num cartão só.
+ *
+ * O agrupamento é por ASSUNTO, não por tipo de evento:
+ * - a conversa inteira numa pilha (como o WhatsApp faz por contato);
+ * - o serviço inteiro noutra, para "aceito → iniciado → finalizado" do mesmo
+ *   trabalho não se espalharem pela tela;
+ * - o resto (pagamento, avaliação, sistema) agrupado pelo próprio tipo.
+ *
+ * Derivado do `data` de propósito: assim vale também para os endpoints que
+ * chamam `sendPushNotification` direto, sem passar por `criarNotificacao`.
+ */
+function threadIdDe(data?: Record<string, unknown>): string | undefined {
+  if (!data) return undefined;
+  const texto = (v: unknown) => (typeof v === "string" && v ? v : null);
+  const tipo = texto(data.type);
+  const servicoId = texto(data.servicoId);
+  const chatRoomId = texto(data.chatRoomId);
+
+  if (tipo === "CHAT_NOVA_MENSAGEM") {
+    const sala = chatRoomId ?? servicoId;
+    return sala ? `chat:${sala}` : undefined;
+  }
+  if (servicoId) return `servico:${servicoId}`;
+  return tipo ? `tipo:${tipo}` : undefined;
+}
 
 /**
  * Envia push remoto via Expo. Best-effort: nunca lança — erros são logados
@@ -68,12 +102,14 @@ export async function sendPushNotification(
     const token = user?.pushToken;
     if (!token || !token.startsWith("ExponentPushToken[")) return;
 
+    const threadId = threadIdDe(data);
     const message: PushMessage = {
       to: token,
       title,
       body,
       sound: "default",
       ...(data ? { data } : {}),
+      ...(threadId ? { threadId } : {}),
     };
 
     const headers: Record<string, string> = {

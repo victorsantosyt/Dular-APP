@@ -24,10 +24,6 @@ Notifications.setNotificationHandler({
 });
 
 async function registerForPushNotifications(): Promise<string | null> {
-  if (!Device.isDevice) {
-    return null;
-  }
-
   if (Platform.OS === "android") {
     await Notifications.setNotificationChannelAsync("default", {
       name: "default",
@@ -46,6 +42,18 @@ async function registerForPushNotifications(): Promise<string | null> {
   }
 
   if (!isGranted) {
+    return null;
+  }
+
+  // O TOKEN de push exige aparelho físico — o simulador não tem APNs. Só a
+  // partir daqui, então, é que o simulador para.
+  //
+  // A permissão, acima, é pedida também no simulador de propósito: sem ela o
+  // iOS descarta em silêncio qualquer notificação enviada por `simctl push`, e
+  // era impossível conferir como os avisos se agrupam na tela de bloqueio sem
+  // instalar num telefone. Em aparelho real nada muda: as duas etapas rodam
+  // na mesma ordem de sempre.
+  if (!Device.isDevice) {
     return null;
   }
 

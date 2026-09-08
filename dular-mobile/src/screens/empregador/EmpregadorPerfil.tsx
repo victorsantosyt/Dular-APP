@@ -539,8 +539,11 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
   const locationText =
     enderecoLocation || heroLocation || (locationIsEnabled ? "Localização ativada" : "Localização não informada");
   const progressLabel = completion.completo ? "Perfil completo" : "Perfil incompleto";
-  const progressTone = completion.completo ? colors.success : colors.warning;
-  const progressSoft = completion.completo ? colors.successSoft : colors.warningSoft;
+  // Completo não é status a comunicar: a barra segue o tema do perfil. O
+  // verde fixo (`colors.success`) era a única coisa fora da paleta ali. O
+  // laranja fica para quando falta algo de verdade.
+  // (`progressSoft` existia sem nenhum consumidor e saiu.)
+  const progressTone = completion.completo ? colors.primary : colors.warning;
   const missingText = completion.faltantes.length
     ? `Pendente: ${completion.faltantes.join(", ")}`
     : "Dados principais preenchidos.";

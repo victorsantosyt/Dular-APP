@@ -23,12 +23,21 @@ export function WelcomeScreen() {
         <View style={styles.headerSide} />
       </View>
 
-      <View style={styles.welcomeLogoWrap}>
-        <Image source={onboardingAssets.welcomeLogo} style={styles.welcomeLogo} resizeMode="contain" />
-      </View>
-
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <View style={styles.contentGroup}>
+          {/* O logo ficava FORA do ScrollView, preso no topo, enquanto o
+              conteúdo era centralizado no espaço restante — toda a sobra
+              vertical caía justamente entre os dois, virando um vão visível.
+              Dentro do grupo, logo e título centralizam juntos e a distância
+              entre eles passa a ser o `gap`, não o resto da divisão. */}
+          <View style={styles.welcomeLogoWrap}>
+            <Image
+              source={onboardingAssets.welcomeLogo}
+              style={styles.welcomeLogo}
+              resizeMode="contain"
+            />
+          </View>
+
           <View style={styles.titleBlock}>
             <Text style={styles.title}>
               Bem-vindo ao <Text style={styles.titleAccent}>Dular!</Text>
@@ -89,8 +98,6 @@ const styles = StyleSheet.create({
   welcomeLogoWrap: {
     alignItems: "center",
     justifyContent: "center",
-    paddingTop: 6,
-    paddingBottom: 2,
   },
   welcomeLogo: {
     width: 212,
@@ -106,7 +113,6 @@ const styles = StyleSheet.create({
   contentGroup: {
     alignSelf: "stretch",
     gap: 14,
-    transform: [{ translateY: -8 }],
   },
   titleBlock: {
     alignItems: "center",

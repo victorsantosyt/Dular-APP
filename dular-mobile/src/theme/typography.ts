@@ -1,20 +1,21 @@
-import { Platform, TextStyle } from "react-native";
+import { TextStyle } from "react-native";
 
-const systemFont = Platform.select({
-  ios: "System",
-  android: "Inter",
-  default: "System",
-});
-
-const base = {
-  fontFamily: systemFont,
-} satisfies TextStyle;
+/**
+ * Plus Jakarta Sans, o mesmo arquivo nos dois sistemas — antes era San
+ * Francisco no iOS e Inter/Roboto no Android, com métricas diferentes.
+ *
+ * NÃO fixamos `fontFamily` nos tokens: quem traduz `fontWeight` para o
+ * arquivo do peso certo é `theme/fonte.ts`, uma vez só para o app inteiro.
+ * Cravar a família aqui faria o interceptador respeitar o "regular" e todo
+ * negrito sumiria no Android.
+ */
+const base = {} satisfies TextStyle;
 
 export const typography = {
   fontFamily: {
-    regular: systemFont,
-    medium: systemFont,
-    bold: systemFont,
+    regular: "PlusJakartaSans_400Regular",
+    medium: "PlusJakartaSans_500Medium",
+    bold: "PlusJakartaSans_700Bold",
   },
 
   hero: {

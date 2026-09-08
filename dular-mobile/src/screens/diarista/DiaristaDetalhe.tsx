@@ -23,7 +23,7 @@ import { DButton } from "@/components/DButton";
 import { DularBadge } from "@/components/DularBadge";
 import { MotivoModal } from "@/components/MotivoModal";
 import { SafeScoreBadge } from "@/components/SafeScoreBadge";
-import { AvaliacaoModal } from "@/components/ui";
+import { AvaliacaoModal, BackCircleButton } from "@/components/ui";
 import { useLimiteDePlano } from "@/hooks/useLimiteDePlano";
 import { useSeguranca } from "@/hooks/useSeguranca";
 import { formatPrice } from "@/utils/formatPrice";
@@ -335,9 +335,7 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
 
         {/* ── Voltar ── */}
         <View style={s.navRow}>
-          <Pressable onPress={() => navigation.goBack()} hitSlop={10} style={s.backBtn}>
-            <Ionicons name="arrow-back" size={22} color={colors.ink} />
-          </Pressable>
+          <BackCircleButton onPress={() => navigation.goBack()} color={theme.icon} borderColor={theme.border} />
         </View>
 
         {/* ── Título + status ── */}
@@ -645,16 +643,6 @@ const s = StyleSheet.create({
   navRow: {
     flexDirection: "row",
     alignItems: "center",
-  },
-  backBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.stroke,
   },
   titleRow: {
     flexDirection: "row",

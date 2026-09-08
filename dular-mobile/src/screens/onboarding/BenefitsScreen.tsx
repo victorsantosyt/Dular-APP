@@ -3,7 +3,7 @@ import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-nati
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { AppIcon, type AppIconName, DButton } from "@/components/ui";
+import { AppIcon, BackCircleButton, DButton, type AppIconName } from "@/components/ui";
 import { onboardingAssets } from "@/assets/onboardingAssets";
 import { colors, radius, spacing, typography } from "@/theme";
 import { PageDots } from "@/components/onboarding/PageDots";
@@ -26,15 +26,7 @@ export function BenefitsScreen() {
     <SafeAreaView style={styles.safe}>
       <View style={styles.header}>
         <View style={styles.headerSide}>
-          <Pressable
-            onPress={handleBack}
-            hitSlop={12}
-            accessibilityRole="button"
-            accessibilityLabel="Voltar para introdução"
-            style={({ pressed }) => [styles.backButton, pressed && styles.backButtonPressed]}
-          >
-            <AppIcon name="ArrowLeft" size={20} color={colors.primary} strokeWidth={2.5} />
-          </Pressable>
+          <BackCircleButton onPress={handleBack} color={colors.primary} />
         </View>
         <PageDots total={4} active={1} />
         <View style={styles.headerSide} />
@@ -96,19 +88,6 @@ const styles = StyleSheet.create({
   },
   headerSide: {
     flex: 1,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  backButtonPressed: {
-    opacity: 0.72,
   },
   scroll: {
     paddingHorizontal: spacing.xl,

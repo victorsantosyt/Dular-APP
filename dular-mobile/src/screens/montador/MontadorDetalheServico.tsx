@@ -3,7 +3,7 @@ import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import type { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
 import { useFocusEffect } from "@react-navigation/native";
-import { AppIcon, AvaliacaoModal, DAvatar, DEmptyState, DErrorState, DLoadingState, DScreen } from "@/components/ui";
+import { AppIcon, AvaliacaoModal, BackCircleButton, DAvatar, DEmptyState, DErrorState, DLoadingState, DScreen } from "@/components/ui";
 import {
   acionarSosMontador,
   cancelarServicoMontador,
@@ -151,9 +151,7 @@ export default function MontadorDetalheServico({ route, navigation }: Props) {
   return (
     <DScreen scroll withBottomPadding backgroundColor={profileTheme.background} contentContainerStyle={styles.scroll}>
       <View style={styles.header}>
-        <Pressable onPress={() => navigation.goBack()} hitSlop={12} style={styles.backButton}>
-          <AppIcon name="ArrowLeft" size={20} color={profileTheme.primary} />
-        </Pressable>
+        <BackCircleButton onPress={() => navigation.goBack()} color={profileTheme.icon} borderColor={profileTheme.border} />
         <Text style={styles.title}>Detalhe do serviço</Text>
       </View>
 
@@ -402,16 +400,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
   },
   title: {
     flex: 1,

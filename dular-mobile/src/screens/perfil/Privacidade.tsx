@@ -89,7 +89,7 @@ export default function Privacidade() {
   return (
     <Screen
       title="Privacidade"
-      rightAction={<BackCircleButton onPress={voltarPerfil} color={theme.icon} borderColor={theme.border} />}
+      leftAction={<BackCircleButton onPress={voltarPerfil} color={theme.icon} borderColor={theme.border} />}
       contentStyle={{ gap: 12 }}
     >
       <View style={card}>

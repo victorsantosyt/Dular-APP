@@ -82,8 +82,8 @@ export function MeusEnderecosScreen() {
       {/* Header no padrão das demais telas: título (h2) à esquerda +
           BackCircleButton à direita. */}
       <View style={s.header}>
-        <Text style={s.title}>Endereço</Text>
         <BackCircleButton onPress={() => navigation.goBack()} color={accent} borderColor={theme.border} />
+        <Text style={s.title}>Endereço</Text>
       </View>
 
       <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
@@ -158,14 +158,16 @@ function makeStyles(colors: ThemeColors) {
     header: {
       flexDirection: "row",
       alignItems: "center",
-      justifyContent: "space-between",
       paddingHorizontal: spacing.screenPadding,
       paddingTop: 10,
       paddingBottom: 8,
+      gap: spacing.md,
     },
     title: {
       ...typography.h2,
       color: colors.textPrimary,
+      // Ocupa o vão: sem isto o título encostava no botão de voltar.
+      flex: 1,
     },
     scroll: {
       paddingHorizontal: spacing.screenPadding,

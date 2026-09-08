@@ -257,8 +257,8 @@ export default function ReportIncident({ route }: any) {
     <SafeAreaView style={s.safe} edges={["top", "left", "right"]}>
       <View style={s.header}>
         <View style={{ width: 42 }} />
-        <Text style={s.headerTitle}>Relatar incidente</Text>
         <BackCircleButton onPress={voltarPerfil} color={theme.icon} borderColor={theme.border} />
+        <Text style={s.headerTitle}>Relatar incidente</Text>
       </View>
 
       <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>

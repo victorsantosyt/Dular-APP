@@ -6,7 +6,7 @@ import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import * as WebBrowser from "expo-web-browser";
 import { Ionicons } from "@expo/vector-icons";
-import { AppIcon, DCard } from "@/components/ui";
+import { AppIcon, BackCircleButton, DCard } from "@/components/ui";
 import { DularLogo } from "@/assets/brand";
 import { PageDots } from "@/components/onboarding/PageDots";
 import { colors, radius, shadows, spacing, typography } from "@/theme";
@@ -365,15 +365,7 @@ export function LoginScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.header}>
-        <Pressable
-          onPress={handleBack}
-          hitSlop={12}
-          accessibilityRole="button"
-          accessibilityLabel="Voltar para escolha de perfil"
-          style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}
-        >
-          <AppIcon name="ArrowLeft" size={20} color={colors.primary} strokeWidth={2.5} />
-        </Pressable>
+        <BackCircleButton onPress={handleBack} color={colors.primary} />
         <View style={styles.headerCenter}>
           <PageDots total={2} active={1} />
         </View>
@@ -513,16 +505,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xl,
     paddingTop: spacing.sm,
     minHeight: 58,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
   },
   pressed: {
     opacity: 0.72,

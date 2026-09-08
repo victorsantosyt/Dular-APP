@@ -11,7 +11,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 
-import { AppIcon } from "@/components/ui";
+import { AppIcon, BackCircleButton } from "@/components/ui";
 import { DButton } from "@/components/ui/DButton";
 import { useSeguranca } from "@/hooks/useSeguranca";
 import { colors, radius, spacing, typography } from "@/theme/tokens";
@@ -84,9 +84,7 @@ export default function SegurancaScreen() {
     <SafeAreaView style={s.safe} edges={["top", "bottom"]}>
       {/* Header */}
       <View style={s.header}>
-        <Pressable onPress={() => navigation.goBack()} hitSlop={12} style={s.backBtn}>
-          <AppIcon name="ArrowLeft" size={22} color={colors.textPrimary} strokeWidth={2.5} />
-        </Pressable>
+        <BackCircleButton onPress={() => navigation.goBack()} />
         <Text style={s.headerTitle}>Segurança do Serviço</Text>
       </View>
 
@@ -176,13 +174,6 @@ const s = StyleSheet.create({
     paddingVertical: spacing.sm,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
-  },
-  backBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: radius.full,
-    alignItems: "center",
-    justifyContent: "center",
   },
   headerTitle: {
     ...typography.h3,

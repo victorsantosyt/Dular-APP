@@ -8,6 +8,7 @@ import { useNotificacoes } from "@/hooks/useNotificacoes";
 import type { Notificacao } from "@/api/notificacoesApi";
 import type { EmpregadorTabParamList } from "@/navigation/EmpregadorNavigator";
 import { colors, radius, shadows, spacing, typography } from "@/theme";
+import { useGenderTheme } from "@/hooks/useProfileTheme";
 import {
   NotificationCard,
   NotificationItem,
@@ -112,6 +113,8 @@ function toNotificationItem(n: Notificacao): NotificationItem & { _raw: Notifica
 }
 
 export function NotificacoesEmpregadorScreen() {
+  // Cor do voltar seguindo o perfil, como nas demais telas.
+  const theme = useGenderTheme();
   const navigation = useNavigation<Navigation>();
   const [activeTab, setActiveTab] = useState<NotificationTab>("todas");
   const {
@@ -187,7 +190,7 @@ export function NotificacoesEmpregadorScreen() {
               própria tela de notificações não leva a lugar nenhum — a pessoa
               já está nelas. */}
           <View style={s.headerTop}>
-            <BackCircleButton onPress={() => navigation.goBack()} />
+            <BackCircleButton onPress={() => navigation.goBack()} color={theme.icon} borderColor={theme.border} />
             <Text style={s.title}>Notificações</Text>
             {/* Espaçador: sem ele o título centraliza no espaço que sobra
                 e fica deslocado para a direita. */}

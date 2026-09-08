@@ -30,6 +30,7 @@ import { formatPrice } from "@/utils/formatPrice";
 import { formatHorario, parseDataServico, protocoloServico } from "@/utils/formatters";
 import { isStatusEncerrado } from "@/utils/servicoStatus";
 import { colors, radius, shadow, spacing, typography } from "@/theme/tokens";
+import { useGenderTheme } from "@/hooks/useProfileTheme";
 
 // Data do serviço é meia-noite UTC — normaliza p/ não deslizar o dia (fuso).
 const formatDate = (v: string | number | Date) =>
@@ -114,6 +115,8 @@ function RowKV({ label, value }: { label: string; value: string }) {
 }
 
 export default function EmpregadorDetalhe({ route, navigation }: any) {
+  // Cor do voltar seguindo o perfil, como nas demais telas.
+  const theme = useGenderTheme();
   const params = route.params as any;
   const servicoId: string = params.servicoId ?? params.servico?.id ?? "";
 
@@ -387,8 +390,8 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
     <SafeAreaView style={s.safe} edges={["top", "bottom"]}>
       {/* Voltar — stack real (PR #103); goBack() volta à origem exata. */}
       <View style={s.topBar}>
-        <BackCircleButton onPress={() => navigation.goBack()} />
-        <Text style={s.topBarTitle}>Comprovante</Text>
+        <BackCircleButton onPress={() => navigation.goBack()} color={theme.icon} borderColor={theme.border} />
+        <Text style={[s.topBarTitle, { color: theme.textAccent }]}>Comprovante</Text>
         {/* Espaçador: sem ele o título centraliza no espaço que sobra
             e fica deslocado para a direita. */}
         <View style={s.headerSlot} />
@@ -671,12 +674,16 @@ const s = StyleSheet.create({
     paddingHorizontal: spacing.screenPadding,
     paddingVertical: 10,
   },
-  topBarSpacer: { width: 40, height: 40 },
+  topBarSpacer: { width: 42, height: 42 },
   /** Mesma largura do BackCircleButton, para centrar o título. */
   headerSlot: { width: 42, height: 42 },
-  topBarTitle: { fontSize: 15, fontWeight: "800", color: colors.ink,
-    textAlign: "center",
+  topBarTitle: {
+    // Era `fontSize: 15` — do tamanho de um rótulo, não de um título de
+    // tela. Passa ao mesmo h2 dos outros cabeçalhos do app.
+    ...typography.h2,
+    color: colors.ink,
     flex: 1,
+    textAlign: "center",
   },
   section: { gap: 6 },
   sectionLabel: {

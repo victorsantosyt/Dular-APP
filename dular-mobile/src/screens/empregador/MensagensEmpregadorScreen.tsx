@@ -8,6 +8,7 @@ import { useMensagens, type ChatRoom } from "@/hooks/useMensagens";
 import { useAuth } from "@/stores/authStore";
 import type { EmpregadorTabParamList } from "@/navigation/EmpregadorNavigator";
 import { colors, radius, shadows, spacing, typography } from "@/theme";
+import { useGenderTheme } from "@/hooks/useProfileTheme";
 import {
   ConversationCard,
   ConversationItem,
@@ -71,6 +72,8 @@ function roomToConversation(room: ChatRoom, myId: string): ConversationItem {
 }
 
 export function MensagensEmpregadorScreen() {
+  // Cor do título seguindo o perfil (ver comentário em `title`).
+  const theme = useGenderTheme();
   const navigation = useNavigation<Navigation>();
   const [activeTab, setActiveTab] = useState<MessagesTab>("conversas");
   const { rooms, loading, error, refetch } = useMensagens();
@@ -104,7 +107,7 @@ export function MensagensEmpregadorScreen() {
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.scroll}>
           <View style={s.header}>
             <View style={s.headerCopy}>
-              <Text style={s.title}>Mensagens</Text>
+              <Text style={[s.title, { color: theme.textAccent }]}>Mensagens</Text>
               <Text style={s.subtitle}>
                 Converse com os profissionais que confirmaram suas solicitações.
               </Text>
@@ -188,11 +191,12 @@ const s = StyleSheet.create({
     gap: 4,
   },
   title: {
-    color: colors.textPrimary,
+    // Título das telas principais: um corpo (h1) e a cor de destaque do
+    // PERFIL — roxo no empregador, rosa na diarista, verde no montador.
+    // Antes cada tela escolhia um tamanho (h1, h2, h3, 22, 24) e umas
+    // usavam texto preto enquanto outras usavam um roxo fixo, que ficaria
+    // fora de lugar nos perfis não-roxos.
     ...typography.h1,
-
-    fontWeight: "700",
-    letterSpacing: 0,
     textAlign: "center",
   },
   subtitle: {

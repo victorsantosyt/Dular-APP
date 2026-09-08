@@ -152,7 +152,7 @@ export function ServicosDiaristaScreen() {
             deslocado. */}
         <View style={s.headerRow}>
           <View style={s.headerIconSlot} />
-          <Text style={s.title}>Serviços</Text>
+          <Text style={[s.title, { color: theme.textAccent }]}>Serviços</Text>
           <View style={s.headerIcon}>
             <AppIcon name="BrushCleaning" size={22} color={theme.primary} strokeWidth={2.1} />
           </View>
@@ -258,7 +258,13 @@ function makeStyles(theme: ProfileTheme) {
       backgroundColor: theme.primarySoft,
     },
     headerIconSlot: { width: 40, height: 40 },
-    title: { ...typography.h2, color: colors.textPrimary,
+    title: {
+      // Título das telas principais: um corpo (h1) e a cor de destaque do
+      // PERFIL — roxo no empregador, rosa na diarista, verde no montador.
+      // Antes cada tela escolhia um tamanho (h1, h2, h3, 22, 24) e umas
+      // usavam texto preto enquanto outras usavam um roxo fixo, que ficaria
+      // fora de lugar nos perfis não-roxos.
+      ...typography.h1, ...typography.h2, color: colors.textPrimary,
       textAlign: "center",
       flex: 1,
     },

@@ -1994,7 +1994,7 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                       Tocar no card expande/recolhe a tabela de valores dela. */}
                   {categoriasPreco.length === 0 ? (
                     <Text style={s.modalSubtitle}>
-                      Escolha os serviços que você oferece em "O que você oferece" para definir os valores.
+                      Escolha os serviços que você oferece em “O que você oferece” para definir os valores.
                     </Text>
                   ) : (
                     categoriasPreco.map((c) => {

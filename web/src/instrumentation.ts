@@ -11,7 +11,10 @@
  * ambiente de build não quebra a compilação — quebra o servidor, que é onde
  * ela faria dano.
  */
-import { garantirAutoVerifyForaDeProducao } from "@/lib/autoVerificacao";
+// Importa do módulo isolado, NÃO de "@/lib/autoVerificacao": este arquivo é
+// compilado também para o runtime Edge (por existir middleware), e lá o
+// Prisma que aquele módulo importa faz o deploy ser recusado.
+import { garantirAutoVerifyForaDeProducao } from "@/lib/autoVerificacaoGuard";
 
 export function register(): void {
   // Auto-aprovação de KYC ligada em produção. Ver a função para o porquê de

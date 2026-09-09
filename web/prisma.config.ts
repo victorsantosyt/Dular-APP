@@ -11,5 +11,12 @@ export default defineConfig({
   },
   datasource: {
     url: process.env["DATABASE_URL"],
+    // Banco descartável que o Prisma usa para REPLICAR as migrations e comparar
+    // o resultado com o schema — é o que `prisma migrate diff --from-migrations`
+    // e `migrate dev` precisam. Sem ele, esses comandos falham em vez de rodar.
+    //
+    // Lê de env e fica inerte quando a variável não existe: ninguém é obrigado a
+    // ter um, e nada aponta para o banco de desenvolvimento por engano.
+    shadowDatabaseUrl: process.env["SHADOW_DATABASE_URL"],
   },
 });

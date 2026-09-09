@@ -22,6 +22,7 @@ import ReportIncident from "@/screens/perfil/ReportIncident";
 import Suporte from "@/screens/perfil/Suporte";
 import Termos from "@/screens/perfil/Termos";
 import Privacidade from "@/screens/perfil/Privacidade";
+import ExcluirConta from "@/screens/perfil/ExcluirConta";
 import { EnderecoEditRoute, type CadastroEnderecoParams } from "@/screens/shared/EnderecoEditRoute";
 import { MeusEnderecosScreen, type MeusEnderecosParams } from "@/screens/shared/MeusEnderecosScreen";
 import { RecebimentosScreen } from "@/screens/shared/RecebimentosScreen";
@@ -48,6 +49,7 @@ export type MontadorTabParamList = {
   Suporte: undefined;
   Termos: undefined;
   Privacidade: undefined;
+  ExcluirConta: undefined;
   CadastroEndereco: CadastroEnderecoParams;
   MeusEnderecos: MeusEnderecosParams;
   Recebimentos: undefined;
@@ -127,6 +129,7 @@ export function MontadorNavigator() {
       <RootStack.Screen name="Suporte" component={Suporte} />
       <RootStack.Screen name="Termos" component={Termos} />
       <RootStack.Screen name="Privacidade" component={Privacidade} />
+      <RootStack.Screen name="ExcluirConta" component={ExcluirConta} />
       <RootStack.Screen name="CadastroEndereco" component={EnderecoEditRoute} />
       <RootStack.Screen name="MeusEnderecos" component={MeusEnderecosScreen} />
       <RootStack.Screen name="Recebimentos" component={RecebimentosScreen} />

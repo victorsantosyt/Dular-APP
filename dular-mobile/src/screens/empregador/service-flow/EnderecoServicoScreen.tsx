@@ -90,19 +90,25 @@ export function EnderecoServicoScreen() {
   // três passos e só levava "Bairro não cadastrado." no envio, sem saber quais
   // valem. Carregamos a lista da cidade e validamos neste passo.
   const [bairrosCatalogo, setBairrosCatalogo] = useState<string[] | null>(null);
+  /** A consulta ao catálogo falhou (rede) — bloqueia em vez de deixar passar. */
+  const [catalogoFalhou, setCatalogoFalhou] = useState(false);
   useEffect(() => {
     const cidade = draft.cidade.trim();
     const uf = draft.uf.trim();
     if (!cidade || !uf) return;
     let alive = true;
+    setCatalogoFalhou(false);
     fetchBairrosDaCidade(cidade, uf)
       .then((lista) => {
         if (alive) setBairrosCatalogo(lista);
       })
       .catch(() => {
-        // Falha de rede não pode travar o fluxo: sem lista, não validamos e o
-        // backend segue como fonte da verdade.
-        if (alive) setBairrosCatalogo(null);
+        // FALHA FECHADA. Antes seguia sem validar — e o backend recusava
+        // depois com "Bairro não cadastrado", já no fim do fluxo, sem a
+        // pessoa entender o motivo. Não saber se atendemos não é atender.
+        if (!alive) return;
+        setBairrosCatalogo(null);
+        setCatalogoFalhou(true);
       });
     return () => {
       alive = false;
@@ -111,9 +117,10 @@ export function EnderecoServicoScreen() {
 
   const bairroInformado = draft.bairro.trim();
   const bairroReconhecido =
-    bairrosCatalogo === null ||
-    bairroInformado === "" ||
-    bairrosCatalogo.some((n) => normalizarBairro(n) === normalizarBairro(bairroInformado));
+    bairrosCatalogo === null
+      ? !catalogoFalhou
+      : bairroInformado === "" ||
+        bairrosCatalogo.some((n) => normalizarBairro(n) === normalizarBairro(bairroInformado));
 
   const carregando = enderecos === null && !loadFailed;
   const bloqueado = enderecos !== null && enderecos.length === 0 && !loadFailed;
@@ -143,6 +150,13 @@ export function EnderecoServicoScreen() {
     }
     if (!bairroInformado) {
       Alert.alert("Bairro necessário", "Informe o bairro do endereço do serviço.");
+      return;
+    }
+    if (catalogoFalhou) {
+      Alert.alert(
+        "Não foi possível conferir os bairros",
+        "Verifique sua conexão e tente de novo. Sem essa conferência o pedido seria recusado no fim do fluxo.",
+      );
       return;
     }
     if (!bairroReconhecido) {

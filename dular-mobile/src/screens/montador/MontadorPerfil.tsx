@@ -1088,6 +1088,7 @@ export default function MontadorPerfil() {
         <Row icon="Shield" title="Privacidade" subtitle="Controle seus dados" theme={profileTheme} onPress={() => navigation.navigate("Privacidade")} />
         <Row icon="HelpCircle" title="Suporte" subtitle="Fale com o Dular" theme={profileTheme} onPress={() => navigation.navigate("Suporte")} />
         <Row icon="FileText" title="Termos" subtitle="Termos e políticas da plataforma" theme={profileTheme} onPress={() => navigation.navigate("Termos")} />
+        <Row icon="Trash2" title="Excluir conta" subtitle="Apagar seus dados do Dular" theme={profileTheme} danger onPress={() => navigation.navigate("ExcluirConta")} />
         <Row icon="LogOut" title="Sair" subtitle="Encerrar sessão da conta" theme={profileTheme} danger onPress={sairDaConta} />
       </Section>
 

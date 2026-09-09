@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { ehContaDemo } from "@/lib/contaDemo";
 import { requireAuth } from "@/lib/requireAuth";
 import { criarServicoSchema } from "@/lib/schemas/servicos";
 import { criarNotificacao } from "@/lib/notifications";
@@ -391,13 +392,23 @@ export async function POST(req: Request) {
     }
 
     if (!bairroDb) {
-      return NextResponse.json({ ok: false, error: "Bairro não cadastrado." }, { status: 400 });
+      // Conta de demonstração da revisão das lojas passa por aqui: o revisor
+      // está fora da cidade atendida e precisa conseguir criar um serviço para
+      // avaliar o app. Ver lib/contaDemo.ts. Para qualquer outro usuário o
+      // bairro segue obrigatório.
+      if (!(await ehContaDemo(auth.userId))) {
+        return NextResponse.json({ ok: false, error: "Bairro não cadastrado." }, { status: 400 });
+      }
     }
 
     // GAP-D1: Respeitar atendeTodaCidade=true. Perfis que atendem toda a
     // cidade não precisam de vínculo explícito ao bairro — espelha a lógica
     // de /api/diaristas/buscar (route.ts:158).
-    if (!prof.atendeTodaCidade) {
+    // `bairroDb` é nulo só na conta de demonstração (bairro fora do catálogo).
+    // Sem bairro no catálogo não existe vínculo diarista↔bairro para conferir,
+    // então esta checagem não se aplica — e é a mesma folga que
+    // `atendeTodaCidade` já concede.
+    if (bairroDb && !prof.atendeTodaCidade) {
       const atende = await prisma.diaristaBairro.findFirst({
         where: { diaristaId: prof.id, bairroId: bairroDb.id },
       });

@@ -1531,6 +1531,14 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                   title="Privacidade"
                   subtitle="Controle seus dados"
                   onPress={() => navigation.navigate("Privacidade")}
+                />
+                <ProfileRow
+                  accentColor={theme.primary}
+                  accentSoft={theme.primarySoft}
+                  icon="Trash2"
+                  title="Excluir conta"
+                  subtitle="Apagar seus dados do Dular"
+                  onPress={() => navigation.navigate("ExcluirConta")}
                   isLast
                 />
               </ProfileSection>

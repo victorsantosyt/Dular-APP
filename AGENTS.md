@@ -152,3 +152,25 @@ Resumo:
 • arquivos alterados
 • alterações realizadas
 • pendências encontradas (se houver)
+
+## Filtro, permissão e visibilidade: executar antes de commitar
+
+Ao alterar qualquer condição de filtro, permissão ou visibilidade, executar
+a consulta real com o caso POSITIVO e o caso NEGATIVO antes de commitar.
+
+`tsc` e suíte verde validam FORMA, não comportamento. Três falhas vieram
+daí numa única sessão:
+
+1. Conclusão de que a busca de montadores não filtrava verificação — o
+   filtro estava doze linhas abaixo, num `.filter()`.
+2. Conclusão de que o Prisma removeria um índice parcial — ele não o
+   enxerga, então não o remove.
+3. Duas chaves `OR` no mesmo `where`: a segunda apagava a primeira e
+   diarista NÃO VERIFICADA aparecia na busca com filtro de tipo. Passou por
+   `tsc`, por lint e por 275 testes.
+
+Ao relatar, marcar cada afirmação:
+  [VERIFICADO] — executou e observou o comportamento
+  [LIDO]       — concluiu a partir do código, sem executar
+
+Não apresentar [LIDO] como fato.

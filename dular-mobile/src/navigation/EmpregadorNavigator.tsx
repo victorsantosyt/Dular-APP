@@ -24,6 +24,7 @@ import ProfissionaisDestaqueScreen from "@/screens/empregador/ProfissionaisDesta
 import { ChatAbertoScreen } from "@/screens/shared/ChatAbertoScreen";
 import type { ChatAbertoParams } from "@/screens/shared/ChatAbertoScreen";
 import Privacidade from "@/screens/perfil/Privacidade";
+import ExcluirConta from "@/screens/perfil/ExcluirConta";
 import ReportIncident from "@/screens/perfil/ReportIncident";
 import Termos from "@/screens/perfil/Termos";
 import VerificacaoDocs from "@/screens/perfil/VerificacaoDocs";
@@ -89,6 +90,7 @@ export type EmpregadorTabParamList = {
   SafeScore: undefined;
   Termos: undefined;
   Privacidade: undefined;
+  ExcluirConta: undefined;
   Favoritos: undefined;
   Historico: undefined;
   ProfissionaisSugeridos: undefined;
@@ -176,6 +178,7 @@ export function EmpregadorNavigator() {
       <RootStack.Screen name="SafeScore" component={SafeScoreScreen} />
       <RootStack.Screen name="Termos" component={Termos} />
       <RootStack.Screen name="Privacidade" component={Privacidade} />
+      <RootStack.Screen name="ExcluirConta" component={ExcluirConta} />
       <RootStack.Screen name="Favoritos" component={FavoritosEmpregadorScreen} />
       <RootStack.Screen name="Historico" component={HistoricoEmpregadorScreen} />
       <RootStack.Screen name="CategoriasTodas" component={CategoriasTodasScreen} />

@@ -57,7 +57,7 @@ const SECOES: { titulo: string; paragrafos: string[] }[] = [
   {
     titulo: "6. Seus direitos",
     paragrafos: [
-      "Conforme a LGPD, você pode acessar, corrigir, excluir e portar seus dados, além de revogar consentimento e se opor a determinados tratamentos. Para exercer esses direitos, fale com o Suporte.",
+      "Conforme a LGPD, você pode acessar, corrigir, excluir e portar seus dados, além de revogar consentimento e se opor a determinados tratamentos. A exclusão da conta você faz sozinho, em Perfil > Excluir conta. Para os demais direitos, fale com o Suporte.",
     ],
   },
   {

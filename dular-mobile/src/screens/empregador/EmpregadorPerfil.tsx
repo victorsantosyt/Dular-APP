@@ -711,6 +711,12 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
                   subtitle="Controle seus dados"
                   onPress={() => navigation.navigate("Privacidade")}
                 />
+                <ProfileRow
+                  icon="Trash2"
+                  title="Excluir conta"
+                  subtitle="Apagar seus dados do Dular"
+                  onPress={() => navigation.navigate("ExcluirConta")}
+                />
                 <ProfileSwitchRow
                   icon="MapPin"
                   title="Ativar geolocalização"

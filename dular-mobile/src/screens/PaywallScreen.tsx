@@ -43,36 +43,49 @@ type PlanoApi = {
   storeProductId?: string | null;
 };
 
-/** Benefícios são texto de marketing e não estão no catálogo do backend.
- *  O PREÇO vem sempre da API — era cravado aqui e não batia com a cobrança. */
-/** Benefícios por plano. O primeiro item é sempre o LIMITE — é o que o plano
- *  de fato faz (`FeatureLimit.SOLICITACOES_MES`) e o que o catálogo descreve
- *  em lib/stripe.ts. Os demais são o que vem junto. */
-/** Benefícios por NÍVEL, não por id de plano: diarista e montador têm ids
- *  diferentes (`pro_mensal` vs `montador_pro_mensal`) para o mesmo nível, e
- *  indexar por id deixaria o montador sem texto. A chave é `plan_interval`.
+/**
+ * Benefícios por NÍVEL, não por id de plano: diarista e montador têm ids
+ * diferentes (`pro_mensal` vs `montador_pro_mensal`) para o mesmo nível, e
+ * indexar por id deixaria o montador sem texto. A chave é `plan_interval` —
+ * por isso estes três blocos cobrem os seis planos.
  *
- *  O primeiro item é sempre o LIMITE — é o que o plano de fato faz
- *  (`FeatureLimit.SOLICITACOES_MES`) e o que o catálogo descreve. */
+ * A lista anuncia SOMENTE o limite de aceites por mês, que é a única coisa
+ * que o plano de fato faz: `FeatureLimit.SOLICITACOES_MES`, aplicado em
+ * `POST /api/servicos/[id]/aceitar`.
+ *
+ * Saíram daqui três promessas que não existiam em lugar nenhum do código —
+ * selo de assinante, suporte prioritário e destaque na busca. A ordenação da
+ * busca não olha assinatura, o `VerifiedBadge` nunca recebe o nível de
+ * assinante e `SUPORTE_PRIORITARIO` não tem uma linha que o aplique. Anunciar
+ * o que não se entrega custa mais caro do que anunciar pouco.
+ *
+ * Pro Mensal e Pro Anual liberam EXATAMENTE o mesmo (ambos PREMIUM, limite
+ * nulo). O que muda é a duração e o preço, e a copy do anual diz isso — a
+ * diferença é desconto por pagar 12 meses de uma vez, não benefício a mais.
+ */
 const BENEFICIOS: Record<string, string[]> = {
   BASIC_month: [
-    "Até 10 serviços aceitos por mês",
-    "Selo de assinante no seu perfil",
-    "Suporte prioritário no atendimento",
+    "Aceite até 10 solicitações por mês",
+    "Tudo do plano gratuito",
   ],
   PREMIUM_month: [
-    "Serviços ilimitados por mês",
-    "Tudo do Básico Mensal",
-    "Destaque na busca dos empregadores",
+    "Aceite solicitações ilimitadas",
+    "Sem limite de aceites por mês",
   ],
   PREMIUM_year: [
-    "Serviços ilimitados o ano todo",
-    "Tudo do Pro Mensal",
-    "Preço travado por 12 meses",
+    "Aceite solicitações ilimitadas",
+    "Mesmo benefício do Pro Mensal, com preço travado por 12 meses",
   ],
 };
 
-const BENEFICIOS_PADRAO = ["Mais serviços por mês", "Suporte prioritário"];
+/**
+ * Reserva, para um nível que o catálogo devolva e não esteja no mapa acima.
+ *
+ * Também prometia "Suporte prioritário", que é uma das promessas cortadas —
+ * mantê-la aqui deixaria a promessa viva pelo caminho do fallback. Ficou só o
+ * que é verdade em qualquer plano pago: mais aceites por mês.
+ */
+const BENEFICIOS_PADRAO = ["Mais aceites por mês"];
 
 /**
  * Identidade visual por NÍVEL (mesma chave `plan_interval` dos benefícios —

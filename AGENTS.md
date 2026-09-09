@@ -174,3 +174,38 @@ Ao relatar, marcar cada afirmação:
   [LIDO]       — concluiu a partir do código, sem executar
 
 Não apresentar [LIDO] como fato.
+
+## Verde no CI não é verde no deploy
+
+Uma tarefa não está concluída enquanto TODOS os checks do PR não estiverem
+verdes, **o deploy incluído**. `next build` sair 0 não significa que a
+publicação será aceita: validações de runtime Edge só acontecem no deploy.
+
+O caso que originou a regra: `src/instrumentation.ts` importava um módulo que
+importa o Prisma. Como o projeto tem middleware, o Next compila o
+instrumentation também para o runtime Edge, onde o Prisma puxa
+`node:util/types`. Build local exit 0, oito checks de CI verdes, e o Vercel
+recusando a publicação:
+
+    The Edge Function "_middleware" is referencing unsupported modules:
+    - __vc__ns__/0/web/index.js: node:util/types
+
+Vale além do Edge: `tsc` e testes veem o FONTE, não o artefato publicado. Se a
+afirmação é sobre o que roda em produção, a prova tem que ser feita sobre o
+artefato — o bundle, o deploy — e não sobre o código que o gerou.
+
+## `__DEV__` não é gate de segurança
+
+`__DEV__` é otimização de minificador, não controle de acesso. Ele só elimina
+o que está **sintaticamente dentro** do condicional: uma função declarada fora
+vai para o bundle de produção mesmo que nada a chame.
+
+Conferido com `expo export --platform ios` + `strings` no `.hbc`: o JSX dentro
+de `{__DEV__ ? (...) : null}` sumiu, e o `useCallback` que ele chamava — junto
+com o `fetch` para `/api/auth/login` — continuou no bundle publicado. O
+comentário no código afirmava que "este bloco inteiro (estado, handler e UI)
+some do app publicado". Não somia.
+
+Verificar por MEDIÇÃO do bundle, nunca por leitura do código. Sempre com
+controle positivo: uma string que você sabe que está no app publicado, para
+provar que a busca acharia se estivesse lá.

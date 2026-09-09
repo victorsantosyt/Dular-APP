@@ -97,6 +97,24 @@ export async function POST(req: Request) {
       return fail("invalid_credentials", "Credenciais inválidas", 401);
     }
 
+    // Esta rota existe para UMA coisa: o login do painel admin. O app entra
+    // por OAuth (Google/Apple) e não a chama.
+    //
+    // Sem esta checagem ela aceita qualquer usuário que tenha `senhaHash` e
+    // devolve um JWT de 7 dias — um segundo caminho de autenticação, aberto a
+    // qualquer conta com senha, ao lado do OAuth que deveria ser o único.
+    // O painel já recusa não-ADMIN (lib/adminSession.ts), mas o TOKEN saía
+    // daqui mesmo assim, e um token vale em toda a API, não só no painel.
+    //
+    // Responde igual a senha errada, de propósito: dizer "seu papel não
+    // permite" confirmaria que a conta existe e que a senha estava certa.
+    if (user.role !== "ADMIN") {
+      console.warn(
+        `[AUTH LOGIN] recusado por papel — ip=${ip} loginKind=${loginKind} role=${user.role ?? "null"}`,
+      );
+      return fail("invalid_credentials", "Credenciais inválidas", 401);
+    }
+
     if (user.status !== "ATIVO") {
       return fail("blocked_user", "Usuário bloqueado", 403);
     }

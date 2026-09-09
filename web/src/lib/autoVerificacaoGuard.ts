@@ -43,7 +43,8 @@ export function garantirAutoVerifyForaDeProducao(): void {
       "",
       "O que fazer: remova AUTO_VERIFY_PROFILES do ambiente de produção.",
       "Para conta de teste com verificação, use `contaDemo`",
-      "(prisma/seed-demo.ts) — ela cobre o caso sem afetar mais ninguém.",
+      "(prisma/marcar-contas-demo.ts) — ela cobre o caso sem afetar mais",
+      "ninguém.",
     ].join("\n"),
   );
 }

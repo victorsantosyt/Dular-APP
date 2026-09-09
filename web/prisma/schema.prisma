@@ -810,6 +810,31 @@ model Notification {
   @@index([userId, createdAt])
 }
 
+/// Este model tem um índice que NÃO está declarado abaixo:
+///
+///   CREATE UNIQUE INDEX "Subscription_provider_externalId_key"
+///     ON "Subscription" ("provider", "externalId")
+///     WHERE "externalId" IS NOT NULL;
+///
+/// Origem: migration 20260909120000_subscription_provider.
+/// Para que serve: impedir que o MESMO recibo de compra de loja (`externalId`)
+/// ative plano em duas contas diferentes.
+///
+/// Por que não está no schema: a sintaxe do Prisma não representa índice
+/// PARCIAL (a cláusula `WHERE`). E o `WHERE` é obrigatório — sem ele o índice
+/// passaria a exigir `externalId` único entre TODAS as linhas, inclusive as
+/// nulas, e barraria todo usuário que ainda não assinou. Declarar sem a
+/// condição não é uma aproximação: é outro índice, e quebra o cadastro.
+///
+/// O que isso NÃO significa: o Prisma não remove este índice. Foi verificado —
+/// `migrate diff` entre as migrations aplicadas e este schema devolve vazio,
+/// porque índice parcial está fora do modelo interno do Prisma. Ele não
+/// gerencia e, por não gerenciar, também não apaga.
+///
+/// O risco real é outro: alguém apagar o índice à mão ao escrever SQL cru numa
+/// migration futura — coisa que este projeto faz com frequência. Contra isso há
+/// `scripts/check-partial-index.mjs`, que roda no CI e recusa qualquer migration
+/// com DROP INDEX sobre ele.
 model Subscription {
   id         String             @id @default(cuid())
   userId     String             @unique

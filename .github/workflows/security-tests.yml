@@ -100,6 +100,14 @@ jobs:
         if: steps.changes.outputs.relevant == 'true'
         run: npx prisma validate
 
+      # Recusa migration que apague o índice único parcial de Subscription. Ele
+      # não está no schema.prisma (o Prisma não representa índice parcial), então
+      # nada no fluxo normal o protege — quem lê só o schema não sabe que existe.
+      # Não precisa de banco: lê os .sql do repositório.
+      - name: Guard partial index (Subscription)
+        if: steps.changes.outputs.relevant == 'true'
+        run: npm run check:partial-index
+
       - name: TypeScript type-check
         if: steps.changes.outputs.relevant == 'true'
         run: npx tsc --noEmit --pretty false

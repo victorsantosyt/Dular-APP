@@ -148,7 +148,12 @@ export default function MontadorDetalheServico({ route, navigation }: Props) {
     try {
       setActionLoading("sos");
       await acionarSosMontador(servico.id);
-      Alert.alert("SOS acionado", "A equipe de segurança foi notificada.");
+      Alert.alert(
+        "SOS acionado",
+        // O botão promete socorro; sem esta ressalva alguém em perigo pode
+        // acionar e ESPERAR, achando que chamou a polícia.
+        "A equipe de segurança foi notificada.\n\nIsto NÃO aciona polícia, SAMU nem bombeiros. Em perigo imediato, ligue 190, 192 ou 193.",
+      );
     } catch {
       Alert.alert("Erro", "Não foi possível acionar SOS.");
     } finally {

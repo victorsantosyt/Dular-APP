@@ -194,7 +194,18 @@ Vale além do Edge: `tsc` e testes veem o FONTE, não o artefato publicado. Se a
 afirmação é sobre o que roda em produção, a prova tem que ser feita sobre o
 artefato — o bundle, o deploy — e não sobre o código que o gerou.
 
-Corolário no mobile: `__DEV__` não apaga tudo que está "dentro" dele. Ele
-elimina o JSX condicional, mas um handler declarado fora do condicional
-continua no bundle publicado. Conferido com `expo export` + `strings` no
-`.hbc`: a UI sumiu e o `fetch` para `/api/auth/login` continuou lá.
+## `__DEV__` não é gate de segurança
+
+`__DEV__` é otimização de minificador, não controle de acesso. Ele só elimina
+o que está **sintaticamente dentro** do condicional: uma função declarada fora
+vai para o bundle de produção mesmo que nada a chame.
+
+Conferido com `expo export --platform ios` + `strings` no `.hbc`: o JSX dentro
+de `{__DEV__ ? (...) : null}` sumiu, e o `useCallback` que ele chamava — junto
+com o `fetch` para `/api/auth/login` — continuou no bundle publicado. O
+comentário no código afirmava que "este bloco inteiro (estado, handler e UI)
+some do app publicado". Não somia.
+
+Verificar por MEDIÇÃO do bundle, nunca por leitura do código. Sempre com
+controle positivo: uma string que você sabe que está no app publicado, para
+provar que a busca acharia se estivesse lá.

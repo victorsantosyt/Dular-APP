@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/requireAuth";
+import { maskPixKey } from "@/lib/pix";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -17,6 +18,13 @@ export async function GET(req: Request, { params }: Params) {
         montador: { select: { id: true, nome: true, telefone: true, avatarUrl: true } },
         avaliacao: true,
         avaliacaoEmpregador: true,
+        // Para o comprovante: quem recebeu o pagamento. O snapshot é imutável
+        // e congelado na contratação — é justamente a prova de para onde o
+        // dinheiro foi, e não mudava nem se o profissional trocasse a chave
+        // depois.
+        pixSnapshot: {
+          select: { pixType: true, pixKey: true, bank: true, holderName: true, createdAt: true },
+        },
         // Data de finalização sem migration: último evento de finalização.
         eventos: {
           where: { toStatus: { in: ["CONCLUIDO", "CONFIRMADO", "FINALIZADO"] } },
@@ -57,12 +65,27 @@ export async function GET(req: Request, { params }: Params) {
 
     const endereco = canSeeAddress ? servico.enderecoCompleto : null;
 
+    // A chave sai MASCARADA. O comprovante precisa dizer para quem o dinheiro
+    // foi (titular, banco, tipo da chave) — não precisa da chave inteira, que
+    // só a tela de pagamento entrega, e só para o empregador.
+    const { pixSnapshot, ...resto } = servico;
+    const recebimento = pixSnapshot
+      ? {
+          titular: pixSnapshot.holderName,
+          banco: pixSnapshot.bank,
+          tipoChave: pixSnapshot.pixType,
+          chaveMascarada: maskPixKey(pixSnapshot.pixKey),
+          congeladoEm: pixSnapshot.createdAt,
+        }
+      : null;
+
     return NextResponse.json({
       ok: true,
       servico: {
-        ...servico,
+        ...resto,
         enderecoCompleto: endereco,
         endereco,
+        recebimento,
       },
       otherUserId,
     });

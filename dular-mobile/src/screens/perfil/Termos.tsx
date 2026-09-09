@@ -54,7 +54,7 @@ const SECOES: { titulo: string; paragrafos: string[] }[] = [
   {
     titulo: "6. Pagamentos",
     paragrafos: [
-      "No momento, o pagamento é combinado e realizado diretamente entre as partes (ex.: Pix ou dinheiro). O Dular não processa nem retém valores. Pagamento dentro do app poderá ser disponibilizado futuramente, com aviso prévio.",
+      "O pagamento é feito por PIX dentro do app: o empregador gera o QR Code no chat do serviço e paga direto para a chave do profissional. O Dular registra o combinado e a confirmação das duas partes, mas NÃO processa nem retém valores — o dinheiro nunca passa pela plataforma.",
     ],
   },
   {

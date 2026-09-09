@@ -41,7 +41,7 @@ const FAQ = [
   },
   {
     q: "Como funciona o pagamento?",
-    a: "Por enquanto o pagamento é combinado diretamente entre as partes (Pix ou dinheiro). Pagamento dentro do app chegará em breve.",
+    a: "O pagamento é feito por PIX, pelo próprio app: no chat do serviço, o empregador toca em 'Pagar com PIX' e recebe o QR Code e o copia-e-cola com o valor combinado. Depois de pagar, ele marca 'Já realizei o pagamento' e o profissional confirma o recebimento. O valor vai direto para a chave PIX do profissional — a Dular registra o combinado, mas não recebe nem repassa o dinheiro.",
   },
   {
     q: "Como reagendar um serviço?",
@@ -53,7 +53,7 @@ const FAQ = [
   },
   {
     q: "O que é o SafeScore e por que ele importa?",
-    a: "O SafeScore é o índice de confiança e segurança da sua conta no Dular — é a principal camada de proteção para empregadores e profissionais. Ele combina a verificação de documentos, o histórico de serviços, as avaliações e os registros de segurança (SOS, check-in e denúncias) para indicar o quanto cada pessoa é confiável. Um SafeScore mais alto aumenta sua visibilidade na busca e a confiança da outra parte; já condutas graves ou denúncias confirmadas podem reduzi-lo e até restringir o uso do app. Por isso, manter seu perfil verificado e um bom histórico é o que mantém todas as interações mais seguras.",
+    a: "O SafeScore é o índice de confiança e segurança da sua conta no Dular — é a principal camada de proteção para empregadores e profissionais. Ele combina a verificação de documentos, o histórico de serviços, as avaliações e os registros de segurança (SOS, check-in e denúncias) para indicar o quanto cada pessoa é confiável. O SafeScore não muda a ordem em que você aparece na busca — a ordenação segue sua nota média e o número de serviços. O que ele faz é o contrário: score muito baixo, condutas graves ou denúncias confirmadas podem tirar você da busca e até restringir o uso do app. Por isso, manter seu perfil verificado e um bom histórico é o que mantém todas as interações mais seguras.",
   },
   {
     q: "Como avalio após o serviço?",

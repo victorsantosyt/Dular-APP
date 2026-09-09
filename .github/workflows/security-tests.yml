@@ -108,6 +108,13 @@ jobs:
         if: steps.changes.outputs.relevant == 'true'
         run: npm run check:partial-index
 
+      # Chave de objeto sobrescrita por spread — o `no-dupe-keys` do ESLint não
+      # pega essa variante, e foi assim que o filtro de verificação da busca
+      # sumiu sem tsc, lint ou teste acusarem.
+      - name: Guard duplicate object keys
+        if: steps.changes.outputs.relevant == 'true'
+        run: npm run check:dupe-keys
+
       - name: TypeScript type-check
         if: steps.changes.outputs.relevant == 'true'
         run: npx tsc --noEmit --pretty false

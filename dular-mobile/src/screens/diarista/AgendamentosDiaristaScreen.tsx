@@ -1,9 +1,9 @@
 import React, { useMemo, useState } from "react";
-import { ActivityIndicator, Alert, FlatList, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, FlatList, RefreshControl, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
-import { AppIcon, DAvatar, DBadge, DButton, DCard } from "@/components/ui";
+import { AppIcon, BarraFiltros, DAvatar, DBadge, DButton, DCard } from "@/components/ui";
 import { colors, radius, spacing, typography } from "@/theme";
 import { useGenderTheme } from "@/hooks/useProfileTheme";
 import type { DiaristaTabParamList } from "@/navigation/DiaristaNavigator";
@@ -81,28 +81,6 @@ const VAZIO_POR_FILTRO: Record<Filtro, string> = {
   confirmados: "Nenhum agendamento confirmado",
   concluidos: "Nenhum agendamento concluído",
 };
-
-function FilterChip({
-  label,
-  active,
-  accentColor,
-  onPress,
-}: {
-  label: string;
-  active: boolean;
-  accentColor: string;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable onPress={onPress}>
-      <View style={[styles.filterChip, active ? { backgroundColor: accentColor, borderColor: accentColor } : styles.filterChipIdle]}>
-        <Text style={[styles.filterLabel, active ? styles.filterLabelActive : styles.filterLabelIdle]}>
-          {label}
-        </Text>
-      </View>
-    </Pressable>
-  );
-}
 
 function statusCardStyle(status: StatusAgendamento, accentColor: string) {
   switch (status) {
@@ -304,30 +282,12 @@ export function AgendamentosDiaristaScreen() {
           </View>
         </View>
 
-        {/* Barra de filtros: os chips soltos sobre o fundo da tela não tinham
-            nada que os agrupasse, e pareciam avulsos. Agora vivem dentro de
-            uma barra própria, que rola na horizontal quando não cabem.
-
-            O card "Agenda / N agendamentos carregados" que ficava logo abaixo
-            saiu: repetia o título da tela imediatamente sob ele, e a contagem
-            já é visível na própria lista. */}
-        <View style={[styles.filtersBar, { borderColor: theme.border, backgroundColor: theme.primarySoft }]}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.filtersRow}
-          >
-            {FILTROS.map((filter) => (
-              <FilterChip
-                key={filter.value}
-                label={filter.label}
-                active={activeFilter === filter.value}
-                accentColor={theme.primary}
-                onPress={() => setActiveFilter(filter.value)}
-              />
-            ))}
-          </ScrollView>
-        </View>
+        <BarraFiltros
+          itens={FILTROS.map((f) => ({ id: f.value, label: f.label }))}
+          ativo={activeFilter}
+          onChange={setActiveFilter}
+          theme={theme}
+        />
 
         {loading && realAgendamentos.length === 0 ? (
           <View style={styles.topState}>

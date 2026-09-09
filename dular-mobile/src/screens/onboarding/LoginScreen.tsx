@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import React, { useEffect, useState } from "react";
+import { ActivityIndicator, Alert, Image, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
 import { useNavigation } from "@react-navigation/native";
@@ -209,46 +209,6 @@ export function LoginScreen() {
     navigation.replace("RoleSelect");
   };
 
-  // ── Login por senha — SOMENTE EM DESENVOLVIMENTO ──────────────────────────
-  // `__DEV__` é false em build de produção, então este bloco inteiro (estado,
-  // handler e UI) some do app publicado.
-  //
-  // Existe porque o app é OAuth-only e o simulador tem uma conta Google só:
-  // sem isto não há como testar os perfis de montador e empregador, já que
-  // cada um tem sua própria conta.
-  const [devTelefone, setDevTelefone] = useState("");
-  const [devSenha, setDevSenha] = useState("");
-  const [devEntrando, setDevEntrando] = useState(false);
-
-  const handleDevLogin = useCallback(async () => {
-    if (!devTelefone.trim() || !devSenha) {
-      Alert.alert("Faltam dados", "Informe telefone e senha.");
-      return;
-    }
-    setDevEntrando(true);
-    try {
-      const res = await api.post<{ token?: string; user?: { role?: string } }>(
-        "/api/auth/login",
-        { login: devTelefone.trim(), senha: devSenha },
-      );
-      const token = res.data?.token;
-      const role = res.data?.user?.role;
-      if (!token || !role) {
-        Alert.alert("Erro", "Resposta inválida do servidor.");
-        return;
-      }
-      await markOnboardingSeen();
-      await setSession({ token, role: role as never });
-    } catch (e: any) {
-      Alert.alert(
-        "Não foi possível entrar",
-        e?.response?.data?.message ?? e?.response?.data?.error ?? "Confira telefone e senha.",
-      );
-    } finally {
-      setDevEntrando(false);
-    }
-  }, [devTelefone, devSenha, setSession]);
-
   const handleOAuthLogin = async (provider: Provider) => {
     if (!callbackRole) {
       Alert.alert("Perfil obrigatório", "Escolha Empregador, Diarista ou Montador antes de fazer login.");
@@ -370,40 +330,6 @@ export function LoginScreen() {
             onPress={() => handleOAuthLogin("apple")}
           />
         </View>
-
-        {__DEV__ ? (
-          <View style={styles.devBox}>
-            <Text style={styles.devTitulo}>Entrar por senha (dev)</Text>
-            <Text style={styles.devAviso}>
-              Só aparece em desenvolvimento. Serve para alternar entre os perfis sem OAuth.
-            </Text>
-            <TextInput
-              value={devTelefone}
-              onChangeText={setDevTelefone}
-              placeholder="Telefone"
-              placeholderTextColor={colors.textMuted}
-              keyboardType="phone-pad"
-              autoCapitalize="none"
-              style={styles.devInput}
-            />
-            <TextInput
-              value={devSenha}
-              onChangeText={setDevSenha}
-              placeholder="Senha"
-              placeholderTextColor={colors.textMuted}
-              secureTextEntry
-              autoCapitalize="none"
-              style={styles.devInput}
-            />
-            <Pressable
-              onPress={handleDevLogin}
-              disabled={devEntrando}
-              style={({ pressed }) => [styles.devBotao, pressed && { opacity: 0.85 }]}
-            >
-              <Text style={styles.devBotaoTexto}>{devEntrando ? "Entrando…" : "Entrar"}</Text>
-            </Pressable>
-          </View>
-        ) : null}
 
         <View style={styles.infoCard}>
           <AppIcon name="ShieldCheck" variant="soft" color="purple" />
@@ -664,35 +590,4 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   // ── bloco de login por senha (só DEV) ──────────────────────────────────
-  devBox: {
-    marginTop: spacing.lg,
-    marginHorizontal: 24,
-    padding: spacing.md,
-    gap: spacing.sm,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderStyle: "dashed",
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-  },
-  devTitulo: { ...typography.bodySmMedium, color: colors.textPrimary, fontWeight: "700" },
-  devAviso: { ...typography.caption, color: colors.textMuted },
-  devInput: {
-    minHeight: 42,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingHorizontal: spacing.md,
-    color: colors.textPrimary,
-    backgroundColor: colors.background,
-    fontSize: 15,
-  },
-  devBotao: {
-    minHeight: 44,
-    borderRadius: radius.md,
-    backgroundColor: colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  devBotaoTexto: { ...typography.bodySmMedium, color: colors.textOnPrimary, fontWeight: "700" },
 });

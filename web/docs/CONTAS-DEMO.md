@@ -17,14 +17,28 @@ fluxos, não só olhar telas. Por isso a flag abre os dois.
 
 ## As contas
 
-| papel | telefone |
-|---|---|
-| Empregador | `65900009001` |
-| Diarista | `65900009002` |
-| Montador | `65900009003` |
+| papel | telefone | o que consegue fazer |
+|---|---|---|
+| Empregador | `65900009001` | buscar profissionais, criar serviço em **qualquer** endereço, contratar, conversar, avaliar |
+| Diarista | `65900009002` | aparecer na busca sem KYC, receber e aceitar solicitação |
+| Montador | `65900009003` | aparecer na busca sem KYC, receber e aceitar solicitação |
 
 São três porque o revisor precisa ver os três papéis. Com uma só, ele vê
 metade do app.
+
+**O seed cria o perfil, não só o usuário.** Sem perfil a conta loga e não
+aparece em busca nenhuma — a busca consulta `DiaristaProfile` /
+`MontadorPerfil`, não `User`. A flag `contaDemo` sozinha não resolvia isso: o
+revisor veria uma lista vazia.
+
+Os perfis nascem **sem** avaliação, SafeScore ou histórico de serviço. Dado
+fabricado de reputação é proibido no projeto, e nenhum critério de
+visibilidade exige — os perfis demo aparecem sem histórico, como qualquer
+conta nova. O preço fica como "a combinar", em vez de um valor inventado.
+
+Verificado chamando a API depois de rodar o seed: as três aparecem onde
+devem, com `contaDemo = true` e KYC **não** aprovado — é a flag que as
+libera, não uma aprovação escondida.
 
 **A senha não está neste repositório.** Ela é definida na hora de rodar o
 seed e vai para as notas de revisão da loja — um canal externo. Commitá-la

@@ -13,11 +13,10 @@ import { MotivoModal } from "@/components/MotivoModal";
 import { useMontadorServicos } from "@/hooks/useMontadorServicos";
 import { useProfileTheme } from "@/hooks/useProfileTheme";
 import type { MontadorTabParamList } from "@/navigation/MontadorNavigator";
-import { colors, radius, shadows, spacing, typography } from "@/theme";
+import { colors, radius, shadows, typography } from "@/theme";
 import {
   canOpenChat,
   formatDateTime,
-  formatMoneyFromCents,
   formatValorServico,
   labelServico,
   labelSubcategoria,

@@ -12,10 +12,9 @@
 import React from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { AppIcon } from "@/components/ui";
+import { AppIcon , DAvatar } from "@/components/ui";
 import { useDularColors } from "@/hooks/useDularColors";
 import { getProfileTheme } from "@/theme/profileTheme";
-import { DAvatar } from "@/components/ui";
 import { radius, shadows, spacing, typography } from "@/theme";
 
 export type PerfilHeroData = {
@@ -35,9 +34,9 @@ export type PerfilSection =
   | {
       key: string;
       kind: "infoGrid";
-      cells: Array<{ label: string; value: string; hint?: string | null }>;
+      cells: { label: string; value: string; hint?: string | null }[];
     }
-  | { key: string; kind: "stats"; stats: Array<{ value: string; label: string }> }
+  | { key: string; kind: "stats"; stats: { value: string; label: string }[] }
   | { key: string; kind: "custom"; render: () => React.ReactNode };
 
 type Props = {
@@ -79,7 +78,7 @@ export function PerfilPublicoLayout({
         >
           <AppIcon name="ArrowLeft" size={20} color={theme.primary} strokeWidth={2.5} />
         </Pressable>
-        <Text style={s.headerTitle} numberOfLines={1}>{title}</Text>
+        <Text style={[s.headerTitle, { color: theme.textAccent }]} numberOfLines={1}>{title}</Text>
         {showFav ? (
           <Pressable
             onPress={onToggleFavorito}
@@ -258,10 +257,10 @@ function makeStyles({
       borderColor: colors.border,
     },
     headerTitle: {
+    // Título de tela secundária: h2 e cor de destaque do perfil.
+      ...typography.h2,
       flex: 1,
       textAlign: "center",
-      ...typography.bodyMedium,
-      color: colors.textPrimary,
       fontWeight: "700",
     },
     headerSpacer: { width: 40 },

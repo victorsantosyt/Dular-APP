@@ -83,9 +83,9 @@ export function aplicarFonteGlobal() {
   if (aplicada) return;
   aplicada = true;
 
-  for (const Componente of [Text, TextInput] as unknown as Array<{
+  for (const Componente of [Text, TextInput] as unknown as {
     render?: (...args: unknown[]) => unknown;
-  }>) {
+  }[]) {
     const renderOriginal = Componente.render;
     if (typeof renderOriginal !== "function") continue;
 

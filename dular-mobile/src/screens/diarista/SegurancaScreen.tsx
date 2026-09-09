@@ -88,7 +88,7 @@ export default function SegurancaScreen() {
       {/* Header */}
       <View style={s.header}>
         <BackCircleButton onPress={() => navigation.goBack()} color={theme.icon} borderColor={theme.border} />
-        <Text style={s.headerTitle}>Segurança do Serviço</Text>
+        <Text style={[s.headerTitle, { color: theme.textAccent }]}>Segurança do Serviço</Text>
         {/* Espaçador: sem ele o título centraliza no espaço que sobra
             e fica deslocado para a direita. */}
         <View style={s.headerSlot} />
@@ -184,8 +184,10 @@ const s = StyleSheet.create({
   /** Mesma largura do BackCircleButton, para centrar o título. */
   headerSlot: { width: 42, height: 42 },
   headerTitle: {
-    ...typography.h3,
-    color: colors.textPrimary,
+    // Título de tela secundária: h2 e cor de destaque do perfil. Antes cada
+    // uma escolhia entre h2, h3, 24, 22, bodyMedium ou `title`, com texto
+    // preto — seis tratamentos para a mesma função.
+    ...typography.h2,
     flex: 1,
     textAlign: "center",
   },

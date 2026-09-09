@@ -142,12 +142,12 @@ export type MontadorPerfilProfissional = {
   avaliacoes?: {
     media: number;
     total: number;
-    itens: Array<{
+    itens: {
       id: string;
       notaGeral: number;
       comentario?: string | null;
       createdAt: string;
-    }>;
+    }[];
   };
 };
 

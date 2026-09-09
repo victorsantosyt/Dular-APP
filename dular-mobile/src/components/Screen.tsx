@@ -14,6 +14,7 @@ import {
   ViewStyle,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useGenderTheme } from "@/hooks/useProfileTheme";
 import { colors, spacing, typography } from "@/theme/tokens";
 
 type Props = {
@@ -47,6 +48,9 @@ export function Screen({
   padded = true,
   px = spacing.screenPadding,
 }: Props) {
+  // Título na cor de destaque do perfil, como nas telas com cabeçalho
+  // próprio — este componente serve 6 telas e era o último ponto em preto.
+  const tema = useGenderTheme();
   const horizontalPadding = padded ? px : 0;
   const inner = scroll ? (
     <ScrollView
@@ -82,7 +86,7 @@ export function Screen({
               sem ele o título centraliza no espaço QUE SOBRA e fica deslocado
               para o lado oposto ao botão, em vez de centralizado na linha. */}
           {leftAction ?? <View style={styles.headerSlot} />}
-          <Text style={styles.headerTitle}>{title}</Text>
+          <Text style={[styles.headerTitle, { color: tema.textAccent }]}>{title}</Text>
           {rightAction ?? <View style={styles.headerSlot} />}
         </View>
       ) : null}

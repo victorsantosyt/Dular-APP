@@ -15,10 +15,14 @@ import { ThemeScope } from "@/contexts/ThemeContext";
 import { CadastroEnderecoScreen } from "@/screens/shared/CadastroEnderecoScreen";
 import { DadosPessoaisGateScreen } from "@/screens/onboarding/DadosPessoaisGateScreen";
 import { fetchEnderecos } from "@/api/enderecoApi";
+import { useSincronizarBadge } from "@/hooks/useSincronizarBadge";
 import { colors } from "@/theme";
 
 function PushNotificationsGate({ children }: { children: React.ReactNode }) {
   usePushNotifications();
+  // Aqui, e não em cada navegador: envolve os três perfis, roda depois de
+  // todos os gates e já é o lugar do app que cuida de push.
+  useSincronizarBadge();
   return <>{children}</>;
 }
 

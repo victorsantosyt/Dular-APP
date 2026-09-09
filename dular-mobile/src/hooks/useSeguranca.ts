@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { Linking } from "react-native";
-import Constants from "expo-constants";
 import { sosWhatsapp } from "../config/api";
 import * as Location from "expo-location";
 

@@ -209,7 +209,7 @@ export function CadastroEnderecoScreen({ role, mode = "onboarding", initial, onD
 
   // ── Empregador onboarding: seletor de tipo ──────────────────────────────────
   if (queue === null) {
-    const opcoes: Array<{ key: TipoEscolha; label: string; sub: string; icon: AppIconName }> = [
+    const opcoes: { key: TipoEscolha; label: string; sub: string; icon: AppIconName }[] = [
       { key: "RESIDENCIAL", label: "Residencial", sub: "Sua casa", icon: "Home" },
       { key: "EMPRESARIAL", label: "Empresarial", sub: "Seu trabalho/empresa", icon: "BriefcaseBusiness" },
       { key: "AMBOS", label: "Ambos", sub: "Casa e empresa", icon: "MapPin" },
@@ -237,7 +237,7 @@ export function CadastroEnderecoScreen({ role, mode = "onboarding", initial, onD
           </View>
         ) : null}
         <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
-          <Text style={s.title}>Qual endereço você quer cadastrar?</Text>
+          <Text style={[s.title, { color: theme.textAccent }]}>Qual endereço você quer cadastrar?</Text>
           <Text style={s.subtitle}>Você precisa de um endereço para solicitar serviços.</Text>
           <View style={s.optionList}>
             {opcoes.map((o) => (
@@ -411,7 +411,11 @@ function makeStyles(colors: ReturnType<typeof useDularColors>) {
       alignItems: "center",
       justifyContent: "center",
     },
-    headerTitle: { flex: 1, textAlign: "center", ...typography.bodyMedium, color: colors.textPrimary, fontWeight: "700" },
+    headerTitle: {
+    // Título de tela secundária: h2 e cor de destaque do perfil.
+      ...typography.h2,
+      flex: 1, textAlign: "center",  color: colors.textPrimary, fontWeight: "700"
+    },
     scroll: { paddingHorizontal: spacing.screenPadding, paddingTop: spacing.sm, paddingBottom: 48, gap: 6 },
     title: { ...typography.h2, color: colors.textPrimary, fontWeight: "800", marginTop: spacing.lg,
       textAlign: "center",

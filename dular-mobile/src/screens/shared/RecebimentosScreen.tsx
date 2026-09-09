@@ -163,7 +163,7 @@ export function RecebimentosScreen() {
       <View style={s.header}>
         <BackCircleButton onPress={() => navigation.goBack()} color={theme.icon} borderColor={theme.border} />
         <View style={s.headerTextCol}>
-          <Text style={s.title}>Recebimentos</Text>
+          <Text style={[s.title, { color: theme.textAccent }]}>Recebimentos</Text>
           <Text style={s.subtitle}>Receber pelo PIX</Text>
         </View>
         {/* Espaçador para centrar o título. Usava `s.backBtn`, que tem fundo
@@ -286,7 +286,12 @@ function makeStyles(colors: ReturnType<typeof useDularColors>) {
     },
     headerSpacer: { width: 40, height: 40 },
     headerTextCol: { alignItems: "center", gap: 1 },
-    title: { ...typography.h3, color: colors.textPrimary, fontWeight: "700",
+    title: {
+    // Título de tela secundária: h2 e cor de destaque do perfil. Antes cada
+    // uma escolhia entre h2, h3, 24, 22, bodyMedium ou `title`, com texto
+    // preto — seis tratamentos para a mesma função.
+      ...typography.h2,
+      fontWeight: "700",
       textAlign: "center",
       flex: 1,
     },

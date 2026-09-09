@@ -82,7 +82,7 @@ export async function requestLocationWithAddress(): Promise<CurrentAddress> {
   try {
     const geo = await Location.reverseGeocodeAsync({ latitude, longitude });
     address = geo?.[0] ?? null;
-  } catch (e) {
+  } catch {
     // silêncio: sem endereço, apenas coords
     address = null;
   }

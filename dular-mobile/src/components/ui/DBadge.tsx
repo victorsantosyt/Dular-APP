@@ -10,7 +10,10 @@ type Props = {
 };
 
 const map: Record<BadgeType, { bg: string; fg: string }> = {
-  default: { bg: colors.lavenderSoft, fg: colors.primary },
+  // "default" é o estado sem semântica (ex.: "Finalizado"). Usava o roxo
+  // global, que aparecia dentro do tema rosa da diarista e do verde do
+  // montador como se fosse outra marca. Neutro de verdade agora.
+  default: { bg: colors.background, fg: colors.textSecondary },
   success: { bg: colors.successSoft, fg: colors.success },
   warning: { bg: colors.warningSoft, fg: colors.warning },
   error:   { bg: colors.dangerSoft,   fg: colors.danger },

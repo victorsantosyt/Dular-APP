@@ -72,7 +72,7 @@ export type DiaristaProfileMe = {
   avaliacoes?: {
     media: number;
     total: number;
-    itens: Array<{
+    itens: {
       id: string;
       notaGeral: number;
       pontualidade: number;
@@ -80,7 +80,7 @@ export type DiaristaProfileMe = {
       comunicacao: number;
       comentario: string | null;
       createdAt: string;
-    }>;
+    }[];
   };
 };
 
@@ -283,7 +283,7 @@ export function calcularCompletudeDiarista(
   userNome?: string,
 ): DiaristaCompletude {
   const motivos: string[] = [];
-  const checks: Array<{ key: string; ok: boolean }> = [];
+  const checks: { key: string; ok: boolean }[] = [];
 
   const nome = (profile?.user?.nome || userNome || "").trim();
   checks.push({ key: "nome", ok: nome.length >= 2 });

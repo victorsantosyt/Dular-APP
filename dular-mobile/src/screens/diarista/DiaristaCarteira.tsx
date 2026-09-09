@@ -10,7 +10,7 @@
 import React, { useCallback, useMemo, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 
 import { AppIcon, BackCircleButton, DEmptyState, DErrorState, DLoadingState, DScreen } from "@/components/ui";
@@ -98,7 +98,6 @@ function statusBadge(status: string): Badge {
 
 export default function DiaristaCarteira() {
   const navigation = useNavigation<Navigation>();
-  const route = useRoute();
   const theme = useGenderTheme("DIARISTA");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -111,7 +110,8 @@ export default function DiaristaCarteira() {
   const load = useCallback(async (isRefresh = false) => {
     try {
       setError(null);
-      isRefresh ? setRefreshing(true) : setLoading(true);
+      if (isRefresh) setRefreshing(true);
+      else setLoading(true);
 
       const data = await fetchServicosMinhas();
       const lista = Array.isArray(data?.servicos) ? data.servicos : Array.isArray(data) ? data : [];
@@ -131,7 +131,8 @@ export default function DiaristaCarteira() {
     } catch (e: any) {
       setError(e?.message ?? "Falha ao carregar dados.");
     } finally {
-      isRefresh ? setRefreshing(false) : setLoading(false);
+      if (isRefresh) setRefreshing(false);
+      else setLoading(false);
     }
   }, []);
 
@@ -170,7 +171,7 @@ export default function DiaristaCarteira() {
     >
       <View style={styles.header}>
         <BackCircleButton onPress={voltar} color={theme.icon} borderColor={theme.border} />
-        <Text style={styles.title}>Carteira</Text>
+        <Text style={[styles.title, { color: theme.textAccent }]}>Carteira</Text>
         {/* Espaçador: sem ele o título centraliza no espaço que sobra
             e fica deslocado para a direita. */}
         <View style={styles.headerSlot} />
@@ -284,9 +285,10 @@ const styles = StyleSheet.create({
   /** Mesma largura do BackCircleButton, para centrar o título. */
   headerSlot: { width: 42, height: 42 },
   title: {
-    color: colors.textPrimary,
-    fontSize: 24,
-    lineHeight: 29,
+    // Título de tela secundária: h2 e cor de destaque do perfil. Antes cada
+    // uma escolhia entre h2, h3, 24, 22, bodyMedium ou `title`, com texto
+    // preto — seis tratamentos para a mesma função.
+    ...typography.h2,
     fontWeight: "700",
     // Ocupa o vão: sem isto o título encostava no botão de voltar.
     flex: 1,

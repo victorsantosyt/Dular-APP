@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { ActivityIndicator, Alert, Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { Screen } from "@/components/Screen";
-import { AppIcon, BackCircleButton, type AppIconName } from "@/components/ui";
+import { AppIcon, BackCircleButton } from "@/components/ui";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 import { apiMsg } from "@/utils/apiMsg";

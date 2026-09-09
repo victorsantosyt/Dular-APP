@@ -42,7 +42,7 @@ export function DadosContaScreen() {
     <SafeAreaView style={s.safe} edges={["top", "left", "right"]}>
       <View style={s.header}>
         <BackCircleButton onPress={() => navigation.goBack()} color={THEME.icon} borderColor={THEME.border} />
-        <Text style={s.title}>Dados da conta</Text>
+        <Text style={[s.title, { color: THEME.textAccent }]}>Dados da conta</Text>
         {/* Espaçador: sem ele o título centraliza no espaço que sobra
             e fica deslocado para a direita. */}
         <View style={s.headerSlot} />
@@ -95,7 +95,11 @@ const s = StyleSheet.create({
   },
   /** Mesma largura do BackCircleButton, para centrar o título. */
   headerSlot: { width: 42, height: 42 },
-  title: { ...typography.h2, color: colors.textPrimary,
+  title: {
+    // Título de tela secundária: h2 e cor de destaque do perfil. Antes cada
+    // uma escolhia entre h2, h3, 24, 22, bodyMedium ou `title`, com texto
+    // preto — seis tratamentos para a mesma função.
+    ...typography.h2,
     // Ocupa o vão: sem isto o título encostava no botão de voltar.
     flex: 1,
     textAlign: "center",

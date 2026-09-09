@@ -1,5 +1,20 @@
 "use client";
 
+/**
+ * Página de smoke test manual.
+ *
+ * NÃO tem mais "Register": `POST /api/auth/register` foi removido. Cadastro
+ * por telefone+senha não existe — o app entra por OAuth e a única conta com
+ * senha é a de ADMIN, criada por outro ADMIN.
+ *
+ * "Login" só funciona com conta ADMIN, pelo mesmo motivo: `/api/auth/login`
+ * é o login do painel.
+ *
+ * Esta página não é alcançável fora do desenvolvimento: o middleware manda
+ * para /admin/login tudo que não é /admin nem /api (conferido em build de
+ * produção: GET /dev/smoke -> 307).
+ */
+
 // Página de Smoke Test (apenas para uso interno / dev).
 // Mantém o fluxo antigo para testar APIs rapidamente.
 
@@ -63,14 +78,6 @@ export default function SmokePage() {
       json = { raw: text };
     }
     return { status: res.status, json };
-  }
-
-  async function handleRegister() {
-    const { status, json } = await api("/api/auth/register", {
-      method: "POST",
-      body: JSON.stringify({ nome, telefone, senha, role }),
-    });
-    append(`REGISTER (${status})`, json);
   }
 
   async function handleLogin() {
@@ -228,9 +235,6 @@ export default function SmokePage() {
             </label>
 
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <button onClick={handleRegister} style={btnStyle}>
-                Register
-              </button>
               <button onClick={handleLogin} style={btnStyle}>
                 Login
               </button>

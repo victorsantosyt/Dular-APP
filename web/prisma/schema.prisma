@@ -166,6 +166,20 @@ enum SubscriptionPlan {
   PREMIUM
 }
 
+/**
+ * De onde veio a assinatura. Sem isto não dá para saber a quem perguntar o
+ * estado de um assinante: renovação e cancelamento chegam por canais
+ * diferentes (webhook do Stripe, App Store Server Notifications, Google RTDN),
+ * e tratar um aviso da loja errada é pior do que não tratar.
+ */
+enum SubscriptionProvider {
+  STRIPE
+  APPLE
+  GOOGLE
+  /** Concedida na mão pelo admin — não tem loja para consultar. */
+  MANUAL
+}
+
 enum SubscriptionStatus {
   TRIAL
   ACTIVE
@@ -805,7 +819,14 @@ model Subscription {
   startedAt  DateTime           @default(now())
   expiresAt  DateTime?
   canceledAt DateTime?
+
+  provider SubscriptionProvider @default(STRIPE)
+  /** id da assinatura no provedor: `sub_...` no Stripe, originalTransactionId
+   *  na Apple, purchaseToken no Google. Único por provedor. */
   externalId String?
+  /** id do produto na loja (ex.: `br.com.dular.pro.mensal`). Nulo no Stripe,
+   *  onde o preço vai inline na sessão de checkout. */
+  storeProductId String?
   createdAt  DateTime           @default(now())
   updatedAt  DateTime           @updatedAt
 

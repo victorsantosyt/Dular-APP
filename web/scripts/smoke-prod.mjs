@@ -2,6 +2,31 @@
  * Smoke test de produção — executa o procedimento de `auditoria/14-smoke-test-producao.md`
  * por HTTP real contra o ambiente publicado.
  *
+ * ┌─────────────────────────────────────────────────────────────────────────┐
+ * │ ESTE SCRIPT NÃO RODA HOJE — precisa ser reescrito antes de usar.         │
+ * └─────────────────────────────────────────────────────────────────────────┘
+ *
+ * Ele monta as sessões de empregador e diarista assim:
+ *   1) POST /api/auth/register  para criar as duas contas
+ *   2) POST /api/auth/login     para pegar o cookie de cada uma
+ *
+ * Os dois caminhos deixaram de existir para conta comum:
+ *   - o cadastro por telefone+senha foi REMOVIDO (o app entra por OAuth);
+ *   - /api/auth/login só atende ADMIN — é o login do painel.
+ * O login do admin (SMOKE_ADMIN_*) continua funcionando; o dos outros dois
+ * não. Sem eles, o script para no passo 1.
+ *
+ * Reescrever exige decidir COMO o smoke autentica agora. As opções não são
+ * equivalentes e nenhuma é óbvia:
+ *   (a) criar as contas por Prisma (o script já tem DATABASE_URL) e assinar
+ *       o JWT localmente com JWT_SECRET — testa o ciclo de serviço, mas pula
+ *       a autenticação inteira, que passa a não ser coberta por smoke nenhum;
+ *   (b) usar contas OAuth reais de teste, como o revisor das lojas faz —
+ *       cobre o fluxo de verdade, mas não roda sozinho num terminal.
+ *
+ * Enquanto isso não for decidido, este arquivo fica como registro do
+ * procedimento, não como ferramenta executável.
+ *
  * Rodar de dentro de `web/`:
  *   SMOKE_ADMIN_LOGIN=... SMOKE_ADMIN_SENHA=... DATABASE_URL=... node scripts/smoke-prod.mjs
  *

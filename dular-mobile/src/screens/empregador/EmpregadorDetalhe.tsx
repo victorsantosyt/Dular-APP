@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Pressable,
   RefreshControl,
@@ -31,6 +32,7 @@ import { formatHorario, parseDataServico, protocoloServico } from "@/utils/forma
 import { isStatusEncerrado } from "@/utils/servicoStatus";
 import { colors, radius, shadow, spacing, typography } from "@/theme/tokens";
 import { useGenderTheme } from "@/hooks/useProfileTheme";
+import { compartilharComprovante, type LinhaComprovante } from "@/utils/comprovantePdf";
 
 // Data do serviço é meia-noite UTC — normaliza p/ não deslizar o dia (fuso).
 const formatDate = (v: string | number | Date) =>
@@ -179,6 +181,10 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
   const [toast, setToast] = useState<string | null>(null);
   const [decidindoReag, setDecidindoReag] = useState(false);
   const [finalizadoEm, setFinalizadoEm] = useState<string | null>(null);
+  // Aqui em cima, com os demais hooks: declarado lá embaixo, depois dos
+  // returns de carregamento, quebrava a regra dos hooks ("rendered more hooks
+  // than during the previous render") assim que a tela saía do estado inicial.
+  const [gerandoPdf, setGerandoPdf] = useState(false);
   // Dados que só a rota de detalhe traz: contratante, endereço completo,
   // escopo, linha do tempo do pagamento e para quem o PIX foi. A lista
   // (`/minhas`) não os devolve — o comprovante mostrava só o que cabia nela.
@@ -452,18 +458,101 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
   const contratante = detalhe?.cliente?.nome?.trim() || null;
   const emitidoEm = formatDateTime(new Date()) ?? "";
 
+  // Compartilhar: monta o MESMO conteúdo que está na tela — nenhuma linha que
+  // a tela não mostre, nenhuma que ela mostre e o PDF omita.
+  const onCompartilhar = async () => {
+    if (gerandoPdf) return;
+    setGerandoPdf(true);
+    try {
+      const linhasServico: LinhaComprovante[] = [
+        { rotulo: "Tipo", valor: tipoLabel(svc.tipo) },
+        ...(categoria ? [{ rotulo: "Categoria", valor: categoria }] : []),
+        { rotulo: "Horário", valor: formatHorario(svc.hora, svc.turno) },
+        ...(escopo ? [{ rotulo: "Detalhes", valor: escopo }] : []),
+      ];
+      const linhasDatas: LinhaComprovante[] = [
+        { rotulo: "Agendada", valor: formatDate(svc.data) },
+        ...(finalizadoLabel ? [{ rotulo: "Finalização", valor: finalizadoLabel }] : []),
+      ];
+      const linhasPagamento: LinhaComprovante[] = [
+        ...(recebimento
+          ? [
+              { rotulo: "Recebedor", valor: recebimento.titular },
+              ...(recebimento.banco ? [{ rotulo: "Banco", valor: recebimento.banco }] : []),
+              {
+                rotulo: TIPO_CHAVE_LABEL[statusUp(recebimento.tipoChave)] ?? "Chave PIX",
+                valor: recebimento.chaveMascarada,
+              },
+            ]
+          : []),
+        ...(informadoEm ? [{ rotulo: "Pagamento informado", valor: informadoEm }] : []),
+        ...(pagoEm ? [{ rotulo: "Confirmado pelo profissional", valor: pagoEm }] : []),
+        ...(contestadoEm ? [{ rotulo: "Contestado", valor: contestadoEm }] : []),
+      ];
+
+      await compartilharComprovante({
+        protocolo,
+        status: statusLabel(svc.status),
+        emitidoEm,
+        servico: linhasServico,
+        observacoes: detalhe?.observacoes?.trim() || null,
+        profissional: { nome: prof?.nome ?? "Aguardando profissional", telefone: prof?.telefone },
+        contratante: contratante
+          ? { nome: contratante, telefone: detalhe?.cliente?.telefone ?? null }
+          : null,
+        local: [
+          ...(enderecoLinha ? [enderecoLinha] : []),
+          `${svc.bairro}, ${svc.cidade} - ${svc.uf}`,
+        ],
+        datas: linhasDatas,
+        valor: valorLabel,
+        pagamento: linhasPagamento,
+        viaPix: !!recebimento,
+        avaliacao: avaliacao
+          ? {
+              nota: `${avaliacao.notaGeral}/5`,
+              comentario: avaliacao.comentario,
+              linhas: [
+                { rotulo: "Pontualidade", valor: `${avaliacao.pontualidade}/5` },
+                { rotulo: "Qualidade", valor: `${avaliacao.qualidade}/5` },
+                { rotulo: "Comunicação", valor: `${avaliacao.comunicacao}/5` },
+              ],
+            }
+          : null,
+      });
+    } catch {
+      setToast("Não foi possível gerar o comprovante.");
+    } finally {
+      setGerandoPdf(false);
+    }
+  };
+
   return (
     <SafeAreaView style={s.safe} edges={["top", "bottom"]}>
       {/* Voltar — stack real (PR #103); goBack() volta à origem exata. */}
       <View style={s.topBar}>
         <BackCircleButton onPress={() => navigation.goBack()} color={theme.icon} borderColor={theme.border} />
         <Text style={[s.topBarTitle, { color: theme.textAccent }]}>Comprovante</Text>
-        {/* Espaçador: sem ele o título centraliza no espaço que sobra
-            e fica deslocado para a direita. */}
-        <View style={s.headerSlot} />
-        {/* Espaçador para centrar o título. Usava `s.backBtn`, que tem fundo e
-            borda — aparecia como um círculo vazio no canto direito. */}
-        <View style={s.topBarSpacer} />
+        {/* Compartilhar ocupa o lugar do antigo espaçador: mesma largura do
+            botão de voltar, então o título segue centrado na linha. */}
+        <Pressable
+          onPress={onCompartilhar}
+          disabled={gerandoPdf}
+          hitSlop={10}
+          accessibilityRole="button"
+          accessibilityLabel="Compartilhar comprovante"
+          style={({ pressed }) => [
+            s.compartilharBtn,
+            { borderColor: theme.border },
+            (pressed || gerandoPdf) && { opacity: 0.6 },
+          ]}
+        >
+          {gerandoPdf ? (
+            <ActivityIndicator size="small" color={theme.icon} />
+          ) : (
+            <Ionicons name="share-outline" size={19} color={theme.icon} />
+          )}
+        </Pressable>
       </View>
 
       <ScrollView
@@ -892,6 +981,15 @@ const s = StyleSheet.create({
   /** Segunda linha do endereço: presente só quando há o endereço completo. */
   infoTextSub: { fontSize: 12, fontWeight: "500", color: colors.sub },
   /** Rótulo do papel da parte ("Profissional", "Contratante"). */
+  compartilharBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   parteFuncao: { fontSize: 11, fontWeight: "700", color: colors.sub, textTransform: "uppercase", letterSpacing: 0.4 },
   obsLabel: { fontSize: 12, fontWeight: "700", color: colors.sub },
   obsTexto: { fontSize: 13, fontWeight: "500", color: colors.ink, lineHeight: 19 },

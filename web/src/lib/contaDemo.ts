@@ -31,9 +31,14 @@ import { prisma } from "@/lib/prisma";
  *
  * COMO É ATIVADA
  *
- * Só pelo seed `prisma/seed-demo.ts`, que grava em telefones fixos e
- * conhecidos. NENHUMA rota da API escreve neste campo — nem a de perfil, nem
- * a de admin. Não há caminho pelo qual o próprio usuário a ative.
+ * Só pelo script `prisma/marcar-contas-demo.ts`, rodado à mão, sobre contas
+ * que JÁ existem e cujos e-mails são passados por variável de ambiente.
+ * NENHUMA rota da API escreve neste campo — nem a de perfil, nem a de admin.
+ * Não há caminho pelo qual o próprio usuário a ative.
+ *
+ * O script não define senha: a conta demo entra pelo mesmo OAuth de todo
+ * mundo. Dar senha a ela abriria um segundo caminho de autenticação, que é
+ * justamente o que se quer evitar.
  */
 
 /** A conta tem o portão aberto? Falso para qualquer usuário comum. */

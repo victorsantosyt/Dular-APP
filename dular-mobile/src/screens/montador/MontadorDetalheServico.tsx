@@ -17,6 +17,11 @@ import { useSeguranca } from "@/hooks/useSeguranca";
 import { useProfileTheme } from "@/hooks/useProfileTheme";
 import type { MontadorTabParamList } from "@/navigation/MontadorNavigator";
 import { isStatusEncerrado } from "@/utils/servicoStatus";
+import {
+  BotaoCompartilharComprovante,
+  ComprovanteServico,
+  useComprovante,
+} from "@/components/comprovante/ComprovanteServico";
 import { colors, radius, shadows, typography } from "@/theme";
 import {
   canOpenChat,
@@ -44,6 +49,9 @@ export default function MontadorDetalheServico({ route, navigation }: Props) {
   // Flag local otimista até o refetch da lista trazer `avaliacaoEmpregador`.
   const [avaliouLocal, setAvaliouLocal] = useState(false);
   const servico = servicos.find((item) => item.id === route.params.servicoId);
+  const comprovante = useComprovante(servico as never, "profissional", (t) =>
+    Alert.alert("Comprovante", t),
+  );
   const empregadorNome = servico?.empregador?.nome?.trim() || "Empregador";
   const empregadorIniciais = empregadorNome.split(/\s+/).map((w) => w[0]).join("").slice(0, 2).toUpperCase();
   const status = upperStatus(servico?.status);
@@ -152,10 +160,16 @@ export default function MontadorDetalheServico({ route, navigation }: Props) {
     <DScreen scroll withBottomPadding backgroundColor={profileTheme.background} contentContainerStyle={styles.scroll}>
       <View style={styles.header}>
         <BackCircleButton onPress={() => navigation.goBack()} color={profileTheme.icon} borderColor={profileTheme.border} />
-        <Text style={[styles.title, { color: profileTheme.textAccent }]}>Detalhe do serviço</Text>
+        <Text style={[styles.title, { color: profileTheme.textAccent }]}>
+          {encerrado ? "Comprovante" : "Detalhe do serviço"}
+        </Text>
         {/* Espaçador: sem ele o título centraliza no espaço que sobra
             e fica deslocado para a direita. */}
-        <View style={styles.headerSlot} />
+        {encerrado && servico ? (
+          <BotaoCompartilharComprovante comprovante={comprovante} theme={profileTheme} />
+        ) : (
+          <View style={styles.headerSlot} />
+        )}
       </View>
 
       {loading ? (
@@ -171,36 +185,55 @@ export default function MontadorDetalheServico({ route, navigation }: Props) {
         />
       ) : (
         <>
-          <View style={[styles.hero, { borderColor: profileTheme.border }]}>
-            <View style={styles.heroText}>
-              <Text style={styles.serviceTitle} numberOfLines={1}>{empregadorNome}</Text>
-              <View style={styles.subRow}>
-                <AppIcon name="UserRound" size={13} color={colors.textMuted} strokeWidth={2.3} />
-                <Text style={styles.serviceSub}>Empregador</Text>
-              </View>
-              <View style={styles.numeroLine}>
-                <Pressable onPress={copiarNumeroServico} hitSlop={8} style={styles.numeroRow}>
-                  <Text style={styles.numeroText}>Serviço #{servico.id.slice(0, 6).toUpperCase()}</Text>
-                  <AppIcon name="Copy" size={13} color={colors.textMuted} />
-                </Pressable>
-                <View style={[styles.statusPill, { backgroundColor: profileTheme.primarySoft }]}>
-                  <Text style={[styles.statusPillText, { color: profileTheme.primary }]} numberOfLines={1}>
-                    {statusLabel(servico.status)}
-                  </Text>
+          {/* Serviço encerrado vira COMPROVANTE — o mesmo componente dos
+              três perfis, na perspectiva de quem recebeu. Em aberto,
+              segue o cabeçalho + cartão de informações, que é o que ele
+              lê para trabalhar.
+
+              Antes, quem presta o serviço não tinha comprovante nenhum —
+              justamente quem mais precisa comprovar renda. */}
+          {encerrado ? (
+            <ComprovanteServico
+              comprovante={comprovante}
+              servico={servico as never}
+              theme={profileTheme}
+              avatarUrl={servico.empregador?.avatarUrl}
+              onAviso={(t) => Alert.alert("Comprovante", t)}
+            />
+          ) : (
+            <>
+            <View style={[styles.hero, { borderColor: profileTheme.border }]}>
+              <View style={styles.heroText}>
+                <Text style={styles.serviceTitle} numberOfLines={1}>{empregadorNome}</Text>
+                <View style={styles.subRow}>
+                  <AppIcon name="UserRound" size={13} color={colors.textMuted} strokeWidth={2.3} />
+                  <Text style={styles.serviceSub}>Empregador</Text>
+                </View>
+                <View style={styles.numeroLine}>
+                  <Pressable onPress={copiarNumeroServico} hitSlop={8} style={styles.numeroRow}>
+                    <Text style={styles.numeroText}>Serviço #{servico.id.slice(0, 6).toUpperCase()}</Text>
+                    <AppIcon name="Copy" size={13} color={colors.textMuted} />
+                  </Pressable>
+                  <View style={[styles.statusPill, { backgroundColor: profileTheme.primarySoft }]}>
+                    <Text style={[styles.statusPillText, { color: profileTheme.primary }]} numberOfLines={1}>
+                      {statusLabel(servico.status)}
+                    </Text>
+                  </View>
                 </View>
               </View>
+              <DAvatar size="md" uri={servico.empregador?.avatarUrl ?? undefined} initials={empregadorIniciais} />
             </View>
-            <DAvatar size="md" uri={servico.empregador?.avatarUrl ?? undefined} initials={empregadorIniciais} />
-          </View>
 
-          <View style={styles.card}>
-            <Info label="Serviço" value={labelServico(servico)} />
-            <Info label="Categoria" value={labelSubcategoria(servico)} />
-            <Info label="Data e horário" value={formatDateTime(servico)} />
-            <Info label="Endereço" value={localResumo(servico, true)} />
-            <Info label="Valor" value={formatValorServico(servico.precoFinal ?? servico.valorEstimado)} />
-            <Info label="Observações" value={servico.observacoes || "Sem observações adicionais."} />
-          </View>
+            <View style={styles.card}>
+              <Info label="Serviço" value={labelServico(servico)} />
+              <Info label="Categoria" value={labelSubcategoria(servico)} />
+              <Info label="Data e horário" value={formatDateTime(servico)} />
+              <Info label="Endereço" value={localResumo(servico, true)} />
+              <Info label="Valor" value={formatValorServico(servico.precoFinal ?? servico.valorEstimado)} />
+              <Info label="Observações" value={servico.observacoes || "Sem observações adicionais."} />
+            </View>
+            </>
+          )}
 
           <View style={styles.actions}>
             {/* Ações em cards de 2 colunas, alinhados. */}

@@ -29,6 +29,11 @@ import { useSeguranca } from "@/hooks/useSeguranca";
 import { formatPrice } from "@/utils/formatPrice";
 import { formatDate, formatHorario, protocoloServico } from "@/utils/formatters";
 import { isStatusEncerrado } from "@/utils/servicoStatus";
+import {
+  BotaoCompartilharComprovante,
+  ComprovanteServico,
+  useComprovante,
+} from "@/components/comprovante/ComprovanteServico";
 
 // ── Tokens ──────────────────────────────────────────────────────────────────
 import { useGenderTheme } from "@/hooks/useProfileTheme";
@@ -114,6 +119,9 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
   const theme = useGenderTheme("DIARISTA");
   const params = route.params as any;
   const [svc, setSvc] = useState<Servico | null>(params.servico ?? null);
+  const comprovante = useComprovante(svc as never, "profissional", (t) =>
+    Alert.alert("Comprovante", t),
+  );
   const [loadingInit, setLoadingInit] = useState(!params.servico);
   // Aceita tanto { servicoId } quanto { id } (o card da Agenda navega com `id`).
   const servicoId: string = params.servicoId ?? params.id ?? params.servico?.id ?? "";
@@ -325,6 +333,7 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
   // Após o serviço liberar (CONFIRMADO) ou finalizar (FINALIZADO), a diarista
   // avalia o empregador. `avaliacaoEmpregador` vem de /api/servicos/minhas.
   const jaAvaliouEmpregador = avaliouLocal || Boolean((svc as any)?.avaliacaoEmpregador);
+  const encerrado = isStatusEncerrado(svc.status);
 
   return (
     <SafeAreaView style={s.safe} edges={["top", "left", "right", "bottom"]}>
@@ -340,97 +349,123 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
         <View style={s.navRow}>
           <BackCircleButton onPress={() => navigation.goBack()} color={theme.icon} borderColor={theme.border} />
           <Text style={[s.headerTitulo, { color: theme.textAccent }]} numberOfLines={1}>
-            Detalhe do serviço
+            {/* Encerrado, a tela É o comprovante — e o título tem que dizer
+                isso, como já diz no perfil do empregador. */}
+            {encerrado ? "Comprovante" : "Detalhe do serviço"}
           </Text>
-          <View style={s.headerSlot} />
+          {encerrado ? (
+            <BotaoCompartilharComprovante comprovante={comprovante} theme={theme} />
+          ) : (
+            <View style={s.headerSlot} />
+          )}
         </View>
 
-        {/* ── Título + status ── */}
-        <View style={s.titleRow}>
-          <Pressable
-            onPress={async () => {
-              await Clipboard.setStringAsync(protocoloServico(svc.id));
-              Alert.alert("Copiado", "Número do serviço copiado.");
-            }}
-            hitSlop={8}
-            style={{ flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 1 }}
-          >
-            <Text style={[s.title, { color: theme.textAccent }]} numberOfLines={1}>{protocoloServico(svc.id)}</Text>
-            <Ionicons name="copy-outline" size={16} color={colors.sub} />
-          </Pressable>
-          <DularBadge text={statusLabel(svc.status)} variant={statusVariant(svc.status)} />
-        </View>
+        {/* Serviço encerrado vira COMPROVANTE — o mesmo dos três
+            perfis, com a perspectiva de quem recebeu. Enquanto está em
+            aberto, segue o cartão de informações: é o que ela lê para
+            decidir se aceita (inclui o SafeScore do cliente, que só
+            interessa antes do aceite).
 
-        {/* ── Info card ── */}
-        <View style={s.card}>
-          <InfoRow icon="briefcase-outline" label="Serviço">
-            <Text style={s.infoValue}>{servicoLabelDetalhe(svc)}</Text>
-          </InfoRow>
+            Antes desta tela não havia comprovante nenhum do lado de quem
+            presta o serviço — justamente quem mais precisa comprovar
+            renda. */}
+        {encerrado ? (
+          <ComprovanteServico
+            comprovante={comprovante}
+            servico={svc as never}
+            theme={theme}
+            onAviso={(t) => Alert.alert("Comprovante", t)}
+          />
+        ) : (
+          <>
+          {/* ── Título + status ── */}
+          <View style={s.titleRow}>
+            <Pressable
+              onPress={async () => {
+                await Clipboard.setStringAsync(protocoloServico(svc.id));
+                Alert.alert("Copiado", "Número do serviço copiado.");
+              }}
+              hitSlop={8}
+              style={{ flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 1 }}
+            >
+              <Text style={[s.title, { color: theme.textAccent }]} numberOfLines={1}>{protocoloServico(svc.id)}</Text>
+              <Ionicons name="copy-outline" size={16} color={colors.sub} />
+            </Pressable>
+            <DularBadge text={statusLabel(svc.status)} variant={statusVariant(svc.status)} />
+          </View>
 
-          <View style={s.divider} />
+          {/* ── Info card ── */}
+          <View style={s.card}>
+            <InfoRow icon="briefcase-outline" label="Serviço">
+              <Text style={s.infoValue}>{servicoLabelDetalhe(svc)}</Text>
+            </InfoRow>
 
-          {/* Quando é. Estava ausente: a tela pedia para ACEITAR o serviço sem
-              mostrar a data em lugar nenhum — só o card da lista trazia. */}
-          <InfoRow icon="calendar-outline" label="Data">
-            <Text style={s.infoValue}>
-              {formatDate(svc.data as any)} · {formatHorario(svc.hora, svc.turno)}
-            </Text>
-          </InfoRow>
+            <View style={s.divider} />
 
-          <View style={s.divider} />
+            {/* Quando é. Estava ausente: a tela pedia para ACEITAR o serviço sem
+                mostrar a data em lugar nenhum — só o card da lista trazia. */}
+            <InfoRow icon="calendar-outline" label="Data">
+              <Text style={s.infoValue}>
+                {formatDate(svc.data as any)} · {formatHorario(svc.hora, svc.turno)}
+              </Text>
+            </InfoRow>
 
-          <InfoRow icon="location-outline" label="Local">
-            <Text style={s.infoValue}>{svc.bairro} — {svc.cidade}/{svc.uf}</Text>
-          </InfoRow>
+            <View style={s.divider} />
 
-          <View style={s.divider} />
+            <InfoRow icon="location-outline" label="Local">
+              <Text style={s.infoValue}>{svc.bairro} — {svc.cidade}/{svc.uf}</Text>
+            </InfoRow>
 
-          <InfoRow icon="cash-outline" label="Valor">
-            <Text style={[s.infoValue, { color: theme.textAccent, fontWeight: "700" }]}>
-              {formatPrice(svc.precoFinal)}
-            </Text>
-          </InfoRow>
+            <View style={s.divider} />
 
-          <View style={s.divider} />
+            <InfoRow icon="cash-outline" label="Valor">
+              <Text style={[s.infoValue, { color: theme.textAccent, fontWeight: "700" }]}>
+                {formatPrice(svc.precoFinal)}
+              </Text>
+            </InfoRow>
 
-          <InfoRow icon="person-outline" label="Cliente">
-            <Text style={s.infoValue}>{svc.cliente?.nome ?? "—"}</Text>
-          </InfoRow>
+            <View style={s.divider} />
 
-          {clienteScore ? (
-            <>
-              <View style={s.divider} />
-              <SafeScoreBadge {...clienteScore} />
-              {clienteScore.bloqueado ? (
-                <View style={s.restrictedBox}>
-                  <Text style={s.restrictedText}>
-                    Este usuário está com acesso restrito na plataforma
+            <InfoRow icon="person-outline" label="Cliente">
+              <Text style={s.infoValue}>{svc.cliente?.nome ?? "—"}</Text>
+            </InfoRow>
+
+            {clienteScore ? (
+              <>
+                <View style={s.divider} />
+                <SafeScoreBadge {...clienteScore} />
+                {clienteScore.bloqueado ? (
+                  <View style={s.restrictedBox}>
+                    <Text style={s.restrictedText}>
+                      Este usuário está com acesso restrito na plataforma
+                    </Text>
+                  </View>
+                ) : null}
+              </>
+            ) : null}
+
+            {getServicoEndereco(svc) ? (
+              <>
+                <View style={s.divider} />
+                <InfoRow icon="home-outline" label="Endereço">
+                  <Text style={s.infoValue}>{getServicoEndereco(svc)}</Text>
+                </InfoRow>
+              </>
+            ) : svc.status === "SOLICITADO" ? (
+              <>
+                <View style={s.divider} />
+                <View style={s.addressHint}>
+                  <Ionicons name="lock-closed" size={14} color={colors.sub} />
+                  <Text style={s.addressHintText}>
+                    Endereço não informado pelo cliente.
                   </Text>
                 </View>
-              ) : null}
-            </>
-          ) : null}
+              </>
+            ) : null}
+          </View>
 
-          {getServicoEndereco(svc) ? (
-            <>
-              <View style={s.divider} />
-              <InfoRow icon="home-outline" label="Endereço">
-                <Text style={s.infoValue}>{getServicoEndereco(svc)}</Text>
-              </InfoRow>
-            </>
-          ) : svc.status === "SOLICITADO" ? (
-            <>
-              <View style={s.divider} />
-              <View style={s.addressHint}>
-                <Ionicons name="lock-closed" size={14} color={colors.sub} />
-                <Text style={s.addressHintText}>
-                  Endereço não informado pelo cliente.
-                </Text>
-              </View>
-            </>
-          ) : null}
-        </View>
-
+          </>
+        )}
         {/* ── CTAs ── */}
         <View style={s.ctaBlock}>
           {svc.status === "SOLICITADO" && (

@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ActivityIndicator,
   Alert,
   Pressable,
   RefreshControl,
@@ -12,9 +11,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
-import * as Clipboard from "expo-clipboard";
 
-import { api } from "@/lib/api";
 import { fetchServicosMinhas } from "@/api/sharedFetcher";
 import type { ServicoListItem as Servico } from "../../../../shared/types/servico";
 import {
@@ -24,19 +21,19 @@ import {
   decidirReagendamento,
 } from "@/api/empregadorApi";
 import { DButton } from "@/components/DButton";
-import { DularBadge } from "@/components/DularBadge";
 import { MotivoModal } from "@/components/MotivoModal";
-import { AvaliacaoModal, BackCircleButton, DAvatar } from "@/components/ui";
-import { formatPrice } from "@/utils/formatPrice";
-import { formatHorario, parseDataServico, protocoloServico } from "@/utils/formatters";
+import { AvaliacaoModal, BackCircleButton } from "@/components/ui";
+import { formatHorario } from "@/utils/formatters";
 import { isStatusEncerrado } from "@/utils/servicoStatus";
 import { colors, radius, shadow, spacing, typography } from "@/theme/tokens";
 import { useGenderTheme } from "@/hooks/useProfileTheme";
-import { compartilharComprovante, type LinhaComprovante } from "@/utils/comprovantePdf";
+import {
+  BotaoCompartilharComprovante,
+  ComprovanteServico,
+  useComprovante,
+} from "@/components/comprovante/ComprovanteServico";
 
 // Data do serviço é meia-noite UTC — normaliza p/ não deslizar o dia (fuso).
-const formatDate = (v: string | number | Date) =>
-  parseDataServico(v)?.toLocaleDateString("pt-BR") ?? "--";
 const statusUp = (s: any) => String(s ?? "").toUpperCase();
 
 function fmtReagendamento(svc: Servico) {
@@ -49,118 +46,9 @@ function fmtReagendamento(svc: Servico) {
 const FINAL = ["CONFIRMADO", "FINALIZADO", "FINALIZADO_CLIENTE", "PAGO", "AVALIADO"];
 const POLL_MS = 5000;
 
-function statusLabel(st: string) {
-  const s = statusUp(st);
-  if (s === "PENDENTE" || s === "SOLICITADO") return "Aguardando aceite";
-  if (s === "ACEITO")       return "Aceito";
-  if (s === "INICIADO" || s === "EM_ANDAMENTO") return "Em andamento";
-  if (s === "AGUARDANDO_FINALIZACAO") return "Aguardando confirmação";
-  if (["CONCLUIDO", "CONCLUÍDO"].includes(s)) return "Concluído";
-  if (s === "CONFIRMADO")   return "Confirmado";
-  if (s === "FINALIZADO")   return "Finalizado";
-  if (s === "CANCELADO")    return "Cancelado";
-  if (s === "RECUSADO")     return "Recusado";
-  return st || "Status";
-}
-
-function statusVariant(st: string): "success" | "warning" | "neutral" | "danger" {
-  const s = statusUp(st);
-  if (["CONFIRMADO", "FINALIZADO"].includes(s))              return "success";
-  if (["CONCLUIDO", "CONCLUÍDO"].includes(s))                return "warning";
-  if (["ACEITO", "INICIADO", "EM_ANDAMENTO"].includes(s))    return "warning";
-  if (["CANCELADO", "RECUSADO"].includes(s))                 return "danger";
-  return "neutral";
-}
-
 // ── Rótulos do comprovante ────────────────────────────────────────────────────
-const TIPO_LABEL: Record<string, string> = {
-  FAXINA: "Diarista",
-  BABA: "Babá",
-  CUIDADORA: "Cuidadora",
-  COZINHEIRA: "Cozinheira",
-  PASSA_ROUPA: "Passadeira",
-  LAVADEIRA: "Lavadeira",
-  MONTADOR: "Montador",
-};
-function tipoLabel(t?: string | null) {
-  return TIPO_LABEL[statusUp(t)] ?? "Serviço";
-}
-function categoriaLabelFmt(c?: string | null) {
-  if (!c) return null;
-  return String(c)
-    .replace(/^MONTADOR_/, "")
-    .replace(/_/g, " ")
-    .toLowerCase()
-    .replace(/^\w/, (m) => m.toUpperCase());
-}
-function formatDateTime(v?: string | number | Date | null) {
-  if (!v) return null;
-  const d = new Date(v);
-  if (Number.isNaN(d.getTime())) return null;
-  return d.toLocaleString("pt-BR", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-/**
- * O que a rota de detalhe (`GET /api/servicos/[id]`) traz além da lista.
- * Tudo opcional: serviços antigos podem não ter parte destes campos.
- */
-type DetalheComprovante = {
-  eventos?: { createdAt: string }[];
-  cliente?: { nome?: string | null; telefone?: string | null } | null;
-  enderecoCompleto?: string | null;
-  observacoes?: string | null;
-  temPet?: boolean;
-  quartos3Mais?: boolean;
-  banheiros2Mais?: boolean;
-  paymentStatus?: string | null;
-  paymentReportedAt?: string | null;
-  paymentConfirmedAt?: string | null;
-  paymentDisputedAt?: string | null;
-  recebimento?: {
-    titular: string;
-    banco?: string | null;
-    tipoChave: string;
-    chaveMascarada: string;
-  } | null;
-};
-
-const TIPO_CHAVE_LABEL: Record<string, string> = {
-  CPF: "CPF",
-  CNPJ: "CNPJ",
-  EMAIL: "E-mail",
-  TELEFONE: "Telefone",
-  PHONE: "Telefone",
-  ALEATORIA: "Chave aleatória",
-  RANDOM: "Chave aleatória",
-  EVP: "Chave aleatória",
-};
-
 /** O que foi contratado além do tipo — é o que justifica o valor. */
-function escopoDoServico(d: DetalheComprovante | null): string | null {
-  if (!d) return null;
-  const itens: string[] = [];
-  if (d.temPet) itens.push("Tem pet");
-  if (d.quartos3Mais) itens.push("3+ quartos");
-  if (d.banheiros2Mais) itens.push("2+ banheiros");
-  return itens.length > 0 ? itens.join(" · ") : null;
-}
-
 // Linha rótulo → valor do comprovante.
-function RowKV({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={s.kvRow}>
-      <Text style={s.kvLabel}>{label}</Text>
-      <Text style={s.kvValue} numberOfLines={2}>{value}</Text>
-    </View>
-  );
-}
-
 export default function EmpregadorDetalhe({ route, navigation }: any) {
   // Cor do voltar seguindo o perfil, como nas demais telas.
   const theme = useGenderTheme();
@@ -168,6 +56,7 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
   const servicoId: string = params.servicoId ?? params.servico?.id ?? "";
 
   const [svc, setSvc] = useState<Servico | null>(params.servico ?? null);
+  const comprovante = useComprovante(svc as never, "contratante", (t) => setToast(t));
   const [loadingInit, setLoadingInit] = useState(!params.servico);
   const [confirming, setConfirming] = useState(false);
   // Persistido em state separado do `svc` para sobreviver ao refetch periódico
@@ -180,15 +69,6 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
   const [motivoVisible, setMotivoVisible] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [decidindoReag, setDecidindoReag] = useState(false);
-  const [finalizadoEm, setFinalizadoEm] = useState<string | null>(null);
-  // Aqui em cima, com os demais hooks: declarado lá embaixo, depois dos
-  // returns de carregamento, quebrava a regra dos hooks ("rendered more hooks
-  // than during the previous render") assim que a tela saía do estado inicial.
-  const [gerandoPdf, setGerandoPdf] = useState(false);
-  // Dados que só a rota de detalhe traz: contratante, endereço completo,
-  // escopo, linha do tempo do pagamento e para quem o PIX foi. A lista
-  // (`/minhas`) não os devolve — o comprovante mostrava só o que cabia nela.
-  const [detalhe, setDetalhe] = useState<DetalheComprovante | null>(null);
   const busyRef = useRef(false);
 
   const fetchAtual = useCallback(async (silent = true) => {
@@ -213,24 +93,6 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
 
   useEffect(() => { fetchAtual(); }, [fetchAtual]);
 
-  // Data de finalização: vem do endpoint de detalhe ([id]) via último
-  // ServicoEvento de finalização (sem migration). Apenas leitura para o comprovante.
-  useEffect(() => {
-    if (!servicoId) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await api.get(`/api/servicos/${servicoId}`);
-        const det = res.data?.servico as DetalheComprovante | undefined;
-        const ev = (det?.eventos ?? [])[0];
-        if (cancelled) return;
-        if (ev?.createdAt) setFinalizadoEm(ev.createdAt);
-        if (det) setDetalhe(det);
-      } catch { /* silencioso — finalizadoEm fica null ("Não finalizado") */ }
-    })();
-    return () => { cancelled = true; };
-  }, [servicoId]);
-
   useFocusEffect(useCallback(() => {
     fetchAtual();
     const t = setInterval(() => fetchAtual(), POLL_MS);
@@ -246,10 +108,6 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
   // Protocolo que o usuário vê e copia. O rodapé mostrava o id cru do banco
   // (cuid) logo abaixo deste — dois "protocolos" diferentes para o mesmo
   // serviço, e o suporte recebia ora um, ora outro.
-  const protocolo = useMemo(
-    () => protocoloServico(svc?.id),
-    [svc?.id],
-  );
 
   const statusRaw = useMemo(() => statusUp(svc?.status), [svc?.status]);
   const isFinal = useMemo(() => FINAL.includes(statusRaw), [statusRaw]);
@@ -430,102 +288,6 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
   }
 
   const prof = svc.montador ?? svc.diarista ?? null;
-  const avaliacao = (svc as {
-    avaliacao?: {
-      notaGeral: number;
-      pontualidade: number;
-      qualidade: number;
-      comunicacao: number;
-      comentario?: string | null;
-    } | null;
-  }).avaliacao ?? null;
-  const profIniciais = (prof?.nome ?? "?").slice(0, 2).toUpperCase();
-  const valorLabel = svc.precoFinal > 0 ? formatPrice(svc.precoFinal) : "A combinar";
-  // A data de finalização vem do último ServicoEvento. Serviços encerrados
-  // antes desse registro (ou criados direto no banco) não têm evento — e o
-  // comprovante escrevia "Não finalizado" ao lado de um selo "Finalizado",
-  // contradizendo a si mesmo. Sem a data, admite que não a registrou; e
-  // enquanto o serviço não acabou, a linha simplesmente não existe.
-  const encerrado = isStatusEncerrado(svc.status) || FINAL.includes(statusUp(svc.status));
-  const finalizadoLabel = formatDateTime(finalizadoEm) ?? (encerrado ? "Data não registrada" : null);
-  const categoria = categoriaLabelFmt(svc.categoria);
-  const escopo = escopoDoServico(detalhe);
-  const recebimento = detalhe?.recebimento ?? null;
-  const pagoEm = formatDateTime(detalhe?.paymentConfirmedAt);
-  const informadoEm = formatDateTime(detalhe?.paymentReportedAt);
-  const contestadoEm = formatDateTime(detalhe?.paymentDisputedAt);
-  const enderecoLinha = detalhe?.enderecoCompleto?.trim() || null;
-  const contratante = detalhe?.cliente?.nome?.trim() || null;
-  const emitidoEm = formatDateTime(new Date()) ?? "";
-
-  // Compartilhar: monta o MESMO conteúdo que está na tela — nenhuma linha que
-  // a tela não mostre, nenhuma que ela mostre e o PDF omita.
-  const onCompartilhar = async () => {
-    if (gerandoPdf) return;
-    setGerandoPdf(true);
-    try {
-      const linhasServico: LinhaComprovante[] = [
-        { rotulo: "Tipo", valor: tipoLabel(svc.tipo) },
-        ...(categoria ? [{ rotulo: "Categoria", valor: categoria }] : []),
-        { rotulo: "Horário", valor: formatHorario(svc.hora, svc.turno) },
-        ...(escopo ? [{ rotulo: "Detalhes", valor: escopo }] : []),
-      ];
-      const linhasDatas: LinhaComprovante[] = [
-        { rotulo: "Agendada", valor: formatDate(svc.data) },
-        ...(finalizadoLabel ? [{ rotulo: "Finalização", valor: finalizadoLabel }] : []),
-      ];
-      const linhasPagamento: LinhaComprovante[] = [
-        ...(recebimento
-          ? [
-              { rotulo: "Recebedor", valor: recebimento.titular },
-              ...(recebimento.banco ? [{ rotulo: "Banco", valor: recebimento.banco }] : []),
-              {
-                rotulo: TIPO_CHAVE_LABEL[statusUp(recebimento.tipoChave)] ?? "Chave PIX",
-                valor: recebimento.chaveMascarada,
-              },
-            ]
-          : []),
-        ...(informadoEm ? [{ rotulo: "Pagamento informado", valor: informadoEm }] : []),
-        ...(pagoEm ? [{ rotulo: "Confirmado pelo profissional", valor: pagoEm }] : []),
-        ...(contestadoEm ? [{ rotulo: "Contestado", valor: contestadoEm }] : []),
-      ];
-
-      await compartilharComprovante({
-        protocolo,
-        status: statusLabel(svc.status),
-        emitidoEm,
-        servico: linhasServico,
-        observacoes: detalhe?.observacoes?.trim() || null,
-        profissional: { nome: prof?.nome ?? "Aguardando profissional", telefone: prof?.telefone },
-        contratante: contratante
-          ? { nome: contratante, telefone: detalhe?.cliente?.telefone ?? null }
-          : null,
-        local: [
-          ...(enderecoLinha ? [enderecoLinha] : []),
-          `${svc.bairro}, ${svc.cidade} - ${svc.uf}`,
-        ],
-        datas: linhasDatas,
-        valor: valorLabel,
-        pagamento: linhasPagamento,
-        viaPix: !!recebimento,
-        avaliacao: avaliacao
-          ? {
-              nota: `${avaliacao.notaGeral}/5`,
-              comentario: avaliacao.comentario,
-              linhas: [
-                { rotulo: "Pontualidade", valor: `${avaliacao.pontualidade}/5` },
-                { rotulo: "Qualidade", valor: `${avaliacao.qualidade}/5` },
-                { rotulo: "Comunicação", valor: `${avaliacao.comunicacao}/5` },
-              ],
-            }
-          : null,
-      });
-    } catch {
-      setToast("Não foi possível gerar o comprovante.");
-    } finally {
-      setGerandoPdf(false);
-    }
-  };
 
   return (
     <SafeAreaView style={s.safe} edges={["top", "bottom"]}>
@@ -533,26 +295,9 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
       <View style={s.topBar}>
         <BackCircleButton onPress={() => navigation.goBack()} color={theme.icon} borderColor={theme.border} />
         <Text style={[s.topBarTitle, { color: theme.textAccent }]}>Comprovante</Text>
-        {/* Compartilhar ocupa o lugar do antigo espaçador: mesma largura do
-            botão de voltar, então o título segue centrado na linha. */}
-        <Pressable
-          onPress={onCompartilhar}
-          disabled={gerandoPdf}
-          hitSlop={10}
-          accessibilityRole="button"
-          accessibilityLabel="Compartilhar comprovante"
-          style={({ pressed }) => [
-            s.compartilharBtn,
-            { borderColor: theme.border },
-            (pressed || gerandoPdf) && { opacity: 0.6 },
-          ]}
-        >
-          {gerandoPdf ? (
-            <ActivityIndicator size="small" color={theme.icon} />
-          ) : (
-            <Ionicons name="share-outline" size={19} color={theme.icon} />
-          )}
-        </Pressable>
+        {/* Compartilhar na linha do voltar e do título, como nas demais telas
+            do app. Ocupa o lugar do espaçador, então o título segue centrado. */}
+        <BotaoCompartilharComprovante comprovante={comprovante} theme={theme} />
       </View>
 
       <ScrollView
@@ -565,162 +310,17 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
           <View style={s.toast}><Text style={s.toastText}>{toast}</Text></View>
         ) : null}
 
-        {/* CABEÇALHO — protocolo + status */}
-        <View style={s.section}>
-          <Text style={s.sectionLabel}>Protocolo</Text>
-          <View style={s.protocoloRow}>
-            <Pressable
-              onPress={async () => {
-                await Clipboard.setStringAsync(protocolo);
-                setToast("Protocolo copiado.");
-              }}
-              hitSlop={8}
-              style={s.protocoloPress}
-            >
-              <Text style={s.protocolo}>{protocolo}</Text>
-              <Ionicons name="copy-outline" size={15} color={colors.sub} />
-            </Pressable>
-            <DularBadge text={statusLabel(svc.status)} variant={statusVariant(svc.status)} />
-          </View>
-        </View>
-
-        {/* SERVIÇO */}
-        <View style={s.card}>
-          <Text style={s.sectionLabel}>Serviço</Text>
-          <RowKV label="Tipo" value={tipoLabel(svc.tipo)} />
-          {categoria ? (
-            <>
-              <View style={s.divider} />
-              <RowKV label="Categoria" value={categoria} />
-            </>
-          ) : null}
-          <View style={s.divider} />
-          <RowKV label="Horário" value={formatHorario(svc.hora, svc.turno)} />
-          {escopo ? (
-            <>
-              <View style={s.divider} />
-              <RowKV label="Detalhes" value={escopo} />
-            </>
-          ) : null}
-          {detalhe?.observacoes?.trim() ? (
-            <>
-              <View style={s.divider} />
-              <Text style={s.obsLabel}>Observações</Text>
-              <Text style={s.obsTexto}>{detalhe.observacoes.trim()}</Text>
-            </>
-          ) : null}
-        </View>
-
-        {/* PARTES — um comprovante nomeia os DOIS lados. Antes só mostrava o
-            profissional, e não dava para saber quem contratou. */}
-        <View style={s.card}>
-          <Text style={s.sectionLabel}>Partes</Text>
-          <View style={s.profRow}>
-            <DAvatar size="md" uri={prof?.avatarUrl ?? undefined} initials={profIniciais} />
-            <View style={{ flex: 1, gap: 2 }}>
-              <Text style={s.parteFuncao}>Profissional</Text>
-              <Text style={s.profNome}>{prof?.nome ?? "Aguardando profissional"}</Text>
-              {prof?.telefone ? <Text style={s.profTel}>{prof.telefone}</Text> : null}
-            </View>
-          </View>
-          {contratante ? (
-            <>
-              <View style={s.divider} />
-              <View style={{ gap: 2 }}>
-                <Text style={s.parteFuncao}>Contratante</Text>
-                <Text style={s.profNome}>{contratante}</Text>
-                {detalhe?.cliente?.telefone ? (
-                  <Text style={s.profTel}>{detalhe.cliente.telefone}</Text>
-                ) : null}
-              </View>
-            </>
-          ) : null}
-        </View>
-
-        {/* LOCAL */}
-        <View style={s.card}>
-          <Text style={s.sectionLabel}>Local</Text>
-          <View style={s.infoRow}>
-            <Ionicons name="location-outline" size={15} color={theme.icon} />
-            <View style={{ flex: 1 }}>
-              {/* Endereço completo quando a API libera (só participante, e só
-                  depois do aceite). Sem ele, um comprovante de serviço a
-                  domicílio não diz ONDE foi prestado. */}
-              {enderecoLinha ? <Text style={s.infoText}>{enderecoLinha}</Text> : null}
-              <Text style={enderecoLinha ? s.infoTextSub : s.infoText}>
-                {svc.bairro}, {svc.cidade} - {svc.uf}
-              </Text>
-            </View>
-          </View>
-        </View>
-
-        {/* DATAS */}
-        <View style={s.card}>
-          <Text style={s.sectionLabel}>Datas</Text>
-          <RowKV label="Agendada" value={formatDate(svc.data)} />
-          {finalizadoLabel ? (
-            <>
-              <View style={s.divider} />
-              <RowKV label="Finalização" value={finalizadoLabel} />
-            </>
-          ) : null}
-        </View>
-
-        {/* PAGAMENTO — era só o número do valor. Um comprovante precisa dizer
-            quanto, por qual meio, PARA QUEM e quando. O `recebimento` vem do
-            PixSnapshot, que é congelado na contratação e imutável: é a prova
-            de para onde o dinheiro foi, mesmo que o profissional troque a
-            chave depois. A chave chega mascarada da API. */}
-        <View style={s.card}>
-          <Text style={s.sectionLabel}>Pagamento</Text>
-          <View style={s.pagamentoTopo}>
-            <Text style={[s.valor, { color: theme.textAccent }]}>{valorLabel}</Text>
-            {recebimento ? <Text style={s.pagamentoForma}>via PIX</Text> : null}
-          </View>
-
-          {recebimento ? (
-            <>
-              <View style={s.divider} />
-              <RowKV label="Recebedor" value={recebimento.titular} />
-              {recebimento.banco ? (
-                <>
-                  <View style={s.divider} />
-                  <RowKV label="Banco" value={recebimento.banco} />
-                </>
-              ) : null}
-              <View style={s.divider} />
-              <RowKV
-                label={TIPO_CHAVE_LABEL[statusUp(recebimento.tipoChave)] ?? "Chave PIX"}
-                value={recebimento.chaveMascarada}
-              />
-            </>
-          ) : null}
-
-          {informadoEm || pagoEm || contestadoEm ? (
-            <>
-              <View style={s.divider} />
-              {informadoEm ? <RowKV label="Pagamento informado" value={informadoEm} /> : null}
-              {pagoEm ? <RowKV label="Confirmado pelo profissional" value={pagoEm} /> : null}
-              {contestadoEm ? <RowKV label="Contestado" value={contestadoEm} /> : null}
-            </>
-          ) : null}
-        </View>
-
-        {/* AVALIAÇÃO (só se houver) */}
-        {avaliacao ? (
-          <View style={s.card}>
-            <Text style={s.sectionLabel}>Avaliação</Text>
-            <View style={s.infoRow}>
-              <Ionicons name="star" size={16} color={colors.star} />
-              <Text style={[s.infoText, { fontWeight: "700" }]}>{avaliacao.notaGeral}/5</Text>
-            </View>
-            {avaliacao.comentario ? <Text style={s.comentario}>“{avaliacao.comentario}”</Text> : null}
-            <View style={s.divider} />
-            <RowKV label="Pontualidade" value={`${avaliacao.pontualidade}/5`} />
-            <RowKV label="Qualidade" value={`${avaliacao.qualidade}/5`} />
-            <RowKV label="Comunicação" value={`${avaliacao.comunicacao}/5`} />
-          </View>
-        ) : null}
+        {/* O comprovante é o MESMO componente dos três perfis. Estava
+            escrito aqui dentro e só existia neste; a diarista e o montador
+            ficaram sem nenhum até agora. As barras de status e as ações
+            abaixo continuam próprias desta tela. */}
+        <ComprovanteServico
+          comprovante={comprovante}
+          servico={svc as never}
+          theme={theme}
+          avatarUrl={prof?.avatarUrl}
+          onAviso={setToast}
+        />
 
         {/* Status CTA cards */}
         {["PENDENTE", "SOLICITADO"].includes(statusRaw) ? (
@@ -860,12 +460,6 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
           </Pressable>
         ) : null}
 
-        {/* RODAPÉ — data de emissão: um comprovante diz quando foi tirado,
-            senão não dá para situar no tempo o que ele afirma. */}
-        <Text style={s.rodape}>
-          Guarde este protocolo para suporte: {protocolo}
-        </Text>
-        <Text style={s.emissao}>Emitido em {emitidoEm}</Text>
       </ScrollView>
 
       <MotivoModal

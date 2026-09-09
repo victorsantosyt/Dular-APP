@@ -27,3 +27,5 @@ export type { PixPagamentoModalProps } from "./PixPagamentoModal";
 export { PagamentoChatBanner } from "./PagamentoChatBanner";
 export type { PagamentoChatBannerProps } from "./PagamentoChatBanner";
 export { NotificacaoPopup } from "./NotificacaoPopup";
+export { BarraFiltros } from "./BarraFiltros";
+export type { ItemFiltro } from "./BarraFiltros";

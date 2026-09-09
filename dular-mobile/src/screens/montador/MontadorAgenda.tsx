@@ -2,7 +2,7 @@ import React, { useMemo, useState } from "react";
 import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
-import { AppIcon, DEmptyState, DErrorState, DLoadingState, DScreen } from "@/components/ui";
+import { AppIcon, BarraFiltros, DEmptyState, DErrorState, DLoadingState, DScreen } from "@/components/ui";
 import {
   cancelarServicoMontador,
   confirmarFinalizacaoMontador,
@@ -58,36 +58,6 @@ function fmtReagendamento(servico: MontadorServico) {
   const t = upperStatus(servico.reagendamentoTurno);
   const turnoLabel = t === "MANHA" ? "Manhã" : t === "TARDE" ? "Tarde" : "";
   return `${dataLabel}${turnoLabel ? " · " + turnoLabel : ""}`;
-}
-
-function FilterChip({
-  label,
-  active,
-  accent,
-  soft,
-  onPress,
-}: {
-  label: string;
-  active: boolean;
-  accent: string;
-  soft: string;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable
-      onPress={onPress}
-      style={[
-        styles.filterChip,
-        active
-          ? { backgroundColor: accent, borderColor: accent }
-          : { backgroundColor: colors.surface, borderColor: soft },
-      ]}
-    >
-      <Text style={[styles.filterLabel, { color: active ? colors.white : colors.textSecondary }]}>
-        {label}
-      </Text>
-    </Pressable>
-  );
 }
 
 function AgendaCard({
@@ -346,20 +316,7 @@ export default function MontadorAgenda() {
           avulsos. Agora vivem dentro de uma barra própria, que rola na
           horizontal quando não cabem — em vez de quebrarem para uma segunda
           linha, que empurrava a lista para baixo. */}
-      <View style={[styles.filtersBar, { borderColor: profileTheme.border, backgroundColor: profileTheme.primarySoft }]}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filtersRow}>
-          {FILTROS.map((item) => (
-            <FilterChip
-              key={item.id}
-              label={item.label}
-              active={filtro === item.id}
-              accent={profileTheme.primary}
-              soft={profileTheme.primarySoft}
-              onPress={() => setFiltro(item.id)}
-            />
-          ))}
-        </ScrollView>
-      </View>
+      <BarraFiltros itens={FILTROS} ativo={filtro} onChange={setFiltro} theme={profileTheme} />
 
       {loading ? (
         <DLoadingState text="Carregando agenda" color={profileTheme.primary} />
@@ -491,22 +448,6 @@ const styles = StyleSheet.create({
     ...typography.bodySm,
     color: colors.textSecondary,
     textAlign: "center",
-  },
-  filtersBar: {
-    borderRadius: radius.full,
-    borderWidth: 1,
-    padding: 4,
-  },
-  filtersRow: { flexDirection: "row", gap: 6, paddingHorizontal: 2 },
-  filterChip: {
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  filterLabel: {
-    ...typography.caption,
-    fontWeight: "700",
   },
   list: {
     gap: 12,

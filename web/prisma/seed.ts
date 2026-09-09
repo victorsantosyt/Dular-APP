@@ -40,8 +40,12 @@ async function main() {
   }
 
   // Senhas padrão
-  const senhaCliente = await hashPassword("cliente123");
-  const senhaDiarista = await hashPassword("diarista123");
+  // NÃO há senha de fixture: só o ADMIN entra por senha.
+  //
+  // As contas de EMPREGADOR e DIARISTA daqui nasciam com `cliente123` /
+  // `diarista123`, e isso desfazia a limpeza de senhas a cada execução do
+  // seed. Não eram usadas para nada desde que o app passou a ser OAuth-only:
+  // o login por senha do app saiu, e /api/auth/login só atende ADMIN.
   const senhaAdmin = await hashPassword("admin123");
   // Senha do admin extra vem de env para não versionar credencial real
   // (a senha antiga que ficou no histórico do git deve ser rotacionada).
@@ -87,8 +91,11 @@ async function main() {
   for (const c of clientes) {
     await prisma.user.upsert({
       where: { telefone: c.tel },
-      update: {},
-      create: { nome: c.nome, telefone: c.tel, senhaHash: senhaCliente, role: "EMPREGADOR" },
+      // `senhaHash: null` no update, e não só a ausência no create: assim
+      // reexecutar o seed CONVERGE para o estado certo em banco que já tinha
+      // senha, em vez de apenas não piorar.
+      update: { senhaHash: null },
+      create: { nome: c.nome, telefone: c.tel, role: "EMPREGADOR" },
     });
   }
 
@@ -136,11 +143,10 @@ async function main() {
   for (const d of diaristas) {
     const user = await prisma.user.upsert({
       where: { telefone: d.tel },
-      update: { nome: d.nome },
+      update: { nome: d.nome, senhaHash: null },
       create: {
         nome: d.nome,
         telefone: d.tel,
-        senhaHash: senhaDiarista,
         role: "DIARISTA",
       },
     });
@@ -248,9 +254,9 @@ async function main() {
     "Admin extra: 65999990100 / (senha de SEED_ADMIN_EXTRA_PASSWORD, default admin123) — victordev.tec@gmail.com",
   );
   console.log("Clientes:");
-  clientes.forEach((c) => console.log(`- ${c.tel} / cliente123`));
+  clientes.forEach((c) => console.log(`- ${c.tel} (sem senha — entra por OAuth)`));
   console.log("Diaristas:");
-  diaristas.forEach((d) => console.log(`- ${d.tel} / diarista123 (${d.nome})`));
+  diaristas.forEach((d) => console.log(`- ${d.tel} (sem senha — entra por OAuth) (${d.nome})`));
 }
 
 main()

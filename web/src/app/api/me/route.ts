@@ -3,7 +3,6 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/requireAuth";
 import { anonimizarUsuario } from "@/lib/lgpd";
-import bcrypt from "bcryptjs";
 
 export const dynamic = "force-dynamic";
 
@@ -268,12 +267,10 @@ export async function PUT(req: Request) {
     const auth = requireAuth(req);
     const body = await req.json();
 
-    const { nome, email, telefone, senhaAtual, novaSenha, bio, precoLeve, precoMedio, precoPesado, precoPesada, genero } = body as {
+    const { nome, email, telefone, bio, precoLeve, precoMedio, precoPesado, precoPesada, genero } = body as {
       nome?: string;
       email?: string;
       telefone?: string;
-      senhaAtual?: string;
-      novaSenha?: string;
       bio?: string;
       precoLeve?: number;
       precoMedio?: number;
@@ -299,23 +296,13 @@ export async function PUT(req: Request) {
     // colidir no índice único e para permitir limpar o campo.
     if (typeof telefone === "string") data.telefone = telefone.trim() || null;
 
-    if (novaSenha) {
-      if (!senhaAtual) {
-        return NextResponse.json({ ok: false, error: "Informe a senha atual." }, { status: 400 });
-      }
-      const me = await prisma.user.findUnique({
-        where: { id: auth.userId },
-        select: { senhaHash: true },
-      });
-      if (!me?.senhaHash) {
-        return NextResponse.json({ ok: false, error: "Conta sem senha configurada." }, { status: 400 });
-      }
-      const ok = await bcrypt.compare(senhaAtual, me.senhaHash);
-      if (!ok) {
-        return NextResponse.json({ ok: false, error: "Senha atual incorreta." }, { status: 400 });
-      }
-      data.senhaHash = await bcrypt.hash(novaSenha, 10);
-    }
+    // Troca de senha removida: nenhuma tela a chamava (nem no app, nem no
+    // painel) e o app entra por OAuth. A única conta com senha é a de ADMIN,
+    // e ela rotaciona a própria senha por /api/admin/admins/create, que faz
+    // upsert pelo telefone.
+    //
+    // Manter um caminho de ESCRITA de senha que ninguém usa é a mesma
+    // superfície que o cadastro público removido: fica aí até alguém religar.
 
     const user = await prisma.user.update({
       where: { id: auth.userId },

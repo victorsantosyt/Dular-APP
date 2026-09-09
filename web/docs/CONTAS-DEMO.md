@@ -110,6 +110,26 @@ Antes de enviar às lojas, com o app apontando para o mesmo banco:
 Se a busca vier vazia, o perfil não ficou completo — rode o script de novo e
 leia o que ele imprime.
 
+## contaDemo nunca concede benefício econômico
+
+**Ela ignora apenas gates de verificação (KYC) e restrição geográfica.** Não
+libera plano pago, não pula paywall, não concede crédito, não altera limites
+de uso.
+
+Se o revisor da loja precisar testar a experiência de assinante, isso é feito
+pelo **ambiente sandbox da própria loja** (Apple Sandbox / Google License
+Testing), nunca por flag no banco.
+
+O motivo é que uma flag que libera plano é indistinguível de um plano de
+graça: quem a receber por engano deixa de pagar sem que nada apareça no
+faturamento, e não há relatório que mostre a diferença. O sandbox das lojas
+existe exatamente para isso e mantém a assinatura sendo uma assinatura.
+
+Há teste travando isso (`test/security/contaDemo-sem-beneficio-economico.test.ts`):
+o gate de plano devolve o mesmo resultado com e sem a flag, nenhum módulo de
+cobrança menciona `contaDemo`, e a lista de arquivos que a leem é fechada — um
+arquivo novo quebra o teste até alguém declarar que aquele uso é legítimo.
+
 ## O que a flag `contaDemo` abre — e só
 
 | portão | onde |

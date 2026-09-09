@@ -3,7 +3,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import { AppIcon, type AppIconName, DAvatar } from "@/components/ui";
 import { DCard } from "@/components/ui/DCard";
-import { colors, gradients, radius, shadows, spacing, typography } from "@/theme";
+import { colors, gradients, radius, shadows, typography } from "@/theme";
 
 export type CategoriaFiltro = "todas" | "diarista" | "baba" | "cozinheira" | "montador";
 export type StatusFiltro = "todas" | "aguardando" | "aceitas" | "concluidas" | "canceladas";
@@ -34,7 +34,7 @@ export type AgendamentoItem = {
   reagendamentoPendente?: boolean;
 };
 
-export const CATEGORIAS: Array<{ label: string; value: CategoriaFiltro; icon: AppIconName }> = [
+export const CATEGORIAS: { label: string; value: CategoriaFiltro; icon: AppIconName }[] = [
   { label: "Todas", value: "todas", icon: "Grid2x2" },
   { label: "Diarista", value: "diarista", icon: "BrushCleaning" },
   { label: "Babá", value: "baba", icon: "Baby" },
@@ -42,7 +42,7 @@ export const CATEGORIAS: Array<{ label: string; value: CategoriaFiltro; icon: Ap
   { label: "Montador", value: "montador", icon: "Wrench" },
 ];
 
-export const STATUS_FILTERS: Array<{ label: string; value: StatusFiltro; color?: string }> = [
+export const STATUS_FILTERS: { label: string; value: StatusFiltro; color?: string }[] = [
   { label: "Todos", value: "todas" },
   { label: "Aguardando", value: "aguardando", color: colors.warning },
   { label: "Aceitas", value: "aceitas", color: colors.success },
@@ -155,10 +155,6 @@ export function StatusChip({
       <Text style={[s.statusChipText, active && s.statusChipTextActive]}>{label}</Text>
     </Pressable>
   );
-}
-
-export function StatusFilterBar({ children }: { children: React.ReactNode }) {
-  return <View style={s.statusBar}>{children}</View>;
 }
 
 export function AppointmentCard({
@@ -312,19 +308,6 @@ const s = StyleSheet.create({
     color: colors.primary,
     ...typography.caption,
     fontWeight: "600",
-  },
-  statusBar: {
-    minHeight: 32,
-    borderRadius: radius.lg,
-    paddingHorizontal: 4,
-    paddingVertical: 3,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    ...shadows.soft,
   },
   statusChip: {
     minHeight: 22,

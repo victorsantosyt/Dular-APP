@@ -459,7 +459,7 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
         <View style={s.card}>
           <Text style={s.sectionLabel}>Local</Text>
           <View style={s.infoRow}>
-            <Ionicons name="location-outline" size={15} color={colors.green} />
+            <Ionicons name="location-outline" size={15} color={theme.icon} />
             <Text style={s.infoText}>{svc.bairro}, {svc.cidade} - {svc.uf}</Text>
           </View>
         </View>
@@ -475,7 +475,7 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
         {/* VALOR */}
         <View style={s.card}>
           <Text style={s.sectionLabel}>Valor</Text>
-          <Text style={s.valor}>{valorLabel}</Text>
+          <Text style={[s.valor, { color: theme.textAccent }]}>{valorLabel}</Text>
         </View>
 
         {/* AVALIAÇÃO (só se houver) */}
@@ -719,7 +719,8 @@ const s = StyleSheet.create({
   profRow: { flexDirection: "row", alignItems: "center", gap: 12 },
   profNome: { fontSize: 15, fontWeight: "700", color: colors.ink },
   profTel: { fontSize: 13, fontWeight: "500", color: colors.sub },
-  valor: { fontSize: 20, fontWeight: "800", color: colors.greenDark },
+  // Cor entra pelo tema no componente.
+  valor: { fontSize: 20, fontWeight: "800" },
   comentario: { fontSize: 13, fontWeight: "500", color: colors.ink, fontStyle: "italic" },
   rodape: { fontSize: 11, fontWeight: "500", color: colors.sub, textAlign: "center", marginTop: 6 },
 
@@ -734,12 +735,6 @@ const s = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-  },
-  title: {
-    color: colors.ink,
-    fontSize: 22,
-    lineHeight: 27,
-    fontWeight: "700",
   },
 
   card: {
@@ -781,11 +776,11 @@ const s = StyleSheet.create({
     gap: 10,
     padding: 12,
     borderRadius: radius.lg,
-    backgroundColor: colors.greenLight,
+    backgroundColor: colors.successSoft,
     borderWidth: 1,
     borderColor: colors.stroke,
   },
-  doneText: { fontSize: 12, fontWeight: "700", color: colors.greenDark },
+  doneText: { fontSize: 12, fontWeight: "700", color: colors.success },
 
   cancelBtn: {
     borderWidth: 1,

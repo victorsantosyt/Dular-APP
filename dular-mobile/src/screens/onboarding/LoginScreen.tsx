@@ -5,7 +5,6 @@ import Svg, { Path } from "react-native-svg";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import * as WebBrowser from "expo-web-browser";
-import { Ionicons } from "@expo/vector-icons";
 import { AppIcon, BackCircleButton, DCard } from "@/components/ui";
 import { DularLogo } from "@/assets/brand";
 import { PageDots } from "@/components/onboarding/PageDots";
@@ -102,37 +101,6 @@ function getOAuthUrlWarning(provider: Provider, value: string) {
   } catch {
     return `URL da API inválida para iniciar o ${providerLabel} OAuth.`;
   }
-}
-
-function StepperComponent({ step, total }: { step: number; total: number }) {
-  return (
-    <View style={styles.stepperWrap}>
-      <View style={styles.stepperRow}>
-        {Array.from({ length: total }).map((_, index) => {
-          const number = index + 1;
-          const done = number < step;
-          const active = number <= step;
-          return (
-            <React.Fragment key={number}>
-              <View style={[styles.stepCircle, active ? styles.stepCircleActive : styles.stepCircleIdle]}>
-                {done ? (
-                  <AppIcon name="Check" size={15} color={colors.surface} strokeWidth={3} />
-                ) : (
-                  <Text style={[styles.stepText, active ? styles.stepTextActive : styles.stepTextIdle]}>
-                    {number}
-                  </Text>
-                )}
-              </View>
-              {number < total ? (
-                <View style={[styles.stepLine, number < step ? styles.stepLineDone : styles.stepLineIdle]} />
-              ) : null}
-            </React.Fragment>
-          );
-        })}
-      </View>
-      <Text style={styles.stepCaption}>{step} de {total}</Text>
-    </View>
-  );
 }
 
 /**

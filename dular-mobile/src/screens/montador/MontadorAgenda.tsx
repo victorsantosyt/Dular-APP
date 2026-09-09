@@ -16,7 +16,7 @@ import { useMontadorServicos } from "@/hooks/useMontadorServicos";
 import { useProfileTheme } from "@/hooks/useProfileTheme";
 import type { MontadorTabParamList } from "@/navigation/MontadorNavigator";
 import { isStatusEncerrado } from "@/utils/servicoStatus";
-import { colors, radius, shadows, spacing, typography } from "@/theme";
+import { colors, radius, shadows, typography } from "@/theme";
 import {
   formatDateTime,
   labelServico,
@@ -341,17 +341,24 @@ export default function MontadorAgenda() {
         <Text style={styles.subtitle}>Serviços aceitos e agendados</Text>
       </View>
 
-      <View style={styles.filters}>
-        {FILTROS.map((item) => (
-          <FilterChip
-            key={item.id}
-            label={item.label}
-            active={filtro === item.id}
-            accent={profileTheme.primary}
-            soft={profileTheme.primarySoft}
-            onPress={() => setFiltro(item.id)}
-          />
-        ))}
+      {/* Barra de filtros, igual à da Agenda da diarista: os chips soltos
+          sobre o fundo da tela não tinham nada que os agrupasse e pareciam
+          avulsos. Agora vivem dentro de uma barra própria, que rola na
+          horizontal quando não cabem — em vez de quebrarem para uma segunda
+          linha, que empurrava a lista para baixo. */}
+      <View style={[styles.filtersBar, { borderColor: profileTheme.border, backgroundColor: profileTheme.primarySoft }]}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filtersRow}>
+          {FILTROS.map((item) => (
+            <FilterChip
+              key={item.id}
+              label={item.label}
+              active={filtro === item.id}
+              accent={profileTheme.primary}
+              soft={profileTheme.primarySoft}
+              onPress={() => setFiltro(item.id)}
+            />
+          ))}
+        </ScrollView>
       </View>
 
       {loading ? (
@@ -485,11 +492,12 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textAlign: "center",
   },
-  filters: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
+  filtersBar: {
+    borderRadius: radius.full,
+    borderWidth: 1,
+    padding: 4,
   },
+  filtersRow: { flexDirection: "row", gap: 6, paddingHorizontal: 2 },
   filterChip: {
     borderRadius: radius.pill,
     borderWidth: 1,

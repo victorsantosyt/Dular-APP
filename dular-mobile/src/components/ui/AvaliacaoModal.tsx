@@ -11,7 +11,7 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { api } from "@/lib/api";
 import { DButton } from "@/components/ui/DButton";
@@ -45,6 +45,7 @@ export default function AvaliacaoModal({
   endpoint,
   accent,
 }: AvaliacaoModalProps) {
+  const insets = useSafeAreaInsets();
   const [nota, setNota] = useState(0);
   const [comentario, setComentario] = useState("");
   const [enviando, setEnviando] = useState(false);
@@ -88,7 +89,11 @@ export default function AvaliacaoModal({
         style={s.overlay}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
-        <SafeAreaView style={s.sheet} edges={["bottom"]}>
+        {/* Inset aplicado à mão em vez de <SafeAreaView edges={["bottom"]}>:
+            dentro de um Modal o contexto de área segura nem sempre chega, e os
+            botões acabavam encostados na barra de gestos do iPhone — a área de
+            "Enviar" disputava o toque com o gesto de home. */}
+        <View style={[s.sheet, { paddingBottom: Math.max(insets.bottom, spacing.md) + spacing.md }]}>
           <ScrollView
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
@@ -137,7 +142,7 @@ export default function AvaliacaoModal({
               />
             </View>
           </ScrollView>
-        </SafeAreaView>
+        </View>
       </KeyboardAvoidingView>
     </Modal>
   );
@@ -154,6 +159,9 @@ const s = StyleSheet.create({
     borderTopLeftRadius: radius.xl,
     borderTopRightRadius: radius.xl,
     padding: spacing.lg,
+    // Altura mínima: a folha ficava rasa demais para escrever um comentário,
+    // com os botões colados no campo.
+    minHeight: "52%",
     // Limita a folha para que, com o teclado aberto, o conteúdo role em vez de
     // estourar a tela.
     maxHeight: "88%",
@@ -183,7 +191,7 @@ const s = StyleSheet.create({
     borderColor: colors.border,
     borderRadius: radius.md,
     padding: spacing.sm,
-    minHeight: 80,
+    minHeight: 110,
     color: colors.textPrimary,
     ...typography.body,
     textAlignVertical: "top",

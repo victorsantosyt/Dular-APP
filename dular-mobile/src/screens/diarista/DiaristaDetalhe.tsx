@@ -333,9 +333,16 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
         showsVerticalScrollIndicator={false}
       >
 
-        {/* ── Voltar ── */}
+        {/* ── Cabeçalho ──────────────────────────────────────────────────
+            Tinha só o botão de voltar: era a única tela do fluxo sem título,
+            enquanto o equivalente do empregador mostra "Comprovante". O
+            espaçador à direita mantém o título no centro da linha. */}
         <View style={s.navRow}>
           <BackCircleButton onPress={() => navigation.goBack()} color={theme.icon} borderColor={theme.border} />
+          <Text style={[s.headerTitulo, { color: theme.textAccent }]} numberOfLines={1}>
+            Detalhe do serviço
+          </Text>
+          <View style={s.headerSlot} />
         </View>
 
         {/* ── Título + status ── */}
@@ -348,7 +355,7 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
             hitSlop={8}
             style={{ flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 1 }}
           >
-            <Text style={s.title} numberOfLines={1}>{protocoloServico(svc.id)}</Text>
+            <Text style={[s.title, { color: theme.textAccent }]} numberOfLines={1}>{protocoloServico(svc.id)}</Text>
             <Ionicons name="copy-outline" size={16} color={colors.sub} />
           </Pressable>
           <DularBadge text={statusLabel(svc.status)} variant={statusVariant(svc.status)} />
@@ -379,7 +386,7 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
           <View style={s.divider} />
 
           <InfoRow icon="cash-outline" label="Valor">
-            <Text style={[s.infoValue, { color: colors.greenDark, fontWeight: "700" }]}>
+            <Text style={[s.infoValue, { color: theme.textAccent, fontWeight: "700" }]}>
               {formatPrice(svc.precoFinal)}
             </Text>
           </InfoRow>
@@ -526,7 +533,7 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
           {["CONFIRMADO", "FINALIZADO"].includes(svc.status.toUpperCase()) &&
             (jaAvaliouEmpregador ? (
               <View style={s.doneCard}>
-                <Ionicons name="checkmark-circle" size={24} color={colors.green} />
+                <Ionicons name="checkmark-circle" size={24} color={colors.success} />
                 <Text style={s.doneText}>Avaliação enviada. Obrigada!</Text>
               </View>
             ) : (
@@ -543,7 +550,7 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
             ))}
           {["CONCLUIDO","CONCLUÍDO"].includes(svc.status.toUpperCase()) && (
             <View style={s.doneCard}>
-              <Ionicons name="checkmark-circle" size={24} color={colors.green} />
+              <Ionicons name="checkmark-circle" size={24} color={colors.success} />
               <Text style={s.doneText}>Serviço finalizado. Obrigada!</Text>
             </View>
           )}
@@ -623,7 +630,7 @@ const ir = StyleSheet.create({
   row:     { flexDirection: "row", alignItems: "flex-start", gap: 10 },
   iconWrap:{
     width: 32, height: 32, borderRadius: radius.sm,
-    backgroundColor: colors.greenLight,
+    backgroundColor: colors.successSoft,
     alignItems: "center", justifyContent: "center",
     marginTop: 2,
   },
@@ -640,19 +647,23 @@ const s = StyleSheet.create({
     gap: 16,
   },
 
-  navRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
+  navRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+
+  /** Mesma largura do BackCircleButton, para centrar o título. */
+
+  headerSlot: { width: 42, height: 42 },
+
+  headerTitulo: { ...typography.h2, flex: 1, textAlign: "center", fontWeight: "700" },
   titleRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
   title: {
-    color: colors.ink,
-    fontSize: 22,
-    lineHeight: 27,
+    // Título de tela secundária: h2 e cor de destaque do perfil. Antes cada
+    // uma escolhia entre h2, h3, 24, 22, bodyMedium ou `title`, com texto
+    // preto — seis tratamentos para a mesma função.
+    ...typography.h2,
     fontWeight: "700",
     textAlign: "center",
   },
@@ -712,11 +723,11 @@ const s = StyleSheet.create({
     gap: 10,
     padding: 12,
     borderRadius: radius.lg,
-    backgroundColor: colors.greenLight,
+    backgroundColor: colors.successSoft,
     borderWidth: 1,
-    borderColor: colors.green,
+    borderColor: colors.success,
   },
-  doneText: { fontSize: 12, fontWeight: "700", color: colors.greenDark },
+  doneText: { fontSize: 12, fontWeight: "700", color: colors.success },
   waitingCard: {
     flexDirection: "row",
     alignItems: "center",

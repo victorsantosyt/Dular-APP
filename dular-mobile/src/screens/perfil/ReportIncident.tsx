@@ -258,7 +258,7 @@ export default function ReportIncident({ route }: any) {
       <View style={s.header}>
         <View style={{ width: 42 }} />
         <BackCircleButton onPress={voltarPerfil} color={theme.icon} borderColor={theme.border} />
-        <Text style={s.headerTitle}>Relatar incidente</Text>
+        <Text style={[s.headerTitle, { color: theme.textAccent }]}>Relatar incidente</Text>
         {/* Espaçador: sem ele o título centraliza no espaço que sobra
             e fica deslocado para a direita. */}
         <View style={s.headerSlot} />
@@ -479,10 +479,12 @@ const s = StyleSheet.create({
   /** Mesma largura do BackCircleButton, para centrar o título. */
   headerSlot: { width: 42, height: 42 },
   headerTitle: {
+    // Título de tela secundária: h2 e cor de destaque do perfil. Antes cada
+    // uma escolhia entre h2, h3, 24, 22, bodyMedium ou `title`, com texto
+    // preto — seis tratamentos para a mesma função.
+    ...typography.h2,
     flex: 1,
-    ...typography.title,
     fontWeight: "700",
-    color: colors.foreground,
     textAlign: "center",
   },
   scroll: {

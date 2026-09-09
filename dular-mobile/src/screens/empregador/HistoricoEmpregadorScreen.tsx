@@ -26,7 +26,6 @@ import {
   DScreenHeader,
   DSkeletonCard,
 } from "@/components/ui";
-import { api } from "@/lib/api";
 import { fetchServicosMinhas } from "@/api/sharedFetcher";
 import { parseDataServico } from "@/utils/formatters";
 import { colors, radius, shadows, spacing, typography } from "@/theme";

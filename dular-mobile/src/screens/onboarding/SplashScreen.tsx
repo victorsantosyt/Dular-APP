@@ -1,9 +1,7 @@
 import React, { useEffect, useRef } from "react";
 import {
   Animated,
-  Dimensions,
   Easing,
-  Image,
   StyleSheet,
   View,
 } from "react-native";
@@ -14,7 +12,6 @@ import type { OnboardingStackParamList } from "@/navigation/OnboardingNavigator"
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-const { width: W } = Dimensions.get("window");
 const LOGO_SIZE = 550;
 
 const DURATION_BG     = 700;

@@ -6,7 +6,6 @@ import {
   ImageSourcePropType,
   Keyboard,
   KeyboardAvoidingView,
-  Linking,
   Modal,
   Pressable,
   ScrollView,
@@ -24,14 +23,15 @@ import { salvarLocalizacaoAtual } from "@/api/localizacaoApi";
 import { api } from "@/lib/api";
 import { uploadAvatarDataUrl } from "@/api/perfilApi";
 import { fetchEnderecos, type Endereco } from "@/api/enderecoApi";
-import { AppIcon, DButton, DCard, type AppIconName } from "@/components/ui";
+import { AppIcon, DButton, DCard } from "@/components/ui";
 import { useCurrentRegion } from "@/hooks/useCurrentRegion";
 import { usePerfil } from "@/hooks/usePerfil";
 import type { PerfilUsuario } from "@/hooks/usePerfil";
 import type { EmpregadorTabParamList } from "@/navigation/EmpregadorNavigator";
 import { useAuth } from "@/stores/authStore";
-import { radius, shadows, spacing } from "@/theme";
+import { radius, shadows, spacing, typography } from "@/theme";
 import { useDularColors } from "@/hooks/useDularColors";
+import { useGenderTheme } from "@/hooks/useProfileTheme";
 import { platformSelect } from "@/utils/platform";
 import {
   ProfileHeroCard,
@@ -134,13 +134,6 @@ function normalizeVerification(perfil: ProfileData | null): VerificationStatus |
   return null;
 }
 
-function verificationText(status: VerificationStatus | null) {
-  if (status === "APROVADO" || status === "VERIFICADO") return "Verificação aprovada";
-  if (status === "PENDENTE") return "Verificação pendente";
-  if (status === "REPROVADO") return "Verificação reprovada";
-  return "Não verificado";
-}
-
 function roleLabel(role?: ProfileData["role"] | null) {
   if (role === "EMPREGADOR") return "Empregador";
   if (role === "DIARISTA") return "Diarista";
@@ -166,41 +159,12 @@ function calculateProfileProgress(perfil: ProfileData | null, location: string) 
   };
 }
 
-type ProfileStyles = ReturnType<typeof makeStyles>;
-
-function InfoLine({
-  icon,
-  label,
-  value,
-  styles,
-  colors,
-  isLast,
-}: {
-  icon: AppIconName;
-  label: string;
-  value: string;
-  styles: ProfileStyles;
-  colors: ThemeColors;
-  isLast?: boolean;
-}) {
-  return (
-    <View style={[styles.infoRow, !isLast && styles.infoDivider]}>
-      <View style={styles.infoIcon}>
-        <AppIcon name={icon} size={18} color={colors.primary} strokeWidth={2.2} />
-      </View>
-      <View style={styles.infoTextWrap}>
-        <Text style={styles.infoLabel}>{label}</Text>
-        <Text style={styles.infoValue} numberOfLines={1}>
-          {value}
-        </Text>
-      </View>
-    </View>
-  );
-}
-
 export default function EmpregadorPerfil({ onLogout }: Props) {
   const navigation = useNavigation<Navigation>();
   const colors = useDularColors();
+  // Cor de destaque do perfil para o título da aba (useDularColors só traz
+  // a paleta clara/escura, sem o acento do papel).
+  const tema = useGenderTheme();
   const insets = useSafeAreaInsets();
   const s = useMemo(() => makeStyles(colors), [colors]);
   const setUser = useAuth((state) => state.setUser);
@@ -518,16 +482,7 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
   const avatarUri = avatarLocal ?? profileData?.avatarUrl ?? null;
   const avatarFallback: ImageSourcePropType | null = null;
   const memberSince = formatMemberSince(profileData?.createdAt ?? profileData?.criadoEm);
-  const telefoneText = textValue(profileData?.telefone) ?? "Não informado";
-  const generoText =
-    profileData?.genero === "FEMININO"
-      ? "Feminino"
-      : profileData?.genero === "MASCULINO"
-        ? "Masculino"
-        : "Não informado";
-  const emailText = textValue(profileData?.email) ?? "Não informado";
   const roleText = roleLabel(profileData?.role);
-  const createdAtText = memberSince || "Não informado";
   // "Usuária desde" era fixo aqui — homens viam o feminino. Sem gênero
   // declarado, fica neutro em vez de assumir um.
   const generoPrefixo =
@@ -538,7 +493,6 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
         : "Na Dular desde";
   const locationText =
     enderecoLocation || heroLocation || (locationIsEnabled ? "Localização ativada" : "Localização não informada");
-  const progressLabel = completion.completo ? "Perfil completo" : "Perfil incompleto";
   // Completo não é status a comunicar: a barra segue o tema do perfil. O
   // verde fixo (`colors.success`) era a única coisa fora da paleta ali. O
   // laranja fica para quando falta algo de verdade.
@@ -566,7 +520,7 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.scroll}>
           <View style={s.header}>
             <View style={s.headerSide} />
-            <Text style={s.title}>Perfil</Text>
+            <Text style={[s.title, { color: tema.textAccent }]}>Perfil</Text>
             <View style={s.headerSide} />
           </View>
 
@@ -864,11 +818,11 @@ function makeStyles(colors: ThemeColors) {
     width: 48,
   },
   title: {
-    color: colors.textPrimary,
-    fontSize: 24,
-    lineHeight: 29,
+    // Título de aba principal: mesmo corpo (h1) e cor de destaque do perfil
+    // das outras abas. Estava em 24 fixo com texto preto, destoando de
+    // Buscar/Solicitações/Mensagens.
+    ...typography.h1,
     fontWeight: "700",
-    letterSpacing: 0,
     textAlign: "center",
   },
   centerCard: {

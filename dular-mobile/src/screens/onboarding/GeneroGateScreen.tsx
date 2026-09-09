@@ -125,10 +125,10 @@ const s = StyleSheet.create({
     paddingTop: 48,
   },
   title: {
+    // Mesmo token dos passos do onboarding: os gates fazem parte do
+    // mesmo fluxo de entrada e usavam h1/hero, cada um de um jeito.
+    ...typography.onboardingTitle,
     color: colors.textPrimary,
-    ...typography.hero,
-    fontWeight: "700",
-    letterSpacing: -0.7,
     textAlign: "center",
     marginBottom: 10,
   },

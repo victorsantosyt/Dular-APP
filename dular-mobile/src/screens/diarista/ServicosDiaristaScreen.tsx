@@ -147,15 +147,10 @@ export function ServicosDiaristaScreen() {
   return (
     <SafeAreaView style={s.safe} edges={["top", "left", "right"]}>
       <View style={s.header}>
-        {/* Espaçador à esquerda do mesmo tamanho do ícone: com o ícone só de
-            um lado, o título centralizava no espaço que sobra e ficava
-            deslocado. */}
+        {/* Sem o ícone decorativo ao lado: o título fica sozinho na linha e
+            centraliza sem precisar de espaçador do outro lado. */}
         <View style={s.headerRow}>
-          <View style={s.headerIconSlot} />
           <Text style={[s.title, { color: theme.textAccent }]}>Serviços</Text>
-          <View style={s.headerIcon}>
-            <AppIcon name="BrushCleaning" size={22} color={theme.primary} strokeWidth={2.1} />
-          </View>
         </View>
         <Text style={s.subtitle}>Suas solicitações por categoria</Text>
 
@@ -249,15 +244,6 @@ function makeStyles(theme: ProfileTheme) {
     safe: { flex: 1, backgroundColor: colors.background },
     header: { paddingHorizontal: spacing.screenPadding, paddingTop: 10, paddingBottom: 4 },
     headerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-    headerIcon: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      alignItems: "center",
-      justifyContent: "center",
-      backgroundColor: theme.primarySoft,
-    },
-    headerIconSlot: { width: 40, height: 40 },
     title: {
       // Título das telas principais: um corpo (h1) e a cor de destaque do
       // PERFIL — roxo no empregador, rosa na diarista, verde no montador.

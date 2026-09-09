@@ -1,7 +1,9 @@
 import { ReactNode } from "react";
 import { Pressable, StyleSheet, Text, View, type ViewStyle } from "react-native";
-import { colors, radius, shadows, spacing } from "@/theme";
+import { colors, radius, spacing, typography } from "@/theme";
+import { useGenderTheme } from "@/hooks/useProfileTheme";
 import { AppIcon } from "./AppIcon";
+import { BackCircleButton } from "./BackCircleButton";
 import { DAvatar } from "./DAvatar";
 
 type Props = {
@@ -21,6 +23,19 @@ type Props = {
   style?: ViewStyle;
 };
 
+/**
+ * Cabeçalho de tela secundária: voltar à esquerda, título ao centro, ação à
+ * direita.
+ *
+ * Desenhava um cabeçalho PRÓPRIO — botão de voltar sem borda e com sombra,
+ * título preto de 17px — enquanto o resto do app usa `BackCircleButton` com
+ * borda e título em `typography.h2` na cor do perfil. Cinco telas do
+ * empregador (Histórico, Favoritos, Ações rápidas, Profissionais em destaque
+ * e sugeridos) ficavam visivelmente fora do padrão por causa disto.
+ *
+ * A correção é aqui, e não em cada tela: assim as cinco acertam de uma vez e
+ * nenhuma nova nasce diferente.
+ */
 export function DScreenHeader({
   title,
   subtitle,
@@ -33,22 +48,25 @@ export function DScreenHeader({
   style,
 }: Props) {
   const showAvatar = !!(avatarUri || avatarInitials);
+  const tema = useGenderTheme();
 
   return (
     <View style={[s.row, style]}>
       {/* Left: back button or spacer */}
       <View style={s.side}>
         {onBack ? (
-          <Pressable onPress={onBack} hitSlop={10} style={s.iconBtn} accessibilityRole="button" accessibilityLabel="Voltar">
-            <AppIcon name="ArrowLeft" size={20} color={colors.textPrimary} strokeWidth={2.4} />
-          </Pressable>
+          <BackCircleButton onPress={onBack} color={tema.icon} borderColor={tema.border} />
         ) : null}
       </View>
 
       {/* Center: title + subtitle */}
       {title || subtitle ? (
         <View style={s.center}>
-          {title ? <Text style={s.title} numberOfLines={1}>{title}</Text> : null}
+          {title ? (
+            <Text style={[s.title, { color: tema.textAccent }]} numberOfLines={1}>
+              {title}
+            </Text>
+          ) : null}
           {subtitle ? <Text style={s.subtitle} numberOfLines={1}>{subtitle}</Text> : null}
         </View>
       ) : (
@@ -87,6 +105,8 @@ const s = StyleSheet.create({
     gap: spacing.sm,
   },
   side: {
+    // Mesma largura do BackCircleButton (42) mais folga, para o título ficar
+    // no centro da linha e não no centro do que sobra.
     width: 44,
     alignItems: "flex-start",
     justifyContent: "center",
@@ -102,24 +122,27 @@ const s = StyleSheet.create({
     alignItems: "center",
   },
   title: {
-    fontSize: 17,
-    fontWeight: "700",
-    color: colors.textPrimary,
-    letterSpacing: -0.3,
+    // Mesmo tratamento das outras telas secundárias: h2 na cor de destaque do
+    // perfil. A cor vem por prop, do tema.
+    ...typography.h2,
+    textAlign: "center",
   },
   subtitle: {
     fontSize: 12,
     color: colors.textMuted,
     marginTop: 1,
   },
+  // Mesmo círculo do BackCircleButton, do outro lado da linha: 42 com borda,
+  // não 40 com sombra. Os dois lados do cabeçalho tinham desenhos diferentes.
   iconBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
     alignItems: "center",
     justifyContent: "center",
-    ...shadows.soft,
   },
   notifBadge: {
     position: "absolute",

@@ -31,7 +31,7 @@ function formatBRL(valor: number): string {
 function opcoesDeValor(categoria: ServiceCategory, p?: PrecoInfo): OpcaoValor[] {
   if (!p || p.valorACombinar) return [];
   if (categoria === "diarista") {
-    const opcoes: Array<OpcaoValor | null> = [
+    const opcoes: (OpcaoValor | null)[] = [
       p.leve != null
         ? { id: "FAXINA_LEVE", label: "Limpeza leve", valor: p.leve / 100, categoriaBackend: "FAXINA_LEVE" }
         : null,

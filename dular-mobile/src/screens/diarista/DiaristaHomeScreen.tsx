@@ -15,7 +15,6 @@ import { useAgendamentosDiarista, type AgendamentoDiarista, type StatusDiarista 
 import { useApresentarPlanos } from "@/hooks/useApresentarPlanos";
 import { useMensagens } from "@/hooks/useMensagens";
 import { useNotificacoes } from "@/hooks/useNotificacoes";
-import { api } from "@/lib/api";
 import { LimitePlanoBarra } from "@/components/ui/LimitePlanoBarra";
 import { diasAteServico, plural } from "@/utils/formatters";
 

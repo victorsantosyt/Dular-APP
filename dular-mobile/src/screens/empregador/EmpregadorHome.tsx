@@ -17,16 +17,9 @@ import * as Location from "expo-location";
 import { api } from "@/lib/api";
 import type { BuscarDiaristasResponse, DiaristaItem } from "@/types/diarista";
 import type { ServicoTipo, ServicoCategoria } from "@/types/servico";
-import { getCatalogoServicos, type CatalogoTipo } from "@/api/catalogoApi";
 import { CATEGORIAS, CATEGORIA_BY_KEY } from "@/constants/categorias";
-
-// Categorias em destaque na home (subconjunto da fonte única); demais em "Ver todos".
-const CATEGORIAS_HOME = CATEGORIAS.filter((c) =>
-  ["diarista", "montador", "baba", "cozinheira"].includes(c.key),
-);
 import { PILOT_MODE, PILOT } from "@/config/pilotConfig";
 import { useGeoDefaults } from "@/hooks/useGeoDefaults";
-import { useMensagens } from "@/hooks/useMensagens";
 import { useNotificacoes } from "@/hooks/useNotificacoes";
 import { useFavoritos } from "@/hooks/useFavoritos";
 import { useAuth } from "@/stores/authStore";
@@ -46,6 +39,11 @@ import {
 import { colors, radius, shadows, spacing, typography } from "@/theme";
 import { getProfileTheme } from "@/theme/profileTheme";
 import type { EmpregadorTabParamList } from "@/navigation/EmpregadorNavigator";
+
+// Categorias em destaque na home (subconjunto da fonte única); demais em "Ver todos".
+const CATEGORIAS_HOME = CATEGORIAS.filter((c) =>
+  ["diarista", "montador", "baba", "cozinheira"].includes(c.key),
+);
 
 type Navigation = BottomTabNavigationProp<EmpregadorTabParamList>;
 const EMPREGADOR_THEME = getProfileTheme({ role: "EMPREGADOR" });
@@ -185,7 +183,6 @@ export default function EmpregadorHome() {
   const navigation = useNavigation<Navigation>();
   const user = useAuth((state) => state.user);
   const geo = useGeoDefaults();
-  const { rooms } = useMensagens();
   const { unreadCount } = useNotificacoes();
   const { isFavorito, toggle: toggleFavorito } = useFavoritos();
 
@@ -194,9 +191,8 @@ export default function EmpregadorHome() {
     return nome.split(/\s+/)[0] || "você";
   }, [user?.nome]);
 
-  const [selectedTipo, setSelectedTipo] = useState<ServicoTipo>("FAXINA");
-  const [categoria, setCategoria] = useState<ServicoCategoria | null>("FAXINA_LEVE");
-  const [catalogo, setCatalogo] = useState<CatalogoTipo[]>([]);
+  const [selectedTipo] = useState<ServicoTipo>("FAXINA");
+  const [categoria] = useState<ServicoCategoria | null>("FAXINA_LEVE");
   const [diaristas, setDiaristas] = useState<DiaristaItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -212,11 +208,6 @@ export default function EmpregadorHome() {
   );
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
 
-  const unreadMessages = useMemo(
-    () => rooms.reduce((total, room) => total + Math.max(0, Number(room.naoLidas) || 0), 0),
-    [rooms],
-  );
-  const messagesBadge = unreadMessages > 0 ? unreadMessages : undefined;
 
   const coordsRef = useRef<{ lat: number; lng: number } | null>(null);
   const initialFetchRef = useRef(false);
@@ -230,7 +221,8 @@ export default function EmpregadorHome() {
       busyRef.current = true;
       try {
         setError(null);
-        isRefresh ? setRefreshing(true) : setLoading(true);
+        if (isRefresh) setRefreshing(true);
+        else setLoading(true);
 
         const cidadeParam = (cidade || geo.cidade || "").trim();
         const ufParam = (uf || geo.uf || "").trim();
@@ -271,20 +263,13 @@ export default function EmpregadorHome() {
         const err = e as { response?: { data?: { error?: string } }; message?: string };
         setError(err?.response?.data?.error ?? err?.message ?? "Falha ao buscar");
       } finally {
-        isRefresh ? setRefreshing(false) : setLoading(false);
+        if (isRefresh) setRefreshing(false);
+        else setLoading(false);
         busyRef.current = false;
       }
     },
     [bairro, categoria, cidade, geo.cidade, geo.coords, geo.loading, geo.uf, selectedTipo, uf],
   );
-
-  useEffect(() => {
-    let mounted = true;
-    getCatalogoServicos()
-      .then((res) => { if (mounted) setCatalogo(res?.tipos ?? []); })
-      .catch(() => {});
-    return () => { mounted = false; };
-  }, []);
 
   useEffect(() => {
     handleBuscarRef.current = () => handleBuscar();

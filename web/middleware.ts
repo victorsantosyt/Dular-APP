@@ -53,8 +53,23 @@ export async function middleware(req: NextRequest) {
       return redirectToLogin(req);
     }
 
+    // O PAPEL é conferido aqui, e não só nos layouts.
+    //
+    // Antes, o middleware validava apenas a ASSINATURA do token: qualquer JWT
+    // válido — inclusive o de um usuário comum vindo do app — passava por
+    // aqui, e o que barrava era cada layout chamando `requireAdminSession`.
+    // Isso é opt-in: um grupo de rotas novo sob /admin que esquecesse o
+    // helper nasceria aberto. (`admin/layout.tsx` é neutro de propósito, e
+    // `design-system/layout.tsx` já repetia a checagem à mão em vez de usar
+    // o helper — o padrão não estava sendo seguido nem hoje.)
+    //
+    // Aqui vale para tudo sob /admin, inclusive o que ainda não existe.
+    // Os layouts continuam checando: esta é a primeira linha, não a única.
     try {
-      await jwtVerify(token, getJwtSecretBytes());
+      const { payload } = await jwtVerify(token, getJwtSecretBytes());
+      if (payload.role !== "ADMIN") {
+        return redirectToLogin(req);
+      }
     } catch {
       return redirectToLogin(req);
     }

@@ -12,8 +12,15 @@ const BASE_URL =
   process.env.AUTH_URL ??
   "http://localhost:3000";
 
+// A lista sai do PRÓPRIO catálogo, não copiada à mão: escrita duas vezes, ela
+// divergiu — os planos do montador entraram em `PLANS` e ninguém lembrou deste
+// enum, então todo checkout de montador morria em "Dados inválidos" antes de
+// chegar ao Stripe. Ele via os planos, tocava em Assinar e não ia a lugar
+// nenhum. Derivando das chaves, um plano novo passa a valer sozinho.
+const PLAN_IDS = Object.keys(PLANS) as [PlanId, ...PlanId[]];
+
 const checkoutSchema = z.object({
-  planId: z.enum(["basico_mensal", "pro_mensal", "pro_anual"]).optional(),
+  planId: z.enum(PLAN_IDS).optional(),
   plano: z.enum(["PLUS", "PREMIUM"]).optional(),
 });
 

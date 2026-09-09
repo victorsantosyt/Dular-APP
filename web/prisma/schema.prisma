@@ -216,6 +216,23 @@ model User {
   senhaHash      String?
   role           UserRole?
   status         UserStatus    @default(ATIVO)
+
+  /// Conta de demonstração para a revisão das lojas (App Store / Google Play).
+  ///
+  /// O revisor precisa CRIAR fluxos, não só olhar telas — e hoje dois portões
+  /// o impedem: o KYC depende de aprovação humana, e o endereço precisa estar
+  /// num bairro cadastrado (a operação é de uma cidade só).
+  ///
+  /// Esta flag abre exatamente esses dois portões, e nada além. Não concede
+  /// admin, não pula autenticação, não libera plano pago.
+  ///
+  /// É por USUÁRIO, e não por variável de ambiente, de propósito: uma env
+  /// ligada por engano em produção abriria o KYC de TODO MUNDO — é o que faz
+  /// `AUTO_VERIFY_PROFILES` (lib/autoVerificacao.ts), que existe para E2E e
+  /// não serve para isto. Aqui, o raio de dano é a própria conta.
+  ///
+  /// Nenhuma rota escreve neste campo. Só o seed `prisma/seed-demo.ts`.
+  contaDemo      Boolean       @default(false)
   scoreAtual     Float         @default(500)
   riskScore      Float         @default(0)
   riskTier       SafeScoreTier @default(BRONZE)

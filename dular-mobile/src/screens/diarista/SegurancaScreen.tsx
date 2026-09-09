@@ -67,7 +67,8 @@ export default function SegurancaScreen() {
   const handleSOS = () => {
     Alert.alert(
       "Acionar SOS?",
-      "Isso notificará a equipe Dular e abrirá o WhatsApp de emergência.",
+      "Isso avisa a equipe Dular e abre o WhatsApp de emergência com sua localização.\n\n" +
+        "NÃO aciona polícia, SAMU nem bombeiros. Em perigo imediato, ligue 190, 192 ou 193.",
       [
         { text: "Cancelar", style: "cancel" },
         {
@@ -143,6 +144,19 @@ export default function SegurancaScreen() {
               </Pressable>
             </Animated.View>
             <Text style={s.sosHint}>Toque para acionar emergência</Text>
+          </View>
+
+          {/* O botão se chama SOS e a mensagem enviada diz "EMERGÊNCIA". Sem
+              esta ressalva, alguém em perigo real pode acionar isto e ESPERAR
+              — achando que chamou socorro. Não chamou: isto avisa a Dular, não
+              a polícia nem o SAMU. */}
+          <View style={s.sosAviso}>
+            <AppIcon name="AlertTriangle" size={16} color={colors.danger} strokeWidth={2.3} />
+            <Text style={s.sosAvisoTexto}>
+              O SOS avisa a equipe Dular e abre o WhatsApp de emergência com sua
+              localização. Ele NÃO aciona polícia, SAMU nem bombeiros. Em perigo
+              imediato, ligue 190 (polícia), 192 (SAMU) ou 193 (bombeiros).
+            </Text>
           </View>
         </View>
 
@@ -274,6 +288,22 @@ const s = StyleSheet.create({
     lineHeight: 29,
     fontWeight: "700",
     letterSpacing: 2,
+  },
+  sosAviso: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    marginTop: 14,
+    padding: 12,
+    borderRadius: radius.lg,
+    backgroundColor: colors.dangerSoft,
+  },
+  sosAvisoTexto: {
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: "600",
+    color: colors.danger,
   },
   sosHint: {
     ...typography.caption,

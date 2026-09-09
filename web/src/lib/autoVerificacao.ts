@@ -18,10 +18,23 @@ import {
   type DiaristaProfileForCompleteness,
 } from "@/lib/diaristaProfile";
 import { calcularCompletudeMontador } from "@/lib/montadorProfile";
+import { garantirAutoVerifyForaDeProducao } from "@/lib/autoVerificacaoGuard";
 
 const isDev = process.env.NODE_ENV === "development";
 
+/**
+ * A trava vive em `autoVerificacaoGuard.ts` — um módulo sem import nenhum,
+ * porque `src/instrumentation.ts` também a chama e é compilado para o runtime
+ * Edge, que recusa o Prisma importado aqui embaixo. Reexportada para quem já
+ * a importava deste módulo continuar funcionando.
+ */
+export { garantirAutoVerifyForaDeProducao };
+
 export function isAutoVerifyEnabled(): boolean {
+  // Segunda linha de defesa: o portão principal é o boot
+  // (src/instrumentation.ts), mas nem todo caminho passa por lá — script,
+  // seed e teste importam este módulo direto.
+  garantirAutoVerifyForaDeProducao();
   return process.env.AUTO_VERIFY_PROFILES === "true";
 }
 

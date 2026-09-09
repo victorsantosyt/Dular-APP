@@ -156,6 +156,13 @@ export default function SosFlowScreen() {
               <Text style={st.muted}>
                 Relate o que aconteceu. Nossa equipe vai analisar com prioridade.
               </Text>
+              {/* A tela se chama SOS e fala em prioridade — dá para entender
+                  que socorro está a caminho. Não está: isto abre um chamado
+                  para a Dular analisar, não um chamado de emergência. */}
+              <Text style={st.avisoEmergencia}>
+                Isto abre um chamado para a equipe Dular. NÃO aciona polícia,
+                SAMU nem bombeiros — em perigo imediato, ligue 190, 192 ou 193.
+              </Text>
             </View>
             <View style={st.sosBadge}>
               <SOSIcon size={40} />
@@ -376,6 +383,13 @@ function makeStyles(theme: ProfileTheme) {
     h1: { fontSize: 19, fontWeight: "800", color: colors.ink },
     h2: { fontSize: 16, fontWeight: "800", color: colors.ink },
     dangerText: { color: DANGER, ...typography.bodySm, fontWeight: "700" },
+    avisoEmergencia: {
+      marginTop: 8,
+      fontSize: 12,
+      lineHeight: 17,
+      fontWeight: "700",
+      color: colors.danger,
+    },
     muted: { color: colors.sub, fontSize: 12, fontWeight: "500" },
     label: { fontSize: 15, fontWeight: "800", color: colors.ink, marginTop: 4 },
 

@@ -530,6 +530,43 @@ export async function DELETE(req: Request) {
       );
     }
 
+    // Assinatura viva impede a exclusão, no mesmo espírito do serviço em
+    // aberto: sair no meio deixa uma obrigação pendurada.
+    //
+    // Por que BLOQUEAR em vez de cancelar por nós: assinatura comprada pela
+    // App Store ou pelo Google Play não pode ser cancelada pelo backend —
+    // só o próprio usuário cancela, nas configurações do aparelho. Cancelar
+    // pelo Stripe cobriria um caso e falharia em silêncio nos outros dois,
+    // e o pior desfecho aqui é a pessoa achar que parou de pagar e continuar
+    // sendo cobrada, sem conta para reclamar.
+    //
+    // `provider` vai na resposta para o app dizer ONDE cancelar. O texto fica
+    // no app, não aqui.
+    const assinatura = await prisma.subscription.findUnique({
+      where: { userId: auth.userId },
+      select: { plan: true, status: true, provider: true, expiresAt: true },
+    });
+    const assinaturaViva =
+      assinatura != null &&
+      (assinatura.status === "ACTIVE" || assinatura.status === "TRIAL") &&
+      (!assinatura.expiresAt || assinatura.expiresAt.getTime() > Date.now());
+
+    if (assinaturaViva) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "SUBSCRIPTION_ACTIVE",
+          message: "Cancele sua assinatura antes de excluir a conta.",
+          assinatura: {
+            provider: assinatura.provider,
+            plan: assinatura.plan,
+            expiresAt: assinatura.expiresAt,
+          },
+        },
+        { status: 409 },
+      );
+    }
+
     const resumo = await anonimizarUsuario(auth.userId);
 
     const res = NextResponse.json({

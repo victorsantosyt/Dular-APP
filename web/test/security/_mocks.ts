@@ -28,9 +28,9 @@ export type MockPrisma = {
   chatRoom: { upsert: AnyFn };
   chatMessage: { findMany: AnyFn; updateMany: AnyFn; create: AnyFn };
   notification: { findMany: AnyFn; count: AnyFn; findUnique: AnyFn; update: AnyFn; updateMany: AnyFn };
-  diaristaProfile: { findUnique: AnyFn; upsert: AnyFn };
+  diaristaProfile: { findUnique: AnyFn; upsert: AnyFn; findMany: AnyFn };
   empregadorFavorito: { findMany: AnyFn; upsert: AnyFn; delete: AnyFn };
-  montadorPerfil: { findUnique: AnyFn };
+  montadorPerfil: { findUnique: AnyFn; findMany: AnyFn };
   documentVerification: { findFirst: AnyFn; create: AnyFn };
   subscription: { upsert: AnyFn; updateMany: AnyFn; findUnique: AnyFn };
   creditWallet: { upsert: AnyFn };
@@ -38,8 +38,8 @@ export type MockPrisma = {
   auditLog: { create: AnyFn };
   featureLimit: { findUnique: AnyFn };
   userRestriction: { findMany: AnyFn };
-  safeScoreProfile: { findUnique: AnyFn };
-  safeScore: { findUnique: AnyFn };
+  safeScoreProfile: { findUnique: AnyFn; findMany: AnyFn };
+  safeScore: { findUnique: AnyFn; findMany: AnyFn };
   bairro: { findUnique: AnyFn };
   diaristaBairro: { findFirst: AnyFn };
   $queryRaw: AnyFn;
@@ -99,6 +99,7 @@ export function createMockPrisma(): MockPrisma {
     },
     diaristaProfile: {
       findUnique: notMocked("diaristaProfile.findUnique"),
+      findMany: notMocked("diaristaProfile.findMany"),
       upsert: notMocked("diaristaProfile.upsert"),
     },
     empregadorFavorito: {
@@ -108,6 +109,7 @@ export function createMockPrisma(): MockPrisma {
     },
     montadorPerfil: {
       findUnique: notMocked("montadorPerfil.findUnique"),
+      findMany: notMocked("montadorPerfil.findMany"),
     },
     documentVerification: {
       findFirst: notMocked("documentVerification.findFirst"),
@@ -123,8 +125,14 @@ export function createMockPrisma(): MockPrisma {
     auditLog: { create: notMocked("auditLog.create") },
     featureLimit: { findUnique: notMocked("featureLimit.findUnique") },
     userRestriction: { findMany: notMocked("userRestriction.findMany") },
-    safeScoreProfile: { findUnique: notMocked("safeScoreProfile.findUnique") },
-    safeScore: { findUnique: notMocked("safeScore.findUnique") },
+    safeScoreProfile: {
+      findUnique: notMocked("safeScoreProfile.findUnique"),
+      findMany: notMocked("safeScoreProfile.findMany"),
+    },
+    safeScore: {
+      findUnique: notMocked("safeScore.findUnique"),
+      findMany: notMocked("safeScore.findMany"),
+    },
     bairro: { findUnique: notMocked("bairro.findUnique") },
     diaristaBairro: { findFirst: notMocked("diaristaBairro.findFirst") },
     $queryRaw: notMocked("$queryRaw"),

@@ -74,6 +74,7 @@ import {
   Droplets,
   Hammer,
   Phone,
+  Trash2,
 } from "lucide-react-native";
 import { colors, gradients } from "@/theme";
 
@@ -150,6 +151,7 @@ const ICONS = {
   ChefHat,
   Droplets,
   Hammer,
+  Trash2,
 } as const;
 
 type IconTone =

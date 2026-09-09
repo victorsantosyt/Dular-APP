@@ -99,7 +99,12 @@ export function MontadorHome() {
     try {
       setSosLoading(true);
       await acionarSosMontador(servicoId);
-      Alert.alert("SOS acionado", "A equipe de segurança foi notificada.");
+      Alert.alert(
+        "SOS acionado",
+        // O botão promete socorro; sem esta ressalva alguém em perigo pode
+        // acionar e ESPERAR, achando que chamou a polícia.
+        "A equipe de segurança foi notificada.\n\nIsto NÃO aciona polícia, SAMU nem bombeiros. Em perigo imediato, ligue 190, 192 ou 193.",
+      );
     } catch {
       Alert.alert("Falha ao acionar SOS", "Não foi possível registrar o SOS no momento.");
     } finally {

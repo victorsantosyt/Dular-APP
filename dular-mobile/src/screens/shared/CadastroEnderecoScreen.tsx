@@ -89,6 +89,10 @@ export function CadastroEnderecoScreen({ role, mode = "onboarding", initial, onD
   // salvo assim mesmo e TODA solicitação depois falhava com "Bairro não
   // cadastrado.", sem o usuário saber por quê.
   const [bairrosCatalogo, setBairrosCatalogo] = useState<string[] | null>(null);
+  /** A consulta ao catálogo falhou (rede). Diferente de "cidade sem bairros". */
+  const [catalogoFalhou, setCatalogoFalhou] = useState(false);
+  /** Incrementado pelo "tentar novamente" para refazer a consulta. */
+  const [tentativaCatalogo, setTentativaCatalogo] = useState(0);
   const [saving, setSaving] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
@@ -115,24 +119,35 @@ export function CadastroEnderecoScreen({ role, mode = "onboarding", initial, onD
       return;
     }
     let alive = true;
+    setCatalogoFalhou(false);
     fetchBairrosDaCidade(c, u)
       .then((lista) => {
-        if (alive) setBairrosCatalogo(lista.length > 0 ? lista : null);
+        if (!alive) return;
+        setBairrosCatalogo(lista);
+        // Lista vazia = cidade fora da operação. Não é "sem informação": é
+        // informação de que não atendemos ali.
       })
       .catch(() => {
-        // Sem catálogo (rede ou cidade fora da operação) não validamos nada —
-        // o backend segue como fonte da verdade.
-        if (alive) setBairrosCatalogo(null);
+        // FALHA FECHADA. Antes isto deixava passar qualquer bairro: sem
+        // catálogo, `bairrosCatalogo === null` valia como "reconhecido". O
+        // backend segurava depois, então o endereço era salvo e TODA
+        // solicitação falhava com "Bairro não cadastrado", sem a pessoa
+        // entender por quê. Não saber se atendemos não é o mesmo que atender.
+        if (!alive) return;
+        setBairrosCatalogo(null);
+        setCatalogoFalhou(true);
       });
     return () => {
       alive = false;
     };
-  }, [cidade, uf]);
+  }, [cidade, uf, tentativaCatalogo]);
 
   const bairroReconhecido =
-    bairrosCatalogo === null ||
-    !bairro.trim() ||
-    bairrosCatalogo.some((n) => normalizarBairro(n) === normalizarBairro(bairro));
+    // Sem cidade/UF ainda não há o que validar — não é falha, é formulário
+    // pela metade.
+    bairrosCatalogo === null
+      ? !catalogoFalhou
+      : !bairro.trim() || bairrosCatalogo.some((n) => normalizarBairro(n) === normalizarBairro(bairro));
 
   const onCepChange = (raw: string) => {
     const masked = maskCep(raw);
@@ -166,6 +181,12 @@ export function CadastroEnderecoScreen({ role, mode = "onboarding", initial, onD
       uf.trim().length !== 2
     ) {
       setErro("Preencha CEP, rua, número, bairro, cidade e UF (2 letras).");
+      return;
+    }
+    if (catalogoFalhou) {
+      setErro(
+        "Não foi possível conferir os bairros atendidos agora. Verifique sua conexão e toque em tentar novamente.",
+      );
       return;
     }
     if (!bairroReconhecido) {
@@ -316,6 +337,24 @@ export function CadastroEnderecoScreen({ role, mode = "onboarding", initial, onD
 
           <Text style={s.fieldLabel}>Bairro</Text>
           <DInput placeholder="Bairro" value={bairro} onChangeText={setBairro} />
+          {catalogoFalhou ? (
+            /* Falha ao carregar o catálogo BLOQUEIA em vez de deixar passar.
+               Antes seguia em silêncio e o endereço era salvo num bairro que o
+               backend recusa depois — a pessoa só descobria ao tentar
+               solicitar, sem pista do motivo. */
+            <View style={s.catalogoAviso}>
+              <Text style={s.hintError}>
+                Não foi possível conferir os bairros atendidos. Verifique sua conexão.
+              </Text>
+              <Pressable
+                onPress={() => setTentativaCatalogo((n) => n + 1)}
+                hitSlop={8}
+                accessibilityRole="button"
+              >
+                <Text style={[s.hintError, s.tentarNovamente]}>Tentar novamente</Text>
+              </Pressable>
+            </View>
+          ) : null}
           {!bairroReconhecido && bairrosCatalogo ? (
             <View style={s.bairroAviso}>
               <Text style={s.bairroAvisoTexto}>
@@ -426,6 +465,8 @@ function makeStyles(colors: ReturnType<typeof useDularColors>) {
     formTitle: { ...typography.bodyMedium, color: colors.textPrimary, fontWeight: "800", marginBottom: spacing.sm },
     fieldLabel: { ...typography.caption, color: colors.textSecondary, fontWeight: "700", marginTop: 10, marginBottom: 4 },
     hint: { ...typography.caption, color: colors.textMuted, marginTop: 4 },
+    catalogoAviso: { gap: 4, marginTop: 4 },
+    tentarNovamente: { textDecorationLine: "underline", fontWeight: "700" },
     hintError: { ...typography.caption, color: colors.danger, fontWeight: "600", marginTop: 6 },
     row: { flexDirection: "row", gap: spacing.sm },
     flexCidade: { flex: 1 },

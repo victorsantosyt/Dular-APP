@@ -41,6 +41,22 @@ export async function GET(req: Request) {
     const now = new Date();
     const montadores = await prisma.montadorPerfil.findMany({
       where: {
+        // Verificação no WHERE, não no `.filter()` abaixo. Dois motivos:
+        //
+        // 1. O `.filter()` roda DEPOIS do `take: 300`. Passando de 300
+        //    montadores, os não verificados consumiriam slots do limite e
+        //    esconderiam verificados — ninguém indevido aparecia, mas gente
+        //    devida sumia.
+        // 2. Filtro pós-query não se lê no `where`. Uma auditoria deste
+        //    projeto concluiu que a busca de montadores NÃO filtrava
+        //    verificação, justamente por olhar só aqui. O filtro existia,
+        //    doze linhas abaixo. Regra que só se enxerga lendo o arquivo
+        //    inteiro é regra que alguém vai contradizer.
+        //
+        // A conta de demonstração da revisão das lojas passa sem verificação
+        // (ver lib/contaDemo.ts) — é o mesmo bypass já aplicado na busca de
+        // diaristas, e sem ele o revisor não avalia o perfil montador.
+        OR: [{ verificado: true }, { user: { is: { contaDemo: true } } }],
         user: {
           is: {
             restrictions: {
@@ -161,8 +177,9 @@ export async function GET(req: Request) {
       .filter((montador) => {
         if (montador._diagnostico.ativo) totalAtivos += 1;
         if (!montador._diagnostico.ativo) return false;
-        // T-18.6: Guardian exige verificado=true para aparecer na busca.
-        if (!montador._diagnostico.verificado) return false;
+        // A verificação subiu para o `where` (ver comentário na query). O
+        // `_diagnostico.verificado` continua no payload porque a tela de
+        // diagnóstico do admin o consome.
         if (montador._diagnostico.completo) totalCompletos += 1;
         if (!montador._diagnostico.completo) return false;
         if (montador._diagnostico.localizacao) totalLocalizacao += 1;

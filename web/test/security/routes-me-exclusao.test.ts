@@ -95,9 +95,58 @@ describe("DELETE /api/me — exclusão de conta (LGPD)", () => {
     assert.equal(body.servicosEmAberto, 1);
   });
 
+  it("bloqueia com assinatura viva e informa o provedor", async () => {
+    // Cancelar não resolveria: assinatura de loja (Apple/Google) só o dono do
+    // aparelho cancela, e o backend não tem permissão. Excluir a conta sem
+    // isso deixaria a pessoa sendo cobrada, sem conta para reclamar.
+    mockPrisma.servico.count = async () => 0;
+    mockPrisma.subscription.findUnique = async () => ({
+      plan: "PREMIUM",
+      status: "ACTIVE",
+      provider: "APPLE",
+      expiresAt: new Date(Date.now() + 20 * 24 * 60 * 60 * 1000),
+    });
+
+    const DELETE = await getHandler();
+    const res = await DELETE(deleteRequest({ confirmacao: CONFIRMACAO }));
+    const body = await res.json();
+
+    assert.equal(res.status, 409);
+    assert.equal(body.error, "SUBSCRIPTION_ACTIVE");
+    // O app monta o texto a partir daqui: onde cancelar muda por provedor.
+    assert.equal(body.assinatura.provider, "APPLE");
+  });
+
+  it("NÃO bloqueia com assinatura vencida ou cancelada", async () => {
+    mockPrisma.servico.count = async () => 0;
+    mockPrisma.user.findUnique = async () => ({
+      id: USER_ID,
+      status: "ATIVO",
+      diaristaProfile: null,
+      documentVerifications: [],
+    });
+    mockPrisma.user.update = async () => ({ id: USER_ID });
+    stubTabelasDaExclusao({});
+    // ACTIVE no papel, mas o prazo passou — o gate de plano já a trata como
+    // FREE, e aqui ela também não pode prender a conta.
+    mockPrisma.subscription.findUnique = async () => ({
+      plan: "PREMIUM",
+      status: "ACTIVE",
+      provider: "STRIPE",
+      expiresAt: new Date(Date.now() - 24 * 60 * 60 * 1000),
+    });
+
+    const DELETE = await getHandler();
+    const res = await DELETE(deleteRequest({ confirmacao: CONFIRMACAO }));
+
+    assert.equal(res.status, 200, "assinatura vencida não impede a exclusão");
+  });
+
   it("anonimiza o titular, limpa o endereço do serviço preservado e encerra a sessão", async () => {
     const registro: Record<string, unknown> = {};
     mockPrisma.servico.count = async () => 0;
+    // Sem assinatura: é o caso da esmagadora maioria das contas.
+    mockPrisma.subscription.findUnique = async () => null;
     mockPrisma.user.findUnique = async () => ({
       id: USER_ID,
       status: "ATIVO",

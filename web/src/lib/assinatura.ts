@@ -73,14 +73,8 @@ export async function encerrarAssinatura(
   externalId: string,
   motivo: "cancelada" | "nao_paga",
 ) {
-  const assinatura = await prisma.subscription.findFirst({
+  return prisma.subscription.updateMany({
     where: { provider, externalId },
-    select: { id: true, expiresAt: true },
-  });
-  if (!assinatura) return null;
-
-  return prisma.subscription.update({
-    where: { id: assinatura.id },
     data: {
       status: motivo === "nao_paga" ? "EXPIRED" : "CANCELED",
       canceledAt: new Date(),
@@ -90,9 +84,33 @@ export async function encerrarAssinatura(
   });
 }
 
-/** Plano do catálogo a partir do que o Stripe guardou nos metadados. */
+/**
+ * Plano do catálogo a partir do que o Stripe guardou nos metadados.
+ *
+ * `planId` é o caminho certo — só ele diz o intervalo, e é o que separa o
+ * mensal do anual. Mas quem PAGOU não pode ficar sem plano porque um metadado
+ * faltou: uma sessão criada antes desta versão, ou um evento reprocessado com
+ * payload antigo, ainda traz o `subscriptionPlan` (BASIC/PREMIUM). Nesse caso
+ * caímos no mensal daquele nível — que é exatamente o que o código fazia antes
+ * — em vez de recusar a concessão.
+ */
 export function planoDosMetadados(metadata: Record<string, string> | null | undefined) {
   const planId = metadata?.planId;
   if (planId && planId in PLANS) return PLANS[planId as keyof typeof PLANS];
+
+  const nivel = metadata?.subscriptionPlan;
+  if (nivel === "BASIC" || nivel === "PREMIUM") {
+    const reserva = Object.values(PLANS).find(
+      (p) => p.plan === nivel && p.interval === "month",
+    );
+    if (reserva) {
+      console.warn(
+        "[assinatura] sessão sem planId; usando o mensal de",
+        nivel,
+        "como reserva.",
+      );
+      return reserva;
+    }
+  }
   return null;
 }

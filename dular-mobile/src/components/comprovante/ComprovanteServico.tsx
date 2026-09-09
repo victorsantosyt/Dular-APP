@@ -30,9 +30,9 @@ export type PerspectivaComprovante = "contratante" | "profissional";
  *  antigos podem não ter parte destes campos. */
 type Detalhe = {
   eventos?: { createdAt: string }[];
-  cliente?: { nome?: string | null; telefone?: string | null } | null;
-  diarista?: { nome?: string | null; telefone?: string | null } | null;
-  montador?: { nome?: string | null; telefone?: string | null } | null;
+  cliente?: { nome?: string | null; telefone?: string | null; avatarUrl?: string | null } | null;
+  diarista?: { nome?: string | null; telefone?: string | null; avatarUrl?: string | null } | null;
+  montador?: { nome?: string | null; telefone?: string | null; avatarUrl?: string | null } | null;
   enderecoCompleto?: string | null;
   observacoes?: string | null;
   temPet?: boolean;
@@ -237,6 +237,11 @@ export function useComprovante(
     detalhe?.diarista?.nome?.trim() || detalhe?.montador?.nome?.trim() || null;
   const telProfissional = detalhe?.diarista?.telefone || detalhe?.montador?.telefone || null;
   const nomeContratante = detalhe?.cliente?.nome?.trim() || null;
+  // Cada avatar vem do SEU lado do detalhe. A tela passava um só, e a do
+  // montador mandava o do empregador — que era desenhado ao lado de
+  // "Profissional", ou seja, a foto errada com o nome certo.
+  const avatarProfissional = detalhe?.diarista?.avatarUrl || detalhe?.montador?.avatarUrl || null;
+  const avatarContratante = detalhe?.cliente?.avatarUrl || null;
 
   // Sem evento de finalização registrado, admite que não sabe em vez de
   // escrever "Não finalizado" ao lado de um selo "Finalizado".
@@ -338,7 +343,10 @@ export function useComprovante(
       viaPix: !!recebimento,
       tituloPagamento,
       emitidoEm,
+      avatarProfissional,
+      avatarContratante,
       iniciais: (nomeProfissional ?? "?").slice(0, 2).toUpperCase(),
+      iniciaisContratante: (nomeContratante ?? "?").slice(0, 2).toUpperCase(),
     },
   };
 }
@@ -400,7 +408,10 @@ export function ComprovanteServico({ comprovante, servico, theme, avatarUrl, onA
     viaPix,
     tituloPagamento,
     emitidoEm,
+    avatarProfissional,
+    avatarContratante,
     iniciais,
+    iniciaisContratante,
   } = dados;
 
   return (
@@ -445,7 +456,7 @@ export function ComprovanteServico({ comprovante, servico, theme, avatarUrl, onA
       <View style={s.card}>
         <Text style={s.sectionLabel}>Partes</Text>
         <View style={s.parteRow}>
-          <DAvatar size="md" uri={avatarUrl ?? undefined} initials={iniciais} />
+          <DAvatar size="md" uri={avatarProfissional ?? avatarUrl ?? undefined} initials={iniciais} />
           <View style={{ flex: 1, gap: 2 }}>
             <Text style={s.parteFuncao}>Profissional</Text>
             <Text style={s.parteNome}>{nomeProfissional ?? "Aguardando profissional"}</Text>
@@ -455,12 +466,17 @@ export function ComprovanteServico({ comprovante, servico, theme, avatarUrl, onA
         {nomeContratante ? (
           <>
             <View style={s.divider} />
-            <View style={{ gap: 2 }}>
-              <Text style={s.parteFuncao}>Contratante</Text>
-              <Text style={s.parteNome}>{nomeContratante}</Text>
-              {detalhe?.cliente?.telefone ? (
-                <Text style={s.parteSub}>{detalhe.cliente.telefone}</Text>
-              ) : null}
+            {/* Mesma linha do profissional: as duas partes têm o mesmo peso
+                num comprovante, e só uma tinha rosto. */}
+            <View style={s.parteRow}>
+              <DAvatar size="md" uri={avatarContratante ?? undefined} initials={iniciaisContratante} />
+              <View style={{ flex: 1, gap: 2 }}>
+                <Text style={s.parteFuncao}>Contratante</Text>
+                <Text style={s.parteNome}>{nomeContratante}</Text>
+                {detalhe?.cliente?.telefone ? (
+                  <Text style={s.parteSub}>{detalhe.cliente.telefone}</Text>
+                ) : null}
+              </View>
             </View>
           </>
         ) : null}

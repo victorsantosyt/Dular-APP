@@ -197,7 +197,6 @@ export default function MontadorDetalheServico({ route, navigation }: Props) {
               comprovante={comprovante}
               servico={servico as never}
               theme={profileTheme}
-              avatarUrl={servico.empregador?.avatarUrl}
               onAviso={(t) => Alert.alert("Comprovante", t)}
             />
           ) : (

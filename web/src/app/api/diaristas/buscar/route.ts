@@ -161,13 +161,20 @@ export async function GET(req: Request) {
     const diaristasRaw = await prisma.diaristaProfile.findMany({
       where: {
         ativo: true,
-        // KYC aprovado OU conta de demonstração da revisão das lojas. O
-        // revisor precisa encontrar alguém para contratar, e a aprovação de
-        // documento é humana — ele mandaria o documento e ficaria esperando.
-        // Ver lib/contaDemo.ts. A flag é por usuário e só o seed a grava.
-        OR: [{ verificacao: "VERIFICADO" }, { user: { is: { contaDemo: true } } }],
         ...(servico ? { servicosOferecidos: { has: servico } } : {}),
-        ...(filtroTipo.length ? { OR: filtroTipo } : {}),
+        // Os dois OR ficam dentro de um AND, e NÃO como duas chaves `OR` no
+        // mesmo objeto: em JavaScript a segunda sobrescreve a primeira. Era o
+        // que acontecia — com `?tipo=` na busca, o OR do tipo apagava o da
+        // verificação e diarista NÃO VERIFICADA aparecia. Comprovado chamando
+        // a API: sem `tipo` ela sumia, com `tipo=FAXINA` ela voltava.
+        AND: [
+          // KYC aprovado OU conta de demonstração da revisão das lojas. O
+          // revisor precisa encontrar alguém para contratar, e a aprovação de
+          // documento é humana — ele mandaria o documento e ficaria esperando.
+          // Ver lib/contaDemo.ts. A flag é por usuário e só o seed a grava.
+          { OR: [{ verificacao: "VERIFICADO" }, { user: { is: { contaDemo: true } } }] },
+          ...(filtroTipo.length ? [{ OR: filtroTipo }] : []),
+        ],
         user: {
           is: {
             status: "ATIVO",

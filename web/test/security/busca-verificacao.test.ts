@@ -69,6 +69,66 @@ describe("busca de profissionais — verificação filtra no where", () => {
   });
 });
 
+describe("busca de diaristas — o filtro de verificação sobrevive ao filtro de tipo", () => {
+  beforeEach(() => resetMockPrisma());
+
+  /**
+   * Regressão de um bug real: o `where` tinha DUAS chaves `OR` no mesmo
+   * objeto — a da verificação e a do filtro de tipo. Em JavaScript a segunda
+   * sobrescreve a primeira, então buscar com `?tipo=` apagava a verificação e
+   * diarista NÃO VERIFICADA aparecia. Comprovado chamando a API antes da
+   * correção; este teste existe para não voltar.
+   */
+  function capturarWhereDiaristas() {
+    let capturado: Record<string, any> | null = null;
+    mockPrisma.diaristaProfile.findMany = async (args: any) => {
+      capturado = args?.where ?? null;
+      return [];
+    };
+    return () => capturado;
+  }
+
+  function temFiltroDeVerificacao(where: Record<string, any> | null): boolean {
+    const ands = (where?.AND ?? []) as Record<string, any>[];
+    return ands.some((clausula) =>
+      ((clausula.OR ?? []) as Record<string, any>[]).some(
+        (c) => c.verificacao === "VERIFICADO",
+      ),
+    );
+  }
+
+  it("sem filtro de tipo, a verificação está no where", async () => {
+    const where = capturarWhereDiaristas();
+    mockPrisma.safeScoreProfile.findMany = async () => [];
+    mockPrisma.safeScore.findMany = async () => [];
+
+    const mod = await import("../../src/app/api/diaristas/buscar/route");
+    await mod.GET(new Request("http://test/api/diaristas/buscar?cidade=Agua%20Boa&uf=MT"));
+
+    assert.ok(temFiltroDeVerificacao(where()), "verificação tem que filtrar");
+  });
+
+  it("COM filtro de tipo, a verificação CONTINUA no where", async () => {
+    const where = capturarWhereDiaristas();
+    mockPrisma.safeScoreProfile.findMany = async () => [];
+    mockPrisma.safeScore.findMany = async () => [];
+
+    const mod = await import("../../src/app/api/diaristas/buscar/route");
+    await mod.GET(
+      new Request("http://test/api/diaristas/buscar?cidade=Agua%20Boa&uf=MT&tipo=FAXINA"),
+    );
+
+    const w = where();
+    assert.ok(
+      temFiltroDeVerificacao(w),
+      "o filtro de tipo não pode apagar o de verificação",
+    );
+    // E o filtro de tipo continua valendo — a correção não pode ter comido ele.
+    const ands = (w?.AND ?? []) as Record<string, any>[];
+    assert.equal(ands.length, 2, "os dois filtros convivem dentro do AND");
+  });
+});
+
 describe("AUTO_VERIFY_PROFILES — não pode existir caminho de verificação em massa", () => {
   const ORIGINAL = { ...process.env };
 

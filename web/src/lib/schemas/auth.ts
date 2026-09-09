@@ -1,11 +1,8 @@
 import { z } from "zod";
 
-export const registerSchema = z.object({
-  nome: z.string().min(2),
-  telefone: z.string().min(10),
-  senha: z.string().min(6),
-  role: z.enum(["EMPREGADOR", "DIARISTA", "MONTADOR"]),
-});
+// Não há `registerSchema`: o cadastro por telefone+senha foi removido.
+// O app entra por OAuth (Google/Apple) e a única conta com senha é a de
+// ADMIN, criada por outro ADMIN em /api/admin/admins/create.
 
 export const loginSchema = z.object({
   login: z.string().min(4), // email ou telefone

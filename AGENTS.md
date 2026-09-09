@@ -209,3 +209,56 @@ some do app publicado". Não somia.
 Verificar por MEDIÇÃO do bundle, nunca por leitura do código. Sempre com
 controle positivo: uma string que você sabe que está no app publicado, para
 provar que a busca acharia se estivesse lá.
+
+## contaDemo nunca concede benefício econômico
+
+**Ela ignora apenas gates de verificação (KYC) e restrição geográfica.** Não
+libera plano pago, não pula paywall, não concede crédito, não altera limites
+de uso.
+
+Se o revisor da loja precisar testar a experiência de assinante, isso é feito
+pelo **ambiente sandbox da própria loja** (Apple Sandbox / Google License
+Testing), nunca por flag no banco.
+
+O motivo é que uma flag que libera plano é indistinguível de um plano de
+graça: quem a receber por engano deixa de pagar sem que nada apareça no
+faturamento, e não há relatório que mostre a diferença. O sandbox das lojas
+existe exatamente para isso e mantém a assinatura sendo uma assinatura.
+
+Há teste travando isso (`web/test/security/contaDemo-sem-beneficio-economico.test.ts`):
+o gate de plano devolve o mesmo resultado com e sem a flag, nenhum módulo de
+cobrança menciona `contaDemo`, e a lista de arquivos que a leem é fechada — um
+arquivo novo quebra o teste até alguém declarar que aquele uso é legítimo.
+
+## Negação e NULL: a direção é que decide
+
+`role != 'ADMIN'` **não** devolve as linhas com `role IS NULL`. No SQL a
+comparação com NULL não é verdadeira nem falsa — é desconhecida, e a linha
+fica de fora. Vale para `not:` e `notIn:` do Prisma e para `WHERE ... <> ...`.
+
+O erro não é usar negação sobre campo anulável. É usar negação sem perguntar
+**o que acontece com a linha que ficou de fora**:
+
+- **Portão de permissão** (`if (role !== "ADMIN") return 403`): em JavaScript
+  `null !== "ADMIN"` é `true`, então NULL **recusa**. Falha fechado. É o
+  comportamento certo, e é o caso da maioria do código.
+- **Varredura ou limpeza** (`updateMany({ where: { role: { not: "ADMIN" } } })`):
+  a linha com NULL **não é tocada**. Falha aberto — a credencial que se queria
+  apagar continua lá, e o log diz que a limpeza terminou bem.
+
+Nos dois casos o código parece exaustivo. A diferença é se ficar de fora
+significa "negado" ou "esquecido".
+
+Quando o campo é anulável e a linha com NULL importa, dizer isso em voz alta:
+
+```ts
+OR: [{ role: { not: "ADMIN" } }, { role: null }]
+```
+
+Foi assim que o `limpar-senhas-nao-admin.ts` acabou escrito, e é o mesmo
+padrão que o filtro de restrições da busca já usava:
+`revokedAt: null` mais `OR: [{ expiresAt: null }, { expiresAt: { gt: agora } }]`.
+
+Varredura feita em 09/09/2026: as 5 negações de Prisma em `web/src` são todas
+sobre coluna `NOT NULL`, e as comparações `!==` de papel guardam recusa. Nada
+a corrigir — o que não dispensa a pergunta na próxima.

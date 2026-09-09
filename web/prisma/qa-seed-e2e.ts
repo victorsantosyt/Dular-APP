@@ -12,7 +12,6 @@ import "dotenv/config";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import pg from "pg";
-import { hashPassword } from "../src/lib/password";
 import {
   getDiaristaProfileCompleteness,
   type DiaristaProfileForCompleteness,
@@ -50,13 +49,11 @@ const QA_CIDADE = "Iporá";
 const QA_ESTADO = "GO";
 const QA_BAIRRO = "Centro";
 
-const QA_SENHA = "qaqa1234";
 
 // ============================================================================
 // MAIN
 // ============================================================================
 async function main() {
-  const senhaHash = await hashPassword(QA_SENHA);
 
   // --------------------------------------------------------------------------
   // 1) Empregador QA
@@ -65,15 +62,16 @@ async function main() {
     where: { email: QA_EMAIL_EMPREGADOR },
     update: {
       nome: "[QA] Empregador E2E",
+      senhaHash: null,
       role: "EMPREGADOR",
       status: "ATIVO",
     },
     create: {
       email: QA_EMAIL_EMPREGADOR,
       nome: "[QA] Empregador E2E",
+      senhaHash: null,
       role: "EMPREGADOR",
       status: "ATIVO",
-      senhaHash,
     },
   });
 
@@ -99,15 +97,16 @@ async function main() {
     where: { email: QA_EMAIL_MONTADOR },
     update: {
       nome: "[QA] Montador E2E",
+      senhaHash: null,
       role: "MONTADOR",
       status: "ATIVO",
     },
     create: {
       email: QA_EMAIL_MONTADOR,
       nome: "[QA] Montador E2E",
+      senhaHash: null,
       role: "MONTADOR",
       status: "ATIVO",
-      senhaHash,
     },
   });
 
@@ -155,7 +154,6 @@ async function main() {
       nome: "[QA] Profissional Casa E2E",
       role: "DIARISTA",
       status: "ATIVO",
-      senhaHash,
     },
   });
 
@@ -291,7 +289,7 @@ async function main() {
 
   console.log("\nRegião QA:", QA_CIDADE, "/", QA_ESTADO);
   console.log("Bairro de referência:", QA_BAIRRO);
-  console.log("Senha QA (todos os 3 usuários):", QA_SENHA);
+  console.log("Sem senha: as contas QA entram por OAuth, como qualquer usuário.");
   console.log(
     "\nComando para rodar novamente (idempotente):",
   );

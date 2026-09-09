@@ -14,6 +14,7 @@
     "test:security": "JWT_SECRET=test_only_do_not_use_in_prod DATABASE_URL=postgresql://test:test@localhost:5432/test STRIPE_SECRET_KEY=sk_test_dummy_do_not_use NODE_ENV=test LOG_LEVEL=silent node --import tsx --test test/security/*.test.ts",
     "check:partial-index": "node scripts/check-partial-index.mjs",
     "demo:marcar": "tsx prisma/marcar-contas-demo.ts",
+    "senhas:limpar": "tsx prisma/limpar-senhas-nao-admin.ts",
     "check:dupe-keys": "node scripts/check-dupe-keys.mjs"
   },
   "dependencies": {

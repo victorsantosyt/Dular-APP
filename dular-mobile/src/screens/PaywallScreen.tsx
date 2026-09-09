@@ -4,7 +4,6 @@ import {
   ActivityIndicator,
   Alert,
   Animated,
-  Linking,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -17,6 +16,11 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
 
 import { api } from "@/lib/api";
+import {
+  abrirCheckout,
+  comprarPlano,
+  type CaminhoDePagamento,
+} from "@/lib/compraDePlano";
 import { AppIcon, type AppIconName } from "@/components/ui";
 import { colors, radius, spacing, typography } from "@/theme/tokens";
 import { useGenderTheme } from "@/hooks/useProfileTheme";
@@ -35,6 +39,8 @@ type PlanoApi = {
   interval: string | null;
   priceInCents: number;
   plan: "BASIC" | "PREMIUM";
+  /** Id do produto nas lojas. Sem ele a compra in-app não sabe o que comprar. */
+  storeProductId?: string | null;
 };
 
 /** Benefícios são texto de marketing e não estão no catálogo do backend.
@@ -418,6 +424,7 @@ export default function PaywallScreen({ onClose }: Props) {
   const [uso, setUso] = useState<{ used: number; limit: number | null } | null>(null);
 
   const [planosApi, setPlanosApi] = useState<PlanoApi[] | null>(null);
+  const [pagamento, setPagamento] = useState<CaminhoDePagamento | null>(null);
   // Distingue "a busca falhou" de "não existe plano para este papel": hoje o
   // catálogo só tem planos de DIARISTA, então o montador cai no segundo caso
   // e dizer "não foi possível carregar" seria mentira.
@@ -455,8 +462,12 @@ export default function PaywallScreen({ onClose }: Props) {
   useEffect(() => {
     let vivo = true;
     api
-      .get<{ plans: PlanoApi[] }>("/api/billing/plans")
-      .then((res) => vivo && setPlanosApi(res.data?.plans ?? []))
+      .get<{ plans: PlanoApi[]; pagamento?: CaminhoDePagamento }>("/api/billing/plans")
+      .then((res) => {
+        if (!vivo) return;
+        setPlanosApi(res.data?.plans ?? []);
+        setPagamento(res.data?.pagamento ?? null);
+      })
       // Sem catálogo não há preço confiável: melhor lista vazia do que um
       // valor diferente do que o Stripe vai cobrar.
       .catch(() => {
@@ -488,18 +499,22 @@ export default function PaywallScreen({ onClose }: Props) {
     if (!planoEscolhido) return;
     setAssinando(true);
     try {
-      // `planId` em vez do nome legado (PLUS/PREMIUM): é o que alcança o
-      // plano anual, que o mapeamento legado não resolve.
-      const res = await api.post<{ url: string }>("/api/billing/checkout", {
-        planId: planoEscolhido.id,
-      });
-      await Linking.openURL(res.data.url);
-    } catch {
-      Alert.alert("Erro", "Não foi possível iniciar o checkout. Tente novamente.");
+      // Loja ou Stripe — quem decide é o servidor, em `pagamento`. Enquanto os
+      // produtos não existirem nas lojas, cai no checkout do Stripe, que é o
+      // que já funcionava.
+      const r = await comprarPlano(planoEscolhido, pagamento);
+      if (r.via === "stripe") await abrirCheckout(r.url);
+      else setPlanoAtual(r.plano);
+    } catch (e) {
+      const msg =
+        e instanceof Error && e.message === "IAP_INDISPONIVEL"
+          ? "A compra pela loja ainda não está disponível nesta versão do app."
+          : "Não foi possível iniciar a assinatura. Tente novamente.";
+      Alert.alert("Erro", msg);
     } finally {
       setAssinando(false);
     }
-  }, [planoEscolhido]);
+  }, [planoEscolhido, pagamento]);
 
   return (
     <View style={[s.root, { paddingTop: insets.top + spacing.md, paddingBottom: insets.bottom + spacing.md }]}>

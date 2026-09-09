@@ -18,7 +18,7 @@ export async function checkFeatureAccess(
   const [subscription, user] = await Promise.all([
     prisma.subscription.findUnique({
       where: { userId },
-      select: { plan: true, status: true },
+      select: { plan: true, status: true, expiresAt: true },
     }),
     prisma.user.findUnique({
       where: { id: userId },
@@ -26,10 +26,21 @@ export async function checkFeatureAccess(
     }),
   ]);
 
-  // ACTIVE e TRIAL são planos válidos; CANCELED/EXPIRED caem para FREE
-  const isActive =
+  // ACTIVE e TRIAL são planos válidos; CANCELED/EXPIRED caem para FREE.
+  //
+  // A validade também conta, e essa era a rede que faltava: o status só muda
+  // quando chega o aviso de cancelamento da loja ou do Stripe. Se esse aviso se
+  // perder — endpoint fora do ar, assinatura inválida, notificação não
+  // reenviada —, a assinatura ficava ACTIVE para sempre e a pessoa mantinha
+  // acesso ilimitado sem pagar, sem nada no sistema para desfazer isso.
+  //
+  // `expiresAt` nulo = sem prazo conhecido (é o caso de quem foi promovido na
+  // mão pelo admin); aí vale o status, como antes.
+  const statusValido =
     subscription?.status === "ACTIVE" || subscription?.status === "TRIAL";
-  const plan = isActive && subscription ? subscription.plan : "FREE";
+  const dentroDoPrazo =
+    !subscription?.expiresAt || subscription.expiresAt.getTime() > Date.now();
+  const plan = subscription && statusValido && dentroDoPrazo ? subscription.plan : "FREE";
 
   // 2. Limite definido para esse plano + feature
   const featureLimit = await prisma.featureLimit.findUnique({

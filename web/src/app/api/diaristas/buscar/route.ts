@@ -161,7 +161,11 @@ export async function GET(req: Request) {
     const diaristasRaw = await prisma.diaristaProfile.findMany({
       where: {
         ativo: true,
-        verificacao: "VERIFICADO",
+        // KYC aprovado OU conta de demonstração da revisão das lojas. O
+        // revisor precisa encontrar alguém para contratar, e a aprovação de
+        // documento é humana — ele mandaria o documento e ficaria esperando.
+        // Ver lib/contaDemo.ts. A flag é por usuário e só o seed a grava.
+        OR: [{ verificacao: "VERIFICADO" }, { user: { is: { contaDemo: true } } }],
         ...(servico ? { servicosOferecidos: { has: servico } } : {}),
         ...(filtroTipo.length ? { OR: filtroTipo } : {}),
         user: {

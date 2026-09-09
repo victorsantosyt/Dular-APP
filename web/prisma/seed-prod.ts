@@ -15,7 +15,8 @@ import { hashPassword } from "../src/lib/password";
  *
  * O que NÃO é semeado, por decisão oficial do produto:
  *   - Categorias de serviço: são enums de código, não existe tabela a semear.
- *   - FeatureLimit: Beta 0 não monetiza; limites ficam inertes (Sprint 3).
+ *   - FeatureLimit: populado pela migration 20260907120000_seed_feature_limits,
+ *     não aqui. O gate está ATIVO desde essa migration — ver featureGate.ts.
  *
  * Idempotência: apenas upserts em chaves únicas. Re-execução não duplica
  * nada; para o admin, atualiza nome/senha (permite rotação de credencial

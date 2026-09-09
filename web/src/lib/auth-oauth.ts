@@ -1,7 +1,12 @@
 import NextAuth from "next-auth";
 import Google from "next-auth/providers/google";
 import Apple from "next-auth/providers/apple";
-import { appleClientId, appleClientSecret } from "@/lib/appleClientSecret";
+import {
+  credenciaisApple,
+  credenciaisGoogle,
+  exigirAlgumProvider,
+  exigirAuthSecret,
+} from "@/lib/authEnv";
 import { prisma } from "@/lib/prisma";
 import type { OAuthProvider, UserRole } from "@prisma/client";
 
@@ -42,22 +47,40 @@ async function findOrCreateOAuthUser(
   return created;
 }
 
+// Conferência na CARGA DO MÓDULO, e não no boot (src/instrumentation.ts).
+//
+// Dois motivos. O instrumentation é compilado também para o runtime Edge
+// quando existe middleware, e este caminho puxa Prisma e jsonwebtoken — foi
+// exatamente assim que o deploy foi recusado no #245. E derrubar o boot por
+// causa do OAuth tiraria do ar o painel admin e a API do app, que autenticam
+// por JWT próprio e não dependem disto.
+//
+// Não há como escapar da conferência: `auth()` só existe depois que este
+// módulo carrega.
+exigirAuthSecret();
+
+const providers = [
+  credenciaisGoogle(),
+  credenciaisApple(),
+];
+const google = providers[0];
+const apple = providers[1];
+exigirAlgumProvider(providers.filter(Boolean).length);
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
   // Atrás de proxy reverso (ngrok), o host chega via X-Forwarded-Host. Sem isto,
   // o NextAuth v5 rejeita a requisição (UntrustedHost) em produção e a geração
   // do CSRF token falha. Equivale a AUTH_TRUST_HOST=true.
   trustHost: true,
+  // Só entra provider com credencial completa. Antes os dois entravam sempre,
+  // e o `!` deixava `undefined` chegar ao construtor — daí o `client_id=undefined`
+  // que a Apple recebia. Um provider ausente é dito no log, com o nome das
+  // variáveis que faltam; ver lib/authEnv.ts.
   providers: [
-    Google({
-      clientId: process.env.GOOGLE_CLIENT_ID!,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-    }),
-    Apple({
-      // Secret dinâmico (APPLE_TEAM_ID/APPLE_KEY_ID/APPLE_PRIVATE_KEY) com
-      // fallback para o par estático APPLE_ID/APPLE_SECRET.
-      clientId: appleClientId()!,
-      clientSecret: appleClientSecret()!,
-    }),
+    ...(google ? [Google(google)] : []),
+    // Secret dinâmico (APPLE_TEAM_ID/APPLE_KEY_ID/APPLE_PRIVATE_KEY) com
+    // fallback para o par estático APPLE_ID/APPLE_SECRET.
+    ...(apple ? [Apple(apple)] : []),
   ],
   session: { strategy: "jwt" },
   callbacks: {

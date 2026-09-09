@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Pressable,
   RefreshControl,
@@ -31,6 +32,7 @@ import { formatHorario, parseDataServico, protocoloServico } from "@/utils/forma
 import { isStatusEncerrado } from "@/utils/servicoStatus";
 import { colors, radius, shadow, spacing, typography } from "@/theme/tokens";
 import { useGenderTheme } from "@/hooks/useProfileTheme";
+import { compartilharComprovante, type LinhaComprovante } from "@/utils/comprovantePdf";
 
 // Data do serviço é meia-noite UTC — normaliza p/ não deslizar o dia (fuso).
 const formatDate = (v: string | number | Date) =>
@@ -104,6 +106,51 @@ function formatDateTime(v?: string | number | Date | null) {
   });
 }
 
+/**
+ * O que a rota de detalhe (`GET /api/servicos/[id]`) traz além da lista.
+ * Tudo opcional: serviços antigos podem não ter parte destes campos.
+ */
+type DetalheComprovante = {
+  eventos?: { createdAt: string }[];
+  cliente?: { nome?: string | null; telefone?: string | null } | null;
+  enderecoCompleto?: string | null;
+  observacoes?: string | null;
+  temPet?: boolean;
+  quartos3Mais?: boolean;
+  banheiros2Mais?: boolean;
+  paymentStatus?: string | null;
+  paymentReportedAt?: string | null;
+  paymentConfirmedAt?: string | null;
+  paymentDisputedAt?: string | null;
+  recebimento?: {
+    titular: string;
+    banco?: string | null;
+    tipoChave: string;
+    chaveMascarada: string;
+  } | null;
+};
+
+const TIPO_CHAVE_LABEL: Record<string, string> = {
+  CPF: "CPF",
+  CNPJ: "CNPJ",
+  EMAIL: "E-mail",
+  TELEFONE: "Telefone",
+  PHONE: "Telefone",
+  ALEATORIA: "Chave aleatória",
+  RANDOM: "Chave aleatória",
+  EVP: "Chave aleatória",
+};
+
+/** O que foi contratado além do tipo — é o que justifica o valor. */
+function escopoDoServico(d: DetalheComprovante | null): string | null {
+  if (!d) return null;
+  const itens: string[] = [];
+  if (d.temPet) itens.push("Tem pet");
+  if (d.quartos3Mais) itens.push("3+ quartos");
+  if (d.banheiros2Mais) itens.push("2+ banheiros");
+  return itens.length > 0 ? itens.join(" · ") : null;
+}
+
 // Linha rótulo → valor do comprovante.
 function RowKV({ label, value }: { label: string; value: string }) {
   return (
@@ -134,6 +181,14 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
   const [toast, setToast] = useState<string | null>(null);
   const [decidindoReag, setDecidindoReag] = useState(false);
   const [finalizadoEm, setFinalizadoEm] = useState<string | null>(null);
+  // Aqui em cima, com os demais hooks: declarado lá embaixo, depois dos
+  // returns de carregamento, quebrava a regra dos hooks ("rendered more hooks
+  // than during the previous render") assim que a tela saía do estado inicial.
+  const [gerandoPdf, setGerandoPdf] = useState(false);
+  // Dados que só a rota de detalhe traz: contratante, endereço completo,
+  // escopo, linha do tempo do pagamento e para quem o PIX foi. A lista
+  // (`/minhas`) não os devolve — o comprovante mostrava só o que cabia nela.
+  const [detalhe, setDetalhe] = useState<DetalheComprovante | null>(null);
   const busyRef = useRef(false);
 
   const fetchAtual = useCallback(async (silent = true) => {
@@ -166,8 +221,11 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
     (async () => {
       try {
         const res = await api.get(`/api/servicos/${servicoId}`);
-        const ev = (res.data?.servico?.eventos ?? [])[0];
-        if (!cancelled && ev?.createdAt) setFinalizadoEm(ev.createdAt);
+        const det = res.data?.servico as DetalheComprovante | undefined;
+        const ev = (det?.eventos ?? [])[0];
+        if (cancelled) return;
+        if (ev?.createdAt) setFinalizadoEm(ev.createdAt);
+        if (det) setDetalhe(det);
       } catch { /* silencioso — finalizadoEm fica null ("Não finalizado") */ }
     })();
     return () => { cancelled = true; };
@@ -383,8 +441,91 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
   }).avaliacao ?? null;
   const profIniciais = (prof?.nome ?? "?").slice(0, 2).toUpperCase();
   const valorLabel = svc.precoFinal > 0 ? formatPrice(svc.precoFinal) : "A combinar";
-  const finalizadoLabel = formatDateTime(finalizadoEm) ?? "Não finalizado";
+  // A data de finalização vem do último ServicoEvento. Serviços encerrados
+  // antes desse registro (ou criados direto no banco) não têm evento — e o
+  // comprovante escrevia "Não finalizado" ao lado de um selo "Finalizado",
+  // contradizendo a si mesmo. Sem a data, admite que não a registrou; e
+  // enquanto o serviço não acabou, a linha simplesmente não existe.
+  const encerrado = isStatusEncerrado(svc.status) || FINAL.includes(statusUp(svc.status));
+  const finalizadoLabel = formatDateTime(finalizadoEm) ?? (encerrado ? "Data não registrada" : null);
   const categoria = categoriaLabelFmt(svc.categoria);
+  const escopo = escopoDoServico(detalhe);
+  const recebimento = detalhe?.recebimento ?? null;
+  const pagoEm = formatDateTime(detalhe?.paymentConfirmedAt);
+  const informadoEm = formatDateTime(detalhe?.paymentReportedAt);
+  const contestadoEm = formatDateTime(detalhe?.paymentDisputedAt);
+  const enderecoLinha = detalhe?.enderecoCompleto?.trim() || null;
+  const contratante = detalhe?.cliente?.nome?.trim() || null;
+  const emitidoEm = formatDateTime(new Date()) ?? "";
+
+  // Compartilhar: monta o MESMO conteúdo que está na tela — nenhuma linha que
+  // a tela não mostre, nenhuma que ela mostre e o PDF omita.
+  const onCompartilhar = async () => {
+    if (gerandoPdf) return;
+    setGerandoPdf(true);
+    try {
+      const linhasServico: LinhaComprovante[] = [
+        { rotulo: "Tipo", valor: tipoLabel(svc.tipo) },
+        ...(categoria ? [{ rotulo: "Categoria", valor: categoria }] : []),
+        { rotulo: "Horário", valor: formatHorario(svc.hora, svc.turno) },
+        ...(escopo ? [{ rotulo: "Detalhes", valor: escopo }] : []),
+      ];
+      const linhasDatas: LinhaComprovante[] = [
+        { rotulo: "Agendada", valor: formatDate(svc.data) },
+        ...(finalizadoLabel ? [{ rotulo: "Finalização", valor: finalizadoLabel }] : []),
+      ];
+      const linhasPagamento: LinhaComprovante[] = [
+        ...(recebimento
+          ? [
+              { rotulo: "Recebedor", valor: recebimento.titular },
+              ...(recebimento.banco ? [{ rotulo: "Banco", valor: recebimento.banco }] : []),
+              {
+                rotulo: TIPO_CHAVE_LABEL[statusUp(recebimento.tipoChave)] ?? "Chave PIX",
+                valor: recebimento.chaveMascarada,
+              },
+            ]
+          : []),
+        ...(informadoEm ? [{ rotulo: "Pagamento informado", valor: informadoEm }] : []),
+        ...(pagoEm ? [{ rotulo: "Confirmado pelo profissional", valor: pagoEm }] : []),
+        ...(contestadoEm ? [{ rotulo: "Contestado", valor: contestadoEm }] : []),
+      ];
+
+      await compartilharComprovante({
+        protocolo,
+        status: statusLabel(svc.status),
+        emitidoEm,
+        servico: linhasServico,
+        observacoes: detalhe?.observacoes?.trim() || null,
+        profissional: { nome: prof?.nome ?? "Aguardando profissional", telefone: prof?.telefone },
+        contratante: contratante
+          ? { nome: contratante, telefone: detalhe?.cliente?.telefone ?? null }
+          : null,
+        local: [
+          ...(enderecoLinha ? [enderecoLinha] : []),
+          `${svc.bairro}, ${svc.cidade} - ${svc.uf}`,
+        ],
+        datas: linhasDatas,
+        valor: valorLabel,
+        pagamento: linhasPagamento,
+        viaPix: !!recebimento,
+        avaliacao: avaliacao
+          ? {
+              nota: `${avaliacao.notaGeral}/5`,
+              comentario: avaliacao.comentario,
+              linhas: [
+                { rotulo: "Pontualidade", valor: `${avaliacao.pontualidade}/5` },
+                { rotulo: "Qualidade", valor: `${avaliacao.qualidade}/5` },
+                { rotulo: "Comunicação", valor: `${avaliacao.comunicacao}/5` },
+              ],
+            }
+          : null,
+      });
+    } catch {
+      setToast("Não foi possível gerar o comprovante.");
+    } finally {
+      setGerandoPdf(false);
+    }
+  };
 
   return (
     <SafeAreaView style={s.safe} edges={["top", "bottom"]}>
@@ -392,12 +533,26 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
       <View style={s.topBar}>
         <BackCircleButton onPress={() => navigation.goBack()} color={theme.icon} borderColor={theme.border} />
         <Text style={[s.topBarTitle, { color: theme.textAccent }]}>Comprovante</Text>
-        {/* Espaçador: sem ele o título centraliza no espaço que sobra
-            e fica deslocado para a direita. */}
-        <View style={s.headerSlot} />
-        {/* Espaçador para centrar o título. Usava `s.backBtn`, que tem fundo e
-            borda — aparecia como um círculo vazio no canto direito. */}
-        <View style={s.topBarSpacer} />
+        {/* Compartilhar ocupa o lugar do antigo espaçador: mesma largura do
+            botão de voltar, então o título segue centrado na linha. */}
+        <Pressable
+          onPress={onCompartilhar}
+          disabled={gerandoPdf}
+          hitSlop={10}
+          accessibilityRole="button"
+          accessibilityLabel="Compartilhar comprovante"
+          style={({ pressed }) => [
+            s.compartilharBtn,
+            { borderColor: theme.border },
+            (pressed || gerandoPdf) && { opacity: 0.6 },
+          ]}
+        >
+          {gerandoPdf ? (
+            <ActivityIndicator size="small" color={theme.icon} />
+          ) : (
+            <Ionicons name="share-outline" size={19} color={theme.icon} />
+          )}
+        </Pressable>
       </View>
 
       <ScrollView
@@ -441,18 +596,45 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
           ) : null}
           <View style={s.divider} />
           <RowKV label="Horário" value={formatHorario(svc.hora, svc.turno)} />
+          {escopo ? (
+            <>
+              <View style={s.divider} />
+              <RowKV label="Detalhes" value={escopo} />
+            </>
+          ) : null}
+          {detalhe?.observacoes?.trim() ? (
+            <>
+              <View style={s.divider} />
+              <Text style={s.obsLabel}>Observações</Text>
+              <Text style={s.obsTexto}>{detalhe.observacoes.trim()}</Text>
+            </>
+          ) : null}
         </View>
 
-        {/* PROFISSIONAL */}
+        {/* PARTES — um comprovante nomeia os DOIS lados. Antes só mostrava o
+            profissional, e não dava para saber quem contratou. */}
         <View style={s.card}>
-          <Text style={s.sectionLabel}>Profissional</Text>
+          <Text style={s.sectionLabel}>Partes</Text>
           <View style={s.profRow}>
             <DAvatar size="md" uri={prof?.avatarUrl ?? undefined} initials={profIniciais} />
             <View style={{ flex: 1, gap: 2 }}>
+              <Text style={s.parteFuncao}>Profissional</Text>
               <Text style={s.profNome}>{prof?.nome ?? "Aguardando profissional"}</Text>
               {prof?.telefone ? <Text style={s.profTel}>{prof.telefone}</Text> : null}
             </View>
           </View>
+          {contratante ? (
+            <>
+              <View style={s.divider} />
+              <View style={{ gap: 2 }}>
+                <Text style={s.parteFuncao}>Contratante</Text>
+                <Text style={s.profNome}>{contratante}</Text>
+                {detalhe?.cliente?.telefone ? (
+                  <Text style={s.profTel}>{detalhe.cliente.telefone}</Text>
+                ) : null}
+              </View>
+            </>
+          ) : null}
         </View>
 
         {/* LOCAL */}
@@ -460,7 +642,15 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
           <Text style={s.sectionLabel}>Local</Text>
           <View style={s.infoRow}>
             <Ionicons name="location-outline" size={15} color={theme.icon} />
-            <Text style={s.infoText}>{svc.bairro}, {svc.cidade} - {svc.uf}</Text>
+            <View style={{ flex: 1 }}>
+              {/* Endereço completo quando a API libera (só participante, e só
+                  depois do aceite). Sem ele, um comprovante de serviço a
+                  domicílio não diz ONDE foi prestado. */}
+              {enderecoLinha ? <Text style={s.infoText}>{enderecoLinha}</Text> : null}
+              <Text style={enderecoLinha ? s.infoTextSub : s.infoText}>
+                {svc.bairro}, {svc.cidade} - {svc.uf}
+              </Text>
+            </View>
           </View>
         </View>
 
@@ -468,14 +658,52 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
         <View style={s.card}>
           <Text style={s.sectionLabel}>Datas</Text>
           <RowKV label="Agendada" value={formatDate(svc.data)} />
-          <View style={s.divider} />
-          <RowKV label="Finalização" value={finalizadoLabel} />
+          {finalizadoLabel ? (
+            <>
+              <View style={s.divider} />
+              <RowKV label="Finalização" value={finalizadoLabel} />
+            </>
+          ) : null}
         </View>
 
-        {/* VALOR */}
+        {/* PAGAMENTO — era só o número do valor. Um comprovante precisa dizer
+            quanto, por qual meio, PARA QUEM e quando. O `recebimento` vem do
+            PixSnapshot, que é congelado na contratação e imutável: é a prova
+            de para onde o dinheiro foi, mesmo que o profissional troque a
+            chave depois. A chave chega mascarada da API. */}
         <View style={s.card}>
-          <Text style={s.sectionLabel}>Valor</Text>
-          <Text style={[s.valor, { color: theme.textAccent }]}>{valorLabel}</Text>
+          <Text style={s.sectionLabel}>Pagamento</Text>
+          <View style={s.pagamentoTopo}>
+            <Text style={[s.valor, { color: theme.textAccent }]}>{valorLabel}</Text>
+            {recebimento ? <Text style={s.pagamentoForma}>via PIX</Text> : null}
+          </View>
+
+          {recebimento ? (
+            <>
+              <View style={s.divider} />
+              <RowKV label="Recebedor" value={recebimento.titular} />
+              {recebimento.banco ? (
+                <>
+                  <View style={s.divider} />
+                  <RowKV label="Banco" value={recebimento.banco} />
+                </>
+              ) : null}
+              <View style={s.divider} />
+              <RowKV
+                label={TIPO_CHAVE_LABEL[statusUp(recebimento.tipoChave)] ?? "Chave PIX"}
+                value={recebimento.chaveMascarada}
+              />
+            </>
+          ) : null}
+
+          {informadoEm || pagoEm || contestadoEm ? (
+            <>
+              <View style={s.divider} />
+              {informadoEm ? <RowKV label="Pagamento informado" value={informadoEm} /> : null}
+              {pagoEm ? <RowKV label="Confirmado pelo profissional" value={pagoEm} /> : null}
+              {contestadoEm ? <RowKV label="Contestado" value={contestadoEm} /> : null}
+            </>
+          ) : null}
         </View>
 
         {/* AVALIAÇÃO (só se houver) */}
@@ -632,10 +860,12 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
           </Pressable>
         ) : null}
 
-        {/* RODAPÉ */}
+        {/* RODAPÉ — data de emissão: um comprovante diz quando foi tirado,
+            senão não dá para situar no tempo o que ele afirma. */}
         <Text style={s.rodape}>
           Guarde este protocolo para suporte: {protocolo}
         </Text>
+        <Text style={s.emissao}>Emitido em {emitidoEm}</Text>
       </ScrollView>
 
       <MotivoModal
@@ -748,6 +978,25 @@ const s = StyleSheet.create({
   },
   infoRow:  { flexDirection: "row", alignItems: "center", gap: 8 },
   infoText: { fontSize: 13, fontWeight: "500", color: colors.ink, flex: 1 },
+  /** Segunda linha do endereço: presente só quando há o endereço completo. */
+  infoTextSub: { fontSize: 12, fontWeight: "500", color: colors.sub },
+  /** Rótulo do papel da parte ("Profissional", "Contratante"). */
+  compartilharBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  parteFuncao: { fontSize: 11, fontWeight: "700", color: colors.sub, textTransform: "uppercase", letterSpacing: 0.4 },
+  obsLabel: { fontSize: 12, fontWeight: "700", color: colors.sub },
+  obsTexto: { fontSize: 13, fontWeight: "500", color: colors.ink, lineHeight: 19 },
+  /** Valor + linha do tempo do pagamento. */
+  pagamentoTopo: { flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", gap: 8 },
+  pagamentoForma: { fontSize: 12, fontWeight: "700", color: colors.sub },
+  emissao: { fontSize: 11, fontWeight: "500", color: colors.sub, textAlign: "center", marginTop: 2 },
   divider:  { height: 1, backgroundColor: colors.stroke },
 
   infoBar: {

@@ -52,8 +52,6 @@ export async function getMe(): Promise<Me> {
 export async function updateMe(payload: {
   nome?: string;
   email?: string;
-  senhaAtual?: string;
-  novaSenha?: string;
   bio?: string;
   precoLeve?: number;
   precoMedio?: number;

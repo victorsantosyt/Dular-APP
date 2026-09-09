@@ -85,6 +85,49 @@ describe("superfície de autenticação por senha", () => {
     }
   });
 
+it("nenhum seed grava senha junto de um papel que não é ADMIN", () => {
+    // O seed de desenvolvimento criava EMPREGADOR e DIARISTA com senha, e isso
+    // desfazia a limpeza a cada execução: a superfície voltava sozinha, sem
+    // ninguém mudar uma linha de rota.
+    //
+    // A checagem é por SITE DE ESCRITA, não por arquivo: `seed.ts` grava a
+    // senha do ADMIN e cria contas comuns no mesmo arquivo, e isso é correto.
+    // O que não pode é uma escrita de senha dentro do mesmo objeto que define
+    // um papel comum.
+    const prisma = join(process.cwd(), "prisma");
+    const suspeitos: string[] = [];
+    const VIZINHANCA = 8; // linhas para cada lado — cobre um object literal
+
+    for (const nome of readdirSync(prisma)) {
+      if (!nome.endsWith(".ts")) continue;
+
+      const linhas = readFileSync(join(prisma, nome), "utf8").split("\n");
+
+      linhas.forEach((linha, i) => {
+        // Só escritas. `senhaHash: null` apaga; `senhaHash: true` é select;
+        // `user.senhaHash` é leitura; linha de comentário não conta.
+        if (!/senhaHash\s*[,:]/.test(linha)) return;
+        if (/senhaHash:\s*(null|true)/.test(linha)) return;
+        if (/^\s*(\/\/|\*|\/\*)/.test(linha)) return;
+
+        const perto = linhas
+          .slice(Math.max(0, i - VIZINHANCA), i + VIZINHANCA)
+          .join("\n");
+
+        const papel = /role:\s*"(EMPREGADOR|DIARISTA|MONTADOR)"/.exec(perto);
+        if (papel) {
+          suspeitos.push(`${nome}:${i + 1} grava senha junto de role ${papel[1]}`);
+        }
+      });
+    }
+
+    assert.deepEqual(
+      suspeitos,
+      [],
+      `seed gravando senha para não-ADMIN:\n${suspeitos.join("\n")}`,
+    );
+  });
+
   it("o app mobile não fala com nenhuma rota de senha", () => {
     const mobile = join(process.cwd(), "..", "dular-mobile", "src");
     if (!existsSync(mobile)) return; // o mobile pode não estar presente no CI do web

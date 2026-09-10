@@ -162,53 +162,86 @@ if [ -z "${VERCEL_ORG_ID:-}" ] || [ -z "${VERCEL_PROJECT_ID:-}" ]; then
 fi
 ok "projeto: $VERCEL_PROJECT_ID"
 
-# `deploy` falhava com "Could not retrieve Project Settings" quando o vínculo
-# vinha só por variável de ambiente. O arquivo que ele procura é
-# landing/.vercel/project.json, gitignorado e portanto ausente na CI — e ele
-# não carrega só os ids, carrega também o bloco `settings` do projeto.
-# Escrever o arquivo à mão com os dois ids não resolveria: faltaria o
-# `settings`. Quem monta o arquivo completo é o `pull`, que funciona com os
-# ids por ambiente. Então é ele que cria o vínculo antes do deploy.
+# ---------------------------------------------------------------------------
+# O diagnóstico vem ANTES de qualquer comando da CLI
+# ---------------------------------------------------------------------------
+# A CLI responde "Could not retrieve Project Settings" para causas bem
+# diferentes — token sem escopo, id errado, versão velha — e ainda sugere
+# remover o .vercel, que na CI nem existe. Perguntando à API primeiro, o
+# job falha dizendo qual é, em vez de deixar a pessoa adivinhando.
+if [ -n "${VERCEL_TOKEN:-}" ]; then
+  msg "Conferindo o token antes de falar com a CLI"
+
+  http=$(curl -s -o /tmp/_dular_user.json -w '%{http_code}' -m 20 \
+    -H "Authorization: Bearer $VERCEL_TOKEN" https://api.vercel.com/v2/user || echo 000)
+  if [ "$http" != "200" ]; then
+    ruim "o token nem autentica — HTTP $http"
+    echo "  Crie outro em vercel.com/account/tokens e troque o secret VERCEL_TOKEN."
+    rm -f /tmp/_dular_user.json; exit 1
+  fi
+  ok "o token autentica ($(python3 -c "import json;d=json.load(open('/tmp/_dular_user.json'));u=d.get('user',d);print(u.get('username') or u.get('email'))" 2>/dev/null || echo '?'))"
+  rm -f /tmp/_dular_user.json
+
+  # Este é o teste que separa as causas: um token com escopo errado autentica
+  # normalmente e mesmo assim não enxerga o time dono do projeto.
+  curl -s -m 20 -H "Authorization: Bearer $VERCEL_TOKEN" https://api.vercel.com/v2/teams > /tmp/_dular_teams.json || true
+  if python3 - "$VERCEL_ORG_ID" <<'PY'
+import json, sys
+try:
+    times = json.load(open("/tmp/_dular_teams.json")).get("teams", [])
+except Exception:
+    times = []
+alvo = sys.argv[1]
+print("  times visíveis: " + (", ".join(f"{t.get('slug')} ({t.get('id')})" for t in times) or "nenhum"))
+sys.exit(0 if any(t.get("id") == alvo for t in times) else 1)
+PY
+  then
+    ok "o token enxerga o time dono do projeto"
+  else
+    ruim "o token NÃO enxerga o time $VERCEL_ORG_ID"
+    echo ""
+    echo "  É o escopo do token. Em vercel.com/account/tokens, ao criar, o"
+    echo "  campo Scope precisa ser o time dono do projeto — não a conta"
+    echo "  pessoal. O time aqui é:"
+    echo ""
+    echo "      victorsantosyts-projects"
+    echo ""
+    echo "  Recrie com esse escopo e troque o secret VERCEL_TOKEN."
+    rm -f /tmp/_dular_teams.json; exit 1
+  fi
+  rm -f /tmp/_dular_teams.json
+
+  http=$(curl -s -o /tmp/_dular_proj.json -w '%{http_code}' -m 20 \
+    -H "Authorization: Bearer $VERCEL_TOKEN" \
+    "https://api.vercel.com/v9/projects/$VERCEL_PROJECT_ID?teamId=$VERCEL_ORG_ID" || echo 000)
+  if [ "$http" = "200" ]; then
+    ok "o token lê o projeto ($(python3 -c "import json;print(json.load(open('/tmp/_dular_proj.json'))['name'])" 2>/dev/null || echo '?'))"
+  else
+    ruim "o token autentica e vê o time, mas não lê o projeto — HTTP $http"
+    echo "  resposta: $(head -c 300 /tmp/_dular_proj.json 2>/dev/null)"
+    rm -f /tmp/_dular_proj.json; exit 1
+  fi
+  rm -f /tmp/_dular_proj.json
+fi
+
+# O vínculo que a CLI procura é landing/.vercel/project.json, gitignorado e
+# portanto ausente na CI. Quem o monta completo — com o bloco `settings`, que
+# um arquivo escrito à mão com os dois ids não teria — é o `pull`.
 if [ ! -f "$LANDING/.vercel/project.json" ]; then
   msg "Vinculando o projeto (não há landing/.vercel — é o caso da CI)"
   PULL=(pull --yes --environment=production)
-  [ -n "${VERCEL_TOKEN:-}" ] && PULL+=(--token "$VERCEL_TOKEN")
+  [ -n "${VERCEL_TOKEN:-}" ] && PULL+=(--token "$VERCEL_TOKEN" --scope "$VERCEL_ORG_ID")
   ( cd "$LANDING" && npx --yes "$VERCEL_VERSAO" "${PULL[@]}" ) || {
-    ruim "o pull falhou — veja a saída acima"
+    ruim "o pull falhou mesmo com o token conferido acima"
     exit 1
   }
   [ -f "$LANDING/.vercel/project.json" ] && ok "vínculo criado" || { ruim "o pull não criou o vínculo"; exit 1; }
 fi
 
-# Antes de tentar publicar, conferir se o token ENXERGA o projeto. Sem isto a
-# CLI devolve "Could not retrieve Project Settings", que soa como problema de
-# link quando quase sempre é escopo de token — e manda remover o .vercel, o
-# conselho errado para o caso.
-if [ -n "${VERCEL_TOKEN:-}" ]; then
-  http=$(curl -s -o /tmp/_dular_proj.json -w '%{http_code}' -m 20 \
-    -H "Authorization: Bearer $VERCEL_TOKEN" \
-    "https://api.vercel.com/v9/projects/$VERCEL_PROJECT_ID?teamId=$VERCEL_ORG_ID" || echo 000)
-  if [ "$http" = "200" ]; then
-    ok "o token enxerga o projeto ($(python3 -c "import json;print(json.load(open('/tmp/_dular_proj.json'))['name'])" 2>/dev/null || echo '?'))"
-  else
-    ruim "o token NÃO enxerga o projeto — HTTP $http"
-    echo ""
-    echo "  Não é o vínculo, é o escopo do token. Em vercel.com/account/tokens,"
-    echo "  o campo Scope precisa ser o time dono do projeto:"
-    echo ""
-    echo "      victorsantosyts-projects"
-    echo ""
-    echo "  Um token criado com escopo diferente autentica, mas não alcança"
-    echo "  este projeto. Recrie com esse escopo e troque o secret VERCEL_TOKEN."
-    rm -f /tmp/_dular_proj.json
-    exit 1
-  fi
-  rm -f /tmp/_dular_proj.json
-fi
-
 ARGS=(deploy --prod --yes)
-# Local: a CLI usa o login salvo. Na CI: precisa de VERCEL_TOKEN.
-[ -n "${VERCEL_TOKEN:-}" ] && ARGS+=(--token "$VERCEL_TOKEN")
+# Local: a CLI usa o login salvo. Na CI: precisa de VERCEL_TOKEN, e o --scope
+# evita que ela tente adivinhar o time a partir do token.
+[ -n "${VERCEL_TOKEN:-}" ] && ARGS+=(--token "$VERCEL_TOKEN" --scope "$VERCEL_ORG_ID")
 
 if [ "$MODO" = "dry" ]; then
   msg "DRY RUN — nada foi publicado"

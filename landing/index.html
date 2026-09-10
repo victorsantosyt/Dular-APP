@@ -103,7 +103,11 @@
     }
     a { color: inherit; text-decoration: none; }
     img { max-width: 100%; display: block; }
-    .wrap { width: 100%; max-width: 1120px; margin: 0 auto; padding: 0 24px; }
+    /* padding-inline, nunca o shorthand: o hero e <div class="wrap hero-grid">,
+       com as duas classes no mesmo elemento e a mesma especificidade. Como
+       .wrap do breakpoint de 560px vem depois no arquivo, o shorthand zerava
+       o padding vertical do hero e a pilula encostava na linha da barra. */
+    .wrap { width: 100%; max-width: 1120px; margin: 0 auto; padding-inline: 24px; }
     :focus-visible { outline: 2px solid var(--roxo-forte); outline-offset: 3px; border-radius: 6px; }
 
     /* ---------- NAV ---------- */
@@ -156,7 +160,9 @@
       font-weight: 700; margin: 0 0 22px; text-wrap: balance; color: var(--ink);
     }
     h1.headline span { display: block; color: var(--rosa-forte); }
-    .lede { font-size: clamp(15.5px, 1.6vw, 17.5px); line-height: 1.72; color: var(--corpo); max-width: 29rem; margin: 0 0 36px; font-weight: 400; }
+    /* O piso do clamp e o que vale no celular (1.6vw de 430px da 6.9px).
+       15.5px era pequeno para corpo de texto em tela pequena. */
+    .lede { font-size: clamp(16.5px, 1.6vw, 17.5px); line-height: 1.7; color: var(--corpo); max-width: 29rem; margin: 0 0 36px; font-weight: 400; }
 
     /* ---------- BOTÕES ---------- */
     .acoes { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
@@ -326,20 +332,43 @@
       .seg-lista li { text-align: left; }
       .sec-head { margin-bottom: 44px; }
       section { padding: 68px 0; }
+      /* Mesmo motivo da .lede: em tela pequena o corpo precisa de um degrau
+         a mais para não cansar. A entrelinha sobe junto, senão o bloco fecha. */
+      .sec-desc { font-size: 16.5px; line-height: 1.72; }
+      .role p   { font-size: 15.5px; line-height: 1.62; }
+      .seg-lista p { font-size: 15px; line-height: 1.62; }
+      .passo p  { font-size: 14.5px; line-height: 1.6; }
       /* Faixa vira carrossel: largura fixa por item em vez de 4 colunas espremidas. */
       .onb-faixa { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: 232px; gap: 20px; }
     }
     @media (max-width: 560px) {
-      .wrap { padding: 0 18px; }
+      .wrap { padding-inline: 18px; }
       /* O botão sumia por completo abaixo de 560px. Ele encolhe, não some:
          é o único atalho para o download enquanto a pessoa rola. */
       .nav-cta { height: 36px; padding: 0 14px; font-size: 13px; }
       .cta-box { padding: 42px 22px; border-radius: 22px; }
-      /* Largura total: o conteúdo encosta à esquerda com uma sarjeta fixa,
-         então o ícone dos dois botões cai na mesma vertical. Centralizado,
-         cada botão alinhava num lugar diferente por causa do selo "em breve". */
-      .btn { width: 100%; justify-content: flex-start; padding: 0 20px; }
-      .btn-soon .tag { margin-left: auto; }
+      /* Dois cards na mesma linha, em vez de um empilhado sobre o outro.
+         Empilhados eles comiam 120px de altura logo na primeira dobra e
+         empurravam o aparelho para fora da tela. Lado a lado, o ícone sobe
+         para cima do rótulo — em ~190px de largura não cabe na horizontal. */
+      /* align-items: stretch anula o center da regra base — sem isto o card
+         do App Store fica 24px mais alto (por causa do selo) e os dois
+         desalinham no topo e na base. */
+      .acoes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-items: stretch; }
+      .btn {
+        width: auto; height: auto; min-height: 94px; padding: 15px 10px;
+        flex-direction: column; justify-content: center; gap: 8px;
+        text-align: center;
+      }
+      .btn svg { width: 23px; height: 23px; }
+      /* O bloco de texto do botão também centraliza, senão o rótulo de duas
+         linhas fica torto dentro do card. */
+      .btn-sub { align-items: center; text-align: center; }
+      .btn-sub small { font-size: 10.5px; }
+      .btn-sub strong { font-size: 14px; }
+      /* O selo vira a terceira linha do card; o grid iguala as alturas. */
+      .btn-soon .tag { margin-left: 0; font-size: 9.5px; padding: 2px 7px; }
+      .nota-acoes { margin-top: 14px; }
       .cookie-banner { left: 12px; right: 12px; bottom: 12px; padding: 17px 18px; }
       .fone-hero { width: 258px; }
       .onb-faixa { grid-auto-columns: 208px; }

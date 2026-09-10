@@ -39,6 +39,23 @@ function faltando(nome: string): boolean {
 }
 
 /**
+ * Durante `next build` não há requisição para servir — e o Next CARREGA os
+ * módulos de rota para coletar a configuração de cada uma, então qualquer
+ * `throw` na carga do módulo derruba a compilação.
+ *
+ * `AUTH_SECRET` é variável de EXECUÇÃO: na Vercel ela não está no ambiente de
+ * build. Sem esta checagem, o guarda transformava "segredo ausente no build"
+ * em "não dá para publicar" — que é falhar fechado no lugar errado. Falha
+ * fechado onde importa: quando o servidor sobe e vai atender alguém.
+ *
+ * O Next define isto em build/index.js:
+ *   process.env.NEXT_PHASE = PHASE_PRODUCTION_BUILD  // 'phase-production-build'
+ */
+function ehBuild(): boolean {
+  return process.env.NEXT_PHASE === "phase-production-build";
+}
+
+/**
  * `AUTH_SECRET` é o que assina e verifica a sessão. Sem ele o Auth.js entra em
  * erro de configuração — o estado exato que o advisory descreve.
  *
@@ -47,6 +64,7 @@ function faltando(nome: string): boolean {
  */
 export function exigirAuthSecret(): void {
   if (process.env.NODE_ENV === "test") return;
+  if (ehBuild()) return;
   if (!faltando("AUTH_SECRET") || !faltando("NEXTAUTH_SECRET")) return;
 
   throw new Error(
@@ -106,6 +124,7 @@ export function credenciaisApple(): CredenciaisProvider | null {
  */
 export function exigirAlgumProvider(quantidade: number): void {
   if (quantidade > 0) return;
+  if (ehBuild()) return;
 
   throw new Error(
     [

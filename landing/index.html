@@ -17,12 +17,12 @@
   <meta name="twitter:title" content="Dular — profissionais de confiança para a sua casa" />
   <meta name="twitter:description" content="Diaristas e montadores verificados, perto de você. Já disponível para Android." />
   <meta name="twitter:image" content="https://dular-landing.vercel.app/og-dular.png" />
-  <meta name="theme-color" content="#fbfaff" />
+  <meta name="theme-color" content="#1e1e21" />
   <link rel="canonical" href="https://dular-landing.vercel.app/" />
   <link rel="icon" href="dular-mark.png" type="image/png" />
   <link rel="apple-touch-icon" href="dular-mark.png" />
-  <link rel="preload" as="image" href="img/app-perfil.webp"
-        imagesrcset="img/app-perfil-sm.webp 380w, img/app-perfil-md.webp 480w, img/app-perfil.webp 620w"
+  <link rel="preload" as="image" href="img/app-perfil.webp?v=937bb9f8"
+        imagesrcset="img/app-perfil-sm.webp?v=937bb9f8 380w, img/app-perfil-md.webp?v=937bb9f8 480w, img/app-perfil.webp?v=937bb9f8 620w"
         imagesizes="(max-width: 560px) 258px, 300px" fetchpriority="high" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -38,40 +38,60 @@
 
   <style>
     :root {
-      /* Cores amostradas direto das telas do app — não são aproximações.
-         O roxo vem do botão "Sou Empregador"; o rosa, do título "Casa".
-         O roxo exato é #7b5cfa, mas com texto branco ele dá 4.41:1 e reprova
-         no WCAG AA; escurecido o mínimo para passar (5.0:1) — a diferença é
-         imperceptível ao lado dos prints reais. */
-      --roxo: #7250f6;
-      --rosa: #f7658c;
-      --azul: #3f86f5;                 /* terceiro perfil (Montador) */
-      /* Versões escuras para TEXTO: o roxo e o rosa puros ficam abaixo de
-         4.5:1 sobre branco e reprovam no WCAG AA em corpo de texto. */
-      --roxo-forte: #5a3ed6;
-      --rosa-forte: #c4325b;
-      --roxo-lavado: #f2edfc;          /* fundo do card "Empregador" no app */
-      --rosa-lavado: #fef1f7;          /* fundo do card "Casa" no app */
+      /* ---------------------------------------------------------------
+         TEMA ESCURO NEUTRO. O fundo #1E1E21 foi amostrado pixel a pixel
+         da pagina com o modo escuro do Opera por cima — e o tom que o
+         dono aprovou. Preto puro foi testado e ficou duro demais; o navy
+         do dark mode do app (#1A1035) lia como azul. Este cinza nao puxa
+         para nenhum lado, e a marca aparece so nos acentos.
+         Os acentos puros do app reprovam em contraste sobre este fundo;
+         cada um tem abaixo uma versao clara so para tinta.
+         --------------------------------------------------------------- */
 
-      /* Neutros puxados para o violeta: cinza puro ao lado do roxo parece sujo. */
-      --ink: #120a4d;                  /* a mesma tinta dos títulos do app */
-      --corpo: #5b5470;
-      --suave: #726b8a;
-      --linha: #ece8f6;
-      --fundo: #fbfaff;
-      --cartao: #ffffff;
+      /* Superficies */
+      --fundo: #1e1e21;                /* amostrado do print aprovado */
+      --cartao: #26262a;               /* um degrau acima do fundo */
+      --cartao-alt: #2e2e33;           /* superficie elevada */
+      --rodape: #171719;               /* um degrau abaixo do fundo */
+      --linha: #34343a;                /* fio neutro, sem tingir de roxo */
+
+      /* Tinta */
+      --ink: #ffffff;                  /* 16.6:1 no fundo */
+      --corpo: #b9b9c0;                /* corpo de texto — 8.5:1 */
+      --suave: #8f8f98;                /* 5.2:1 */
+
+      /* Acentos de FUNDO (botao): precisam de branco legivel por cima. */
+      --roxo: #7250f6;                 /* branco por cima = 5.0:1 */
+      --rosa: #f7658b;
+      --teal: #4fa38f;
+
+      /* Acentos de TINTA sobre o fundo escuro. Os tons puros do app
+         reprovam em AA aqui; estes sao os primaryLight equivalentes. */
+      --roxo-forte: #a080ff;           /* 6.0:1 no fundo */
+      --rosa-forte: #ff6b9a;           /* 6.7:1 — darkColors.pink */
+      --teal-forte: #7dcbb5;           /* 9.5:1 */
+
+      /* Tintas lavadas viram veus translucidos: no escuro, um tom chapado
+         cria uma mancha; a transparencia acompanha a superficie de baixo. */
+      --roxo-lavado: rgba(124, 92, 255, .16);
+      --rosa-lavado: rgba(255, 107, 154, .14);
+      --teal-lavado: rgba(79, 163, 143, .18);
 
       --raio: 14px;
       --raio-lg: 22px;
-      --sombra-sm: 0 1px 3px rgba(18, 10, 77, .04), 0 4px 16px rgba(18, 10, 77, .04);
-      --sombra-md: 0 2px 10px rgba(18, 10, 77, .04), 0 16px 40px rgba(18, 10, 77, .06);
-      --sombra-fone: 0 40px 90px rgba(18, 10, 77, .13), 0 12px 30px rgba(18, 10, 77, .06);
+      /* No escuro a sombra e preta de verdade: sombra colorida clareia. */
+      --sombra-sm: 0 1px 3px rgba(0, 0, 0, .30), 0 4px 16px rgba(0, 0, 0, .24);
+      --sombra-md: 0 2px 10px rgba(0, 0, 0, .30), 0 16px 40px rgba(0, 0, 0, .34);
+      --sombra-fone: 0 40px 90px rgba(0, 0, 0, .55), 0 12px 30px rgba(0, 0, 0, .40);
 
       --fonte: "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     }
 
     * { box-sizing: border-box; }
     html { scroll-behavior: smooth; }
+    /* A barra do topo é fixa: sem isto, pular para uma âncora esconde o
+       título dela atrás da barra. */
+    section[id], div[id] { scroll-margin-top: 82px; }
     @media (prefers-reduced-motion: reduce) {
       html { scroll-behavior: auto; }
       * { animation: none !important; transition: none !important; }
@@ -84,12 +104,12 @@
     a { color: inherit; text-decoration: none; }
     img { max-width: 100%; display: block; }
     .wrap { width: 100%; max-width: 1120px; margin: 0 auto; padding: 0 24px; }
-    :focus-visible { outline: 2px solid var(--roxo); outline-offset: 3px; border-radius: 6px; }
+    :focus-visible { outline: 2px solid var(--roxo-forte); outline-offset: 3px; border-radius: 6px; }
 
     /* ---------- NAV ---------- */
     header.nav {
       position: sticky; top: 0; z-index: 60;
-      background: rgba(251, 250, 255, .82);
+      background: rgba(30, 30, 33, .82);
       backdrop-filter: saturate(150%) blur(14px);
       -webkit-backdrop-filter: saturate(150%) blur(14px);
       border-bottom: 1px solid var(--linha);
@@ -109,23 +129,25 @@
     /* Halos difusos nas duas cores da marca: dão profundidade sem gradiente chapado. */
     .hero::before, .hero::after {
       content: ""; position: absolute; border-radius: 50%; pointer-events: none;
-      filter: blur(90px); opacity: .55;
+      filter: blur(110px); opacity: .22;
     }
-    .hero::before { width: 540px; height: 540px; top: -190px; left: -150px; background: #d9cdfb; }
-    .hero::after { width: 470px; height: 470px; bottom: -230px; right: -120px; background: #fbd3e2; }
+    .hero::before { width: 540px; height: 540px; top: -190px; left: -150px; background: #7c5cff; }
+    .hero::after { width: 470px; height: 470px; bottom: -230px; right: -120px; background: #ff6b9a; }
 
     .hero-grid {
-      position: relative; display: grid; grid-template-columns: 1.04fr .96fr;
+      /* z-index: o halo rosa e o ::after de .hero, ou seja, o ultimo filho.
+         Sem isto ele pinta por cima do conteudo e mancha o mockup. */
+      position: relative; z-index: 1; display: grid; grid-template-columns: 1.04fr .96fr;
       gap: 64px; align-items: center; padding: 88px 0 96px;
     }
 
     .pill {
       display: inline-flex; align-items: center; gap: 8px;
-      background: #fff; border: 1px solid var(--linha); color: var(--roxo-forte);
+      background: var(--cartao); border: 1px solid var(--linha); color: var(--roxo-forte);
       font-weight: 600; font-size: 13px; padding: 7px 15px 7px 12px; border-radius: 999px;
       margin-bottom: 22px; box-shadow: var(--sombra-sm);
     }
-    .pill .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--roxo); box-shadow: 0 0 0 4px rgba(114, 80, 246, .16); }
+    .pill .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--roxo-forte); box-shadow: 0 0 0 4px rgba(160, 128, 255, .22); }
 
     /* O app titula as telas em duas linhas — tinta escura e depois a cor.
        A página repete esse gesto em vez de inventar outro. */
@@ -153,7 +175,7 @@
     .btn-primary:hover { background: var(--roxo-forte); transform: translateY(-1px); box-shadow: 0 8px 24px rgba(114, 80, 246, .30); }
 
     /* Loja ainda não publicada: estado desabilitado explícito, não um botão falso. */
-    .btn-soon { background: #fff; color: var(--suave); border-color: var(--linha); cursor: default; box-shadow: var(--sombra-sm); }
+    .btn-soon { background: var(--cartao); color: var(--suave); border-color: var(--linha); cursor: default; box-shadow: var(--sombra-sm); }
     .btn-soon .tag {
       margin-left: 4px; font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
       color: var(--roxo-forte); background: var(--roxo-lavado); padding: 3px 8px; border-radius: 999px;
@@ -168,7 +190,7 @@
     .fone-col { display: flex; justify-content: center; }
     .fone-hero {
       width: 300px; height: auto; max-width: 100%;
-      filter: drop-shadow(0 40px 70px rgba(18, 10, 77, .16)) drop-shadow(0 10px 24px rgba(18, 10, 77, .07));
+      filter: drop-shadow(0 30px 60px rgba(0, 0, 0, .85)) drop-shadow(0 0 30px rgba(124, 92, 255, .16));
     }
 
     /* ---------- SEÇÕES ---------- */
@@ -190,7 +212,7 @@
     .passo { scroll-snap-align: center; min-width: 0; text-align: center; }
     .passo img {
       width: 100%; height: auto; margin: 0 auto 20px;
-      filter: drop-shadow(0 22px 38px rgba(18, 10, 77, .13));
+      filter: drop-shadow(0 22px 38px rgba(0, 0, 0, .48));
     }
     .passo-num {
       display: inline-flex; align-items: center; justify-content: center;
@@ -215,11 +237,11 @@
     }
     /* Cada perfil carrega a sua própria cor — as mesmas do app. */
     .role.empregador .r-ico { background: var(--roxo-lavado); color: var(--roxo-forte); }
-    .role.empregador:hover { border-color: #d6c9fb; }
-    .role.diarista   .r-ico { background: var(--rosa-lavado); color: var(--rosa-forte); }
-    .role.diarista:hover { border-color: #fbd0e0; }
-    .role.montador   .r-ico { background: #eaf2fe; color: #1f5fc4; }
-    .role.montador:hover { border-color: #c9dcfa; }
+    .role.empregador:hover { border-color: rgba(160, 128, 255, .55); }
+    .role.profissional .r-ico { background: var(--rosa-lavado); color: var(--rosa-forte); }
+    .role.profissional:hover { border-color: rgba(255, 107, 154, .50); }
+    .role.montador   .r-ico { background: var(--teal-lavado); color: var(--teal-forte); }
+    .role.montador:hover { border-color: rgba(125, 203, 181, .50); }
     .role .r-ico svg { width: 26px; height: 26px; }
     .role h3 { font-size: 17.5px; font-weight: 700; margin: 0 0 9px; letter-spacing: -.018em; }
     .role p { font-size: 15px; color: var(--corpo); line-height: 1.55; margin: 0; }
@@ -229,7 +251,7 @@
     .seg-fone { display: flex; justify-content: center; }
     .seg-fone img {
       width: 264px; height: auto; max-width: 100%;
-      filter: drop-shadow(0 34px 60px rgba(18, 10, 77, .14));
+      filter: drop-shadow(0 26px 50px rgba(0, 0, 0, .85)) drop-shadow(0 0 26px rgba(124, 92, 255, .14));
     }
     .seg-lista { display: flex; flex-direction: column; gap: 16px; margin: 26px 0 0; padding: 0; list-style: none; }
     .seg-lista li { display: flex; gap: 15px; align-items: flex-start; }
@@ -246,23 +268,23 @@
     /* ---------- CTA ---------- */
     .cta-box {
       position: relative; overflow: hidden;
-      background: linear-gradient(135deg, var(--roxo-lavado) 0%, #f7f0fd 52%, var(--rosa-lavado) 100%);
+      background: linear-gradient(135deg, #2a2437 0%, #26262a 52%, #322430 100%);
       border: 1px solid var(--linha);
       border-radius: 26px; padding: 56px 40px; text-align: center; color: var(--ink);
       box-shadow: var(--sombra-sm);
     }
     .cta-box::before {
       content: ""; position: absolute; width: 420px; height: 420px; border-radius: 50%;
-      background: rgba(114, 80, 246, .16); filter: blur(80px); top: -190px; right: -110px; pointer-events: none;
+      background: rgba(124, 92, 255, .22); filter: blur(80px); top: -190px; right: -110px; pointer-events: none;
     }
     .cta-box > * { position: relative; }
     .cta-box h2 { font-size: clamp(25px, 2.9vw, 34px); font-weight: 700; margin: 0 0 13px; letter-spacing: -.025em; }
     .cta-box p { font-size: 16px; color: var(--corpo); margin: 0 auto 30px; max-width: 34rem; line-height: 1.7; }
     .cta-box .acoes { justify-content: center; }
-    .cta-box .btn-soon { background: #fff; }
+    .cta-box .btn-soon { background: rgba(255, 255, 255, .06); }
 
     /* ---------- RODAPÉ ---------- */
-    footer { background: var(--ink); color: #b6aed2; padding: 40px 0; }
+    footer { background: var(--rodape); color: var(--suave); padding: 40px 0; border-top: 1px solid var(--linha); }
     .foot-inner { display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
     .foot-brand { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 16.5px; color: #fff; }
     .foot-brand img { width: 28px; height: 28px; border-radius: 8px; }
@@ -272,8 +294,9 @@
     /* ---------- BANNER DE COOKIES ---------- */
     .cookie-banner {
       position: fixed; left: 16px; right: 16px; bottom: 16px; z-index: 100;
-      max-width: 540px; margin: 0 auto; background: var(--ink); color: #d6cff0;
-      border-radius: 18px; box-shadow: 0 20px 50px rgba(18, 10, 77, .32);
+      max-width: 540px; margin: 0 auto; background: var(--cartao-alt); color: var(--corpo);
+      border: 1px solid var(--linha);
+      border-radius: 18px; box-shadow: 0 20px 50px rgba(0, 0, 0, .55);
       padding: 20px 22px; display: flex; flex-direction: column; gap: 14px;
     }
     /* O `display: flex` acima vence o display:none do atributo [hidden] (estilo
@@ -283,11 +306,11 @@
     .cookie-banner p { margin: 0; font-size: 13.5px; line-height: 1.5; }
     .cookie-actions { display: flex; gap: 10px; }
     .cookie-banner button {
-      flex: 1; height: 40px; border: none; border-radius: 10px;
+      flex: 1; height: 46px; border: none; border-radius: 10px;
       font-family: var(--fonte); font-weight: 700; font-size: 13.5px; cursor: pointer;
     }
     .cookie-accept { background: var(--roxo); color: #fff; }
-    .cookie-decline { background: transparent; color: #b6aed2; border: 1px solid rgba(255, 255, 255, .2) !important; }
+    .cookie-decline { background: transparent; color: var(--corpo); border: 1px solid rgba(255, 255, 255, .22) !important; }
 
     /* ---------- RESPONSIVO ---------- */
     @media (max-width: 900px) {
@@ -297,6 +320,9 @@
       .pill { margin-left: auto; margin-right: auto; }
       .roles { grid-template-columns: 1fr; }
       .seg-grid { grid-template-columns: 1fr; gap: 40px; text-align: center; }
+      /* Empilhado, o aparelho vinha antes de qualquer texto e empurrava a
+         seção inteira 530px para baixo. O texto explica primeiro. */
+      .seg-copy { order: -1; }
       .seg-lista li { text-align: left; }
       .sec-head { margin-bottom: 44px; }
       section { padding: 68px 0; }
@@ -305,9 +331,15 @@
     }
     @media (max-width: 560px) {
       .wrap { padding: 0 18px; }
-      .nav-cta { display: none; }
+      /* O botão sumia por completo abaixo de 560px. Ele encolhe, não some:
+         é o único atalho para o download enquanto a pessoa rola. */
+      .nav-cta { height: 36px; padding: 0 14px; font-size: 13px; }
       .cta-box { padding: 42px 22px; border-radius: 22px; }
-      .btn { width: 100%; justify-content: center; }
+      /* Largura total: o conteúdo encosta à esquerda com uma sarjeta fixa,
+         então o ícone dos dois botões cai na mesma vertical. Centralizado,
+         cada botão alinhava num lugar diferente por causa do selo "em breve". */
+      .btn { width: 100%; justify-content: flex-start; padding: 0 20px; }
+      .btn-soon .tag { margin-left: auto; }
       .cookie-banner { left: 12px; right: 12px; bottom: 12px; padding: 17px 18px; }
       .fone-hero { width: 258px; }
       .onb-faixa { grid-auto-columns: 208px; }
@@ -340,7 +372,7 @@
           </a>
 
           <span class="btn btn-soon" aria-disabled="true">
-            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.365 1.43c0 1.14-.417 2.2-1.11 3.02-.83.98-2.19 1.74-3.31 1.65-.14-1.11.42-2.28 1.09-3.03.75-.86 2.06-1.5 3.02-1.55.02.31.31.62.31.91zM20.9 17.14c-.55 1.27-.81 1.84-1.52 2.96-.99 1.57-2.39 3.52-4.12 3.53-1.54.02-1.93-1-4.02-.99-2.08.01-2.51 1.01-4.05.99-1.73-.02-3.06-1.78-4.05-3.35C.53 16.9-.15 12.13 1.6 9.42c.87-1.35 2.24-2.2 3.72-2.22 1.5-.02 2.44 1.02 3.68 1.02 1.21 0 1.94-1.02 3.68-1.02 1.31.02 2.7.74 3.7 2.02-3.25 1.79-2.72 6.44.02 7.92z"/></svg>
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.09 1.013 1.454 2.208 3.09 3.792 3.039 1.52-.065 2.09-.987 3.935-.987 1.831 0 2.35.987 3.96.948 1.637-.026 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83-1.207.052-2.662.805-3.532 1.818-.78.896-1.454 2.338-1.273 3.714 1.338.104 2.715-.688 3.559-1.701"/></svg>
             <span class="btn-sub"><small>iPhone</small><strong>App Store</strong></span>
             <span class="tag">Em breve</span>
           </span>
@@ -355,10 +387,10 @@
       <div class="fone-col">
         <img
           class="fone-hero"
-          src="img/app-perfil.webp"
-          srcset="img/app-perfil-sm.webp 380w, img/app-perfil-md.webp 480w, img/app-perfil.webp 620w"
+          src="img/app-perfil.webp?v=937bb9f8"
+          srcset="img/app-perfil-sm.webp?v=937bb9f8 380w, img/app-perfil-md.webp?v=937bb9f8 480w, img/app-perfil.webp?v=937bb9f8 620w"
           sizes="(max-width: 560px) 258px, 300px"
-          width="620" height="1244"
+          width="620" height="1251"
           fetchpriority="high" decoding="async"
           alt="Tela do app Dular pedindo para escolher entre o perfil de Empregador ou de profissional"
         />
@@ -376,39 +408,39 @@
 
       <div class="onb-faixa">
         <div class="passo">
-          <img src="img/app-onb-1.webp"
-            srcset="img/app-onb-1-sm.webp 320w, img/app-onb-1-md.webp 420w, img/app-onb-1.webp 520w"
+          <img src="img/app-onb-1.webp?v=937bb9f8"
+            srcset="img/app-onb-1-sm.webp?v=937bb9f8 320w, img/app-onb-1-md.webp?v=937bb9f8 420w, img/app-onb-1.webp?v=937bb9f8 520w"
             sizes="(max-width: 560px) 208px, (max-width: 900px) 232px, 248px"
-            width="520" height="1044" loading="lazy" decoding="async" alt="Tela de boas-vindas do app Dular" />
+            width="520" height="1050" loading="lazy" decoding="async" alt="Tela de boas-vindas do app Dular, com o logo e os três primeiros benefícios" />
           <div class="passo-num">1</div>
-          <h3>Bem-vindo ao Dular</h3>
+          <h3>Boas-vindas ao Dular</h3>
           <p>Uma forma mais simples, segura e acolhedora de cuidar da rotina da sua casa.</p>
         </div>
         <div class="passo">
-          <img src="img/app-onb-2.webp"
-            srcset="img/app-onb-2-sm.webp 320w, img/app-onb-2-md.webp 420w, img/app-onb-2.webp 520w"
+          <img src="img/app-onb-2.webp?v=937bb9f8"
+            srcset="img/app-onb-2-sm.webp?v=937bb9f8 320w, img/app-onb-2-md.webp?v=937bb9f8 420w, img/app-onb-2.webp?v=937bb9f8 520w"
             sizes="(max-width: 560px) 208px, (max-width: 900px) 232px, 248px"
-            width="520" height="1044" loading="lazy" decoding="async" alt="Tela do app mostrando agendamentos e histórico de serviços" />
+            width="520" height="1050" loading="lazy" decoding="async" alt="Tela do app com um calendário de agendamento e o próximo serviço marcado" />
           <div class="passo-num">2</div>
-          <h3>Praticidade no seu dia</h3>
-          <p>Agendamento rápido, recontratação das favoritas em um clique e histórico completo.</p>
+          <h3>Mais praticidade para você</h3>
+          <p>O Dular organiza seus serviços e mantém tudo acessível em poucos toques.</p>
         </div>
         <div class="passo">
-          <img src="img/app-onb-3.webp"
-            srcset="img/app-onb-3-sm.webp 320w, img/app-onb-3-md.webp 420w, img/app-onb-3.webp 520w"
+          <img src="img/app-onb-3.webp?v=937bb9f8"
+            srcset="img/app-onb-3-sm.webp?v=937bb9f8 320w, img/app-onb-3-md.webp?v=937bb9f8 420w, img/app-onb-3.webp?v=937bb9f8 520w"
             sizes="(max-width: 560px) 208px, (max-width: 900px) 232px, 248px"
-            width="520" height="1044" loading="lazy" decoding="async" alt="Tela do app mostrando o SafeScore e a verificação de profissionais" />
+            width="520" height="1050" loading="lazy" decoding="async" alt="Tela do app mostrando o escudo de segurança e a nota SafeScore" />
           <div class="passo-num">3</div>
-          <h3>Segurança para confiar</h3>
+          <h3>Segurança em um só lugar</h3>
           <p>Profissionais verificados por documento e o SafeScore para orientar a sua escolha.</p>
         </div>
         <div class="passo">
-          <img src="img/app-onb-4.webp"
-            srcset="img/app-onb-4-sm.webp 320w, img/app-onb-4-md.webp 420w, img/app-onb-4.webp 520w"
+          <img src="img/app-onb-4.webp?v=937bb9f8"
+            srcset="img/app-onb-4-sm.webp?v=937bb9f8 320w, img/app-onb-4-md.webp?v=937bb9f8 420w, img/app-onb-4.webp?v=937bb9f8 520w"
             sizes="(max-width: 560px) 208px, (max-width: 900px) 232px, 248px"
-            width="520" height="1044" loading="lazy" decoding="async" alt="Tela do app convidando a escolher o perfil e começar" />
+            width="520" height="1050" loading="lazy" decoding="async" alt="Tela do app convidando a escolher o perfil para começar" />
           <div class="passo-num">4</div>
-          <h3>Mais tempo para você</h3>
+          <h3>Hora de ter mais liberdade</h3>
           <p>Escolha o perfil que combina com a sua jornada e comece a usar na hora.</p>
         </div>
       </div>
@@ -428,10 +460,10 @@
           <h3>Sou Empregador</h3>
           <p>Encontre diaristas e montadores verificados perto de você, veja avaliações e contrate com segurança.</p>
         </div>
-        <div class="role diarista">
+        <div class="role profissional">
           <div class="r-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 1.9 4.6L18.5 9l-3.8 3 1.1 4.9L12 14.6 8.2 16.9 9.3 12 5.5 9l4.6-1.4z"/></svg></div>
-          <h3>Sou Diarista</h3>
-          <p>Ofereça seus serviços, defina seus preços e receba novos clientes da sua cidade — com pagamento por PIX.</p>
+          <h3>Sou Profissional</h3>
+          <p>Diarista, babá, cuidadora, cozinheira, passadeira ou lavadeira: ofereça seus serviços, defina seus preços e receba clientes da sua cidade.</p>
         </div>
         <div class="role montador">
           <div class="r-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.3L3 18v3h3l6.4-6.3a4 4 0 0 0 5.3-5.4l-2.5 2.5-2.3-.6-.6-2.3z"/></svg></div>
@@ -446,10 +478,10 @@
     <div class="wrap">
       <div class="seg-grid">
         <div class="seg-fone">
-          <img src="img/app-login.webp"
-            srcset="img/app-login-sm.webp 340w, img/app-login-md.webp 480w, img/app-login.webp 560w"
+          <img src="img/app-login.webp?v=937bb9f8"
+            srcset="img/app-login-sm.webp?v=937bb9f8 340w, img/app-login-md.webp?v=937bb9f8 480w, img/app-login.webp?v=937bb9f8 560w"
             sizes="264px"
-            width="560" height="1124" loading="lazy" decoding="async" alt="Tela de login do app Dular com as opções de entrar com Google ou Apple" />
+            width="560" height="1130" loading="lazy" decoding="async" alt="Tela de login do app Dular com as opções de entrar com Google ou com Apple" />
         </div>
         <div class="seg-copy">
           <div class="sec-tag">Confiança</div>
@@ -490,7 +522,7 @@
             <span class="btn-sub"><small>Baixar agora</small><strong>Android (APK)</strong></span>
           </a>
           <span class="btn btn-soon" aria-disabled="true">
-            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.365 1.43c0 1.14-.417 2.2-1.11 3.02-.83.98-2.19 1.74-3.31 1.65-.14-1.11.42-2.28 1.09-3.03.75-.86 2.06-1.5 3.02-1.55.02.31.31.62.31.91zM20.9 17.14c-.55 1.27-.81 1.84-1.52 2.96-.99 1.57-2.39 3.52-4.12 3.53-1.54.02-1.93-1-4.02-.99-2.08.01-2.51 1.01-4.05.99-1.73-.02-3.06-1.78-4.05-3.35C.53 16.9-.15 12.13 1.6 9.42c.87-1.35 2.24-2.2 3.72-2.22 1.5-.02 2.44 1.02 3.68 1.02 1.21 0 1.94-1.02 3.68-1.02 1.31.02 2.7.74 3.7 2.02-3.25 1.79-2.72 6.44.02 7.92z"/></svg>
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.09 1.013 1.454 2.208 3.09 3.792 3.039 1.52-.065 2.09-.987 3.935-.987 1.831 0 2.35.987 3.96.948 1.637-.026 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83-1.207.052-2.662.805-3.532 1.818-.78.896-1.454 2.338-1.273 3.714 1.338.104 2.715-.688 3.559-1.701"/></svg>
             <span class="btn-sub"><small>iPhone</small><strong>App Store</strong></span>
             <span class="tag">Em breve</span>
           </span>

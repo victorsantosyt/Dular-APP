@@ -1,0 +1,60 @@
+# Publica a landing na Vercel a cada push na main que mexa em landing/.
+#
+# Por que existe: a landing é um projeto Vercel separado do app e NÃO faz
+# deploy automático por git. Antes disto, merjar na main não publicava nada —
+# a página no ar podia ficar meses atrás do repositório sem ninguém notar,
+# porque ela continua abrindo normalmente, só que velha.
+#
+# Pré-requisito, uma vez só: criar o secret VERCEL_TOKEN no repositório
+# (Settings → Secrets and variables → Actions). O token sai de
+# vercel.com/account/tokens. Sem ele o job falha dizendo isso.
+#
+# Os ids abaixo não são segredo: identificam o projeto, não autenticam nada.
+# Eles ficam aqui porque landing/.vercel é gitignorado e não existe na CI.
+
+name: landing — publicar na Vercel
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'landing/**'
+      - '.github/workflows/landing-deploy.yml'
+  workflow_dispatch:        # permite publicar na mão pela aba Actions
+
+concurrency:
+  # Dois deploys simultâneos da mesma pasta podem terminar fora de ordem e
+  # deixar no ar a versão mais velha das duas.
+  group: landing-deploy
+  cancel-in-progress: false
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Conferir que o token existe
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          if [ -z "$VERCEL_TOKEN" ]; then
+            echo "::error::Falta o secret VERCEL_TOKEN. Crie em Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+          echo "token presente"
+
+      - name: Publicar e conferir
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: team_BmXRJsf88kO6YzF8xJRfHOsM
+          VERCEL_PROJECT_ID: prj_JCV1VVkrkM6ZJJn0AM7kcKADmkTM
+        # O script publica e depois compara o que está no ar com o que está no
+        # repositório. Ele sai com erro se divergir, então um deploy que
+        # responde 200 servindo o HTML antigo derruba o job em vez de passar.
+        run: ./landing/publicar.sh

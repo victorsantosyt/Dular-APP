@@ -157,6 +157,42 @@ if [ -z "${VERCEL_ORG_ID:-}" ] || [ -z "${VERCEL_PROJECT_ID:-}" ]; then
 fi
 ok "projeto: $VERCEL_PROJECT_ID"
 
+# A CLI não se contentou com os ids só por variável de ambiente: ela falhava
+# com "Could not retrieve Project Settings". O vínculo que ela realmente
+# procura é este arquivo, que é gitignorado e portanto não existe na CI.
+# Escrevê-lo deixa CI e máquina local no mesmo caminho de código.
+if [ ! -f "$LANDING/.vercel/project.json" ]; then
+  mkdir -p "$LANDING/.vercel"
+  printf '{"projectId":"%s","orgId":"%s"}\n' "$VERCEL_PROJECT_ID" "$VERCEL_ORG_ID" > "$LANDING/.vercel/project.json"
+  ok "vínculo escrito em landing/.vercel/project.json"
+fi
+
+# Antes de tentar publicar, conferir se o token ENXERGA o projeto. Sem isto a
+# CLI devolve "Could not retrieve Project Settings", que soa como problema de
+# link quando quase sempre é escopo de token — e manda remover o .vercel, o
+# conselho errado para o caso.
+if [ -n "${VERCEL_TOKEN:-}" ]; then
+  http=$(curl -s -o /tmp/_dular_proj.json -w '%{http_code}' -m 20 \
+    -H "Authorization: Bearer $VERCEL_TOKEN" \
+    "https://api.vercel.com/v9/projects/$VERCEL_PROJECT_ID?teamId=$VERCEL_ORG_ID" || echo 000)
+  if [ "$http" = "200" ]; then
+    ok "o token enxerga o projeto ($(python3 -c "import json;print(json.load(open('/tmp/_dular_proj.json'))['name'])" 2>/dev/null || echo '?'))"
+  else
+    ruim "o token NÃO enxerga o projeto — HTTP $http"
+    echo ""
+    echo "  Não é o vínculo, é o escopo do token. Em vercel.com/account/tokens,"
+    echo "  o campo Scope precisa ser o time dono do projeto:"
+    echo ""
+    echo "      victorsantosyts-projects"
+    echo ""
+    echo "  Um token criado com escopo diferente autentica, mas não alcança"
+    echo "  este projeto. Recrie com esse escopo e troque o secret VERCEL_TOKEN."
+    rm -f /tmp/_dular_proj.json
+    exit 1
+  fi
+  rm -f /tmp/_dular_proj.json
+fi
+
 ARGS=(deploy --prod --yes)
 # Local: a CLI usa o login salvo. Na CI: precisa de VERCEL_TOKEN.
 [ -n "${VERCEL_TOKEN:-}" ] && ARGS+=(--token "$VERCEL_TOKEN")

@@ -194,6 +194,24 @@ Vale além do Edge: `tsc` e testes veem o FONTE, não o artefato publicado. Se a
 afirmação é sobre o que roda em produção, a prova tem que ser feita sobre o
 artefato — o bundle, o deploy — e não sobre o código que o gerou.
 
+### Versão preventiva: buildar sem as variáveis de runtime
+
+A regra acima diz o que fazer depois que o deploy quebra. Esta antecipa uma
+classe inteira dessas quebras, e é barata.
+
+Antes de abrir PR que toque em `web/`:
+
+    cd web && AUTH_SECRET= NEXTAUTH_SECRET= npx next build
+
+Localmente o `.env` está sempre preenchido, então o build passa mesmo quando o
+código lê uma variável em tempo de compilação. Na Vercel essa variável pode não
+existir na etapa de build, e aí a publicação falha. Foi exatamente o caso do
+#246: a conferência de env rodava no compilador, não em execução, e derrubou o
+build da Vercel com o CI todo verde.
+
+Zerar as duas variáveis força o caminho "sem env" no build local. Se passar
+assim, ler env em tempo de compilação deixou de ser o motivo da falha.
+
 ## `__DEV__` não é gate de segurança
 
 `__DEV__` é otimização de minificador, não controle de acesso. Ele só elimina

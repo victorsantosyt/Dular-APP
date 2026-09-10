@@ -20,7 +20,12 @@ set -euo pipefail
 
 LANDING="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DOMINIO="${DULAR_LANDING_DOMINIO:-dular-landing.vercel.app}"
-VERCEL_VERSAO="vercel@41.2.2"   # pinado: 'latest' já mudou comportamento de flag no meio do caminho
+VERCEL_VERSAO="${DULAR_VERCEL_VERSAO:-vercel@59.15.1}"
+# Pinado de propósito, mas com um piso: a API da Vercel recusa CLI velha
+# ("This endpoint requires version 47.2.2 or later"), e o erro que ela
+# devolve antes disso é enganoso — fala em não conseguir ler as
+# configurações do projeto, como se fosse vínculo ou permissão.
+# Se voltar a acontecer, suba este número.
 
 MODO="publicar"
 case "${1:-}" in
@@ -157,14 +162,22 @@ if [ -z "${VERCEL_ORG_ID:-}" ] || [ -z "${VERCEL_PROJECT_ID:-}" ]; then
 fi
 ok "projeto: $VERCEL_PROJECT_ID"
 
-# A CLI não se contentou com os ids só por variável de ambiente: ela falhava
-# com "Could not retrieve Project Settings". O vínculo que ela realmente
-# procura é este arquivo, que é gitignorado e portanto não existe na CI.
-# Escrevê-lo deixa CI e máquina local no mesmo caminho de código.
+# `deploy` falhava com "Could not retrieve Project Settings" quando o vínculo
+# vinha só por variável de ambiente. O arquivo que ele procura é
+# landing/.vercel/project.json, gitignorado e portanto ausente na CI — e ele
+# não carrega só os ids, carrega também o bloco `settings` do projeto.
+# Escrever o arquivo à mão com os dois ids não resolveria: faltaria o
+# `settings`. Quem monta o arquivo completo é o `pull`, que funciona com os
+# ids por ambiente. Então é ele que cria o vínculo antes do deploy.
 if [ ! -f "$LANDING/.vercel/project.json" ]; then
-  mkdir -p "$LANDING/.vercel"
-  printf '{"projectId":"%s","orgId":"%s"}\n' "$VERCEL_PROJECT_ID" "$VERCEL_ORG_ID" > "$LANDING/.vercel/project.json"
-  ok "vínculo escrito em landing/.vercel/project.json"
+  msg "Vinculando o projeto (não há landing/.vercel — é o caso da CI)"
+  PULL=(pull --yes --environment=production)
+  [ -n "${VERCEL_TOKEN:-}" ] && PULL+=(--token "$VERCEL_TOKEN")
+  ( cd "$LANDING" && npx --yes "$VERCEL_VERSAO" "${PULL[@]}" ) || {
+    ruim "o pull falhou — veja a saída acima"
+    exit 1
+  }
+  [ -f "$LANDING/.vercel/project.json" ] && ok "vínculo criado" || { ruim "o pull não criou o vínculo"; exit 1; }
 fi
 
 # Antes de tentar publicar, conferir se o token ENXERGA o projeto. Sem isto a

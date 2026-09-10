@@ -172,53 +172,44 @@ ok "projeto: $VERCEL_PROJECT_ID"
 if [ -n "${VERCEL_TOKEN:-}" ]; then
   msg "Conferindo o token antes de falar com a CLI"
 
+  # /v2/user e /v2/teams NÃO decidem nada aqui, só informam. Um token com
+  # escopo de time não tem usuário associado e responde 404 em /v2/user — foi
+  # o que aconteceu, e como eu tinha feito essa checagem ser fatal, ela
+  # abortava o job antes de testar o que de fato importa. Um endpoint de
+  # usuário não é o teste certo para um token de time.
   http=$(curl -s -o /tmp/_dular_user.json -w '%{http_code}' -m 20 \
     -H "Authorization: Bearer $VERCEL_TOKEN" https://api.vercel.com/v2/user || echo 000)
-  if [ "$http" != "200" ]; then
-    ruim "o token nem autentica — HTTP $http"
-    echo "  Crie outro em vercel.com/account/tokens e troque o secret VERCEL_TOKEN."
-    rm -f /tmp/_dular_user.json; exit 1
-  fi
-  ok "o token autentica ($(python3 -c "import json;d=json.load(open('/tmp/_dular_user.json'));u=d.get('user',d);print(u.get('username') or u.get('email'))" 2>/dev/null || echo '?'))"
+  case "$http" in
+    200) echo "  contexto do token: usuário $(python3 -c "import json;d=json.load(open('/tmp/_dular_user.json'));u=d.get('user',d);print(u.get('username') or u.get('email'))" 2>/dev/null || echo '?')" ;;
+    404) echo "  contexto do token: time (sem usuário associado) — normal" ;;
+    *)   echo "  contexto do token: /v2/user respondeu $http" ;;
+  esac
   rm -f /tmp/_dular_user.json
 
-  # Este é o teste que separa as causas: um token com escopo errado autentica
-  # normalmente e mesmo assim não enxerga o time dono do projeto.
-  curl -s -m 20 -H "Authorization: Bearer $VERCEL_TOKEN" https://api.vercel.com/v2/teams > /tmp/_dular_teams.json || true
-  if python3 - "$VERCEL_ORG_ID" <<'PY'
-import json, sys
+  curl -s -m 20 -H "Authorization: Bearer $VERCEL_TOKEN" https://api.vercel.com/v2/teams > /tmp/_dular_teams.json 2>/dev/null || true
+  python3 <<'PY' || true
+import json
 try:
-    times = json.load(open("/tmp/_dular_teams.json")).get("teams", [])
+    t = json.load(open("/tmp/_dular_teams.json")).get("teams", [])
 except Exception:
-    times = []
-alvo = sys.argv[1]
-print("  times visíveis: " + (", ".join(f"{t.get('slug')} ({t.get('id')})" for t in times) or "nenhum"))
-sys.exit(0 if any(t.get("id") == alvo for t in times) else 1)
+    t = []
+print("  times visíveis: " + (", ".join(f"{x.get('slug')}" for x in t) or "nenhum (esperado para token de time)"))
 PY
-  then
-    ok "o token enxerga o time dono do projeto"
-  else
-    ruim "o token NÃO enxerga o time $VERCEL_ORG_ID"
-    echo ""
-    echo "  É o escopo do token. Em vercel.com/account/tokens, ao criar, o"
-    echo "  campo Scope precisa ser o time dono do projeto — não a conta"
-    echo "  pessoal. O time aqui é:"
-    echo ""
-    echo "      victorsantosyts-projects"
-    echo ""
-    echo "  Recrie com esse escopo e troque o secret VERCEL_TOKEN."
-    rm -f /tmp/_dular_teams.json; exit 1
-  fi
   rm -f /tmp/_dular_teams.json
 
+  # ESTE é o gate: ler o projeto é exatamente a operação que o deploy precisa.
+  # Se ela passa, nenhuma das outras importa.
   http=$(curl -s -o /tmp/_dular_proj.json -w '%{http_code}' -m 20 \
     -H "Authorization: Bearer $VERCEL_TOKEN" \
     "https://api.vercel.com/v9/projects/$VERCEL_PROJECT_ID?teamId=$VERCEL_ORG_ID" || echo 000)
   if [ "$http" = "200" ]; then
     ok "o token lê o projeto ($(python3 -c "import json;print(json.load(open('/tmp/_dular_proj.json'))['name'])" 2>/dev/null || echo '?'))"
   else
-    ruim "o token autentica e vê o time, mas não lê o projeto — HTTP $http"
+    ruim "o token não lê o projeto — HTTP $http"
     echo "  resposta: $(head -c 300 /tmp/_dular_proj.json 2>/dev/null)"
+    echo ""
+    echo "  Em vercel.com/account/tokens, o campo Scope do token precisa ser"
+    echo "  o time dono do projeto: victorsantosyts-projects"
     rm -f /tmp/_dular_proj.json; exit 1
   fi
   rm -f /tmp/_dular_proj.json

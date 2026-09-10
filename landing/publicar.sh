@@ -139,7 +139,14 @@ echo "  versão:   $VER  (impressão digital dos assets)"
 echo "  no HTML:  $(versao_no_html || echo 'nenhuma')"
 
 if [ "$MODO" = "conferir" ]; then
-  conferir "$(versao_no_html)" && { msg "No ar e conferido."; exit 0; } || { msg "Divergência encontrada."; exit 1; }
+  # Compara contra $VER (calculado dos arquivos), e não contra o carimbo
+  # gravado no index.html: a CI carimba no momento do deploy e não commita de
+  # volta, então o carimbo local envelhece e acusaria divergência falsa.
+  if [ "$(versao_no_html)" != "$VER" ]; then
+    echo "  nota: o carimbo do index.html local ($(versao_no_html)) está atrás dos"
+    echo "        arquivos ($VER). Rode ./landing/publicar.sh para acertar e commite."
+  fi
+  conferir "$VER" && { msg "No ar e conferido."; exit 0; } || { msg "Divergência encontrada."; exit 1; }
 fi
 
 if [ "$MODO" = "dry" ]; then

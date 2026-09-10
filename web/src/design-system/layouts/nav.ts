@@ -4,6 +4,7 @@ import {
   Users,
   ClipboardList,
   Wallet,
+  Gauge,
   BarChart3,
   MessageSquareText,
   Radar,
@@ -48,6 +49,7 @@ export const NAV_SECTIONS: NavSection[] = [
     items: [
       { href: "/admin/operacoes/usuarios", label: "Usuários", icon: Users, iconColor: "text-info" },
       { href: "/admin/operacoes/servicos", label: "Serviços", icon: ClipboardList, iconColor: "text-violet" },
+      { href: "/admin/planos", label: "Planos e limites", icon: Gauge, iconColor: "text-warning" },
       { href: "/admin/financeiro", label: "Financeiro", icon: Wallet, iconColor: "text-success", soon: true },
     ],
   },
@@ -84,6 +86,7 @@ export const ROUTE_TITLES: Record<string, string> = {
   "/admin/operacoes/usuarios": "Usuários",
   "/admin/operacoes/servicos": "Serviços",
   "/admin/operacoes/suporte": "Suporte",
+  "/admin/planos": "Planos e limites",
   "/admin/insights": "Analytics",
   "/admin/insights/feedbacks": "Feedbacks e avaliações",
   "/admin/insights/avaliacoes": "Avaliações",

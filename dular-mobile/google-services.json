@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "83410111756",
+    "project_id": "dular-app-ea1e1",
+    "storage_bucket": "dular-app-ea1e1.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:83410111756:android:970d2584e6b49502b94d29",
+        "android_client_info": {
+          "package_name": "com.dular.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAcPWkY8iv0k5k3Uq4uG2Ztb-z40fiGB4U"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

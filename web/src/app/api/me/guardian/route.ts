@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireAuth } from "@/lib/requireAuth";
-import { getGuardianStatusForUser } from "@/lib/safeScoreGuardian";
+import { getGuardianStatusForUser, guardianParaCliente } from "@/lib/safeScoreGuardian";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +20,9 @@ export async function GET(req: Request) {
   try {
     const auth = requireAuth(req);
     const guardian = await getGuardianStatusForUser(auth.userId);
-    return NextResponse.json({ ok: true, guardian });
+    // Sem o score bruto: a rota existe para explicar o estado, e o tier já
+    // explica. O número exato é insumo interno.
+    return NextResponse.json({ ok: true, guardian: guardianParaCliente(guardian) });
   } catch (error: unknown) {
     if (error instanceof Error && error.message === "Unauthorized") {
       return NextResponse.json({ ok: false, error: "Não autorizado" }, { status: 401 });

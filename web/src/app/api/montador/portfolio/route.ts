@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/requireAuth";
+import { requireAuthAtivo, respostaDeSessao } from "@/lib/contaAtiva";
 import { makeKey, putObject, deleteObject, signKeysForDisplay } from "@/lib/s3Objects";
 
 export const runtime = "nodejs";
@@ -21,7 +22,7 @@ function parseDataUrl(dataUrl: string): { buffer: Buffer; contentType: string; e
 /** Adiciona uma foto ao portfólio: sobe para o S3 e guarda a key no perfil. */
 export async function POST(req: Request) {
   try {
-    const auth = requireAuth(req);
+    const auth = await requireAuthAtivo(req);
     if (auth.role !== "MONTADOR") {
       return NextResponse.json({ ok: false, error: "Apenas montador pode editar o portfólio." }, { status: 403 });
     }
@@ -59,9 +60,8 @@ export async function POST(req: Request) {
     const portfolioFotos = await signKeysForDisplay(novas);
     return NextResponse.json({ ok: true, portfolioFotos });
   } catch (e: any) {
-    if (e?.message === "Unauthorized") {
-      return NextResponse.json({ ok: false, error: "Não autorizado" }, { status: 401 });
-    }
+    const sessao = respostaDeSessao(e);
+    if (sessao) return sessao;
     return NextResponse.json({ ok: false, error: e?.message ?? "Erro ao enviar foto." }, { status: 500 });
   }
 }
@@ -69,7 +69,7 @@ export async function POST(req: Request) {
 /** Remove a foto na posição `index` (query param) do portfólio. */
 export async function DELETE(req: Request) {
   try {
-    const auth = requireAuth(req);
+    const auth = await requireAuthAtivo(req);
     if (auth.role !== "MONTADOR") {
       return NextResponse.json({ ok: false, error: "Apenas montador pode editar o portfólio." }, { status: 403 });
     }
@@ -106,9 +106,8 @@ export async function DELETE(req: Request) {
     const portfolioFotos = await signKeysForDisplay(atual);
     return NextResponse.json({ ok: true, portfolioFotos });
   } catch (e: any) {
-    if (e?.message === "Unauthorized") {
-      return NextResponse.json({ ok: false, error: "Não autorizado" }, { status: 401 });
-    }
+    const sessao = respostaDeSessao(e);
+    if (sessao) return sessao;
     return NextResponse.json({ ok: false, error: e?.message ?? "Erro ao remover foto." }, { status: 500 });
   }
 }

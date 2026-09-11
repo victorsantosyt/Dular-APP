@@ -131,8 +131,26 @@ export function getDiaristaProfileCompleteness(
 
   // Qualquer status != ATIVO reprova (BLOQUEADO por moderação, REMOVIDO por
   // exclusão LGPD). Testar contra ATIVO cobre estados futuros sozinho.
-  if (profile.user?.status && profile.user.status !== "ATIVO") {
-    motivos.push(profile.user.status === "REMOVIDO" ? "conta_removida" : "usuario_bloqueado");
+  //
+  // Falha FECHADO, e sem o `&&` que havia aqui. Guardar a condição pela
+  // truthiness do próprio campo que se quer verificar — `status && status !==
+  // "ATIVO"` — anulava a promessa da linha acima: perfil sem `user` carregado
+  // ou com status nulo não gerava motivo nenhum e passava como completo,
+  // aparecendo na busca. O tipo permite os dois (`user` e `status` são
+  // anuláveis), então o compilador não pegava.
+  const status = profile.user?.status;
+  if (status !== "ATIVO") {
+    motivos.push(
+      status === "REMOVIDO"
+        ? "conta_removida"
+        : status === "BLOQUEADO"
+          ? "usuario_bloqueado"
+          // Nem ATIVO nem um dos dois conhecidos: pode ser status nulo, perfil
+          // consultado sem selecionar `user.status`, ou um valor que ainda não
+          // existe. Reprova do mesmo jeito, mas com nome próprio — chamar de
+          // "bloqueado" mandaria alguém procurar uma moderação que não houve.
+          : "status_indeterminado",
+    );
   }
   if (!profile.ativo) motivos.push("perfil_inativo");
   if (!profile.user?.nome?.trim()) motivos.push("falta_nome");

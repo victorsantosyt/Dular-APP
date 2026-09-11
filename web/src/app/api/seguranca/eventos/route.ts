@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/requireAuth";
+import { requireAuthAtivo, respostaDeSessao } from "@/lib/contaAtiva";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,7 +17,7 @@ export const dynamic = "force-dynamic";
  */
 export async function GET(req: Request) {
   try {
-    const auth = requireAuth(req);
+    const auth = await requireAuthAtivo(req);
     const url = new URL(req.url);
     const typeParam = url.searchParams.get("type");
     const type =
@@ -32,9 +33,8 @@ export async function GET(req: Request) {
 
     return NextResponse.json({ ok: true, eventos });
   } catch (e: any) {
-    if (e?.message === "Unauthorized") {
-      return NextResponse.json({ ok: false, error: "Não autorizado" }, { status: 401 });
-    }
+    const sessao = respostaDeSessao(e);
+    if (sessao) return sessao;
     return NextResponse.json({ ok: false, error: e?.message ?? "Erro" }, { status: 500 });
   }
 }

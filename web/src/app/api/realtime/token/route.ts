@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/requireAuth";
+import { requireAuthAtivo, respostaDeSessao } from "@/lib/contaAtiva";
 import { createChatTokenRequest } from "@/lib/ably";
 
 export const dynamic = "force-dynamic";
@@ -10,7 +11,7 @@ export const dynamic = "force-dynamic";
 // é restrita apenas às salas em que o usuário participa.
 export async function GET(req: Request) {
   try {
-    const auth = requireAuth(req);
+    const auth = await requireAuthAtivo(req);
 
     // Salas (ChatRoom) do usuário: cliente, diarista ou montador do serviço.
     // Capability é gerada exclusivamente para essas salas — sem wildcard.
@@ -34,9 +35,8 @@ export async function GET(req: Request) {
 
     return NextResponse.json({ tokenRequest });
   } catch (error: unknown) {
-    if (error instanceof Error && error.message === "Unauthorized") {
-      return NextResponse.json({ ok: false, error: "Não autorizado." }, { status: 401 });
-    }
+    const sessao = respostaDeSessao(error);
+    if (sessao) return sessao;
     return NextResponse.json({ ok: false, error: "Erro interno." }, { status: 500 });
   }
 }

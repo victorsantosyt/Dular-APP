@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/requireAuth";
+import { requireAuthAtivo, respostaDeSessao } from "@/lib/contaAtiva";
 import { enderecoSchema } from "@/lib/schemas/enderecos";
 
 export const dynamic = "force-dynamic";
@@ -8,16 +9,15 @@ export const dynamic = "force-dynamic";
 // GET /api/me/enderecos — endereços do usuário autenticado.
 export async function GET(req: Request) {
   try {
-    const auth = requireAuth(req);
+    const auth = await requireAuthAtivo(req);
     const enderecos = await prisma.enderecoUsuario.findMany({
       where: { userId: auth.userId },
       orderBy: { tipo: "asc" },
     });
     return NextResponse.json({ ok: true, enderecos });
   } catch (e: unknown) {
-    if (e instanceof Error && e.message === "Unauthorized") {
-      return NextResponse.json({ ok: false, error: "Não autorizado" }, { status: 401 });
-    }
+    const sessao = respostaDeSessao(e);
+    if (sessao) return sessao;
     const message = e instanceof Error ? e.message : "Erro ao carregar endereços.";
     return NextResponse.json({ ok: false, error: message }, { status: 500 });
   }
@@ -26,7 +26,7 @@ export async function GET(req: Request) {
 // POST /api/me/enderecos — cria/atualiza (máx. 1 por tipo por usuário).
 export async function POST(req: Request) {
   try {
-    const auth = requireAuth(req);
+    const auth = await requireAuthAtivo(req);
     const parsed = enderecoSchema.safeParse(await req.json());
     if (!parsed.success) {
       return NextResponse.json(
@@ -61,9 +61,8 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ ok: true, endereco });
   } catch (e: unknown) {
-    if (e instanceof Error && e.message === "Unauthorized") {
-      return NextResponse.json({ ok: false, error: "Não autorizado" }, { status: 401 });
-    }
+    const sessao = respostaDeSessao(e);
+    if (sessao) return sessao;
     const message = e instanceof Error ? e.message : "Erro ao salvar endereço.";
     return NextResponse.json({ ok: false, error: message }, { status: 500 });
   }

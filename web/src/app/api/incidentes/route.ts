@@ -3,6 +3,7 @@ import fs from "node:fs/promises";
 import type formidable from "formidable";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/requireAuth";
+import { requireAuthAtivo, respostaDeSessao } from "@/lib/contaAtiva";
 import { isServiceParticipant } from "@/lib/requireAuth";
 import { parseMultipart } from "@/lib/parseMultipart";
 import { makeKey, putObject } from "@/lib/s3Objects";
@@ -155,7 +156,7 @@ export async function POST(req: Request) {
   try {
     cleanupRateLimit();
 
-    const auth = requireAuth(req);
+    const auth = await requireAuthAtivo(req);
     const ip = getRequestIp(req);
     const rlIp = rateLimit({ key: `incidentes-ip:${ip}`, limit: 20, windowMs: 10 * 60_000 });
     const rlUser = rateLimit({
@@ -277,9 +278,8 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ ok: true, incidentId: incident.id, status: incident.status });
   } catch (e: any) {
-    if (e?.message === "Unauthorized") {
-      return NextResponse.json({ ok: false, error: "Não autorizado" }, { status: 401 });
-    }
+    const sessao = respostaDeSessao(e);
+    if (sessao) return sessao;
     return NextResponse.json({ ok: false, error: "Erro interno" }, { status: 500 });
   }
 }

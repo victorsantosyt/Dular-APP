@@ -113,7 +113,10 @@ describe("GET /api/empregador/favoritos", () => {
 
   it("retorna lista de favoritos com dados enriquecidos", async () => {
     mockPrisma.empregadorFavorito.findMany = async () => [FAVORITO_DIARISTA];
-    mockPrisma.user.findUnique = async () => DIARISTA_USER;
+    // O id decide: o autenticado responde status (assertContaAtiva), o
+    // profissional responde o cadastro que a rota enriquece.
+    mockPrisma.user.findUnique = async (args: any) =>
+      args?.where?.id === EMPREGADOR_ID ? { status: "ATIVO" } : DIARISTA_USER;
     mockPrisma.diaristaProfile.findUnique = async () => DIARISTA_PROFILE;
 
     const { GET } = await getHandlers();
@@ -177,7 +180,8 @@ describe("POST /api/empregador/favoritos", () => {
   });
 
   it("retorna 404 quando profissional não existe", async () => {
-    mockPrisma.user.findUnique = async () => null;
+    mockPrisma.user.findUnique = async (args: any) =>
+      args?.where?.id === EMPREGADOR_ID ? { status: "ATIVO" } : null;
     const { POST } = await getHandlers();
     const res = await POST(
       jsonRequest(
@@ -192,7 +196,8 @@ describe("POST /api/empregador/favoritos", () => {
   });
 
   it("retorna 400 quando tipo não corresponde ao role", async () => {
-    mockPrisma.user.findUnique = async () => DIARISTA_USER;
+    mockPrisma.user.findUnique = async (args: any) =>
+      args?.where?.id === EMPREGADOR_ID ? { status: "ATIVO" } : DIARISTA_USER;
     const { POST } = await getHandlers();
     const res = await POST(
       jsonRequest(
@@ -207,7 +212,8 @@ describe("POST /api/empregador/favoritos", () => {
   });
 
   it("cria favorito com sucesso para DIARISTA", async () => {
-    mockPrisma.user.findUnique = async () => DIARISTA_USER;
+    mockPrisma.user.findUnique = async (args: any) =>
+      args?.where?.id === EMPREGADOR_ID ? { status: "ATIVO" } : DIARISTA_USER;
     mockPrisma.empregadorFavorito.upsert = async () => FAVORITO_DIARISTA;
     mockPrisma.diaristaProfile.findUnique = async () => DIARISTA_PROFILE;
 
@@ -227,7 +233,8 @@ describe("POST /api/empregador/favoritos", () => {
   });
 
   it("é idempotente: POST 2x mesmo favorito não duplica", async () => {
-    mockPrisma.user.findUnique = async () => DIARISTA_USER;
+    mockPrisma.user.findUnique = async (args: any) =>
+      args?.where?.id === EMPREGADOR_ID ? { status: "ATIVO" } : DIARISTA_USER;
     mockPrisma.empregadorFavorito.upsert = async () => FAVORITO_DIARISTA;
     mockPrisma.diaristaProfile.findUnique = async () => DIARISTA_PROFILE;
 

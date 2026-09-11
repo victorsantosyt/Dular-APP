@@ -1,4 +1,5 @@
 import { requireAuth } from "@/lib/requireAuth";
+import { requireAuthAtivo, respostaDeSessao } from "@/lib/contaAtiva";
 import { prisma } from "@/lib/prisma";
 import { ok, fail } from "@/lib/apiResponse";
 import { checkFeatureAccess } from "@/lib/featureGate";
@@ -8,7 +9,7 @@ export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
   let payload;
   try {
-    payload = requireAuth(request);
+    payload = await requireAuthAtivo(request);
   } catch {
     return fail("UNAUTHORIZED", "Não autenticado", 401);
   }

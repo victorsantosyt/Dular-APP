@@ -15,8 +15,21 @@ export async function GET(request: Request) {
 
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },
-    select: { id: true, role: true, nome: true, cpf: true, telefone: true },
+    // `status` entra na consulta que já existia: nenhuma ida a mais ao banco.
+    select: { id: true, role: true, nome: true, cpf: true, telefone: true, status: true },
   });
+
+  // Esta rota é a porta de reentrada: ela EMITE um JWT de 7 dias a partir da
+  // sessão OAuth. Sem esta checagem, uma conta bloqueada ou excluída que
+  // ainda consegue logar no Google recebia token novo em folha, e o bloqueio
+  // durava só até a pessoa tocar em "entrar" de novo.
+  //
+  // Compara com "ATIVO" literal: usuário sumido, status nulo ou valor futuro
+  // não emitem token.
+  if (!user || user.status !== "ATIVO") {
+    const motivo = user?.status === "REMOVIDO" ? "conta_removida" : "conta_bloqueada";
+    return NextResponse.redirect(`dular://auth/callback?error=${motivo}`);
+  }
 
   if (!user?.role) {
     return NextResponse.redirect("dular://auth/callback?error=no_role");

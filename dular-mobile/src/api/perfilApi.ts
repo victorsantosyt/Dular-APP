@@ -122,7 +122,9 @@ export type GuardianTier = "BRONZE" | "SILVER" | "GOLD" | "PLATINUM" | "BLOCKED"
 
 export type GuardianPermissions = {
   ok: boolean;
-  score: number;
+  // Sem `score`: o backend deixou de mandar o número bruto e passa só o tier.
+  // Declarar um campo que não vem faz o tipo mentir — qualquer leitura daria
+  // undefined sem erro de compilação.
   tier: GuardianTier;
   verificationStatus: "VERIFICADO" | "PENDENTE" | "REPROVADO" | "NAO_ENVIADO";
   canCreateServico: boolean;
@@ -144,6 +146,7 @@ export async function getGuardian(): Promise<GuardianPermissions | null> {
 export function motivoLabel(codigo: string): string {
   const map: Record<string, string> = {
     usuario_bloqueado: "Conta bloqueada",
+    status_indeterminado: "Status da conta indeterminado",
     usuario_nao_encontrado: "Usuário não encontrado",
     documento_nao_enviado: "Documento ainda não foi enviado",
     documento_aguardando_analise: "Documento em análise",

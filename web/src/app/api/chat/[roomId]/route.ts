@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/requireAuth";
+import { requireAuthAtivo, respostaDeSessao } from "@/lib/contaAtiva";
 import { criarNotificacao } from "@/lib/notifications";
 import { publishChatEvent, isUserPresentInRoom } from "@/lib/ably";
 import type { UserRole } from "@prisma/client";
@@ -31,7 +32,7 @@ const postSchema = z.object({
 
 export async function GET(req: Request, { params }: Params) {
   try {
-    const auth = requireAuth(req);
+    const auth = await requireAuthAtivo(req);
     const { roomId: servicoId } = await params;
 
     const servico = await prisma.servico.findUnique({
@@ -182,16 +183,15 @@ export async function GET(req: Request, { params }: Params) {
       messages,
     });
   } catch (error: unknown) {
-    if (error instanceof Error && error.message === "Unauthorized") {
-      return NextResponse.json({ ok: false, error: "Não autorizado." }, { status: 401 });
-    }
+    const sessao = respostaDeSessao(error);
+    if (sessao) return sessao;
     return NextResponse.json({ ok: false, error: "Erro interno." }, { status: 500 });
   }
 }
 
 export async function POST(req: Request, { params }: Params) {
   try {
-    const auth = requireAuth(req);
+    const auth = await requireAuthAtivo(req);
     const { roomId: servicoId } = await params;
 
     const servico = await prisma.servico.findUnique({
@@ -291,9 +291,8 @@ export async function POST(req: Request, { params }: Params) {
 
     return NextResponse.json({ ok: true, message }, { status: 201 });
   } catch (error: unknown) {
-    if (error instanceof Error && error.message === "Unauthorized") {
-      return NextResponse.json({ ok: false, error: "Não autorizado." }, { status: 401 });
-    }
+    const sessao = respostaDeSessao(error);
+    if (sessao) return sessao;
     return NextResponse.json({ ok: false, error: "Erro interno." }, { status: 500 });
   }
 }

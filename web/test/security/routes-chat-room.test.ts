@@ -93,13 +93,10 @@ describe("GET /api/chat/[roomId] — ler mensagens", () => {
       createdAt: new Date(),
       _count: { messages: 0 },
     });
-    mockPrisma.user.findUnique = async () => ({
-      id: DIARISTA,
-      nome: "Diarista",
-      avatarUrl: null,
-      role: "DIARISTA",
-      lastSeenAt: null,
-    });
+    mockPrisma.user.findUnique = async (args: any) =>
+      args?.where?.id === DIARISTA
+        ? { id: DIARISTA, nome: "Diarista", avatarUrl: null, role: "DIARISTA", lastSeenAt: null }
+        : { status: "ATIVO" };
     // GET marca deliveredAt (e depois readAt) via updateMany — Etapa 2.
     mockPrisma.chatMessage.updateMany = async () => ({ count: 0 });
     mockPrisma.chatMessage.findMany = async () => [];

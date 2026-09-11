@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/requireAuth";
+import { requireAuthAtivo, respostaDeSessao } from "@/lib/contaAtiva";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
   try {
-    const auth = requireAuth(req);
+    const auth = await requireAuthAtivo(req);
     const { pushToken } = (await req.json()) as { pushToken?: string };
 
     if (!pushToken || typeof pushToken !== "string") {
@@ -25,9 +26,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro";
-    if (msg === "Unauthorized") {
-      return NextResponse.json({ ok: false, error: "Não autorizado" }, { status: 401 });
-    }
+    const sessao = respostaDeSessao(e);
+    if (sessao) return sessao;
     return NextResponse.json({ ok: false, error: msg }, { status: 500 });
   }
 }

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, requireServiceParticipant } from "@/lib/requireAuth";
+import { requireAuthAtivo, respostaDeSessao } from "@/lib/contaAtiva";
 import { z } from "zod";
 
 export const runtime = "nodejs";
@@ -19,7 +20,7 @@ const sosSchema = z.object({
 
 export async function POST(req: Request) {
   try {
-    const auth = requireAuth(req);
+    const auth = await requireAuthAtivo(req);
     const parsed = sosSchema.safeParse(await req.json().catch(() => ({})));
     if (!parsed.success) {
       return NextResponse.json({ ok: false, error: "Dados inválidos" }, { status: 400 });
@@ -83,9 +84,8 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ ok: true, id: eventoId });
   } catch (e: any) {
-    if (e?.message === "Unauthorized") {
-      return NextResponse.json({ ok: false, error: "Não autorizado" }, { status: 401 });
-    }
+    const sessao = respostaDeSessao(e);
+    if (sessao) return sessao;
     if (e?.message === "Forbidden") {
       return NextResponse.json({ ok: false, error: "Acesso negado ao serviço informado." }, { status: 403 });
     }

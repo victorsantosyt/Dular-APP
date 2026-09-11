@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/requireAuth";
+import { requireAuthAtivo, respostaDeSessao } from "@/lib/contaAtiva";
 import { enderecoSchema } from "@/lib/schemas/enderecos";
 
 export const dynamic = "force-dynamic";
@@ -10,7 +11,7 @@ type Params = { params: Promise<{ id: string }> };
 // PATCH /api/me/enderecos/[id] — atualiza endereço do usuário autenticado.
 export async function PATCH(req: Request, { params }: Params) {
   try {
-    const auth = requireAuth(req);
+    const auth = await requireAuthAtivo(req);
     const { id } = await params;
 
     const parsed = enderecoSchema.safeParse(await req.json());
@@ -48,9 +49,8 @@ export async function PATCH(req: Request, { params }: Params) {
 
     return NextResponse.json({ ok: true, endereco });
   } catch (e: unknown) {
-    if (e instanceof Error && e.message === "Unauthorized") {
-      return NextResponse.json({ ok: false, error: "Não autorizado" }, { status: 401 });
-    }
+    const sessao = respostaDeSessao(e);
+    if (sessao) return sessao;
     const message = e instanceof Error ? e.message : "Erro ao atualizar endereço.";
     return NextResponse.json({ ok: false, error: message }, { status: 500 });
   }

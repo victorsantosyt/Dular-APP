@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuthOuSessao } from "@/lib/pagamentoPix";
+import { respostaDeSessao } from "@/lib/contaAtiva";
 import { normalizarChavePix } from "@/lib/pixKey";
 import { assertRole } from "@/lib/regrasServico";
 import type { UserRole } from "@prisma/client";
@@ -50,9 +51,8 @@ export async function GET(req: Request) {
     return NextResponse.json({ ok: true, paymentInfo: info ? toDto(info) : null });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "Erro";
-    if (msg === "Unauthorized") {
-      return NextResponse.json({ ok: false, error: "Não autorizado" }, { status: 401 });
-    }
+    const sessao = respostaDeSessao(error);
+    if (sessao) return sessao;
     if (msg === "FORBIDDEN") {
       return NextResponse.json({ ok: false, error: "Não autorizado." }, { status: 403 });
     }
@@ -95,9 +95,8 @@ export async function PUT(req: Request) {
     return NextResponse.json({ ok: true, paymentInfo: toDto(info) });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "Erro";
-    if (msg === "Unauthorized") {
-      return NextResponse.json({ ok: false, error: "Não autorizado" }, { status: 401 });
-    }
+    const sessao = respostaDeSessao(error);
+    if (sessao) return sessao;
     if (msg === "FORBIDDEN") {
       return NextResponse.json({ ok: false, error: "Não autorizado." }, { status: 403 });
     }

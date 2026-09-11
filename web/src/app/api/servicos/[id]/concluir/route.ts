@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/requireAuth";
+import { requireAuthAtivo, respostaDeSessao } from "@/lib/contaAtiva";
 import { assertRole, assertStatus } from "@/lib/regrasServico";
 import { ServicoStatus, UserRole } from "@prisma/client";
 import { confirmarFinalizacaoAtomic } from "@/lib/servicoEvento";
@@ -28,7 +29,7 @@ const STATUS_CONCLUIVEIS: ServicoStatus[] = ["EM_ANDAMENTO", "AGUARDANDO_FINALIZ
 
 export async function POST(req: Request, { params }: Params) {
   try {
-    const auth = requireAuth(req);
+    const auth = await requireAuthAtivo(req);
     assertRole(auth.role as UserRole, ["DIARISTA", "MONTADOR"]);
 
     const { id } = await params;
@@ -87,9 +88,8 @@ export async function POST(req: Request, { params }: Params) {
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "Erro";
     const code = msg === "FORBIDDEN" ? 403 : msg === "INVALID_STATUS" ? 409 : 500;
-    if (msg === "Unauthorized") {
-      return NextResponse.json({ ok: false, error: "Não autorizado" }, { status: 401 });
-    }
+    const sessao = respostaDeSessao(error);
+    if (sessao) return sessao;
     return NextResponse.json({ ok: false, error: msg }, { status: code });
   }
 }

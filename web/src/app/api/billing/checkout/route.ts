@@ -1,5 +1,6 @@
 import { stripe, PLANS, type PlanId } from "@/lib/stripe";
 import { requireAuth } from "@/lib/requireAuth";
+import { requireAuthAtivo, respostaDeSessao } from "@/lib/contaAtiva";
 import { prisma } from "@/lib/prisma";
 import { ok, fail } from "@/lib/apiResponse";
 import { cleanupRateLimit, rateLimit, rateLimitRetryAfterMs } from "@/lib/rateLimit";
@@ -41,7 +42,7 @@ export async function POST(request: Request) {
   let payload;
   try {
     cleanupRateLimit();
-    payload = requireAuth(request);
+    payload = await requireAuthAtivo(request);
   } catch {
     return fail("UNAUTHORIZED", "Não autenticado", 401);
   }

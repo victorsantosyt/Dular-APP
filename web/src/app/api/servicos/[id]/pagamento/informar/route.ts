@@ -10,6 +10,7 @@ import {
   registrarPaymentEvent,
   requireAuthOuSessao,
 } from "@/lib/pagamentoPix";
+import { respostaDeSessao } from "@/lib/contaAtiva";
 import type { ServicoStatus } from "@prisma/client";
 
 type Params = { params: Promise<{ id: string }> };
@@ -93,9 +94,8 @@ export async function POST(req: Request, { params }: Params) {
     return NextResponse.json({ ok: true, servico: updated });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "Erro";
-    if (msg === "Unauthorized") {
-      return NextResponse.json({ ok: false, error: "Não autorizado" }, { status: 401 });
-    }
+    const sessao = respostaDeSessao(error);
+    if (sessao) return sessao;
     const code = msg === "FORBIDDEN" ? 403 : msg === "INVALID_STATUS" ? 409 : 500;
     return NextResponse.json({ ok: false, error: msg }, { status: code });
   }

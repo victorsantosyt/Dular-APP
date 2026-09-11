@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/requireAuth";
+import { assertContaAtiva, respostaDeSessao } from "@/lib/contaAtiva";
 
 export const dynamic = "force-dynamic";
 
@@ -112,6 +113,7 @@ async function enrichFavoritoData(favorito: any): Promise<FavoritoResponse | nul
 export async function GET(req: Request) {
   try {
     const auth = requireRole(req, ["EMPREGADOR"]);
+    await assertContaAtiva(auth.userId);
 
     const favoritos = await prisma.empregadorFavorito.findMany({
       where: { empregadorUserId: auth.userId },
@@ -129,9 +131,8 @@ export async function GET(req: Request) {
       favoritos: resultados,
     });
   } catch (error: unknown) {
-    if (error instanceof Error && error.message === "Unauthorized") {
-      return NextResponse.json({ ok: false, error: "Não autorizado" }, { status: 401 });
-    }
+    const sessao = respostaDeSessao(error);
+    if (sessao) return sessao;
     if (error instanceof Error && error.message === "Forbidden") {
       return NextResponse.json({ ok: false, error: "Acesso negado" }, { status: 403 });
     }
@@ -143,6 +144,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const auth = requireRole(req, ["EMPREGADOR"]);
+    await assertContaAtiva(auth.userId);
     const body = await req.json();
 
     const data = createFavoritoSchema.parse(body);
@@ -218,9 +220,8 @@ export async function POST(req: Request) {
         { status: 400 }
       );
     }
-    if (error instanceof Error && error.message === "Unauthorized") {
-      return NextResponse.json({ ok: false, error: "Não autorizado" }, { status: 401 });
-    }
+    const sessao = respostaDeSessao(error);
+    if (sessao) return sessao;
     if (error instanceof Error && error.message === "Forbidden") {
       return NextResponse.json({ ok: false, error: "Acesso negado" }, { status: 403 });
     }
@@ -232,6 +233,7 @@ export async function POST(req: Request) {
 export async function DELETE(req: Request) {
   try {
     const auth = requireRole(req, ["EMPREGADOR"]);
+    await assertContaAtiva(auth.userId);
     
     const url = new URL(req.url);
     const profissionalUserId = url.searchParams.get("profissionalUserId");
@@ -268,9 +270,8 @@ export async function DELETE(req: Request) {
         { status: 400 }
       );
     }
-    if (error instanceof Error && error.message === "Unauthorized") {
-      return NextResponse.json({ ok: false, error: "Não autorizado" }, { status: 401 });
-    }
+    const sessao = respostaDeSessao(error);
+    if (sessao) return sessao;
     if (error instanceof Error && error.message === "Forbidden") {
       return NextResponse.json({ ok: false, error: "Acesso negado" }, { status: 403 });
     }

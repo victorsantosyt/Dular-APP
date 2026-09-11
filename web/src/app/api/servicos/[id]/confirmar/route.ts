@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/requireAuth";
+import { requireAuthAtivo, respostaDeSessao } from "@/lib/contaAtiva";
 import { assertStatus } from "@/lib/regrasServico";
 import { ServicoStatus } from "@prisma/client";
 import { registrarEvento } from "@/lib/servicoEvento";
@@ -11,7 +12,7 @@ type Params = { params: Promise<{ id: string }> };
 
 export async function POST(req: Request, { params }: Params) {
   try {
-    const auth = requireAuth(req);
+    const auth = await requireAuthAtivo(req);
     if (auth.role !== "EMPREGADOR") {
       return NextResponse.json({ ok: false, error: "Apenas empregador pode confirmar." }, { status: 403 });
     }
@@ -54,9 +55,8 @@ export async function POST(req: Request, { params }: Params) {
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "Erro";
     const code = msg === "INVALID_STATUS" ? 409 : 500;
-    if (msg === "Unauthorized") {
-      return NextResponse.json({ ok: false, error: "Não autorizado" }, { status: 401 });
-    }
+    const sessao = respostaDeSessao(error);
+    if (sessao) return sessao;
     return NextResponse.json({ ok: false, error: msg }, { status: code });
   }
 }

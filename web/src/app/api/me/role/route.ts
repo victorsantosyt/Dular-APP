@@ -18,8 +18,17 @@ export async function PATCH(req: Request) {
 
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },
-    select: { role: true },
+    // `status` junto do `role`: mesma consulta, sem ida extra ao banco.
+    select: { role: true, status: true },
   });
+
+  // Conta bloqueada ou excluída não escolhe nem troca de papel. O `!user`
+  // também recusa: sessão apontando para usuário que não existe mais.
+  if (!user || user.status !== "ATIVO") {
+    const codigo =
+      user?.status === "REMOVIDO" ? "CONTA_REMOVIDA" : "CONTA_BLOQUEADA";
+    return fail(codigo, "Sua conta não está ativa.", 403);
+  }
 
   if (user?.role && user.role !== role) {
     return fail("ROLE_MISMATCH", roleMismatchMessage(user.role, role), 409, {

@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/requireAuth";
+import { assertContaAtiva } from "@/lib/contaAtiva";
 import type { JwtPayload } from "@/lib/auth";
 import type {
   PaymentEventType,
@@ -141,6 +142,16 @@ export async function enviarMensagemSistema(
  * os testes de segurança exercitam só o caminho JWT e não carregam NextAuth.
  */
 export async function requireAuthOuSessao(req: Request): Promise<JwtPayload> {
+  // A checagem de conta ativa fica FORA do try/catch abaixo, no final.
+  // Dentro, o catch engole tudo em "Unauthorized" e uma conta bloqueada
+  // viraria 401 de credencial em vez de 403 — a pessoa repetiria o login
+  // para bater na mesma parede.
+  const auth = await resolverIdentidade(req);
+  await assertContaAtiva(auth.userId);
+  return auth;
+}
+
+async function resolverIdentidade(req: Request): Promise<JwtPayload> {
   try {
     return requireAuth(req);
   } catch {

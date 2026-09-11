@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/requireAuth";
+import { requireAuthAtivo, respostaDeSessao } from "@/lib/contaAtiva";
 import { anonimizarUsuario } from "@/lib/lgpd";
 
 export const dynamic = "force-dynamic";
@@ -38,7 +39,7 @@ export async function GET(req: Request) {
   const isDev = process.env.NODE_ENV === "development";
   try {
     const tAuth = Date.now();
-    const auth = requireAuth(req);
+    const auth = await requireAuthAtivo(req);
     if (isDev) console.log(`[me GET] auth: ${Date.now() - tAuth}ms`);
 
     // Roda user + perfil em paralelo (eram 2 awaits sequenciais; agora 1 round-trip).
@@ -255,16 +256,18 @@ export async function GET(req: Request) {
     });
   } catch (e: any) {
     if (isDev) console.log(`[me GET] ERROR after ${Date.now() - t0}ms: ${e?.message}`);
-    if (e?.message === "Unauthorized") {
-      return NextResponse.json({ ok: false, error: "Não autorizado" }, { status: 401 });
-    }
+    const sessao = respostaDeSessao(e);
+    if (sessao) return sessao;
     return NextResponse.json({ ok: false, error: e?.message ?? "Erro" }, { status: 500 });
   }
 }
 
 export async function PUT(req: Request) {
   try {
-    const auth = requireAuth(req);
+    // Era por aqui que uma conta REMOVIDO reescrevia nome e e-mail depois de a
+    // exclusão os ter anulado: respondia 200 e ainda devolvia status REMOVIDO
+    // no corpo. Medido contra build de produção antes desta correção.
+    const auth = await requireAuthAtivo(req);
     const body = await req.json();
 
     const { nome, email, telefone, bio, precoLeve, precoMedio, precoPesado, precoPesada, genero } = body as {
@@ -445,9 +448,8 @@ export async function PUT(req: Request) {
       },
     });
   } catch (e: any) {
-    if (e?.message === "Unauthorized") {
-      return NextResponse.json({ ok: false, error: "Não autorizado" }, { status: 401 });
-    }
+    const sessao = respostaDeSessao(e);
+    if (sessao) return sessao;
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
       const target = Array.isArray(e.meta?.target) ? (e.meta?.target as string[]) : [];
       const campo = target.includes("telefone")

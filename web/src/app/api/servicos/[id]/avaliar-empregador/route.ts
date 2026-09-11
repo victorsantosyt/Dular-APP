@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/requireAuth";
+import { requireAuthAtivo, respostaDeSessao } from "@/lib/contaAtiva";
 import { avaliarServicoSchema } from "@/lib/schemas/servicos";
 import { assertStatus } from "@/lib/regrasServico";
 import { ServicoStatus } from "@prisma/client";
@@ -21,7 +22,7 @@ type Params = { params: Promise<{ id: string }> };
  */
 export async function POST(req: Request, { params }: Params) {
   try {
-    const auth = requireAuth(req);
+    const auth = await requireAuthAtivo(req);
     if (auth.role !== "DIARISTA" && auth.role !== "MONTADOR") {
       return NextResponse.json(
         { ok: false, error: "Apenas o profissional pode avaliar o empregador." },
@@ -80,9 +81,8 @@ export async function POST(req: Request, { params }: Params) {
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "Erro";
     const code = msg === "INVALID_STATUS" ? 409 : 500;
-    if (msg === "Unauthorized") {
-      return NextResponse.json({ ok: false, error: "Não autorizado" }, { status: 401 });
-    }
+    const sessao = respostaDeSessao(error);
+    if (sessao) return sessao;
     return NextResponse.json({ ok: false, error: msg }, { status: code });
   }
 }

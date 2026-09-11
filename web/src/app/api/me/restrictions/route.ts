@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/requireAuth";
+import { requireAuthAtivo, respostaDeSessao } from "@/lib/contaAtiva";
 
 export const dynamic = "force-dynamic";
 
@@ -9,7 +10,7 @@ export async function GET(req: Request) {
   const isDev = process.env.NODE_ENV === "development";
   try {
     const tAuth = Date.now();
-    const auth = requireAuth(req);
+    const auth = await requireAuthAtivo(req);
     if (isDev) console.log(`[me/restrictions GET] auth: ${Date.now() - tAuth}ms`);
 
     const tQuery = Date.now();
@@ -37,9 +38,8 @@ export async function GET(req: Request) {
     return NextResponse.json({ restrictions });
   } catch (e: any) {
     if (isDev) console.log(`[me/restrictions GET] ERROR after ${Date.now() - t0}ms: ${e?.message}`);
-    if (e?.message === "Unauthorized") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const sessao = respostaDeSessao(e);
+    if (sessao) return sessao;
     return NextResponse.json({ error: e?.message ?? "Erro" }, { status: 500 });
   }
 }

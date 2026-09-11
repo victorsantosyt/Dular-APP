@@ -72,6 +72,19 @@ export class GuardianBlockedError extends Error {
   }
 }
 
+/**
+ * Corpo do 403 GUARDIAN_BLOCKED. O `score` bruto NÃO vai junto — só o tier.
+ *
+ * O número exato é insumo de decisão interna, não informação de UI: exposto,
+ * ele vira placar. Quem o recebe consegue medir o efeito de cada ação sobre a
+ * própria nota e calibrar comportamento no limiar, que é justamente o que um
+ * score de risco não pode permitir. A faixa responde a pergunta legítima
+ * ("em que nível estou") sem entregar a régua.
+ *
+ * Medido antes desta correção, num build de produção: o 403 devolvia
+ * `"safeScore":{"score":500,"tier":"BRONZE"}` para conta ativa e
+ * `{"score":0,"tier":"BLOCKED"}` para bloqueada.
+ */
 export function guardianErrorResponseBody(err: GuardianBlockedError) {
   return {
     ok: false as const,
@@ -79,8 +92,22 @@ export function guardianErrorResponseBody(err: GuardianBlockedError) {
     message: err.message,
     motivos: err.motivos,
     verificationStatus: err.verificationStatus,
-    safeScore: err.safeScore,
+    safeScore: { tier: err.safeScore.tier },
   };
+}
+
+/**
+ * Versão do Guardian que pode ir ao cliente: mesma matriz de permissões e
+ * motivos, sem o `score` bruto. `GuardianPermissions` continua carregando o
+ * número porque as decisões internas dependem dele.
+ */
+export type GuardianPermissionsPublicas = Omit<GuardianPermissions, "score">;
+
+export function guardianParaCliente(
+  g: GuardianPermissions,
+): GuardianPermissionsPublicas {
+  const { score: _score, ...publico } = g;
+  return publico;
 }
 
 type ActiveRestriction = { type: UserRestrictionType; reason: string };

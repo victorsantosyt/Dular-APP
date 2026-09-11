@@ -55,7 +55,22 @@ function notMocked(label: string): AnyFn {
 export function createMockPrisma(): MockPrisma {
   const mock: MockPrisma = {
     user: {
-      findUnique: notMocked("user.findUnique"),
+      /**
+       * Único método com valor padrão em vez de `notMocked`.
+       *
+       * Toda rota autenticada passa por `assertContaAtiva`, que consulta
+       * `user.findUnique` para conferir o status. Sem um padrão, todo teste
+       * de rota teria de configurar esse mock só para não explodir num
+       * detalhe que ele não está testando — e foi o que quebrou 14 suítes
+       * quando a checagem entrou.
+       *
+       * O padrão é conta ATIVA, que é o caminho feliz. Teste que precise de
+       * conta bloqueada ou removida sobrescreve, e teste que sobrescrever
+       * para outra finalidade PRECISA incluir `status` — sem ele,
+       * `assertContaAtiva` falha fechado e a suíte acusa. É o comportamento
+       * desejado: mock sem status mascararia a checagem real.
+       */
+      findUnique: (async () => ({ status: "ATIVO" })) as AnyFn,
       findFirst: notMocked("user.findFirst"),
       update: notMocked("user.update"),
       count: notMocked("user.count"),

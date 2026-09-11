@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/requireAuth";
+import { requireAuthAtivo, respostaDeSessao } from "@/lib/contaAtiva";
 import { getFaixa } from "@/lib/safeScore";
 import {
   calcularCompletudeMontador,
@@ -219,7 +220,7 @@ async function buildMontadorMeResponse(userId: string) {
 
 export async function GET(req: Request) {
   try {
-    const auth = requireAuth(req);
+    const auth = await requireAuthAtivo(req);
     if (auth.role !== "MONTADOR") {
       return NextResponse.json({ ok: false, error: "Apenas montador pode acessar este perfil." }, { status: 403 });
     }
@@ -230,16 +231,15 @@ export async function GET(req: Request) {
     }
     return NextResponse.json(payload);
   } catch (e: any) {
-    if (e?.message === "Unauthorized") {
-      return NextResponse.json({ ok: false, error: "Não autorizado" }, { status: 401 });
-    }
+    const sessao = respostaDeSessao(e);
+    if (sessao) return sessao;
     return NextResponse.json({ ok: false, error: e?.message ?? "Erro" }, { status: 500 });
   }
 }
 
 export async function PATCH(req: Request) {
   try {
-    const auth = requireAuth(req);
+    const auth = await requireAuthAtivo(req);
     if (auth.role !== "MONTADOR") {
       return NextResponse.json({ ok: false, error: "Apenas montador pode editar este perfil." }, { status: 403 });
     }
@@ -304,9 +304,8 @@ export async function PATCH(req: Request) {
     }
     return NextResponse.json(payload);
   } catch (e: any) {
-    if (e?.message === "Unauthorized") {
-      return NextResponse.json({ ok: false, error: "Não autorizado" }, { status: 401 });
-    }
+    const sessao = respostaDeSessao(e);
+    if (sessao) return sessao;
     return NextResponse.json({ ok: false, error: e?.message ?? "Erro" }, { status: 500 });
   }
 }

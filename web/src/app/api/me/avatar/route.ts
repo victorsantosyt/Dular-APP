@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/requireAuth";
+import { requireAuthAtivo, respostaDeSessao } from "@/lib/contaAtiva";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
   try {
-    const auth = requireAuth(req);
+    const auth = await requireAuthAtivo(req);
     const body = await req.json();
     const { avatarDataUrl, dataUrl } = body as { avatarDataUrl?: string; dataUrl?: string };
     const finalDataUrl = avatarDataUrl || dataUrl;
@@ -31,16 +32,15 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ ok: true, user });
   } catch (e: any) {
-    if (e?.message === "Unauthorized") {
-      return NextResponse.json({ ok: false, error: "Não autorizado" }, { status: 401 });
-    }
+    const sessao = respostaDeSessao(e);
+    if (sessao) return sessao;
     return NextResponse.json({ ok: false, error: e?.message ?? "Erro" }, { status: 500 });
   }
 }
 
 export async function DELETE(req: Request) {
   try {
-    const auth = requireAuth(req);
+    const auth = await requireAuthAtivo(req);
     const user = await prisma.user.update({
       where: { id: auth.userId },
       data: { avatarUrl: null },
@@ -48,9 +48,8 @@ export async function DELETE(req: Request) {
     });
     return NextResponse.json({ ok: true, user });
   } catch (e: any) {
-    if (e?.message === "Unauthorized") {
-      return NextResponse.json({ ok: false, error: "Não autorizado" }, { status: 401 });
-    }
+    const sessao = respostaDeSessao(e);
+    if (sessao) return sessao;
     return NextResponse.json({ ok: false, error: e?.message ?? "Erro" }, { status: 500 });
   }
 }

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { registrarPaymentEvent, requireAuthOuSessao } from "@/lib/pagamentoPix";
+import { respostaDeSessao } from "@/lib/contaAtiva";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -30,9 +31,8 @@ export async function POST(req: Request, { params }: Params) {
     return NextResponse.json({ ok: true });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "Erro";
-    if (msg === "Unauthorized") {
-      return NextResponse.json({ ok: false, error: "Não autorizado" }, { status: 401 });
-    }
+    const sessao = respostaDeSessao(error);
+    if (sessao) return sessao;
     return NextResponse.json({ ok: false, error: msg }, { status: 500 });
   }
 }

@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/requireAuth";
+import { requireAuthAtivo, respostaDeSessao } from "@/lib/contaAtiva";
 import { autoVerificarDiaristaSePossivel } from "@/lib/autoVerificacao";
 
 export async function GET(req: Request) {
   try {
-    const auth = requireAuth(req);
+    const auth = await requireAuthAtivo(req);
     if (auth.role !== "DIARISTA") {
       return NextResponse.json({ ok: false, error: "Apenas diarista." }, { status: 403 });
     }
@@ -17,16 +18,15 @@ export async function GET(req: Request) {
 
     return NextResponse.json({ ok: true, habilidades });
   } catch (e: any) {
-    if (e?.message === "Unauthorized") {
-      return NextResponse.json({ ok: false, error: "Não autorizado" }, { status: 401 });
-    }
+    const sessao = respostaDeSessao(e);
+    if (sessao) return sessao;
     return NextResponse.json({ ok: false, error: e?.message ?? "Erro" }, { status: 500 });
   }
 }
 
 export async function PUT(req: Request) {
   try {
-    const auth = requireAuth(req);
+    const auth = await requireAuthAtivo(req);
     if (auth.role !== "DIARISTA") {
       return NextResponse.json({ ok: false, error: "Apenas diarista." }, { status: 403 });
     }
@@ -81,9 +81,8 @@ export async function PUT(req: Request) {
 
     return NextResponse.json({ ok: true, habilidades: updated });
   } catch (e: any) {
-    if (e?.message === "Unauthorized") {
-      return NextResponse.json({ ok: false, error: "Não autorizado" }, { status: 401 });
-    }
+    const sessao = respostaDeSessao(e);
+    if (sessao) return sessao;
     return NextResponse.json({ ok: false, error: e?.message ?? "Erro" }, { status: 500 });
   }
 }

@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/requireAuth";
+import { requireAuthAtivo, respostaDeSessao } from "@/lib/contaAtiva";
 import { maskPixKey } from "@/lib/pix";
 
 type Params = { params: Promise<{ id: string }> };
 
 export async function GET(req: Request, { params }: Params) {
   try {
-    const auth = requireAuth(req);
+    const auth = await requireAuthAtivo(req);
     const { id } = await params;
 
     const servico = await prisma.servico.findUnique({
@@ -90,9 +91,8 @@ export async function GET(req: Request, { params }: Params) {
       otherUserId,
     });
   } catch (error: unknown) {
-    if (error instanceof Error && error.message === "Unauthorized") {
-      return NextResponse.json({ ok: false, error: "Não autorizado" }, { status: 401 });
-    }
+    const sessao = respostaDeSessao(error);
+    if (sessao) return sessao;
     const message = error instanceof Error ? error.message : "Erro";
     return NextResponse.json({ ok: false, error: message }, { status: 500 });
   }

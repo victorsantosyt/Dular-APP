@@ -3,6 +3,7 @@ import fs from "node:fs/promises";
 import type formidable from "formidable";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/requireAuth";
+import { requireAuthAtivo, respostaDeSessao } from "@/lib/contaAtiva";
 import { parseMultipart } from "@/lib/parseMultipart";
 import { makeKey, putObject } from "@/lib/s3Objects";
 import { autoVerificarDiaristaSePossivel } from "@/lib/autoVerificacao";
@@ -63,7 +64,7 @@ export async function POST(req: Request) {
   try {
     cleanupRateLimit();
 
-    const auth = requireAuth(req);
+    const auth = await requireAuthAtivo(req);
     // T-18.5: endpoint agora aceita EMPREGADOR, DIARISTA e MONTADOR. Cada
     // papel grava em local diferente:
     //  - DIARISTA: DiaristaProfile.verificacao + docUrl (fluxo legado)
@@ -214,9 +215,8 @@ export async function POST(req: Request) {
       guardian,
     });
   } catch (e: any) {
-    if (e?.message === "Unauthorized") {
-      return NextResponse.json({ ok: false, error: "Não autorizado" }, { status: 401 });
-    }
+    const sessao = respostaDeSessao(e);
+    if (sessao) return sessao;
     if (e instanceof UploadValidationError) {
       console.warn("[api/verificacoes] upload recusado:", e.publicMessage);
       return NextResponse.json({ ok: false, error: e.publicMessage }, { status: 400 });

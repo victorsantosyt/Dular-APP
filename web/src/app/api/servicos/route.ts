@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { ehContaDemo } from "@/lib/contaDemo";
 import { requireAuth } from "@/lib/requireAuth";
+import { requireAuthAtivo, respostaDeSessao } from "@/lib/contaAtiva";
 import { criarServicoSchema } from "@/lib/schemas/servicos";
 import { criarNotificacao } from "@/lib/notifications";
 import { calcularCompletudeMontador } from "@/lib/montadorProfile";
@@ -87,7 +88,7 @@ async function findActiveServiceBetween(
 
 export async function POST(req: Request) {
   try {
-    const auth = requireAuth(req);
+    const auth = await requireAuthAtivo(req);
     if (auth.role !== "EMPREGADOR") {
       return NextResponse.json({ ok: false, error: "Apenas empregador pode solicitar." }, { status: 403 });
     }
@@ -576,9 +577,8 @@ export async function POST(req: Request) {
         status: error.httpStatus,
       });
     }
-    if (error instanceof Error && error.message === "Unauthorized") {
-      return NextResponse.json({ ok: false, error: "Não autorizado" }, { status: 401 });
-    }
+    const sessao = respostaDeSessao(error);
+    if (sessao) return sessao;
     const message = error instanceof Error ? error.message : "Erro";
     return NextResponse.json({ ok: false, error: message }, { status: 500 });
   }

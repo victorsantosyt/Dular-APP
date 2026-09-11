@@ -14,6 +14,11 @@ const EMPREGADOR_ID = "u-empregador-1";
 describe("PUT /api/me — perfil (telefone)", () => {
   beforeEach(() => {
     resetMockPrisma();
+    // A rota passou a exigir conta ATIVA (requireAuthAtivo): antes, uma conta
+    // REMOVIDO reescrevia nome e e-mail aqui e desfazia a anonimização.
+    // O padrão dos casos abaixo é conta ativa; o caso de conta inativa é o
+    // último deste describe.
+    mockPrisma.user.findUnique = async () => ({ status: "ATIVO" });
   });
 
   it("retorna 401 sem token", async () => {
@@ -109,4 +114,27 @@ describe("PUT /api/me — perfil (telefone)", () => {
     assert.equal(body.ok, false);
     assert.match(body.error, /telefone/i);
   });
+  // Conta bloqueada e conta excluída não escrevem por aqui. Sem isto, o token
+  // de 7 dias emitido antes do bloqueio continuava valendo.
+  for (const [status, codigo] of [
+    ["BLOQUEADO", "CONTA_BLOQUEADA"],
+    ["REMOVIDO", "CONTA_REMOVIDA"],
+  ] as const) {
+    it(`recusa com 403 ${codigo} quando a conta está ${status}`, async () => {
+      mockPrisma.user.findUnique = async () => ({ status });
+      mockPrisma.user.update = async () => {
+        throw new Error("não devia chegar ao update");
+      };
+      const PUT = await getHandler();
+      const res = await PUT(
+        jsonRequest(
+          "http://test/api/me",
+          { telefone: "11999999999" },
+          makeAuthHeaders(EMPREGADOR_ID, "EMPREGADOR"),
+        ),
+      );
+      assert.equal(res.status, 403);
+      assert.equal((await res.json()).error, codigo);
+    });
+  }
 });

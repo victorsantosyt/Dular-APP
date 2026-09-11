@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/requireAuth";
+import { requireAuthAtivo, respostaDeSessao } from "@/lib/contaAtiva";
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +20,7 @@ export async function PATCH(req: Request) {
   const isDev = process.env.NODE_ENV === "development";
   try {
     const tAuth = Date.now();
-    const auth = requireAuth(req);
+    const auth = await requireAuthAtivo(req);
     if (isDev) console.log(`[me/localizacao PATCH] auth: ${Date.now() - tAuth}ms role=${auth.role}`);
 
     const tParse = Date.now();
@@ -125,9 +126,8 @@ export async function PATCH(req: Request) {
     );
   } catch (e: unknown) {
     if (isDev) console.log(`[me/localizacao PATCH] ERROR after ${Date.now() - t0}ms: ${e instanceof Error ? e.message : "unknown"}`);
-    if (e instanceof Error && e.message === "Unauthorized") {
-      return NextResponse.json({ ok: false, error: "Não autorizado" }, { status: 401 });
-    }
+    const sessao = respostaDeSessao(e);
+    if (sessao) return sessao;
     const message = e instanceof Error ? e.message : "Erro ao salvar localização.";
     return NextResponse.json({ ok: false, error: message }, { status: 500 });
   }

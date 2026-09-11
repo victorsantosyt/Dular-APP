@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/requireAuth";
+import { requireAuthAtivo, respostaDeSessao } from "@/lib/contaAtiva";
 import { getFaixa } from "@/lib/safeScore";
 
 export const runtime = "nodejs";
@@ -10,7 +11,7 @@ type Params = { params: Promise<{ id: string }> };
 
 export async function GET(req: Request, { params }: Params) {
   try {
-    requireAuth(req);
+    await requireAuthAtivo(req);
 
     const { id } = await params;
     const user = await prisma.user.findUnique({
@@ -70,9 +71,8 @@ export async function GET(req: Request, { params }: Params) {
       verificado: user.diaristaProfile?.verificacao === "VERIFICADO",
     });
   } catch (e: any) {
-    if (e?.message === "Unauthorized") {
-      return NextResponse.json({ ok: false, error: "Não autorizado" }, { status: 401 });
-    }
+    const sessao = respostaDeSessao(e);
+    if (sessao) return sessao;
     return NextResponse.json({ ok: false, error: e?.message ?? "Erro" }, { status: 500 });
   }
 }

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/requireAuth";
+import { requireAuthAtivo, respostaDeSessao } from "@/lib/contaAtiva";
 import { getDiaristaProfileCompleteness } from "@/lib/diaristaProfile";
 
 export const dynamic = "force-dynamic";
@@ -10,7 +11,7 @@ type Params = { params: Promise<{ userId: string }> };
 export async function GET(_req: Request, { params }: Params) {
   try {
     // Require authentication (any authenticated user can view)
-    requireAuth(_req);
+    await requireAuthAtivo(_req);
 
     const { userId } = await params;
 
@@ -211,12 +212,8 @@ export async function GET(_req: Request, { params }: Params) {
       },
     });
   } catch (err: unknown) {
-    if (err instanceof Error && err.message === "Unauthorized") {
-      return NextResponse.json(
-        { ok: false, error: "Não autorizado" },
-        { status: 401 },
-      );
-    }
+    const sessao = respostaDeSessao(err);
+    if (sessao) return sessao;
     const message = err instanceof Error ? err.message : "Erro ao carregar diarista";
     return NextResponse.json({ ok: false, error: message }, { status: 500 });
   }

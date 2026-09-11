@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { PLANS } from "@/lib/stripe";
 import { lojasProntas } from "@/lib/lojas";
 import { requireAuth } from "@/lib/requireAuth";
+import { requireAuthAtivo, respostaDeSessao } from "@/lib/contaAtiva";
 import { fail } from "@/lib/apiResponse";
 
 export const dynamic = "force-dynamic";
@@ -9,7 +10,7 @@ export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
   let payload;
   try {
-    payload = requireAuth(request);
+    payload = await requireAuthAtivo(request);
   } catch {
     return fail("UNAUTHORIZED", "Não autenticado", 401);
   }

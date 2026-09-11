@@ -5,6 +5,7 @@ import { ok, fail } from "@/lib/apiResponse";
 import { planoPorProdutoDaLoja } from "@/lib/stripe";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/requireAuth";
+import { requireAuthAtivo, respostaDeSessao } from "@/lib/contaAtiva";
 import { cleanupRateLimit, rateLimit } from "@/lib/rateLimit";
 import { ErroDeLoja, verificarCompraApple, verificarCompraGoogle } from "@/lib/lojas";
 
@@ -33,7 +34,7 @@ export async function POST(request: Request) {
   let auth;
   try {
     cleanupRateLimit();
-    auth = requireAuth(request);
+    auth = await requireAuthAtivo(request);
   } catch {
     return fail("UNAUTHORIZED", "Não autenticado", 401);
   }

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/requireAuth";
+import { requireAuthAtivo, respostaDeSessao } from "@/lib/contaAtiva";
 import { assertRole } from "@/lib/regrasServico";
 import { UserRole } from "@prisma/client";
 import { criarNotificacao } from "@/lib/notifications";
@@ -31,7 +32,7 @@ const decisaoSchema = z.object({
 /** POST — o profissional (diarista/montador) propõe nova data/turno. */
 export async function POST(req: Request, { params }: Params) {
   try {
-    const auth = requireAuth(req);
+    const auth = await requireAuthAtivo(req);
     assertRole(auth.role as UserRole, ["DIARISTA", "MONTADOR"]);
 
     const { id } = await params;
@@ -80,7 +81,8 @@ export async function POST(req: Request, { params }: Params) {
     return NextResponse.json({ ok: true, servico: updated });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "Erro";
-    if (msg === "Unauthorized") return NextResponse.json({ ok: false, error: "Não autorizado" }, { status: 401 });
+    const sessao = respostaDeSessao(error);
+    if (sessao) return sessao;
     const code = msg === "FORBIDDEN" ? 403 : 500;
     return NextResponse.json({ ok: false, error: msg }, { status: code });
   }
@@ -89,7 +91,7 @@ export async function POST(req: Request, { params }: Params) {
 /** PATCH — o empregador (client) confirma ou recusa a proposta pendente. */
 export async function PATCH(req: Request, { params }: Params) {
   try {
-    const auth = requireAuth(req);
+    const auth = await requireAuthAtivo(req);
     assertRole(auth.role as UserRole, ["EMPREGADOR"]);
 
     const { id } = await params;
@@ -147,7 +149,8 @@ export async function PATCH(req: Request, { params }: Params) {
     return NextResponse.json({ ok: true, servico: updated });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "Erro";
-    if (msg === "Unauthorized") return NextResponse.json({ ok: false, error: "Não autorizado" }, { status: 401 });
+    const sessao = respostaDeSessao(error);
+    if (sessao) return sessao;
     const code = msg === "FORBIDDEN" ? 403 : 500;
     return NextResponse.json({ ok: false, error: msg }, { status: code });
   }

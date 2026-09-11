@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/requireAuth";
+import { requireAuthAtivo, respostaDeSessao } from "@/lib/contaAtiva";
 import {
   getDiaristaProfileCompleteness,
   SERVICOS_OFERECIDOS_VALIDOS,
@@ -241,7 +242,7 @@ export async function GET(req: Request) {
   const isDev = process.env.NODE_ENV === "development";
   try {
     const tAuth = Date.now();
-    const auth = requireAuth(req);
+    const auth = await requireAuthAtivo(req);
     if (isDev) console.log(`[diarista/me GET] auth: ${Date.now() - tAuth}ms`);
     if (auth.role !== "DIARISTA") {
       return NextResponse.json({ ok: false, error: "Apenas diarista." }, { status: 403 });
@@ -318,9 +319,8 @@ export async function GET(req: Request) {
       const msg = error instanceof Error ? error.message : "unknown";
       console.log(`[diarista/me GET] ERROR after ${Date.now() - t0}ms: ${msg}`);
     }
-    if (error instanceof Error && error.message === "Unauthorized") {
-      return NextResponse.json({ ok: false, error: "Não autorizado" }, { status: 401 });
-    }
+    const sessao = respostaDeSessao(error);
+    if (sessao) return sessao;
     const message = error instanceof Error ? error.message : "Erro";
     return NextResponse.json({ ok: false, error: message }, { status: 500 });
   }
@@ -331,7 +331,7 @@ export async function PATCH(req: Request) {
   const isDev = process.env.NODE_ENV === "development";
   try {
     const tAuth = Date.now();
-    const auth = requireAuth(req);
+    const auth = await requireAuthAtivo(req);
     if (isDev) console.log(`[diarista/me PATCH] auth: ${Date.now() - tAuth}ms`);
     if (auth.role !== "DIARISTA") {
       return NextResponse.json({ ok: false, error: "Apenas diarista." }, { status: 403 });
@@ -422,9 +422,8 @@ export async function PATCH(req: Request) {
       const msg = error instanceof Error ? error.message : "unknown";
       console.log(`[diarista/me PATCH] ERROR after ${Date.now() - t0}ms: ${msg}`);
     }
-    if (error instanceof Error && error.message === "Unauthorized") {
-      return NextResponse.json({ ok: false, error: "Não autorizado" }, { status: 401 });
-    }
+    const sessao = respostaDeSessao(error);
+    if (sessao) return sessao;
     const message = error instanceof Error ? error.message : "Erro";
     return NextResponse.json({ ok: false, error: message }, { status: 500 });
   }

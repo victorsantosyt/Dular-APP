@@ -7,6 +7,10 @@ const SCORE_INICIAL = 500;
 const PESOS_FIXOS: Partial<Record<ScoreEventoTipo, number>> = {
   SERVICO_CONCLUIDO: 5,
   KYC_APROVADO: 50,
+  // Mesmo valor de `kyc_rejeitado` na política V2. Antes o tipo nem existia no
+  // enum: a reprovação chamava com `as any`, o insert falhava e o `.catch`
+  // engolia — reprovar KYC não mexia em ledger nenhum.
+  KYC_REJEITADO: -20,
   DENUNCIA_ARQUIVADA: 10,
   CANCELAMENTO: -15,
   NO_SHOW: -25,
@@ -121,16 +125,13 @@ export async function suspenderUsuario(userId: string) {
  * Tipo legado → chave da política V2. `Record` completo, e não `Partial`: um
  * tipo novo no enum sem chave aqui é erro de compilação, em vez de cair num
  * `toLowerCase()` que a política não conhece e virar delta 0 em silêncio.
- *
- * A política 1.1.0 já traz `kyc_rejeitado` (-20), INERTE: o enum ainda não tem
- * KYC_REJEITADO, e a reprovação de KYC continua sem gerar evento válido. Ligar
- * esse efeito é a PR separada fix/safescore-kyc-rejeitado.
  */
 export const EVENT_TYPE_V2: Record<ScoreEventoTipo, string> = {
   AVALIACAO_POSITIVA: "avaliacao_positiva",
   AVALIACAO_NEGATIVA: "avaliacao_negativa",
   SERVICO_CONCLUIDO: "servico_concluido",
   KYC_APROVADO: "kyc_aprovado",
+  KYC_REJEITADO: "kyc_rejeitado",
   DENUNCIA_CONFIRMADA: "denuncia_confirmada",
   DENUNCIA_ARQUIVADA: "denuncia_arquivada",
   CANCELAMENTO: "cancelamento_tardio",

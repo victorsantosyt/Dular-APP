@@ -67,6 +67,11 @@ describe("V2 1.1.0 = legado, tipo a tipo", () => {
     });
   }
 
+  it("KYC_REJEITADO vale -20 nos dois", () => {
+    assert.equal(resolverPeso("KYC_REJEITADO").peso, -20);
+    assert.equal(pesoDaPolitica(POLITICA, EVENT_TYPE_V2.KYC_REJEITADO), -20);
+  });
+
   const ESPERADO_POR_NOTA: Record<"AVALIACAO_POSITIVA" | "AVALIACAO_NEGATIVA", Record<number, number>> = {
     AVALIACAO_POSITIVA: { 1: 0, 2: 0, 3: 0, 4: 8, 5: 15 },
     AVALIACAO_NEGATIVA: { 1: -20, 2: -10, 3: 0, 4: 0, 5: 0 },

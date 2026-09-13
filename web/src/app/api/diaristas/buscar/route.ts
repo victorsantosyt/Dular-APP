@@ -39,6 +39,69 @@ function normalize(value: string | null | undefined): string {
     .toLowerCase();
 }
 
+type Coordenada = { lat: number; lng: number };
+
+/**
+ * Posição de quem busca, vinda de `?lat=&lng=` (a Home do empregador manda
+ * quando tem GPS ou geocodificou o bairro). Ausente ou inválida → null, e a
+ * busca segue na ordem por nota, sem erro.
+ */
+function coordenadaDaBusca(lat: string | null, lng: string | null): Coordenada | null {
+  // `Number("")` e `Number(null)` valem 0 — um ponto real no Atlântico.
+  if (!lat?.trim() || !lng?.trim()) return null;
+  const la = Number(lat);
+  const ln = Number(lng);
+  if (!Number.isFinite(la) || !Number.isFinite(ln)) return null;
+  if (la < -90 || la > 90 || ln < -180 || ln > 180) return null;
+  return { lat: la, lng: ln };
+}
+
+/** Haversine, em km. */
+function distanciaKm(a: Coordenada, b: Coordenada): number {
+  const R = 6371;
+  const rad = (g: number) => (g * Math.PI) / 180;
+  const dLat = rad(b.lat - a.lat);
+  const dLng = rad(b.lng - a.lng);
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
+/** 2 casas decimais ≈ 1 km. */
+function arredondar2(valor: number): number {
+  return Math.round(valor * 100) / 100;
+}
+
+/**
+ * Ordena por distância crescente até `origem`. Quem não tem coordenada vai
+ * para o fim; empate (inclusive entre os sem coordenada) mantém a ordem de
+ * entrada, que é a ordem por nota. O desempate é explícito pelo índice, e
+ * não depende de o sort ser estável.
+ *
+ * A coordenada da PROFISSIONAL é arredondada antes do cálculo — é a posição
+ * dela que se protege; a de quem busca entra como veio.
+ */
+function ordenarPorDistancia<T extends { latitude: number | null; longitude: number | null }>(
+  itens: T[],
+  origem: Coordenada,
+): T[] {
+  return itens
+    .map((item, indice) => ({
+      item,
+      indice,
+      km:
+        Number.isFinite(item.latitude) && Number.isFinite(item.longitude)
+          ? distanciaKm(origem, {
+              lat: arredondar2(item.latitude as number),
+              lng: arredondar2(item.longitude as number),
+            })
+          : Number.POSITIVE_INFINITY,
+    }))
+    .sort((a, b) => (a.km === b.km ? a.indice - b.indice : a.km - b.km))
+    .map((x) => x.item);
+}
+
 export async function GET(req: Request) {
   const isDev = process.env.NODE_ENV === "development";
   try {
@@ -50,6 +113,7 @@ export async function GET(req: Request) {
     const categoria = searchParams.get("categoria") || undefined;
     const servicoParam = searchParams.get("servico");
     const servico = parseServico(servicoParam);
+    const origem = coordenadaDaBusca(searchParams.get("lat"), searchParams.get("lng"));
 
     if (!cidade || !uf) {
       return NextResponse.json(
@@ -197,9 +261,8 @@ export async function GET(req: Request) {
         servicosOferecidos: true,
         cidade: true,
         estado: true,
-        // Coords expostos só para a ordenação por proximidade na tela
-        // "Profissionais sugeridos" (M5). Colunas já existentes; sem migration
-        // e sem alterar a ordenação global do endpoint (segue por notaMedia).
+        // USO INTERNO: só para ordenar por proximidade. Não entram em `publico`
+        // — nem as coordenadas, nem a distância calculada a partir delas.
         latitude: true,
         longitude: true,
         atendeTodaCidade: true,
@@ -375,10 +438,36 @@ export async function GET(req: Request) {
       );
     }
 
-    // Mantém shape compatível com o cliente atual (apenas reduz array).
+    // Proximidade é decidida AQUI, no servidor: só a ORDEM sai daqui. Mandar
+    // coordenada ou distância para o app permitiria achar a casa da
+    // profissional cruzando consultas feitas de pontos diferentes.
+    const ordenadas = origem ? ordenarPorDistancia(liberadas, origem) : liberadas;
+
+    // Rota pública (sem auth): a resposta é uma lista EXPLÍCITA do que os cards
+    // leem, e não a linha do banco. Devolver `liberadas` inteiro mandava
+    // latitude/longitude — o GPS do aparelho da profissional, gravado por
+    // /api/me/localizacao — para qualquer um que chamasse a URL. Campo novo no
+    // `select` não pode vazar por acidente: para sair daqui, tem que ser
+    // escrito abaixo.
+    const publico = ordenadas.map((p) => ({
+      id: p.id,
+      userId: p.userId,
+      user: { id: p.user.id, nome: p.user.nome, avatarUrl: p.user.avatarUrl },
+      fotoUrl: p.fotoUrl,
+      bio: p.bio,
+      cidade: p.cidade,
+      estado: p.estado,
+      servicosOferecidos: p.servicosOferecidos,
+      verificacao: p.verificacao,
+      notaMedia: p.notaMedia,
+      totalServicos: p.totalServicos,
+      precoLeve: p.precoLeve,
+      precoPesada: p.precoPesada,
+    }));
+
     return NextResponse.json({
       ok: true,
-      diaristas: liberadas,
+      diaristas: publico,
     });
   } catch (error) {
     console.error(error);

@@ -110,7 +110,9 @@ export async function GET(_req: Request, { params }: Params) {
       },
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Erro ao carregar montador";
-    return NextResponse.json({ ok: false, error: message }, { status: 500 });
+    // A mensagem vai para o log, não para a resposta: erro do Prisma cita
+    // tabela e coluna.
+    console.error(err);
+    return NextResponse.json({ ok: false, error: "Erro interno" }, { status: 500 });
   }
 }

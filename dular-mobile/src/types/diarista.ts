@@ -18,7 +18,7 @@ export type DiaristaItem = {
   // Coords da profissional — usados só na ordenação por proximidade (M5).
   latitude?: number | null;
   longitude?: number | null;
-  user: { id: string; nome: string; telefone: string };
+  user: { id: string; nome: string };
 };
 
 export type BuscarDiaristasResponse = {

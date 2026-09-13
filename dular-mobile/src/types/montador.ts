@@ -44,7 +44,6 @@ export type MontadorItem = {
   user: {
     id: string;
     nome: string;
-    telefone?: string | null;
     genero?: "MASCULINO" | "FEMININO" | null;
     status?: string;
     avatarUrl?: string | null;

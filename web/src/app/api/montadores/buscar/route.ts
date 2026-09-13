@@ -217,7 +217,9 @@ export async function GET(req: Request) {
       montadores: liberados,
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Erro ao buscar montadores";
-    return NextResponse.json({ error: message }, { status: 500 });
+    // A mensagem vai para o log, não para a resposta: erro do Prisma cita
+    // tabela e coluna (ex.: "The column j0.contaDemo does not exist").
+    console.error(err);
+    return NextResponse.json({ error: "Erro interno" }, { status: 500 });
   }
 }

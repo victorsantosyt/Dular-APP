@@ -9,11 +9,41 @@ export type SafeScoreEventInput = {
   actorId?: string
   payload?: Record<string, unknown>
   idempotencyKey: string
+  /**
+   * Parâmetro dos pesos graduados da política: faixa de nota ("1".."5") ou
+   * gravidade ("BAIXA".."CRITICA"). Ignorado quando a chave tem peso fixo.
+   */
+  parametro?: string
 }
 
 export type ApplyEventResult =
   | { status: 'applied'; newScore: number; delta: number }
   | { status: 'already_applied' }
+
+const SCORE_INICIAL = 500
+
+function temChave(obj: object, chave: string): boolean {
+  return Object.prototype.hasOwnProperty.call(obj, chave)
+}
+
+/**
+ * Peso de `eventType` em `SafeScorePolicyVersion.weights`.
+ *
+ * Cada chave vale OU um número fixo, OU um objeto {parametro: peso} para os
+ * eventos que variam por nota ou gravidade. Chave ausente, objeto sem o
+ * parâmetro, ou parâmetro não informado → 0: o evento é gravado com delta 0,
+ * que já era o comportamento para chave desconhecida.
+ */
+export function pesoDaPolitica(weights: unknown, eventType: string, parametro?: string): number {
+  if (!weights || typeof weights !== 'object' || !temChave(weights, eventType)) return 0
+  const valor = (weights as Record<string, unknown>)[eventType]
+  if (typeof valor === 'number') return Number.isFinite(valor) ? valor : 0
+  if (valor && typeof valor === 'object' && parametro !== undefined && temChave(valor, parametro)) {
+    const graduado = (valor as Record<string, unknown>)[parametro]
+    return typeof graduado === 'number' && Number.isFinite(graduado) ? graduado : 0
+  }
+  return 0
+}
 
 export async function applyEvent(input: SafeScoreEventInput): Promise<ApplyEventResult> {
   const policy = await prisma.safeScorePolicyVersion.findFirst({
@@ -22,22 +52,48 @@ export async function applyEvent(input: SafeScoreEventInput): Promise<ApplyEvent
   })
   if (!policy) throw new Error('SafeScore: nenhuma política ativa encontrada')
 
-  const weights = policy.weights as Record<string, number>
-  const delta = weights[input.eventType] ?? 0
-
-  const profile = await prisma.safeScoreProfile.upsert({
-    where: { userId: input.userId },
-    update: {},
-    create: { userId: input.userId, currentScore: 500 },
-  })
-
-  const scoreBefore = profile.currentScore
-  const scoreAfter = Math.max(0, Math.min(1000, scoreBefore + delta))
-  const newTier = scoreToTier(scoreAfter)
+  const delta = pesoDaPolitica(policy.weights, input.eventType, input.parametro)
 
   try {
-    await prisma.$transaction([
-      prisma.safeScoreEvent.create({
+    return await prisma.$transaction(async (tx): Promise<ApplyEventResult> => {
+      // INSERT ... ON CONFLICT DO NOTHING: duas transações criando o perfil ao
+      // mesmo tempo não colidem — a segunda espera a primeira e não faz nada.
+      await tx.safeScoreProfile.createMany({
+        data: [{ userId: input.userId, currentScore: SCORE_INICIAL }],
+        skipDuplicates: true,
+      })
+
+      // Incremento atômico. Antes o score era LIDO fora da transação e o valor
+      // calculado era gravado por cima: dois eventos simultâneos liam o mesmo
+      // número e um apagava o outro. O UPDATE trava a linha até o commit; a
+      // transação concorrente espera e soma sobre o valor já gravado.
+      const somado = await tx.safeScoreProfile.update({
+        where: { userId: input.userId },
+        data: { currentScore: { increment: delta } },
+        select: { currentScore: true },
+      })
+
+      const scoreBefore = somado.currentScore - delta
+      const scoreAfter = Math.max(0, Math.min(1000, somado.currentScore))
+      const newTier = scoreToTier(scoreAfter)
+
+      // Mesma linha, ainda travada por esta transação: grava o limite 0..1000
+      // e o tier sem abrir janela para outro evento.
+      await tx.safeScoreProfile.update({
+        where: { userId: input.userId },
+        data: { currentScore: scoreAfter, tier: newTier, lastRecalcAt: new Date() },
+      })
+
+      await tx.user.update({
+        where: { id: input.userId },
+        data: {
+          riskTier: newTier,
+        },
+      })
+
+      // Por último: se a chave já existe, o P2002 aborta a transação inteira e
+      // o incremento acima é desfeito junto.
+      await tx.safeScoreEvent.create({
         data: {
           idempotencyKey: input.idempotencyKey,
           userId: input.userId,
@@ -51,30 +107,19 @@ export async function applyEvent(input: SafeScoreEventInput): Promise<ApplyEvent
           actorId: input.actorId,
           payload: (input.payload as Prisma.InputJsonObject) ?? undefined,
         },
-      }),
-      prisma.safeScoreProfile.update({
-        where: { userId: input.userId },
-        data: {
-          currentScore: scoreAfter,
-          tier: newTier,
-          lastRecalcAt: new Date(),
-        },
-      }),
-      prisma.user.update({
-        where: { id: input.userId },
-        data: {
-          riskTier: newTier,
-        },
-      }),
-    ])
+      })
 
-    return { status: 'applied', newScore: scoreAfter, delta }
+      return { status: 'applied', newScore: scoreAfter, delta }
+    })
   } catch (e: unknown) {
-    if (
-      e instanceof Prisma.PrismaClientKnownRequestError &&
-      e.code === 'P2002'
-    ) {
-      return { status: 'already_applied' }
+    // P2002 só é "já aplicado" se for a chave DESTE evento. Outra violação de
+    // unicidade não pode virar sucesso silencioso.
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+      const existente = await prisma.safeScoreEvent.findUnique({
+        where: { idempotencyKey: input.idempotencyKey },
+        select: { id: true },
+      })
+      if (existente) return { status: 'already_applied' }
     }
     throw e
   }

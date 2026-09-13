@@ -35,6 +35,49 @@ function pesoAvaliacao(nota: number, tipo: ScoreEventoTipo) {
   return 0;
 }
 
+/**
+ * Parâmetro do peso graduado no V2 para uma avaliação: a MESMA faixa que
+ * `pesoAvaliacao` usa, e não a nota crua. Com isso a política ({"5","4","3"}
+ * na positiva, {"3","2","1"} na negativa) cobre qualquer entrada exatamente
+ * como o legado — inclusive nota ausente, que o legado trata como 0.
+ */
+function faixaDeNota(nota: number, tipo: ScoreEventoTipo): "1" | "2" | "3" | "4" | "5" {
+  if (tipo === "AVALIACAO_POSITIVA") {
+    if (nota >= 5) return "5";
+    if (nota >= 4) return "4";
+    return "3";
+  }
+  if (nota <= 1) return "1";
+  if (nota <= 2) return "2";
+  return "3";
+}
+
+export type EntradaDoPeso = { nota?: number; gravidade?: IncidenteGravidade };
+
+/**
+ * Peso do legado e o parâmetro que a política V2 usa para o MESMO evento.
+ *
+ * Pura: as buscas no banco ficam em `calcularPeso`. Os dois ledgers leem
+ * nota/gravidade uma vez, do mesmo lugar — antes o V2 recebia só a descrição
+ * e aplicava peso fixo, divergindo do legado em avaliação e denúncia.
+ */
+export function resolverPeso(
+  tipo: ScoreEventoTipo,
+  entrada: EntradaDoPeso = {},
+): { peso: number; parametro?: string } {
+  if (tipo === "AVALIACAO_POSITIVA" || tipo === "AVALIACAO_NEGATIVA") {
+    const nota = entrada.nota !== undefined && Number.isFinite(entrada.nota) ? entrada.nota : 0;
+    return { peso: pesoAvaliacao(nota, tipo), parametro: faixaDeNota(nota, tipo) };
+  }
+
+  if (tipo === "DENUNCIA_CONFIRMADA") {
+    const gravidade = entrada.gravidade ?? "MEDIA";
+    return { peso: PESO_DENUNCIA_CONFIRMADA[gravidade], parametro: gravidade };
+  }
+
+  return { peso: PESOS_FIXOS[tipo] ?? 0 };
+}
+
 async function calcularPeso(
   tipo: ScoreEventoTipo,
   referenciaId?: string,
@@ -48,8 +91,7 @@ async function calcularPeso(
         })
       : null;
     const notaFromDescricao = descricao?.match(/nota=(\d+)/)?.[1];
-    const nota = avaliacao?.notaGeral ?? Number(notaFromDescricao);
-    return pesoAvaliacao(Number.isFinite(nota) ? nota : 0, tipo);
+    return resolverPeso(tipo, { nota: avaliacao?.notaGeral ?? Number(notaFromDescricao) });
   }
 
   if (tipo === "DENUNCIA_CONFIRMADA") {
@@ -62,10 +104,10 @@ async function calcularPeso(
     const gravidade =
       incidente?.gravidade ??
       (descricao?.match(/gravidade=(\w+)/)?.[1] as IncidenteGravidade | undefined);
-    return PESO_DENUNCIA_CONFIRMADA[gravidade ?? "MEDIA"];
+    return resolverPeso(tipo, { gravidade });
   }
 
-  return PESOS_FIXOS[tipo] ?? 0;
+  return resolverPeso(tipo);
 }
 
 export async function suspenderUsuario(userId: string) {
@@ -75,21 +117,26 @@ export async function suspenderUsuario(userId: string) {
   });
 }
 
-// Mapeia tipos legados para o novo ledger
-function mapTipoToEventType(tipo: ScoreEventoTipo): string {
-  const map: Partial<Record<ScoreEventoTipo, string>> = {
-    AVALIACAO_POSITIVA: "avaliacao_positiva",
-    AVALIACAO_NEGATIVA: "avaliacao_negativa",
-    SERVICO_CONCLUIDO: "servico_concluido",
-    CANCELAMENTO: "cancelamento_tardio",
-    DENUNCIA_CONFIRMADA: "incidente_resolvido_favor",
-    DENUNCIA_ARQUIVADA: "incidente_arquivado",
-    KYC_APROVADO: "kyc_aprovado",
-    NO_SHOW: "cancelamento_tardio",
-    TEMPO_PLATAFORMA: "servico_concluido",
-  };
-  return map[tipo] ?? tipo.toLowerCase();
-}
+/**
+ * Tipo legado → chave da política V2. `Record` completo, e não `Partial`: um
+ * tipo novo no enum sem chave aqui é erro de compilação, em vez de cair num
+ * `toLowerCase()` que a política não conhece e virar delta 0 em silêncio.
+ *
+ * A política 1.1.0 já traz `kyc_rejeitado` (-20), INERTE: o enum ainda não tem
+ * KYC_REJEITADO, e a reprovação de KYC continua sem gerar evento válido. Ligar
+ * esse efeito é a PR separada fix/safescore-kyc-rejeitado.
+ */
+export const EVENT_TYPE_V2: Record<ScoreEventoTipo, string> = {
+  AVALIACAO_POSITIVA: "avaliacao_positiva",
+  AVALIACAO_NEGATIVA: "avaliacao_negativa",
+  SERVICO_CONCLUIDO: "servico_concluido",
+  KYC_APROVADO: "kyc_aprovado",
+  DENUNCIA_CONFIRMADA: "denuncia_confirmada",
+  DENUNCIA_ARQUIVADA: "denuncia_arquivada",
+  CANCELAMENTO: "cancelamento_tardio",
+  NO_SHOW: "no_show",
+  TEMPO_PLATAFORMA: "tempo_plataforma",
+};
 
 export async function aplicarEvento(
   userId: string,
@@ -97,7 +144,7 @@ export async function aplicarEvento(
   referenciaId?: string,
   descricao?: string,
 ): Promise<SafeScore> {
-  const peso = await calcularPeso(tipo, referenciaId, descricao);
+  const { peso, parametro } = await calcularPeso(tipo, referenciaId, descricao);
 
   // ── LEGADO: mantém gravação original intacta ──────────────────────────
   const updated = await prisma.$transaction(async (tx) => {
@@ -136,13 +183,24 @@ export async function aplicarEvento(
   // ── NOVO LEDGER: dual-write silencioso ───────────────────────────────
   // Falha aqui nunca quebra o fluxo principal
   try {
-    const idempotencyKey = `${userId}:${tipo}:${referenciaId ?? "noref"}:${Date.now()}`;
+    // Chave determinística: o mesmo fato (usuário + tipo + referência) entra
+    // no V2 uma vez só, por mais que a chamada se repita. Com `Date.now()` na
+    // chave, cada repetição virava evento novo — o banco local tem um KYC
+    // aprovado duas vezes para o mesmo documento, 5 s de diferença, somado
+    // duas vezes. O legado acima continua somando a cada chamada; alinhar os
+    // dois é a PR que troca o ledger.
+    //
+    // Todo call-site de hoje passa referenciaId. Sem ele, "sem-ref" faz o tipo
+    // valer uma única vez por usuário — correto para fato único, e um limite a
+    // lembrar se surgir evento recorrente sem referência.
+    const idempotencyKey = `${userId}:${tipo}:${referenciaId ?? "sem-ref"}`;
     await applyEvent({
       userId,
-      eventType: mapTipoToEventType(tipo),
+      eventType: EVENT_TYPE_V2[tipo],
       source: tipo,
       sourceId: referenciaId,
       idempotencyKey,
+      parametro,
       payload: descricao ? { descricao } : undefined,
     });
   } catch (err) {

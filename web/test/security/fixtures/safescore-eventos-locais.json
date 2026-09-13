@@ -1,0 +1,217 @@
+{
+  "origem": "ScoreEvento do banco LOCAL de desenvolvimento (legado), exportado em 2026-09-13. Ids de usuário e de referência anonimizados (u1.., r1..), descrições removidas; nota e gravidade resolvidas como o legado resolve (Avaliacao.notaGeral ou `nota=` da descrição; IncidentReport.gravidade ou `gravidade=`).",
+  "total": 33,
+  "eventos": [
+    {
+      "usuario": "u1",
+      "tipo": "KYC_APROVADO",
+      "pesoLegado": 50,
+      "referencia": "r1"
+    },
+    {
+      "usuario": "u1",
+      "tipo": "KYC_APROVADO",
+      "pesoLegado": 50,
+      "referencia": "r1"
+    },
+    {
+      "usuario": "u2",
+      "tipo": "KYC_APROVADO",
+      "pesoLegado": 50,
+      "referencia": "r2"
+    },
+    {
+      "usuario": "u3",
+      "tipo": "KYC_APROVADO",
+      "pesoLegado": 50,
+      "referencia": "r3"
+    },
+    {
+      "usuario": "u2",
+      "tipo": "DENUNCIA_ARQUIVADA",
+      "pesoLegado": 10,
+      "referencia": "r4"
+    },
+    {
+      "usuario": "u2",
+      "tipo": "SERVICO_CONCLUIDO",
+      "pesoLegado": 5,
+      "referencia": "r5"
+    },
+    {
+      "usuario": "u1",
+      "tipo": "SERVICO_CONCLUIDO",
+      "pesoLegado": 5,
+      "referencia": "r5"
+    },
+    {
+      "usuario": "u1",
+      "tipo": "AVALIACAO_POSITIVA",
+      "pesoLegado": 15,
+      "referencia": "r6",
+      "nota": 5
+    },
+    {
+      "usuario": "u2",
+      "tipo": "SERVICO_CONCLUIDO",
+      "pesoLegado": 5,
+      "referencia": "r7"
+    },
+    {
+      "usuario": "u3",
+      "tipo": "SERVICO_CONCLUIDO",
+      "pesoLegado": 5,
+      "referencia": "r7"
+    },
+    {
+      "usuario": "u3",
+      "tipo": "AVALIACAO_POSITIVA",
+      "pesoLegado": 15,
+      "referencia": "r8",
+      "nota": 5
+    },
+    {
+      "usuario": "u2",
+      "tipo": "SERVICO_CONCLUIDO",
+      "pesoLegado": 5,
+      "referencia": "r9"
+    },
+    {
+      "usuario": "u3",
+      "tipo": "SERVICO_CONCLUIDO",
+      "pesoLegado": 5,
+      "referencia": "r9"
+    },
+    {
+      "usuario": "u3",
+      "tipo": "AVALIACAO_POSITIVA",
+      "pesoLegado": 15,
+      "referencia": "r10",
+      "nota": 5
+    },
+    {
+      "usuario": "u2",
+      "tipo": "SERVICO_CONCLUIDO",
+      "pesoLegado": 5,
+      "referencia": "r11"
+    },
+    {
+      "usuario": "u3",
+      "tipo": "SERVICO_CONCLUIDO",
+      "pesoLegado": 5,
+      "referencia": "r11"
+    },
+    {
+      "usuario": "u3",
+      "tipo": "AVALIACAO_POSITIVA",
+      "pesoLegado": 15,
+      "referencia": "r12",
+      "nota": 5
+    },
+    {
+      "usuario": "u2",
+      "tipo": "AVALIACAO_POSITIVA",
+      "pesoLegado": 15,
+      "referencia": "r13",
+      "nota": 5
+    },
+    {
+      "usuario": "u3",
+      "tipo": "SERVICO_CONCLUIDO",
+      "pesoLegado": 5,
+      "referencia": "r14"
+    },
+    {
+      "usuario": "u4",
+      "tipo": "SERVICO_CONCLUIDO",
+      "pesoLegado": 5,
+      "referencia": "r14"
+    },
+    {
+      "usuario": "u3",
+      "tipo": "AVALIACAO_POSITIVA",
+      "pesoLegado": 15,
+      "referencia": "r15",
+      "nota": 5
+    },
+    {
+      "usuario": "u4",
+      "tipo": "AVALIACAO_POSITIVA",
+      "pesoLegado": 15,
+      "referencia": "r16",
+      "nota": 5
+    },
+    {
+      "usuario": "u4",
+      "tipo": "SERVICO_CONCLUIDO",
+      "pesoLegado": 5,
+      "referencia": "r17"
+    },
+    {
+      "usuario": "u5",
+      "tipo": "SERVICO_CONCLUIDO",
+      "pesoLegado": 5,
+      "referencia": "r17"
+    },
+    {
+      "usuario": "u5",
+      "tipo": "AVALIACAO_POSITIVA",
+      "pesoLegado": 15,
+      "referencia": "r18",
+      "nota": 5
+    },
+    {
+      "usuario": "u4",
+      "tipo": "AVALIACAO_POSITIVA",
+      "pesoLegado": 15,
+      "referencia": "r19",
+      "nota": 5
+    },
+    {
+      "usuario": "u2",
+      "tipo": "SERVICO_CONCLUIDO",
+      "pesoLegado": 5,
+      "referencia": "r20"
+    },
+    {
+      "usuario": "u3",
+      "tipo": "SERVICO_CONCLUIDO",
+      "pesoLegado": 5,
+      "referencia": "r20"
+    },
+    {
+      "usuario": "u3",
+      "tipo": "AVALIACAO_POSITIVA",
+      "pesoLegado": 15,
+      "referencia": "r21",
+      "nota": 5
+    },
+    {
+      "usuario": "u2",
+      "tipo": "AVALIACAO_POSITIVA",
+      "pesoLegado": 15,
+      "referencia": "r22",
+      "nota": 5
+    },
+    {
+      "usuario": "u2",
+      "tipo": "DENUNCIA_CONFIRMADA",
+      "pesoLegado": -80,
+      "referencia": "r23",
+      "gravidade": "MEDIA"
+    },
+    {
+      "usuario": "u2",
+      "tipo": "DENUNCIA_ARQUIVADA",
+      "pesoLegado": 10,
+      "referencia": "r23"
+    },
+    {
+      "usuario": "u6",
+      "tipo": "AVALIACAO_POSITIVA",
+      "pesoLegado": 15,
+      "referencia": "r24",
+      "nota": 5
+    }
+  ]
+}

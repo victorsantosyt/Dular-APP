@@ -22,7 +22,6 @@ export interface ApiDiarista {
   user: {
     id: string;
     nome: string;
-    telefone?: string | null;
     avatarUrl?: string | null;
   };
 }

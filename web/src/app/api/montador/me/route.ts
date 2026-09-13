@@ -200,8 +200,9 @@ async function buildMontadorMeResponse(userId: string) {
             ? "PENDENTE"
             : "NAO_ENVIADO",
       completude,
+      // Sem o `score` bruto: ele só serve para calcular a faixa, aqui no
+      // servidor. Mesmo padrão de guardianParaCliente (lib/safeScoreGuardian).
       safeScore: {
-        score,
         faixa: faixa.label,
         cor: faixa.cor,
         bloqueado: faixa.bloqueado,

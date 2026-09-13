@@ -235,7 +235,12 @@ model User {
   contaDemo      Boolean       @default(false)
   scoreAtual     Float         @default(500)
   riskScore      Float         @default(0)
+  /// Tier de CONFIANÇA (PLATINUM = mais confiável). Único escritor:
+  /// lib/safeScore/applyEvent.ts. Não é faixa de risco — ver `riskBand`.
   riskTier       SafeScoreTier @default(BRONZE)
+  /// Faixa de RISCO por incidentes (CRITICO = mais risco), derivada de
+  /// `riskScore`. Único escritor: lib/risk.ts. Nulo até o primeiro recálculo.
+  riskBand       RiskBand?
   emObservacao   Boolean       @default(false)
   avatarUrl      String?
   pushToken      String?
@@ -919,6 +924,16 @@ enum SafeScoreTier {
   SILVER
   GOLD
   PLATINUM
+}
+
+/// Faixa de risco por incidentes (lib/risk.ts). Semântica oposta à de
+/// SafeScoreTier: aqui o último valor é o PIOR. Enum próprio para que as duas
+/// escalas não possam ser gravadas uma no lugar da outra.
+enum RiskBand {
+  BAIXO
+  MEDIO
+  ALTO
+  CRITICO
 }
 
 enum DocumentVerificationStatus {

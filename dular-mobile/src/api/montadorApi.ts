@@ -138,7 +138,9 @@ export type MontadorPerfilProfissional = {
   rating: number;
   totalServicos: number;
   completude: MontadorPerfilCompletude;
-  safeScore?: (MontadorSafeScore & { score?: number; tier?: string }) | null;
+  // Sem `score`: o backend manda só faixa/tier. Declarar um campo que não vem
+  // faz o tipo mentir — qualquer leitura daria undefined sem erro de compilação.
+  safeScore?: (MontadorSafeScore & { tier?: string }) | null;
   avaliacoes?: {
     media: number;
     total: number;

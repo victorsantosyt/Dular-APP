@@ -85,6 +85,13 @@ jobs:
         if: steps.changes.outputs.relevant == 'true'
         run: npx tsc --noEmit --pretty false
 
+      # `__DEV__` no corpo do componente não tira o módulo do bundle publicado:
+      # o que está no topo do arquivo (textos de exemplo, estilos) vai junto.
+      # Já aconteceu, e foi medido no .hbc. Este check barra a forma que vaza.
+      - name: Nada de dev no bundle de produção
+        if: steps.changes.outputs.relevant == 'true'
+        run: npm run check:dev-fora-do-bundle
+
   # Notas operacionais:
   # - expo-doctor / lint / build EAS ficam fora deste workflow para manter o
   #   gate leve (<3min) e focado. expo-doctor exige tooling extra e tende a

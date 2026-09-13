@@ -2,11 +2,31 @@ import React, { useMemo, useState } from "react";
 import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import { AppIcon, BackCircleButton, DEmptyState, DErrorState, DLoadingState, DScreen, type AppIconName } from "@/components/ui";
 import { useNotificacoes } from "@/hooks/useNotificacoes";
-import { SimuladorDePopup } from "@/components/dev/SimuladorDePopup";
 import type { Notificacao } from "@/api/notificacoesApi";
 import type { ProfileTheme } from "@/theme/profileTheme";
 import { CHAT_TYPES, metaDoTipo, tonePalette, type NotificationTone } from "@/constants/notificacoes";
 import { colors, radius, shadows, spacing, typography } from "@/theme";
+
+/**
+ * A barra de teste dos avisos entra por `require` DENTRO do `__DEV__`, e não
+ * por `import` no topo.
+ *
+ * O componente já tinha `if (!__DEV__) return null`, e isso não bastava:
+ * `__DEV__` é otimização de minificador e só elimina o que está
+ * sintaticamente dentro do condicional. Com o `import` estático, o módulo
+ * continuava no grafo e o array de exemplos — que fica no topo dele, fora de
+ * qualquer condicional — ia inteiro para o bundle publicado. Medido em
+ * `expo export --platform ios`: o texto "Oi! Consegue chegar um pouco mais
+ * cedo na quinta?" estava no .hbc de produção.
+ *
+ * O `require` aqui é eliminado junto com o ramo falso, e aí o módulo sai do
+ * grafo de verdade. Conferir por medição do bundle, nunca por leitura.
+ */
+const SimuladorDePopup: React.ComponentType<{ theme: ProfileTheme; servicoId?: string }> =
+  __DEV__
+    ? require("@/components/dev/SimuladorDePopup").SimuladorDePopup
+    : () => null;
+
 
 /**
  * NotificacoesView — a tela de Notificações dos TRÊS perfis, parametrizada por

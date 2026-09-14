@@ -119,7 +119,7 @@ export async function POST(req: Request) {
     });
   });
 
-  await aplicarEvento(existing.userId, "KYC_REJEITADO" as any, id, motivo).catch(() => null);
+  await aplicarEvento(existing.userId, "KYC_REJEITADO", id, motivo).catch(() => null);
   const guardian = await getGuardianStatusForUser(existing.userId);
 
   return NextResponse.json({ ok: true, verification, guardian });

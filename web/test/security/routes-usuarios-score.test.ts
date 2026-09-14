@@ -47,7 +47,6 @@ describe("GET /api/usuarios/[id]/score — controle de acesso", () => {
       return { id: args.where.id, role, status: "ATIVO", diaristaProfile: null };
     };
     mockPrisma.safeScoreProfile.findUnique = async () => ({ currentScore: 720, tier: "GOLD" });
-    mockPrisma.safeScore.findUnique = async () => null;
     mockPrisma.servico.count = async () => 0;
     (mockPrisma.servico as any).findFirst = async (args: any) => {
       const w = args?.where ?? {};

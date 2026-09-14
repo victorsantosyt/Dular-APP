@@ -24,9 +24,8 @@ function setupEmpregadorGuardianOk(userId: string) {
     docUrl: "verificacoes/" + userId + "/frente/abc.jpg",
   });
   mockPrisma.userRestriction.findMany = async () => [];
-  // SafeScoreProfile ausente → cai no legacy → ausente → default 500 BRONZE.
+  // SafeScoreProfile ausente → default 500 BRONZE (o legado não é consultado).
   mockPrisma.safeScoreProfile.findUnique = async () => null;
-  mockPrisma.safeScore.findUnique = async () => null;
 }
 
 // Body mínimo válido para a rota — não chega a ser usado quando paywall bloqueia

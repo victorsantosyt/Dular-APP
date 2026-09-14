@@ -8,6 +8,7 @@ import {
   type PoliticaAtiva,
   type SafeScoreEventInput,
 } from "@/lib/safeScore/applyEvent";
+import { scoreBloqueado } from "@/lib/safeScore/corte";
 
 const SCORE_INICIAL = 500;
 
@@ -393,7 +394,9 @@ export function getFaixa(score: number): {
 } {
   if (score >= 800) return { label: "Confiança Máxima", cor: "#22c55e", bloqueado: false };
   if (score >= 600) return { label: "Confiável", cor: "#3b82f6", bloqueado: false };
-  if (score >= 400) return { label: "Em Observação", cor: "#f59e0b", bloqueado: false };
+  // `bloqueado` sai do corte único (safeScore/corte): montadores/buscar filtra
+  // por ele, e precisa concordar com o Guardian e com diaristas/buscar.
+  if (!scoreBloqueado(score)) return { label: "Em Observação", cor: "#f59e0b", bloqueado: false };
   if (score >= 200) return { label: "Risco Alto", cor: "#ef4444", bloqueado: true };
   return { label: "Suspenso", cor: "#7f1d1d", bloqueado: true };
 }

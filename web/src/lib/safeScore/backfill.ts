@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { getFaixa } from '@/lib/safeScore'
 import { scoreToTier, semearDoLegado } from '@/lib/safeScore/applyEvent'
+import { SCORE_BLOQUEIO } from '@/lib/safeScore/corte'
 
 /**
  * Backfill do SafeScore V2 a partir do legado — PR B, etapa 1.
@@ -15,9 +16,8 @@ import { scoreToTier, semearDoLegado } from '@/lib/safeScore/applyEvent'
  */
 
 const SCORE_PADRAO = 500
-// Mesmo corte do SCORE_BLOQUEIO do Guardian e de diaristas/buscar. Unificar as
-// cópias é a etapa 3; aqui só se relata quem cruzaria esse limite.
-const LIMIAR_SCORE_BAIXO = 400
+// O corte do Guardian e das buscas; aqui só se relata quem cruzaria esse limite.
+const LIMIAR_SCORE_BAIXO = SCORE_BLOQUEIO
 
 export type LinhaUsuario = {
   userId: string

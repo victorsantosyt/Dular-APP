@@ -29,24 +29,44 @@ export async function POST(req: Request, { params }: Params) {
       where: { id },
       data: { resolucao: resolucao as "CONFIRMADA" | "ARQUIVADA" },
     });
+    const userId = incident.reportedUserId;
 
-    const safeScore =
-      resolucao === "CONFIRMADA"
-        ? await aplicarEvento(
-            incident.reportedUserId,
-            "DENUNCIA_CONFIRMADA",
-            incident.id,
-            observacao ? `${observacao} gravidade=${incident.gravidade}` : `gravidade=${incident.gravidade}`,
-          )
-        : await aplicarEvento(
-            incident.reportedUserId,
-            "DENUNCIA_ARQUIVADA",
-            incident.id,
-            observacao,
-          );
+    const antes = await prisma.user.findUnique({ where: { id: userId }, select: { status: true } });
 
-    const faixa = getFaixa(safeScore.score);
-    return NextResponse.json({ ok: true, safeScore, faixa });
+    if (resolucao === "CONFIRMADA") {
+      await aplicarEvento(
+        userId,
+        "DENUNCIA_CONFIRMADA",
+        incident.id,
+        observacao ? `${observacao} gravidade=${incident.gravidade}` : `gravidade=${incident.gravidade}`,
+      );
+    } else {
+      await aplicarEvento(userId, "DENUNCIA_ARQUIVADA", incident.id, observacao);
+    }
+
+    // Duas coisas diferentes vão para a tela do admin:
+    //
+    // - o score EXIBIDO, que vem do V2, a mesma fonte das leituras do app;
+    // - se a conta foi SUSPENSA agora, lido do status do usuário. A suspensão
+    //   automática abaixo de 200 continua decidida pelo score do legado, dentro
+    //   de aplicarEvento, até existir uma PR própria para ela. Deduzir a
+    //   suspensão do score exibido mostraria um aviso que não aconteceu (ou
+    //   esconderia um que aconteceu) sempre que os ledgers divergirem.
+    const [perfil, depois] = await Promise.all([
+      prisma.safeScoreProfile.findUnique({ where: { userId }, select: { currentScore: true, tier: true } }),
+      prisma.user.findUnique({ where: { id: userId }, select: { status: true } }),
+    ]);
+    const score = perfil?.currentScore ?? 500;
+
+    return NextResponse.json({
+      ok: true,
+      safeScore: { score, tier: perfil?.tier ?? "BRONZE" },
+      faixa: getFaixa(score),
+      usuario: {
+        status: depois?.status ?? null,
+        suspensoAutomaticamente: antes?.status !== "BLOQUEADO" && depois?.status === "BLOQUEADO",
+      },
+    });
   } catch (e: any) {
     if (e?.message === "Unauthorized") {
       return NextResponse.json({ ok: false, error: "Não autorizado" }, { status: 401 });

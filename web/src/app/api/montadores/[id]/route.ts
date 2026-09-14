@@ -51,7 +51,6 @@ export async function GET(_req: Request, { params }: Params) {
             genero: true,
             status: true,
             avatarUrl: true,
-            safeScore: { select: { score: true } },
             safeScoreProfile: { select: { currentScore: true, tier: true } },
           },
         },
@@ -74,7 +73,7 @@ export async function GET(_req: Request, { params }: Params) {
       ativo: montador.ativo,
       userStatus: montador.user.status,
     });
-    const score = montador.user.safeScoreProfile?.currentScore ?? montador.user.safeScore?.score ?? 500;
+    const score = montador.user.safeScoreProfile?.currentScore ?? 500;
     const faixa = getFaixa(score);
     const portfolioFotos = await signKeysForDisplay(montador.portfolioFotos);
     const publicUser = {

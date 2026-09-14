@@ -108,15 +108,11 @@ async function buildMontadorMeResponse(userId: string) {
     },
   });
 
-  const [safeScoreProfile, legacySafeScore, avaliacoes, totalAvaliacoes, verificacaoStatus] =
+  const [safeScoreProfile, avaliacoes, totalAvaliacoes, verificacaoStatus] =
     await Promise.all([
       prisma.safeScoreProfile.findUnique({
         where: { userId },
         select: { currentScore: true, tier: true },
-      }),
-      prisma.safeScore.findUnique({
-        where: { userId },
-        select: { score: true },
       }),
       prisma.avaliacao.findMany({
         where: { montadorId: userId },
@@ -139,7 +135,7 @@ async function buildMontadorMeResponse(userId: string) {
       getMontadorVerificationStatus(userId),
     ]);
 
-  const score = safeScoreProfile?.currentScore ?? legacySafeScore?.score ?? 500;
+  const score = safeScoreProfile?.currentScore ?? 500;
   const faixa = getFaixa(score);
   // portfolioFotos é armazenado como keys do S3 — assina para exibição.
   const portfolioFotos = await signKeysForDisplay(perfil.portfolioFotos);

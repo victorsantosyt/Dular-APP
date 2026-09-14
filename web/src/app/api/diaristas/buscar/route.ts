@@ -7,6 +7,7 @@ import {
   nichoFromTipo,
   type ServicoOferecido,
 } from "@/lib/diaristaProfile";
+import { scoreBloqueado } from "@/lib/safeScore/corte";
 // Gate do Guardian agora em LOTE na própria busca (sem N+1); ver abaixo.
 
 function parseServico(value: string | null): ServicoOferecido | null {
@@ -382,31 +383,21 @@ export async function GET(req: Request) {
     // que chamava getGuardianStatusForUser por candidato, ~5 queries cada).
     // Para os candidatos que chegam aqui, o canAppearInSearch do Guardian
     // (baseLiberado && verificado && completude && !shadow) se reduz a
-    // `completude geral && score >= SCORE_BLOQUEIO`, porque:
+    // `completude geral && !scoreBloqueado(score)`, porque:
     //   - verificado: garantido pelo where (verificacao: "VERIFICADO");
     //   - hardBan (SUSPEND/BLOCK) e shadow (SHADOW_BAN): já excluídos pelo
     //     restrictionFilter no where, com a MESMA condição de "ativo"
     //     (revokedAt null + expiresAt null/futuro) do getActiveRestrictions;
     //   - status ATIVO: garantido pelo where (user.status).
-    const SCORE_BLOQUEIO = 400; // espelha SCORE_BLOQUEIO de safeScoreGuardian.ts
-
     const userIds = diaristas.map((p) => p.userId);
-    // Score em LOTE, dual-read idêntico ao getScoreAndTier: SafeScoreProfile
-    // (novo) → SafeScore (legado) → default 500. Só o score importa no gate.
-    const [scoreProfiles, legacyScores] = await Promise.all([
-      prisma.safeScoreProfile.findMany({
-        where: { userId: { in: userIds } },
-        select: { userId: true, currentScore: true },
-      }),
-      prisma.safeScore.findMany({
-        where: { userId: { in: userIds } },
-        select: { userId: true, score: true },
-      }),
-    ]);
+    // Score em LOTE, mesma leitura do getScoreAndTier: SafeScoreProfile → 500.
+    // Só o score importa no gate, e o corte é o do Guardian (safeScore/corte).
+    const scoreProfiles = await prisma.safeScoreProfile.findMany({
+      where: { userId: { in: userIds } },
+      select: { userId: true, currentScore: true },
+    });
     const scoreProfileMap = new Map(scoreProfiles.map((s) => [s.userId, s.currentScore]));
-    const legacyScoreMap = new Map(legacyScores.map((s) => [s.userId, s.score]));
-    const scoreDoUsuario = (userId: string) =>
-      scoreProfileMap.get(userId) ?? legacyScoreMap.get(userId) ?? 500;
+    const scoreDoUsuario = (userId: string) => scoreProfileMap.get(userId) ?? 500;
 
     const liberadas = diaristas.filter((p) => {
       // Completude GERAL — a MESMA função que o Guardian usa
@@ -429,7 +420,7 @@ export async function GET(req: Request) {
         bairros: p.bairros,
         user: p.user ? { nome: p.user.nome, status: p.user.status } : null,
       }).completo;
-      return completudeGeral && scoreDoUsuario(p.userId) >= SCORE_BLOQUEIO;
+      return completudeGeral && !scoreBloqueado(scoreDoUsuario(p.userId));
     });
 
     if (isDev) {

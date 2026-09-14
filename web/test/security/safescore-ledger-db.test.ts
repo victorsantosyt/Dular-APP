@@ -85,8 +85,11 @@ describe("SafeScore V2 contra Postgres real", { skip: EXIGIDO ? false : PULAR },
     assert.equal((await perfil(u)).currentScore, 550);
     assert.equal(await prisma.safeScoreEvent.count({ where: { userId: u } }), 1);
 
-    // Contraste: o legado, fora do escopo desta PR, soma a cada chamada.
-    assert.equal((await prisma.safeScore.findUnique({ where: { userId: u } })).score, 600);
+    // O legado também conta uma vez só: a constraint (safeScoreId, chaveIdempotencia)
+    // aborta a segunda gravação do mesmo fato. Antes dela, ele somava de novo (600).
+    const legado = await prisma.safeScore.findUnique({ where: { userId: u } });
+    assert.equal(legado.score, 550);
+    assert.equal(await prisma.scoreEvento.count({ where: { safeScoreId: legado.id } }), 1);
   });
 
   it("idempotência direta: a segunda chamada devolve already_applied e não mexe no score", async () => {
@@ -107,6 +110,54 @@ describe("SafeScore V2 contra Postgres real", { skip: EXIGIDO ? false : PULAR },
       await prisma.safeScoreEvent.findFirst({ where: { userId: u }, select: { eventType: true, delta: true } }),
       { eventType: "kyc_rejeitado", delta: -20 },
     );
+  });
+
+  it("legado idempotente sob concorrência: 10 chamadas simultâneas do MESMO fato contam uma vez nos dois ledgers", async () => {
+    const u = await novoUsuario("legconc");
+    const resultados = await Promise.allSettled(
+      Array.from({ length: 10 }, () => aplicarEvento(u, "KYC_APROVADO", "doc-conc", "Documentos aprovados.")),
+    );
+    assert.deepEqual(
+      resultados.filter((r) => r.status === "rejected").map((r: any) => String(r.reason)),
+      [],
+      "nenhuma chamada repetida pode estourar erro",
+    );
+
+    const legado = await prisma.safeScore.findUnique({ where: { userId: u } });
+    assert.equal(legado.score, 550);
+    assert.equal(await prisma.scoreEvento.count({ where: { safeScoreId: legado.id } }), 1);
+    assert.equal((await perfil(u)).currentScore, 550);
+    assert.equal(await prisma.safeScoreEvent.count({ where: { userId: u } }), 1);
+  });
+
+  it("constraint: o banco recusa o mesmo fato duas vezes no mesmo SafeScore, e aceita fato diferente", async () => {
+    const u = await novoUsuario("constraint");
+    const s = await prisma.safeScore.create({ data: { userId: u, score: 500 } });
+    const fato = {
+      safeScoreId: s.id,
+      tipo: "CANCELAMENTO",
+      peso: -15,
+      referenciaId: "srv-x",
+      chaveIdempotencia: "CANCELAMENTO:srv-x",
+    };
+    await prisma.scoreEvento.create({ data: fato });
+    await assert.rejects(prisma.scoreEvento.create({ data: fato }), (e: any) => e?.code === "P2002");
+    await prisma.scoreEvento.create({ data: { ...fato, referenciaId: "srv-y", chaveIdempotencia: "CANCELAMENTO:srv-y" } });
+    assert.equal(await prisma.scoreEvento.count({ where: { safeScoreId: s.id } }), 2);
+  });
+
+  it("fato repetido não reaplica a suspensão depois que o admin desbloqueou", async () => {
+    const u = await novoUsuario("susp");
+    await aplicarEvento(u, "DENUNCIA_CONFIRMADA", "inc-1", "gravidade=CRITICA"); // 500 → 200
+    await aplicarEvento(u, "DENUNCIA_CONFIRMADA", "inc-2", "gravidade=CRITICA"); // 200 → 0: suspende
+    assert.equal((await prisma.user.findUnique({ where: { id: u } })).status, "BLOQUEADO");
+
+    await prisma.user.update({ where: { id: u }, data: { status: "ATIVO" } }); // admin desbloqueia
+    await aplicarEvento(u, "DENUNCIA_CONFIRMADA", "inc-2", "gravidade=CRITICA"); // retentativa do mesmo fato
+
+    assert.equal((await prisma.user.findUnique({ where: { id: u } })).status, "ATIVO");
+    const legado = await prisma.safeScore.findUnique({ where: { userId: u } });
+    assert.equal(await prisma.scoreEvento.count({ where: { safeScoreId: legado.id } }), 2);
   });
 
   it("concorrência: 20 eventos simultâneos para o mesmo usuário — nenhum se perde", async () => {
@@ -185,7 +236,11 @@ describe("SafeScore V2 contra Postgres real", { skip: EXIGIDO ? false : PULAR },
       const v2 = await perfil(userId);
       const deltas = await prisma.safeScoreEvent.aggregate({ where: { userId }, _sum: { delta: true } });
 
-      assert.equal(legado.score, 500 + somaLegado, `${usuario}: o replay do legado não reproduz o histórico`);
+      // O fixture tem um fato repetido (KYC aprovado duas vezes, mesmo documento).
+      // Com a constraint, o legado também conta uma vez: os dois ledgers terminam
+      // iguais, e só o histórico gravado antes dela guarda a soma dupla.
+      assert.ok(somaLegado >= somaSemRepeticao);
+      assert.equal(legado.score, 500 + somaSemRepeticao, `${usuario}: legado diverge do esperado sem repetição`);
       assert.equal(v2.currentScore, 500 + somaSemRepeticao, `${usuario}: V2 diverge do legado`);
       assert.equal(deltas._sum.delta, somaSemRepeticao, `${usuario}: soma dos deltas V2`);
     }

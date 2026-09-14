@@ -201,12 +201,16 @@ describe("replay dos eventos reais do banco local contra a 1.1.0", () => {
 describe("aplicarEvento → applyEvent", () => {
   let chaves: string[];
   let criados: Array<Record<string, any>>;
+  let legado: Array<Record<string, any>>;
+  let usuariosAtualizados: Array<Record<string, any>>;
   let score: number;
 
   beforeEach(() => {
     resetMockPrisma();
     chaves = [];
     criados = [];
+    legado = [];
+    usuariosAtualizados = [];
     score = 500;
     const m = mockPrisma as any;
     // O `$transaction` do mock central entrega ao callback o objeto em que foi
@@ -216,8 +220,17 @@ describe("aplicarEvento → applyEvent", () => {
     m.incidentReport = { findUnique: async () => null };
     m.safeScore.upsert = async () => ({ id: "ss-1", score: 500 });
     m.safeScore.update = async (args: any) => ({ id: "ss-1", score: args.data.score });
-    m.scoreEvento = { create: async () => ({}) };
-    m.user.update = async () => ({});
+    m.scoreEvento = {
+      create: async (args: any) => {
+        legado.push(args.data);
+        return {};
+      },
+      findUnique: async () => null,
+    };
+    m.user.update = async (args: any) => {
+      usuariosAtualizados.push(args.data);
+      return {};
+    };
     m.safeScorePolicyVersion = { findFirst: async () => ({ id: "policy_v1_1_0", weights: POLITICA }) };
     m.safeScoreProfile.createMany = async () => ({ count: 1 });
     m.safeScoreProfile.update = async (args: any) => {
@@ -239,6 +252,43 @@ describe("aplicarEvento → applyEvent", () => {
     await aplicarEvento("u-1", "KYC_APROVADO", "doc-1", "Documentos aprovados.");
     await aplicarEvento("u-1", "KYC_APROVADO", "doc-1", "Documentos aprovados.");
     assert.deepEqual(chaves, ["u-1:KYC_APROVADO:doc-1", "u-1:KYC_APROVADO:doc-1"]);
+  });
+
+  it("legado grava a chave do fato: tipo:referência, sem-ref quando falta", async () => {
+    await aplicarEvento("u-1", "KYC_APROVADO", "doc-1");
+    await aplicarEvento("u-1", "TEMPO_PLATAFORMA");
+    assert.deepEqual(
+      legado.map((d) => d.chaveIdempotencia),
+      ["KYC_APROVADO:doc-1", "TEMPO_PLATAFORMA:sem-ref"],
+    );
+  });
+
+  it("legado: fato já contado não relança, não reaplica a suspensão e ainda passa pelo V2", async () => {
+    const m = mockPrisma as any;
+    m.scoreEvento.create = async () => {
+      throw new Prisma.PrismaClientKnownRequestError("Unique constraint failed", { code: "P2002", clientVersion: "test" });
+    };
+    m.safeScore.findUnique = async () => ({ id: "ss-1", score: 150 });
+    m.scoreEvento.findUnique = async () => ({ id: "ja-contado" });
+
+    const r = await aplicarEvento("u-1", "DENUNCIA_CONFIRMADA", "inc-1", "gravidade=CRITICA");
+
+    assert.equal(r.score, 150);
+    assert.ok(!usuariosAtualizados.some((d) => d.status === "BLOQUEADO"), "score < 200 repetido não pode suspender de novo");
+    assert.deepEqual(chaves, ["u-1:DENUNCIA_CONFIRMADA:inc-1"], "o V2 ainda recebe a chamada, idempotente");
+  });
+
+  it("legado: P2002 que não é deste fato é relançado", async () => {
+    const m = mockPrisma as any;
+    m.scoreEvento.create = async () => {
+      throw new Prisma.PrismaClientKnownRequestError("Unique constraint failed", { code: "P2002", clientVersion: "test" });
+    };
+    m.safeScore.findUnique = async () => ({ id: "ss-1", score: 500 });
+    m.scoreEvento.findUnique = async () => null;
+    await assert.rejects(
+      aplicarEvento("u-1", "KYC_APROVADO", "doc-1"),
+      (e: unknown) => e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002",
+    );
   });
 
   it("sem referência, a chave usa sem-ref", async () => {

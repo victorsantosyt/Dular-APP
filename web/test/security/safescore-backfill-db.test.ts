@@ -47,20 +47,20 @@ describe("backfill SafeScore V2 contra Postgres real", { skip: EXIGIDO ? false :
     const qa = await prisma.safeScore.create({ data: { userId: ids.qa, score: 640 } });
     await prisma.scoreEvento.createMany({
       data: [
-        { safeScoreId: qa.id, tipo: "SERVICO_CONCLUIDO", peso: 5, referenciaId: "s1" },
-        { safeScoreId: qa.id, tipo: "AVALIACAO_POSITIVA", peso: 15, referenciaId: "a1" },
+        { safeScoreId: qa.id, tipo: "SERVICO_CONCLUIDO", peso: 5, referenciaId: "s1", chaveIdempotencia: "SERVICO_CONCLUIDO:s1" },
+        { safeScoreId: qa.id, tipo: "AVALIACAO_POSITIVA", peso: 15, referenciaId: "a1", chaveIdempotencia: "AVALIACAO_POSITIVA:a1" },
       ],
     });
     await prisma.safeScoreProfile.create({ data: { userId: ids.qa, currentScore: 650, tier: "GOLD" } });
 
     // baixo: legado 300, sem perfil V2.
     const baixo = await prisma.safeScore.create({ data: { userId: ids.baixo, score: 300 } });
-    await prisma.scoreEvento.create({ data: { safeScoreId: baixo.id, tipo: "DENUNCIA_CONFIRMADA", peso: -200, referenciaId: "i1" } });
+    await prisma.scoreEvento.create({ data: { safeScoreId: baixo.id, tipo: "DENUNCIA_CONFIRMADA", peso: -200, referenciaId: "i1", chaveIdempotencia: "DENUNCIA_CONFIRMADA:i1" } });
 
     // liberado: legado 300 (baixo) mas perfil V2 em 505 — a leitura de hoje o
     // libera. Tem um serviço criado como cliente depois do perfil V2.
     const lib = await prisma.safeScore.create({ data: { userId: ids.liberado, score: 300 } });
-    await prisma.scoreEvento.create({ data: { safeScoreId: lib.id, tipo: "DENUNCIA_CONFIRMADA", peso: -200, referenciaId: "i2" } });
+    await prisma.scoreEvento.create({ data: { safeScoreId: lib.id, tipo: "DENUNCIA_CONFIRMADA", peso: -200, referenciaId: "i2", chaveIdempotencia: "DENUNCIA_CONFIRMADA:i2" } });
     await prisma.safeScoreProfile.create({ data: { userId: ids.liberado, currentScore: 505, tier: "SILVER" } });
     await prisma.servico.create({
       data: {
@@ -81,7 +81,7 @@ describe("backfill SafeScore V2 contra Postgres real", { skip: EXIGIDO ? false :
 
     // igual: legado e V2 já em 550/SILVER, e o legado bate com os eventos (+50).
     const igual = await prisma.safeScore.create({ data: { userId: ids.igual, score: 550 } });
-    await prisma.scoreEvento.create({ data: { safeScoreId: igual.id, tipo: "KYC_APROVADO", peso: 50, referenciaId: "k1" } });
+    await prisma.scoreEvento.create({ data: { safeScoreId: igual.id, tipo: "KYC_APROVADO", peso: 50, referenciaId: "k1", chaveIdempotencia: "KYC_APROVADO:k1" } });
     await prisma.safeScoreProfile.create({ data: { userId: ids.igual, currentScore: 550, tier: "SILVER" } });
   });
 

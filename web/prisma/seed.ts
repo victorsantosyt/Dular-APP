@@ -228,25 +228,11 @@ async function main() {
     }
   }
 
-  await prisma.safeScorePolicyVersion.upsert({
-    where: { version: '1.0.0' },
-    update: {},
-    create: {
-      id: 'policy_v1_0_0',
-      version: '1.0.0',
-      weights: {
-        avaliacao_positiva: 20,
-        avaliacao_negativa: -30,
-        servico_concluido: 10,
-        cancelamento_tardio: -15,
-        incidente_aberto: -50,
-        incidente_resolvido_favor: -80,
-        kyc_aprovado: 50,
-        kyc_rejeitado: -20,
-        checkin_realizado: 5,
-      },
-    },
-  })
+  // Política do SafeScore V2: NÃO é criada aqui. Vem da migration
+  // `*_safescore_politica_1_1_0` — é dado que o código exige para funcionar,
+  // e produção não roda este seed. Criar a 1.0.0 aqui, depois das migrations,
+  // publicaria uma política MAIS NOVA que a 1.1.0 e o applyEvent passaria a
+  // usá-la (ele pega a mais recente sem deprecatedAt).
 
   console.log("Seed concluído:");
   console.log("Admin: 65999990000 / admin123");

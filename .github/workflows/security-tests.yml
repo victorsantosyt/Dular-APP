@@ -24,10 +24,31 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
+    # Postgres real para a suíte do ledger do SafeScore
+    # (test/security/safescore-ledger-db.test.ts). Idempotência e concorrência
+    # só se provam com a trava de linha e o índice único de um banco de verdade.
+    # Se o container não ficar saudável, o job falha antes de qualquer step:
+    # não existe caminho em que esses testes sejam pulados no CI.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: safescore_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d safescore_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
     # Vars dummy: as mesmas usadas em `npm run test:security`. Não são segredos
-    # reais — o test runner monta JWT com este SECRET e nenhuma das rotas
-    # testadas executa query no Prisma de verdade (todas mockadas via
-    # globalThis.prisma).
+    # reais — o test runner monta JWT com este SECRET e as rotas testadas usam
+    # Prisma mockado via globalThis.prisma. O DATABASE_URL abaixo NÃO aponta
+    # para o Postgres de serviço (usuário e banco diferentes), de propósito:
+    # teste que escapar do mock falha, em vez de passar contra banco real.
     env:
       JWT_SECRET: test_only_do_not_use_in_prod
       DATABASE_URL: postgresql://test:test@localhost:5432/test
@@ -100,6 +121,14 @@ jobs:
         if: steps.changes.outputs.relevant == 'true'
         run: npx prisma validate
 
+      # Banco zerado a cada run: o schema é reconstruído pelo histórico de
+      # migrations — o que também prova que o histórico ainda sobe do zero.
+      - name: Apply migrations to CI Postgres
+        if: steps.changes.outputs.relevant == 'true'
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/safescore_ci
+        run: npx prisma migrate deploy
+
       # Recusa migration que apague o índice único parcial de Subscription. Ele
       # não está no schema.prisma (o Prisma não representa índice parcial), então
       # nada no fluxo normal o protege — quem lê só o schema não sabe que existe.
@@ -121,6 +150,11 @@ jobs:
 
       - name: Run security test suite
         if: steps.changes.outputs.relevant == 'true'
+        env:
+          SAFESCORE_DB_URL: postgresql://postgres:postgres@localhost:5432/safescore_ci
+          # Fora do CI, sem SAFESCORE_DB_URL a suíte de banco é pulada. Aqui ela é
+          # obrigatória: URL ausente ou banco inacessível reprova o job.
+          SAFESCORE_DB_REQUIRED: "1"
         run: npm run test:security
 
   # Mobile fica fora do workflow de segurança para manter o gate rápido (<3min).

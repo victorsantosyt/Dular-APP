@@ -5,7 +5,7 @@ import { requireAuthAtivo, respostaDeSessao } from "@/lib/contaAtiva";
 import { assertStatus } from "@/lib/regrasServico";
 import { ServicoStatus } from "@prisma/client";
 import { registrarEvento } from "@/lib/servicoEvento";
-import { aplicarEvento } from "@/lib/safeScore";
+import { aplicarEventoNaTransacao } from "@/lib/safeScore";
 import { criarNotificacao } from "@/lib/notifications";
 
 type Params = { params: Promise<{ id: string }> };
@@ -27,19 +27,31 @@ export async function POST(req: Request, { params }: Params) {
 
     assertStatus(servico.status as ServicoStatus, ["CONCLUIDO"]);
 
-    const updated = await prisma.servico.update({
-      where: { id },
-      data: { status: "CONFIRMADO" },
+    const profissionalId = servico.montadorId ?? servico.diaristaId;
+
+    // Status e score na MESMA transação. Antes o status virava CONFIRMADO e só
+    // depois os eventos eram gravados: uma falha no score deixava o serviço
+    // confirmado, sem evento, e sem retentativa possível (a rota exige
+    // CONCLUIDO). Agora a falha reverte o status junto.
+    //
+    // CAS no status: duas confirmações simultâneas não passam as duas — a
+    // segunda espera a trava da linha e já encontra CONFIRMADO.
+    const updated = await prisma.$transaction(async (tx) => {
+      const cas = await tx.servico.updateMany({
+        where: { id, status: "CONCLUIDO" },
+        data: { status: "CONFIRMADO" },
+      });
+      if (cas.count === 0) throw new Error("INVALID_STATUS");
+
+      await aplicarEventoNaTransacao(tx, servico.clientId, "SERVICO_CONCLUIDO", servico.id, "Serviço confirmado pelo empregador.");
+      if (profissionalId) {
+        await aplicarEventoNaTransacao(tx, profissionalId, "SERVICO_CONCLUIDO", servico.id, "Serviço confirmado pelo empregador.");
+      }
+
+      return tx.servico.findUniqueOrThrow({ where: { id } });
     });
 
     await registrarEvento(servico.id, servico.status as ServicoStatus, "CONFIRMADO", auth.role, auth.userId);
-    const profissionalId = servico.montadorId ?? servico.diaristaId;
-    await Promise.all([
-      aplicarEvento(servico.clientId, "SERVICO_CONCLUIDO", servico.id, "Serviço confirmado pelo empregador."),
-      profissionalId
-        ? aplicarEvento(profissionalId, "SERVICO_CONCLUIDO", servico.id, "Serviço confirmado pelo empregador.")
-        : Promise.resolve(),
-    ]);
 
     if (profissionalId) {
       await criarNotificacao({

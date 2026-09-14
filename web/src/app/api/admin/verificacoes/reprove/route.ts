@@ -119,7 +119,11 @@ export async function POST(req: Request) {
     });
   });
 
-  await aplicarEvento(existing.userId, "KYC_REJEITADO", id, motivo).catch(() => null);
+  // A reprovação já está gravada: falha no score não a desfaz, mas não pode
+  // sumir em silêncio.
+  await aplicarEvento(existing.userId, "KYC_REJEITADO", id, motivo).catch((err) => {
+    console.error("[safeScore] KYC_REJEITADO não registrado — a reprovação segue:", { userId: existing.userId, verificacaoId: id }, err);
+  });
   const guardian = await getGuardianStatusForUser(existing.userId);
 
   return NextResponse.json({ ok: true, verification, guardian });

@@ -83,7 +83,11 @@ export async function POST(req: Request, { params }: Params) {
       },
     );
 
-    await aplicarEvento(auth.userId, "CANCELAMENTO", id).catch(() => null);
+    // O cancelamento já está gravado: falha no score não o desfaz, mas não pode
+    // sumir em silêncio.
+    await aplicarEvento(auth.userId, "CANCELAMENTO", id).catch((err) => {
+      console.error("[safeScore] CANCELAMENTO não registrado — o cancelamento segue:", { userId: auth.userId, servicoId: id }, err);
+    });
 
     if (motivoGrave) {
       const profissionalId = servico.montadorId ?? servico.diaristaId;

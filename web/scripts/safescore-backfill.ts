@@ -15,6 +15,7 @@
 import 'dotenv/config'
 import { prisma } from '../src/lib/prisma'
 import {
+  coletarForense,
   coletarLinhas,
   executarBackfill,
   formatarRelatorio,
@@ -42,7 +43,8 @@ async function main() {
   }
 
   const plano = planejarBackfill(await coletarLinhas())
-  console.log(formatarRelatorio(plano, { host, modo: aplicar ? 'APLICAR' : 'DRY-RUN' }).join('\n'))
+  const forense = await coletarForense(plano.mudancasScoreBaixo.map((m) => m.userId))
+  console.log(formatarRelatorio(plano, { host, modo: aplicar ? 'APLICAR' : 'DRY-RUN', forense }).join('\n'))
 
   if (!aplicar) {
     console.log(`\nDRY-RUN: nenhuma escrita. Para aplicar: npm run safescore:backfill -- --aplicar --host=${host}`)

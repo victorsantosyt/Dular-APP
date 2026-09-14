@@ -115,6 +115,45 @@ describe("planejarBackfill — score_baixo que muda entre a leitura de hoje e a 
   });
 });
 
+describe("planejarBackfill — auditoria de quem a leitura de hoje trata diferente do legado", () => {
+  const linhas = [
+    // legado baixo, V2 ok: liberado por engano
+    linha({ userId: "lib", scoreLegado: 300, somaPesosLegado: -200, scoreV2: 505, tierV2: "SILVER" }),
+    // legado ok, V2 baixo: barrado por engano
+    linha({ userId: "bar", scoreLegado: 600, somaPesosLegado: 100, scoreV2: 350, tierV2: "BRONZE" }),
+    // igual nos dois
+    linha({ userId: "ok", scoreLegado: 550, somaPesosLegado: 50, scoreV2: 550, tierV2: "SILVER" }),
+  ];
+
+  it("separa liberados e barrados por engano", () => {
+    const p = planejarBackfill(linhas);
+    assert.deepEqual(p.liberadosIndevidamente.map((m) => [m.userId, m.scoreDepois, m.scoreHoje]), [["lib", 300, 505]]);
+    assert.deepEqual(p.bloqueadosIndevidamente.map((m) => [m.userId, m.scoreDepois, m.scoreHoje]), [["bar", 600, 350]]);
+  });
+
+  it("o relatório mostra as duas seções com a auditoria de cada usuário", () => {
+    const p = planejarBackfill(linhas);
+    const texto = formatarRelatorio(p, {
+      host: "h",
+      modo: "DRY-RUN",
+      forense: [
+        {
+          userId: "lib",
+          perfilV2CriadoEm: new Date("2026-09-14T03:30:00Z"),
+          primeiroEventoV2Em: new Date("2026-09-14T03:30:00Z"),
+          eventosV2: 1,
+          servicosCriadosComoCliente: 2,
+          servicosComoProfissional: 0,
+        },
+      ],
+    }).join("\n");
+    assert.match(texto, /LIBERADOS por engano .*: 1/);
+    assert.match(texto, /lib\s+legado=300\s+lido hoje \(V2\)=505/);
+    assert.match(texto, /perfil V2 desde 2026-09-14T03:30:00\.000Z .* serviços criados como cliente desde então=2/);
+    assert.match(texto, /BARRADOS por engano .*: 1/);
+  });
+});
+
 describe("planejarBackfill — distribuição e relatório", () => {
   it("conta faixas e tiers de hoje e de depois", () => {
     const p = planejarBackfill([

@@ -64,6 +64,10 @@ export type Plano = {
   contagem: Record<Acao, number>
   divergencias: Divergencia[]
   mudancasScoreBaixo: MudancaScoreBaixo[]
+  /** Legado < 400 mas lido hoje ≥ 400: pode ter sido liberado por engano. */
+  liberadosIndevidamente: MudancaScoreBaixo[]
+  /** Legado ≥ 400 mas lido hoje < 400: pode ter sido barrado por engano. */
+  bloqueadosIndevidamente: MudancaScoreBaixo[]
   faixas: { hoje: Record<string, number>; depois: Record<string, number> }
   tiers: { hoje: Record<string, number>; depois: Record<string, number> }
 }
@@ -144,6 +148,10 @@ export function planejarBackfill(linhas: LinhaUsuario[]): Plano {
     contagem,
     divergencias,
     mudancasScoreBaixo,
+    // "Depois" é o legado: quem é baixo no legado e não é baixo na leitura de
+    // hoje (V2) está liberado sem dever estar.
+    liberadosIndevidamente: mudancasScoreBaixo.filter((m) => !m.baixoHoje && m.baixoDepois),
+    bloqueadosIndevidamente: mudancasScoreBaixo.filter((m) => m.baixoHoje && !m.baixoDepois),
     faixas: {
       hoje: contar(linhas.map((l) => getFaixa(scoreLidoHoje(l)).label)),
       depois: contar(linhas.map((l) => getFaixa(scoreDepoisDoBackfill(l)).label)),
@@ -194,6 +202,59 @@ export async function coletarLinhas(): Promise<LinhaUsuario[]> {
   }))
 }
 
+export type Forense = {
+  userId: string
+  perfilV2CriadoEm: Date | null
+  primeiroEventoV2Em: Date | null
+  eventosV2: number
+  /** Serviços criados como cliente desde que o perfil V2 existe. */
+  servicosCriadosComoCliente: number
+  /** Serviços em que atuou como profissional, mexidos desde que o perfil V2 existe (fora de SOLICITADO). */
+  servicosComoProfissional: number
+}
+
+/**
+ * Auditoria só de leitura para quem a leitura de hoje trata diferente do
+ * legado: desde quando o perfil V2 manda na leitura, e o que a pessoa fez nesse
+ * período que o score deveria ter barrado ou permitido.
+ */
+export async function coletarForense(userIds: string[]): Promise<Forense[]> {
+  if (userIds.length === 0) return []
+  const rows = await prisma.$queryRaw<
+    Array<{
+      userId: string
+      perfilV2CriadoEm: Date | null
+      primeiroEventoV2Em: Date | null
+      eventosV2: bigint | number
+      servicosCriadosComoCliente: bigint | number
+      servicosComoProfissional: bigint | number
+    }>
+  >`
+    SELECT u.id AS "userId",
+           p."createdAt" AS "perfilV2CriadoEm",
+           (SELECT min(e."createdAt") FROM "SafeScoreEvent" e WHERE e."userId" = u.id) AS "primeiroEventoV2Em",
+           (SELECT count(*) FROM "SafeScoreEvent" e WHERE e."userId" = u.id) AS "eventosV2",
+           (SELECT count(*) FROM "Servico" s
+             WHERE s."clientId" = u.id AND p."createdAt" IS NOT NULL AND s."createdAt" >= p."createdAt") AS "servicosCriadosComoCliente",
+           (SELECT count(*) FROM "Servico" s
+             WHERE (s."diaristaId" = u.id OR s."montadorId" = u.id)
+               AND p."createdAt" IS NOT NULL AND s."updatedAt" >= p."createdAt"
+               AND s.status <> 'SOLICITADO') AS "servicosComoProfissional"
+    FROM "User" u
+    LEFT JOIN "SafeScoreProfile" p ON p."userId" = u.id
+    WHERE u.id = ANY(${userIds})
+    ORDER BY u.id
+  `
+  return rows.map((r) => ({
+    userId: r.userId,
+    perfilV2CriadoEm: r.perfilV2CriadoEm,
+    primeiroEventoV2Em: r.primeiroEventoV2Em,
+    eventosV2: Number(r.eventosV2),
+    servicosCriadosComoCliente: Number(r.servicosCriadosComoCliente),
+    servicosComoProfissional: Number(r.servicosComoProfissional),
+  }))
+}
+
 export type ResultadoBackfill = {
   semeados: number
   semMudanca: number
@@ -230,7 +291,14 @@ function linhaDistribuicao(titulo: string, hoje: Record<string, number>, depois:
   ]
 }
 
-export function formatarRelatorio(plano: Plano, opcoes: { host: string; modo: string }): string[] {
+function iso(d: Date | null): string {
+  return d ? new Date(d).toISOString() : '—'
+}
+
+export function formatarRelatorio(
+  plano: Plano,
+  opcoes: { host: string; modo: string; forense?: Forense[] },
+): string[] {
   const l: string[] = []
   l.push('=== SafeScore — backfill do V2 a partir do legado ===')
   l.push(`Banco: ${opcoes.host}   Modo: ${opcoes.modo}`)
@@ -245,9 +313,23 @@ export function formatarRelatorio(plano: Plano, opcoes: { host: string; modo: st
   l.push(...linhaDistribuicao('Tier (hoje × depois):', plano.tiers.hoje, plano.tiers.depois))
   l.push('')
   l.push(`score_baixo (< ${LIMIAR_SCORE_BAIXO}) que MUDA entre a leitura de hoje e a de depois: ${plano.mudancasScoreBaixo.length}`)
-  for (const m of plano.mudancasScoreBaixo) {
-    l.push(`  ${m.userId}  hoje=${m.scoreHoje} (${m.baixoHoje ? 'BAIXO' : 'ok'})  depois=${m.scoreDepois} (${m.baixoDepois ? 'BAIXO' : 'ok'})`)
+  const forense = new Map((opcoes.forense ?? []).map((f) => [f.userId, f]))
+  const secao = (titulo: string, lista: MudancaScoreBaixo[]) => {
+    l.push(`  ${titulo}: ${lista.length}`)
+    for (const m of lista) {
+      l.push(`    ${m.userId}  legado=${m.scoreDepois}  lido hoje (V2)=${m.scoreHoje}`)
+      const f = forense.get(m.userId)
+      if (f) {
+        l.push(
+          `      perfil V2 desde ${iso(f.perfilV2CriadoEm)} · 1º evento V2 ${iso(f.primeiroEventoV2Em)} · eventos V2=${f.eventosV2}` +
+            ` · serviços criados como cliente desde então=${f.servicosCriadosComoCliente}` +
+            ` · como profissional desde então=${f.servicosComoProfissional}`,
+        )
+      }
+    }
   }
+  secao(`Possivelmente LIBERADOS por engano (legado < ${LIMIAR_SCORE_BAIXO}, lido hoje ≥ ${LIMIAR_SCORE_BAIXO})`, plano.liberadosIndevidamente)
+  secao(`Possivelmente BARRADOS por engano (legado ≥ ${LIMIAR_SCORE_BAIXO}, lido hoje < ${LIMIAR_SCORE_BAIXO})`, plano.bloqueadosIndevidamente)
   l.push('')
   l.push(`Divergências SafeScore.score × 500 + soma dos eventos: ${plano.divergencias.length}`)
   for (const d of plano.divergencias) {

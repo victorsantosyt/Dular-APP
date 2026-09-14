@@ -21,7 +21,13 @@ describe("backfill SafeScore V2 contra Postgres real", { skip: EXIGIDO ? false :
   let bf: typeof import("../../src/lib/safeScore/backfill");
 
   const RUN = `t_ssbf_${Date.now().toString(36)}`;
-  const ids = { qa: `${RUN}_qa`, baixo: `${RUN}_baixo`, soV2: `${RUN}_sov2`, igual: `${RUN}_igual` };
+  const ids = {
+    qa: `${RUN}_qa`,
+    baixo: `${RUN}_baixo`,
+    soV2: `${RUN}_sov2`,
+    igual: `${RUN}_igual`,
+    liberado: `${RUN}_liberado`,
+  };
   const todos = Object.values(ids);
 
   async function planoDosTestes() {
@@ -51,6 +57,25 @@ describe("backfill SafeScore V2 contra Postgres real", { skip: EXIGIDO ? false :
     const baixo = await prisma.safeScore.create({ data: { userId: ids.baixo, score: 300 } });
     await prisma.scoreEvento.create({ data: { safeScoreId: baixo.id, tipo: "DENUNCIA_CONFIRMADA", peso: -200, referenciaId: "i1" } });
 
+    // liberado: legado 300 (baixo) mas perfil V2 em 505 — a leitura de hoje o
+    // libera. Tem um serviço criado como cliente depois do perfil V2.
+    const lib = await prisma.safeScore.create({ data: { userId: ids.liberado, score: 300 } });
+    await prisma.scoreEvento.create({ data: { safeScoreId: lib.id, tipo: "DENUNCIA_CONFIRMADA", peso: -200, referenciaId: "i2" } });
+    await prisma.safeScoreProfile.create({ data: { userId: ids.liberado, currentScore: 505, tier: "SILVER" } });
+    await prisma.servico.create({
+      data: {
+        id: `${RUN}_srv`,
+        tipo: "FAXINA",
+        data: new Date(),
+        turno: "MANHA",
+        cidade: "Agua Boa",
+        uf: "MT",
+        bairro: "Centro",
+        precoFinal: 10000,
+        clientId: ids.liberado,
+      },
+    });
+
     // soV2: perfil V2 sem legado — não pode ser tocado.
     await prisma.safeScoreProfile.create({ data: { userId: ids.soV2, currentScore: 505, tier: "SILVER" } });
 
@@ -62,6 +87,7 @@ describe("backfill SafeScore V2 contra Postgres real", { skip: EXIGIDO ? false :
 
   after(async () => {
     if (!prisma) return;
+    await prisma.servico.deleteMany({ where: { id: `${RUN}_srv` } });
     await prisma.safeScoreEvent.deleteMany({ where: { userId: { in: todos } } });
     await prisma.safeScoreProfile.deleteMany({ where: { userId: { in: todos } } });
     const legados = await prisma.safeScore.findMany({ where: { userId: { in: todos } }, select: { id: true } });
@@ -74,7 +100,13 @@ describe("backfill SafeScore V2 contra Postgres real", { skip: EXIGIDO ? false :
   it("dry-run: planeja sem escrever", async () => {
     const plano = await planoDosTestes();
     const por = Object.fromEntries(plano.acoes.map((a) => [a.userId, a.acao]));
-    assert.deepEqual(por, { [ids.qa]: "ATUALIZAR", [ids.baixo]: "CRIAR", [ids.soV2]: "SEM_LEGADO", [ids.igual]: "NADA" });
+    assert.deepEqual(por, {
+      [ids.qa]: "ATUALIZAR",
+      [ids.baixo]: "CRIAR",
+      [ids.soV2]: "SEM_LEGADO",
+      [ids.igual]: "NADA",
+      [ids.liberado]: "ATUALIZAR",
+    });
     assert.deepEqual(
       plano.divergencias.map((d) => [d.userId, d.diferenca]),
       [[ids.qa, 120]],
@@ -82,9 +114,22 @@ describe("backfill SafeScore V2 contra Postgres real", { skip: EXIGIDO ? false :
     assert.equal(await prisma.safeScoreEvent.count({ where: { userId: { in: todos } } }), 0);
   });
 
+  it("auditoria: acha quem a leitura de hoje libera por engano e o que fez desde então", async () => {
+    const plano = await planoDosTestes();
+    assert.deepEqual(plano.liberadosIndevidamente.map((m) => m.userId), [ids.liberado]);
+    assert.deepEqual(plano.bloqueadosIndevidamente, []);
+
+    const [f] = await bf.coletarForense(plano.liberadosIndevidamente.map((m) => m.userId));
+    assert.equal(f.userId, ids.liberado);
+    assert.ok(f.perfilV2CriadoEm instanceof Date);
+    assert.equal(f.eventosV2, 0);
+    assert.equal(f.servicosCriadosComoCliente, 1);
+    assert.equal(f.servicosComoProfissional, 0);
+  });
+
   it("aplica: V2 = legado, tier recalculado, riskTier sincronizado, evento de auditoria", async () => {
     const r = await bf.executarBackfill(await planoDosTestes());
-    assert.deepEqual(r, { semeados: 2, semMudanca: 0, falhas: [] });
+    assert.deepEqual(r, { semeados: 3, semMudanca: 0, falhas: [] });
 
     const qa = await prisma.safeScoreProfile.findUnique({ where: { userId: ids.qa } });
     assert.equal(qa.currentScore, 640);
@@ -104,6 +149,7 @@ describe("backfill SafeScore V2 contra Postgres real", { skip: EXIGIDO ? false :
       eventos.map((e: any) => [e.userId, e.eventType, e.scoreBefore, e.scoreAfter, e.delta]),
       [
         [ids.baixo, "backfill_legado", 500, 300, -200],
+        [ids.liberado, "backfill_legado", 505, 300, -205],
         [ids.qa, "backfill_legado", 650, 640, -10],
       ],
     );
@@ -118,7 +164,7 @@ describe("backfill SafeScore V2 contra Postgres real", { skip: EXIGIDO ? false :
     assert.equal(plano.contagem.CRIAR + plano.contagem.ATUALIZAR, 0);
     const r = await bf.executarBackfill(plano);
     assert.deepEqual(r, { semeados: 0, semMudanca: 0, falhas: [] });
-    assert.equal(await prisma.safeScoreEvent.count({ where: { userId: { in: todos } } }), 2);
+    assert.equal(await prisma.safeScoreEvent.count({ where: { userId: { in: todos } } }), 3);
   });
 
   it("depois do backfill a leitura de hoje e a de depois coincidem para quem tem legado", async () => {

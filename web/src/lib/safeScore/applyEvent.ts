@@ -125,7 +125,87 @@ export async function applyEvent(input: SafeScoreEventInput): Promise<ApplyEvent
   }
 }
 
-function scoreToTier(score: number): 'BRONZE' | 'SILVER' | 'GOLD' | 'PLATINUM' {
+export type ResultadoSemeadura =
+  | { status: 'semeado'; perfilCriado: boolean; scoreAntes: number; scoreDepois: number; tier: string }
+  | { status: 'sem_mudanca'; score: number }
+
+/**
+ * Define o score V2 de um usuário a partir de um valor que chega pronto — hoje
+ * só o backfill do legado (scripts/safescore-backfill.ts). Não é evento de
+ * negócio e não passa pela política.
+ *
+ * Mora aqui, e não no script, porque este módulo é o único escritor do perfil
+ * V2 e de `User.riskTier` (teste estrutural em risk-band.test.ts).
+ *
+ * Deixa rastro no ledger: um SafeScoreEvent `backfill_legado` com o delta
+ * efetivo. Assim "perfil = 500 + soma dos deltas" continua valendo e a origem
+ * do número fica auditável. Idempotente: se o perfil já tem esse score e o
+ * tier correspondente, não grava nada.
+ */
+export async function semearDoLegado(userId: string, scoreLegado: number): Promise<ResultadoSemeadura> {
+  const alvo = Math.max(0, Math.min(1000, scoreLegado))
+  const tierAlvo = scoreToTier(alvo)
+
+  const policy = await prisma.safeScorePolicyVersion.findFirst({
+    where: { deprecatedAt: null },
+    orderBy: { publishedAt: 'desc' },
+  })
+  if (!policy) throw new Error('SafeScore: nenhuma política ativa encontrada')
+
+  return prisma.$transaction(async (tx): Promise<ResultadoSemeadura> => {
+    const existia = await tx.safeScoreProfile.findUnique({ where: { userId }, select: { id: true } })
+    await tx.safeScoreProfile.createMany({
+      data: [{ userId, currentScore: SCORE_INICIAL }],
+      skipDuplicates: true,
+    })
+
+    // UPDATE que não muda nada: trava a linha e devolve o valor atual. Um
+    // applyEvent concorrente espera este backfill terminar.
+    const atual = await tx.safeScoreProfile.update({
+      where: { userId },
+      data: { currentScore: { increment: 0 } },
+      select: { currentScore: true, tier: true },
+    })
+
+    if (atual.currentScore === alvo && atual.tier === tierAlvo) {
+      return { status: 'sem_mudanca', score: alvo }
+    }
+
+    await tx.safeScoreProfile.update({
+      where: { userId },
+      data: { currentScore: alvo, tier: tierAlvo, lastRecalcAt: new Date() },
+    })
+
+    await tx.user.update({
+      where: { id: userId },
+      data: { riskTier: tierAlvo },
+    })
+
+    await tx.safeScoreEvent.create({
+      data: {
+        idempotencyKey: `backfill_legado:${userId}:${atual.currentScore}:${atual.tier}->${alvo}:${tierAlvo}`,
+        userId,
+        policyVersionId: policy.id,
+        scoreBefore: atual.currentScore,
+        scoreAfter: alvo,
+        delta: alvo - atual.currentScore,
+        eventType: 'backfill_legado',
+        source: 'backfill',
+        payload: { scoreLegado, perfilCriado: !existia, tierAnterior: atual.tier } as Prisma.InputJsonObject,
+      },
+    })
+
+    return {
+      status: 'semeado',
+      perfilCriado: !existia,
+      scoreAntes: atual.currentScore,
+      scoreDepois: alvo,
+      tier: tierAlvo,
+    }
+  })
+}
+
+export function scoreToTier(score: number): 'BRONZE' | 'SILVER' | 'GOLD' | 'PLATINUM' {
   if (score >= 850) return 'PLATINUM'
   if (score >= 650) return 'GOLD'
   if (score >= 400) return 'SILVER'

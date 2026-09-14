@@ -759,8 +759,13 @@ model ScoreEvento {
   peso         Int
   descricao    String?
   referenciaId String?
+  /// Identidade do fato: `${tipo}:${referenciaId ?? "sem-ref"}` — a mesma convenção
+  /// da chave de idempotência do V2. Única por SafeScore: o legado não conta duas
+  /// vezes o mesmo fato. Linhas anteriores à constraint receberam `legado:<id>`.
+  chaveIdempotencia String
   createdAt    DateTime        @default(now())
 
+  @@unique([safeScoreId, chaveIdempotencia])
   @@index([safeScoreId])
   @@index([tipo])
   @@index([referenciaId])

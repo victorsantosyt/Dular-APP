@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import type { IncidenteGravidade, SafeScore, ScoreEventoTipo } from "@prisma/client";
 import { applyEvent } from "@/lib/safeScore/applyEvent";
 
@@ -139,6 +140,26 @@ export const EVENT_TYPE_V2: Record<ScoreEventoTipo, string> = {
   TEMPO_PLATAFORMA: "tempo_plataforma",
 };
 
+/**
+ * Se `e` é a violação da constraint deste fato no legado, devolve o SafeScore
+ * atual: o fato já tinha sido contado. Qualquer outro erro — inclusive P2002 de
+ * outra unicidade — devolve null, e quem chamou relança.
+ */
+async function safeScoreSeFatoJaContado(
+  e: unknown,
+  userId: string,
+  chaveIdempotencia: string,
+): Promise<SafeScore | null> {
+  if (!(e instanceof Prisma.PrismaClientKnownRequestError) || e.code !== "P2002") return null;
+  const atual = await prisma.safeScore.findUnique({ where: { userId } });
+  if (!atual) return null;
+  const evento = await prisma.scoreEvento.findUnique({
+    where: { safeScoreId_chaveIdempotencia: { safeScoreId: atual.id, chaveIdempotencia } },
+    select: { id: true },
+  });
+  return evento ? atual : null;
+}
+
 export async function aplicarEvento(
   userId: string,
   tipo: ScoreEventoTipo,
@@ -146,37 +167,54 @@ export async function aplicarEvento(
   descricao?: string,
 ): Promise<SafeScore> {
   const { peso, parametro } = await calcularPeso(tipo, referenciaId, descricao);
+  // Identidade do fato: a mesma do V2, sem o userId (o SafeScore já é do usuário).
+  const chaveIdempotencia = `${tipo}:${referenciaId ?? "sem-ref"}`;
 
-  // ── LEGADO: mantém gravação original intacta ──────────────────────────
-  const updated = await prisma.$transaction(async (tx) => {
-    const current = await tx.safeScore.upsert({
-      where: { userId },
-      create: { userId, score: SCORE_INICIAL },
-      update: {},
-    });
-
-    const score = clampScore(current.score + peso);
-
-    const safeScore = await tx.safeScore.update({
-      where: { id: current.id },
-      data: { score },
-    });
-
-    await tx.scoreEvento.create({
-      data: { safeScoreId: current.id, tipo, peso, referenciaId, descricao },
-    });
-
-    if (score < 400) {
-      await tx.user.update({
-        where: { id: userId },
-        data: { emObservacao: true },
+  // ── LEGADO ────────────────────────────────────────────────────────────
+  // Idempotente: a constraint única (safeScoreId, chaveIdempotencia) faz a
+  // segunda gravação do MESMO fato abortar esta transação inteira — inclusive
+  // o score já somado. MUDANÇA DE COMPORTAMENTO, intencional: até aqui o legado
+  // somava a cada chamada repetida.
+  let updated: SafeScore;
+  let jaContado = false;
+  try {
+    updated = await prisma.$transaction(async (tx) => {
+      const current = await tx.safeScore.upsert({
+        where: { userId },
+        create: { userId, score: SCORE_INICIAL },
+        update: {},
       });
-    }
 
-    return safeScore;
-  });
+      const score = clampScore(current.score + peso);
 
-  if (updated.score < 200) {
+      const safeScore = await tx.safeScore.update({
+        where: { id: current.id },
+        data: { score },
+      });
+
+      await tx.scoreEvento.create({
+        data: { safeScoreId: current.id, tipo, peso, referenciaId, descricao, chaveIdempotencia },
+      });
+
+      if (score < 400) {
+        await tx.user.update({
+          where: { id: userId },
+          data: { emObservacao: true },
+        });
+      }
+
+      return safeScore;
+    });
+  } catch (e) {
+    const existente = await safeScoreSeFatoJaContado(e, userId, chaveIdempotencia);
+    if (!existente) throw e;
+    updated = existente;
+    jaContado = true;
+  }
+
+  // Fato repetido não reavalia a suspensão: se um admin já desfez o bloqueio,
+  // uma retentativa não pode reaplicá-lo.
+  if (!jaContado && updated.score < 200) {
     await suspenderUsuario(userId);
   }
   // ── FIM LEGADO ────────────────────────────────────────────────────────

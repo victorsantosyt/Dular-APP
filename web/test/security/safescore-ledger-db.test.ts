@@ -97,6 +97,18 @@ describe("SafeScore V2 contra Postgres real", { skip: EXIGIDO ? false : PULAR },
     assert.equal((await perfil(u)).currentScore, 510);
   });
 
+  it("KYC_REJEITADO: a reprovação desconta -20 nos dois ledgers", async () => {
+    const u = await novoUsuario("kycrej");
+    await aplicarEvento(u, "KYC_REJEITADO", "doc-rejeitado", "Documento ilegível.");
+
+    assert.equal((await prisma.safeScore.findUnique({ where: { userId: u } })).score, 480);
+    assert.equal((await perfil(u)).currentScore, 480);
+    assert.deepEqual(
+      await prisma.safeScoreEvent.findFirst({ where: { userId: u }, select: { eventType: true, delta: true } }),
+      { eventType: "kyc_rejeitado", delta: -20 },
+    );
+  });
+
   it("concorrência: 20 eventos simultâneos para o mesmo usuário — nenhum se perde", async () => {
     const u = await novoUsuario("conc");
     const N = 20;

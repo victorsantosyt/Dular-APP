@@ -1,0 +1,12 @@
+-- KYC_REJEITADO no enum do ledger legado.
+--
+-- A reprovação de KYC (admin/verificacoes/reprove) chamava aplicarEvento com
+-- "KYC_REJEITADO" as any: o valor não existia no enum, o insert em ScoreEvento
+-- falhava e o `.catch(() => null)` engolia. Reprovar KYC não alterava nenhum
+-- ledger. A partir desta migration o evento é válido e desconta -20 nos dois
+-- (legado e kyc_rejeitado da política V2 1.1.0).
+--
+-- Aditiva e permanente: o Postgres não remove valor de enum. IF NOT EXISTS
+-- porque bancos de desenvolvimento podem já ter o valor de uma versão anterior
+-- desta mudança.
+ALTER TYPE "ScoreEventoTipo" ADD VALUE IF NOT EXISTS 'KYC_REJEITADO';

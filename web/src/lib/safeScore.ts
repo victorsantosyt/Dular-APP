@@ -5,6 +5,7 @@ import {
   applyEvent,
   aplicarEventoV2,
   buscarPoliticaAtiva,
+  type PoliticaAtiva,
   type SafeScoreEventInput,
 } from "@/lib/safeScore/applyEvent";
 
@@ -165,7 +166,7 @@ async function safeScoreSeFatoJaContado(
   return evento ? atual : null;
 }
 
-type EventoPreparado = {
+export type EventoPreparado = {
   userId: string;
   tipo: ScoreEventoTipo;
   referenciaId?: string;
@@ -290,12 +291,28 @@ export async function aplicarEvento(
   // ── 1. V2 — autoritativo ──────────────────────────────────────────────
   await applyEvent(entradaV2(evento));
 
-  // ── 2. Legado — condicional à chave do fato ───────────────────────────
+  // ── 2. Legado + suspensão — condicional à chave do fato ───────────────
+  return aplicarLegadoESuspensao(evento);
+}
+
+/**
+ * Parte NÃO-atômica de um evento: legado (condicional à chave) e a
+ * auto-suspensão abaixo de 200. Fica fora de qualquer transação que precise
+ * ser curta — o V2 já é a fonte de verdade e já commitou quando isto roda.
+ *
+ * Extraída de `aplicarEvento` para ser reaproveitada por quem grava o V2
+ * dentro da PRÓPRIA transação de status (`aplicarEventoV2NaTransacao`) sem
+ * pagar aqui dentro o custo do legado — ver `confirmar/route.ts`: as ~10
+ * queries a mais por usuário do legado, dentro da transação de status,
+ * encostavam no timeout padrão do Prisma sob concorrência e derrubavam as
+ * requisições perdedoras com erro de timeout em vez do 409 esperado.
+ */
+export async function aplicarLegadoESuspensao(evento: EventoPreparado): Promise<SafeScore> {
   let resultado: { safeScore: SafeScore; jaContado: boolean };
   try {
     resultado = await prisma.$transaction((tx) => aplicarNoLegado(tx, evento));
   } catch (e) {
-    const existente = await safeScoreSeFatoJaContado(e, userId, evento.chaveIdempotencia);
+    const existente = await safeScoreSeFatoJaContado(e, evento.userId, evento.chaveIdempotencia);
     if (!existente) throw e;
     resultado = { safeScore: existente, jaContado: true };
   }
@@ -304,7 +321,7 @@ export async function aplicarEvento(
   // uma retentativa não pode reaplicá-lo. (Auto-suspensão < 200 continua só no
   // legado; o substituto no V2 é pré-requisito para remover a escrita legada.)
   if (!resultado.jaContado && resultado.safeScore.score < 200) {
-    await suspenderUsuario(userId);
+    await suspenderUsuario(evento.userId);
   }
 
   return resultado.safeScore;
@@ -312,13 +329,18 @@ export async function aplicarEvento(
 
 /**
  * O mesmo efeito de `aplicarEvento`, dentro da transação de quem chama: V2,
- * legado e suspensão sobem ou voltam junto com o que o chamador já gravou — em
- * confirmar serviço, a mudança de status. Uma falha no score reverte o status,
- * e a confirmação pode ser repetida.
+ * legado e suspensão sobem ou voltam junto com o que o chamador já gravou.
  *
  * Não trata P2002: numa transação aberta ele já abortou tudo. A corrida é
  * barrada antes — pelo CAS no status do chamador e pelas checagens de chave
  * em aplicarEventoV2 e aplicarNoLegado.
+ *
+ * ATENÇÃO: isto mantém legado + suspensão DENTRO da transação do chamador.
+ * Numa transação que também faz um CAS de status sob concorrência real
+ * (ex.: confirmar serviço), isso é o que estourava o timeout padrão do
+ * Prisma — prefira `aplicarEventoV2NaTransacao` (só a parte atômica) seguido
+ * de `aplicarLegadoESuspensao` depois do commit. Mantida como está para não
+ * mudar de comportamento nenhum outro call-site que já a use.
  */
 export async function aplicarEventoNaTransacao(
   tx: Prisma.TransactionClient,
@@ -338,6 +360,30 @@ export async function aplicarEventoNaTransacao(
   }
 
   return safeScore;
+}
+
+/**
+ * Só a parte ATÔMICA de um evento V2, dentro da transação de quem chama.
+ * Devolve o evento preparado para o chamador rodar `aplicarLegadoESuspensao`
+ * depois do commit — sem isso, esta chamada sozinha NUNCA grava no legado
+ * nem aplica a auto-suspensão.
+ *
+ * `politicaPreCarregada`: evita buscar a política uma vez por usuário quando
+ * o chamador já a tem (ex.: confirmar serviço, que chama isto até 2 vezes na
+ * mesma transação — cliente e profissional).
+ */
+export async function aplicarEventoV2NaTransacao(
+  tx: Prisma.TransactionClient,
+  userId: string,
+  tipo: ScoreEventoTipo,
+  referenciaId?: string,
+  descricao?: string,
+  politicaPreCarregada?: PoliticaAtiva,
+): Promise<EventoPreparado> {
+  const evento = await prepararEvento(userId, tipo, referenciaId, descricao);
+  const politica = politicaPreCarregada ?? (await buscarPoliticaAtiva(tx));
+  await aplicarEventoV2(tx, entradaV2(evento), politica);
+  return evento;
 }
 
 export function getFaixa(score: number): {

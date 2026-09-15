@@ -37,7 +37,7 @@ const CALL_SITES: Record<string, Tratamento> = {
 };
 
 const LIBS_DO_LEDGER = new Set(["lib/safeScore.ts", "lib/safeScore/applyEvent.ts"]);
-const QUALQUER_ESCRITA = /\b(aplicarEvento|aplicarEventoNaTransacao|applyEvent|aplicarEventoV2)\s*\(/;
+const QUALQUER_ESCRITA = /\b(aplicarEvento|aplicarEventoNaTransacao|aplicarEventoV2NaTransacao|applyEvent|aplicarEventoV2)\s*\(/;
 
 /** Cada chamada `nome(` até o `;` que fecha a instrução. */
 function instrucoes(texto: string, nome: string): string[] {
@@ -99,10 +99,37 @@ describe("escrita dupla — call-sites", () => {
 
       if (tratamento === "transacao") {
         assert.doesNotMatch(t, /\baplicarEvento\s*\(/, "fora da transação o status ficaria confirmado sem evento");
+
+        // Delimita o callback de `prisma.$transaction(` pelo parêntese que o fecha.
         const tx = t.indexOf("prisma.$transaction(");
-        const cas = t.indexOf("updateMany(", tx);
-        const evento = t.indexOf("aplicarEventoNaTransacao(tx", cas);
-        assert.ok(tx >= 0 && cas > tx && evento > cas, "status (CAS) e eventos dentro da mesma transação, nessa ordem");
+        assert.ok(tx >= 0, "o confirmar tem que abrir uma transação");
+        let profundidade = 0;
+        let fimTx = -1;
+        for (let i = tx + "prisma.$transaction".length; i < t.length; i++) {
+          const ch = t[i];
+          if (ch === '"' || ch === "'" || ch === "`") {
+            const fecha = t.indexOf(ch, i + 1);
+            i = fecha === -1 ? t.length : fecha;
+          } else if (ch === "(") {
+            profundidade++;
+          } else if (ch === ")" && --profundidade === 0) {
+            fimTx = i;
+            break;
+          }
+        }
+        assert.ok(fimTx > tx, "não achei o fim da transação");
+        const dentro = t.slice(tx, fimTx);
+        const depois = t.slice(fimTx);
+
+        const cas = dentro.indexOf("updateMany(");
+        assert.ok(
+          cas >= 0 && dentro.slice(cas).search(/\baplicarEventoV2NaTransacao\(\s*tx\b/) > 0,
+          "status (CAS) e evento V2 dentro da mesma transação, nessa ordem",
+        );
+        // O legado dentro da transação alonga a trava do status: as requisições
+        // concorrentes estouram o timeout do Prisma e recebem 500 em vez de 409.
+        assert.doesNotMatch(dentro, /\b(aplicarEventoNaTransacao|aplicarLegadoESuspensao)\s*\(/, "legado não pode rodar dentro da transação do status");
+        assert.match(depois, /\baplicarLegadoESuspensao\s*\(/, "legado e suspensão rodam depois do commit");
         assert.match(t, /status:\s*"CONCLUIDO"/, "o CAS exige o status de origem");
         assert.match(t, /cas\.count === 0/, "CAS perdido tem que falhar");
       }

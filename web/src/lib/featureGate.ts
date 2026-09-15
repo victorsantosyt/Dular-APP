@@ -10,17 +10,41 @@ export type FeatureAccess = {
   plan: string;
 };
 
+/** Client Prisma aceito por `checkFeatureAccessWith`: o singleton global ou
+ * o client `tx` de dentro de uma `prisma.$transaction`. */
+type PrismaClientOrTx = typeof prisma | Prisma.TransactionClient;
+
 export async function checkFeatureAccess(
+  userId: string,
+  feature: FeatureKey
+): Promise<FeatureAccess> {
+  return checkFeatureAccessWith(prisma, userId, feature);
+}
+
+/**
+ * Mesma checagem de `checkFeatureAccess`, recebendo o client Prisma
+ * explicitamente. Existe para ser chamada de DENTRO de uma transação
+ * (`prisma.$transaction(tx => checkFeatureAccessWith(tx, userId, feature))`),
+ * de forma que a contagem de uso participe da mesma transação/lock que a
+ * operação que ela está protegendo — sem isso, "contar uso" e "gravar a
+ * operação que consome esse uso" correm soltos e duas chamadas concorrentes
+ * podem ler o mesmo `used` e as duas passarem `allowed = true` para o mesmo
+ * limite (limite de 5, 9 aceitos — identificado em auditoria de código e
+ * reproduzido localmente sob concorrência real contra Postgres, sem
+ * confirmação em log de incidente de produção).
+ */
+export async function checkFeatureAccessWith(
+  client: PrismaClientOrTx,
   userId: string,
   feature: FeatureKey
 ): Promise<FeatureAccess> {
   // 1. Subscription + role em paralelo
   const [subscription, user] = await Promise.all([
-    prisma.subscription.findUnique({
+    client.subscription.findUnique({
       where: { userId },
       select: { plan: true, status: true, expiresAt: true },
     }),
-    prisma.user.findUnique({
+    client.user.findUnique({
       where: { id: userId },
       select: { role: true },
     }),
@@ -43,7 +67,7 @@ export async function checkFeatureAccess(
   const plan = subscription && statusValido && dentroDoPrazo ? subscription.plan : "FREE";
 
   // 2. Limite definido para esse plano + feature
-  const featureLimit = await prisma.featureLimit.findUnique({
+  const featureLimit = await client.featureLimit.findUnique({
     where: { plan_feature: { plan, feature } },
     select: { limit: true, enabled: true },
   });
@@ -96,7 +120,7 @@ export async function checkFeatureAccess(
       ? { status: { in: aceitosEmDiante } }
       : { status: { notIn: naoContam } };
 
-    used = await prisma.servico.count({
+    used = await client.servico.count({
       where: {
         ...escopoPorPapel,
         ...statusQueContam,

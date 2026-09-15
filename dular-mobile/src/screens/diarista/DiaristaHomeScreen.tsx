@@ -10,11 +10,13 @@ import { useGenderTheme } from "@/hooks/useProfileTheme";
 import type { ProfileTheme } from "@/theme/profileTheme";
 import type { DiaristaTabParamList } from "@/navigation/DiaristaNavigator";
 import { getMyRestrictions, type UserRestriction } from "@/api/safeScoreApi";
-import { acionarSosDiarista, getDiaristaPerfilMe, patchDiaristaPerfil } from "@/api/diaristaApi";
+import { getDiaristaPerfilMe, patchDiaristaPerfil } from "@/api/diaristaApi";
+import { SosEmergenciaModal } from "@/components/SosEmergenciaModal";
 import { useAgendamentosDiarista, type AgendamentoDiarista, type StatusDiarista } from "@/hooks/useAgendamentosDiarista";
 import { useApresentarPlanos } from "@/hooks/useApresentarPlanos";
 import { useMensagens } from "@/hooks/useMensagens";
 import { useNotificacoes } from "@/hooks/useNotificacoes";
+import { useSosEmergencia } from "@/hooks/useSosEmergencia";
 import { LimitePlanoBarra } from "@/components/ui/LimitePlanoBarra";
 import { diasAteServico, plural } from "@/utils/formatters";
 
@@ -156,7 +158,8 @@ export function DiaristaHomeScreen() {
   const { unreadCount } = useNotificacoes();
 
   const [restrictions, setRestrictions] = useState<UserRestriction[]>([]);
-  const [sosLoading, setSosLoading] = useState(false);
+  // Botão de emergência: contagem com cancelamento, depois registro + ligação para o 190.
+  const sos190 = useSosEmergencia();
   const [online, setOnline] = useState(true);
   const [onlineSaving, setOnlineSaving] = useState(false);
   // "Agendamentos de hoje" precisa ser de HOJE. Antes pegava `agendamentos[0]`
@@ -241,9 +244,10 @@ export function DiaristaHomeScreen() {
     if (action === "suporte") navigation.navigate("Suporte");
   }, [navigation, abrirCarteira]);
 
-  // O SOS precisa apontar para um serviço EM ABERTO. Antes usava
-  // `agendamentos[0]` — o primeiro da lista, que podia estar finalizado —
-  // enquanto o alerta abaixo já prometia "confirmado ou em andamento".
+  // O SOS aponta para um serviço EM ABERTO, quando houver. Antes usava
+  // `agendamentos[0]` — o primeiro da lista, que podia estar finalizado. Sem
+  // serviço em aberto, o 190 funciona do mesmo jeito e o SOS é registrado sem
+  // serviço.
   const servicoAtivo = useMemo(
     () =>
       agendamentos.find(
@@ -251,23 +255,6 @@ export function DiaristaHomeScreen() {
       ),
     [agendamentos],
   );
-
-  const acionarSOS = useCallback(async () => {
-    const servicoId = servicoAtivo?.id;
-    if (!servicoId) {
-      Alert.alert("SOS indisponível", "O SOS fica disponível quando houver um agendamento confirmado ou em andamento.");
-      return;
-    }
-    try {
-      setSosLoading(true);
-      await acionarSosDiarista(servicoId);
-      Alert.alert("SOS acionado", "A equipe de segurança foi notificada.");
-    } catch {
-      Alert.alert("Falha ao acionar SOS", "Não foi possível registrar o SOS no momento.");
-    } finally {
-      setSosLoading(false);
-    }
-  }, [servicoAtivo?.id]);
 
   return (
     <DScreen
@@ -364,14 +351,15 @@ export function DiaristaHomeScreen() {
           <Text style={styles.securitySub}>{restrictions.length > 0 ? "Atenção" : "Proteção ativa"}</Text>
         </View>
         <Pressable
-          onPress={acionarSOS}
-          disabled={sosLoading}
+          onPress={() => sos190.iniciar(servicoAtivo?.id)}
           style={({ pressed }) => [styles.sosCard, pressed && styles.pressed]}
         >
-          <Text style={styles.sosTitle}>{sosLoading ? "Enviando" : "SOS"}</Text>
-          <Text style={styles.sosSub}>Segurança</Text>
+          <Text style={styles.sosTitle}>SOS</Text>
+          <Text style={styles.sosSub}>Ligar 190</Text>
         </Pressable>
       </View>
+
+      <SosEmergenciaModal segundosRestantes={sos190.segundosRestantes} onCancelar={sos190.cancelar} />
 
       {/* ── Agendamentos de hoje ── */}
       <DCard style={styles.todayCard}>

@@ -9,6 +9,7 @@ import {
   MessageSquareText,
   Radar,
   Siren,
+  MapPinCheck,
   BadgeCheck,
   ShieldAlert,
   Settings,
@@ -64,7 +65,9 @@ export const NAV_SECTIONS: NavSection[] = [
     label: "Segurança",
     items: [
       { href: "/admin/seguranca/riscos", label: "Risk score", icon: Radar, iconColor: "text-error" },
-      { href: "/admin/seguranca/checkins", label: "Check-ins & SOS", icon: Siren, iconColor: "text-orange" },
+      { href: "/admin/seguranca/sos", label: "SOS", icon: Siren, iconColor: "text-error" },
+      // A página só mostra check-ins; o nome antigo ("Check-ins & SOS") prometia SOS que ela não tinha.
+      { href: "/admin/seguranca/checkins", label: "Check-ins", icon: MapPinCheck, iconColor: "text-orange" },
       { href: "/admin/seguranca/verificacoes", label: "Verificações", icon: BadgeCheck, iconColor: "text-success" },
       { href: "/admin/incidentes", label: "Incidentes", icon: ShieldAlert, iconColor: "text-error" },
     ],
@@ -93,7 +96,8 @@ export const ROUTE_TITLES: Record<string, string> = {
   "/admin/insights/downloads": "Downloads",
   "/admin/seguranca": "Segurança",
   "/admin/seguranca/riscos": "Risk score",
-  "/admin/seguranca/checkins": "Check-ins & SOS",
+  "/admin/seguranca/sos": "SOS",
+  "/admin/seguranca/checkins": "Check-ins",
   "/admin/seguranca/verificacoes": "Verificações",
   "/admin/incidentes": "Incidentes",
   "/admin/seguranca/incidentes": "Incidentes",

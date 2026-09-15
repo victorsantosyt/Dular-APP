@@ -79,7 +79,25 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: "Perfil não suportado para verificação documental." }, { status: 400 });
   }
 
-  const verification = await prisma.$transaction(async (tx) => {
+  // CAS: só aprova se ainda estiver PENDING. Sem isso, aprovar/reprovar a
+  // mesma verificação duas vezes (dois cliques do admin, duas abas) reaplicava
+  // os efeitos de perfil e corria o risco de reprocessar o evento de score
+  // sobre uma verificação que já tinha sido decidida — checar `existing.status`
+  // (lido antes da transação) não bastava porque ele já podia estar
+  // desatualizado quando a escrita realmente acontecesse.
+  const resultado = await prisma.$transaction(async (tx) => {
+    const { count } = await tx.documentVerification.updateMany({
+      where: { id, status: "PENDING" },
+      data: {
+        status: "APPROVED",
+        reviewedBy: gate.auth.userId,
+        reviewNote: `KYC APROVADO por admin ${gate.auth.userId} em ${new Date().toISOString()} - ${motivo}`,
+      },
+    });
+    if (count !== 1) {
+      return { conflito: true as const };
+    }
+
     await ensureUserRoleProfile(tx, existing.userId, existing.user.role);
 
     if (existing.user.role === "DIARISTA") {
@@ -96,13 +114,8 @@ export async function POST(req: Request) {
       });
     }
 
-    return tx.documentVerification.update({
+    const verification = await tx.documentVerification.findUniqueOrThrow({
       where: { id },
-      data: {
-        status: "APPROVED",
-        reviewedBy: gate.auth.userId,
-        reviewNote: `KYC APROVADO por admin ${gate.auth.userId} em ${new Date().toISOString()} - ${motivo}`,
-      },
       select: {
         id: true,
         userId: true,
@@ -114,7 +127,25 @@ export async function POST(req: Request) {
         updatedAt: true,
       },
     });
+    return { conflito: false as const, verification };
   });
+
+  if (resultado.conflito) {
+    const atual = await prisma.documentVerification.findUnique({ where: { id }, select: { status: true } });
+    return NextResponse.json(
+      {
+        ok: false,
+        error:
+          atual?.status === "APPROVED"
+            ? "Esta verificação já foi aprovada."
+            : "Esta verificação já foi reprovada — não pode ser aprovada sem um novo envio de documento.",
+        statusAtual: atual?.status ?? null,
+      },
+      { status: 409 },
+    );
+  }
+
+  const { verification } = resultado;
 
   await aplicarEvento(existing.userId, "KYC_APROVADO", id, motivo);
   const guardian = await getGuardianStatusForUser(existing.userId);

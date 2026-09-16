@@ -120,38 +120,48 @@ export default async function PlanosPage({ searchParams }: Params) {
     >
       {/* ── Bloco 1 — Diagnóstico do gate ─────────────────────────────── */}
       <AdminGrid>
-        <AdminKpi
-          label="Estado do paywall"
-          value={gateOk ? "Íntegro" : "Atenção"}
-          hint={
-            gateOk
-              ? "Limites aplicados e batendo com o catálogo"
-              : "Há gate ausente, desabilitado ou divergente"
-          }
-          tone={gateOk ? "success" : "critical"}
-          icon={gateOk ? ShieldCheck : ShieldOff}
-        />
-        <AdminKpi
-          label="Gates ausentes"
-          value={String(diagnostico.ausentes)}
-          hint="Sem linha, o gate libera todo mundo"
-          tone={diagnostico.ausentes > 0 ? "critical" : "neutral"}
-          icon={ShieldOff}
-        />
-        <AdminKpi
-          label="Divergências com o catálogo"
-          value={String(diagnostico.divergentes)}
-          hint="O que se vende difere do que se aplica"
-          tone={diagnostico.divergentes > 0 ? "high" : "neutral"}
-          icon={ShieldAlert}
-        />
-        <AdminKpi
-          label="Linhas em FeatureLimit"
-          value={String(diagnostico.totalLinhasNoBanco)}
-          hint="Populadas por migration, não por seed"
-          tone="info"
-          icon={Gauge}
-        />
+        {/* Quatro KPIs em 12 colunas: 3 cada. Sem o col-span o filho ocupa uma
+            única coluna do grid e os cartões ficam espremidos num canto. */}
+        <div className="md:col-span-3">
+          <AdminKpi
+            label="Estado do paywall"
+            value={gateOk ? "Íntegro" : "Atenção"}
+            hint={
+              gateOk
+                ? "Limites aplicados e batendo com o catálogo"
+                : "Há gate ausente, desabilitado ou divergente"
+            }
+            tone={gateOk ? "success" : "critical"}
+            icon={gateOk ? ShieldCheck : ShieldOff}
+          />
+        </div>
+        <div className="md:col-span-3">
+          <AdminKpi
+            label="Gates ausentes"
+            value={String(diagnostico.ausentes)}
+            hint="Sem linha, o gate libera todo mundo"
+            tone={diagnostico.ausentes > 0 ? "critical" : "neutral"}
+            icon={ShieldOff}
+          />
+        </div>
+        <div className="md:col-span-3">
+          <AdminKpi
+            label="Divergências com o catálogo"
+            value={String(diagnostico.divergentes)}
+            hint="O que se vende difere do que se aplica"
+            tone={diagnostico.divergentes > 0 ? "high" : "neutral"}
+            icon={ShieldAlert}
+          />
+        </div>
+        <div className="md:col-span-3">
+          <AdminKpi
+            label="Linhas em FeatureLimit"
+            value={String(diagnostico.totalLinhasNoBanco)}
+            hint="Populadas por migration, não por seed"
+            tone="info"
+            icon={Gauge}
+          />
+        </div>
       </AdminGrid>
 
       <AdminCard title="Diagnóstico do gate" icon={Gauge}>

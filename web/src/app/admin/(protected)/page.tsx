@@ -9,7 +9,7 @@ import { AdminGrid } from "@/components/admin-ui/AdminGrid";
 import { AdminCard } from "@/components/admin-ui/AdminCard";
 import { AdminKpi } from "@/components/admin-ui/AdminKpi";
 import { AdminEmpty } from "@/components/admin-ui/AdminEmpty";
-import ConcluidosSemanaChart from "@/app/admin/insights/ConcluidosSemanaChart";
+import ConcluidosSemanaChart from "@/app/admin/(protected)/insights/ConcluidosSemanaChart";
 import { Users, UserPlus, Star, Repeat, TrendingUp, ShieldAlert, Zap } from "lucide-react";
 
 function pct(v: number | null): string {

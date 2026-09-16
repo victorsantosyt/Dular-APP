@@ -3,7 +3,7 @@
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
 import { ArrowLeft } from "lucide-react";
-import { Suspense } from "react";
+import { Suspense, useEffect } from "react";
 import { LogoBrand } from "@/components/ui/LogoBrand";
 
 const ROLE_LABELS: Record<string, string> = {
@@ -42,11 +42,17 @@ function LoginRoleContent() {
     ? `/auth/callback/${role}?platform=mobile`
     : `/auth/callback/${role}`;
   const roleLabel = ROLE_LABELS[role];
+  const papelValido = Boolean(roleLabel);
 
-  if (!ROLE_LABELS[role]) {
-    router.replace("/");
-    return null;
-  }
+  // Navegar durante o render quebra dos dois lados: no servidor não existe
+  // `location` (ReferenceError derruba a rota) e no cliente o React acusa
+  // atualização de um componente durante o render de outro. No efeito, a
+  // navegação acontece depois da pintura, quando já é seguro.
+  useEffect(() => {
+    if (!papelValido) router.replace("/");
+  }, [papelValido, router]);
+
+  if (!papelValido) return null;
 
   return (
     <main className="min-h-screen bg-[linear-gradient(160deg,#EAF5EF_0%,#D6EDE3_55%,#C8E5D8_100%)] px-4 pb-10">

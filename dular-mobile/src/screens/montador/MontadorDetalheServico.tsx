@@ -5,15 +5,16 @@ import type { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
 import { useFocusEffect } from "@react-navigation/native";
 import { AppIcon, AvaliacaoModal, BackCircleButton, DAvatar, DEmptyState, DErrorState, DLoadingState, DScreen } from "@/components/ui";
 import {
-  acionarSosMontador,
   cancelarServicoMontador,
   confirmarFinalizacaoMontador,
   finalizarServicoMontador,
   iniciarServicoMontador,
 } from "@/api/montadorApi";
 import { MotivoModal } from "@/components/MotivoModal";
+import { SosEmergenciaModal } from "@/components/SosEmergenciaModal";
 import { useMontadorServicos } from "@/hooks/useMontadorServicos";
 import { useSeguranca } from "@/hooks/useSeguranca";
+import { useSosEmergencia } from "@/hooks/useSosEmergencia";
 import { useProfileTheme } from "@/hooks/useProfileTheme";
 import type { MontadorTabParamList } from "@/navigation/MontadorNavigator";
 import { isStatusEncerrado } from "@/utils/servicoStatus";
@@ -44,6 +45,8 @@ export default function MontadorDetalheServico({ route, navigation }: Props) {
   const { checkInRealizado, checkInLoading, fazerCheckIn: registrarCheckIn } = useSeguranca();
   const checkinAlertRef = useRef(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  // Botão de emergência: contagem com cancelamento, depois registro + ligação para o 190.
+  const sos190 = useSosEmergencia();
   const [cancelOpen, setCancelOpen] = useState(false);
   const [avaliarOpen, setAvaliarOpen] = useState(false);
   // Flag local otimista até o refetch da lista trazer `avaliacaoEmpregador`.
@@ -143,24 +146,6 @@ export default function MontadorDetalheServico({ route, navigation }: Props) {
     if (!servico) return;
     navigation.navigate("ReportIncident", { servicoId: servico.id });
   };
-  const acionarSOS = async () => {
-    if (!servico) return;
-    try {
-      setActionLoading("sos");
-      await acionarSosMontador(servico.id);
-      Alert.alert(
-        "SOS acionado",
-        // O botão promete socorro; sem esta ressalva alguém em perigo pode
-        // acionar e ESPERAR, achando que chamou a polícia.
-        "A equipe de segurança foi notificada.\n\nIsto NÃO aciona polícia, SAMU nem bombeiros. Em perigo imediato, ligue 190, 192 ou 193.",
-      );
-    } catch {
-      Alert.alert("Erro", "Não foi possível acionar SOS.");
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
   return (
     <DScreen scroll withBottomPadding backgroundColor={profileTheme.background} contentContainerStyle={styles.scroll}>
       <View style={styles.header}>
@@ -348,13 +333,15 @@ export default function MontadorDetalheServico({ route, navigation }: Props) {
             ) : null}
 
             {!encerrado ? (
-              <Pressable onPress={acionarSOS} disabled={actionLoading === "sos"} style={styles.sosButton}>
-                <Text style={styles.sosText}>{actionLoading === "sos" ? "Enviando SOS" : "Acionar SOS"}</Text>
+              <Pressable onPress={() => sos190.iniciar(servico?.id)} style={styles.sosButton}>
+                <Text style={styles.sosText}>Acionar SOS (190)</Text>
               </Pressable>
             ) : null}
           </View>
         </>
       )}
+
+      <SosEmergenciaModal segundosRestantes={sos190.segundosRestantes} onCancelar={sos190.cancelar} />
 
       <MotivoModal
         visible={cancelOpen}

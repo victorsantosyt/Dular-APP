@@ -276,14 +276,6 @@ export async function carregarSafeScoreUsuario(userId: string): Promise<Montador
   }
 }
 
-export async function acionarSosMontador(servicoId: string, mensagem?: string) {
-  const res = await api.post("/api/seguranca/sos", {
-    servicoId,
-    mensagem: mensagem ?? "SOS acionado pelo montador no aplicativo.",
-  });
-  return res.data;
-}
-
 // ── Portfólio (upload real no S3) ────────────────────────────────────────────
 // As fotos são enviadas como data URL; o backend sobe pro S3, guarda a key e
 // devolve a lista já com URLs assinadas para exibição.

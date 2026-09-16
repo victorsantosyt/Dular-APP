@@ -98,7 +98,6 @@ export async function GET(req: Request) {
             genero: true,
             status: true,
             avatarUrl: true,
-            safeScore: { select: { score: true } },
             safeScoreProfile: { select: { currentScore: true, tier: true } },
           },
         },
@@ -127,7 +126,7 @@ export async function GET(req: Request) {
           ativo: montador.ativo,
           userStatus: montador.user.status,
         });
-        const score = montador.user.safeScoreProfile?.currentScore ?? montador.user.safeScore?.score ?? 500;
+        const score = montador.user.safeScoreProfile?.currentScore ?? 500;
         const faixa = getFaixa(score);
         const publicUser = {
           id: montador.user.id,
@@ -195,9 +194,9 @@ export async function GET(req: Request) {
     // verificado, completo e ativo já foram garantidos no .filter acima, e
     // hardBan (SUSPEND/BLOCK)/shadow (SHADOW_BAN) já foram excluídos pelo where
     // (mesma condição de restrição ativa do getActiveRestrictions). O
-    // `safeScore.bloqueado` já presente no objeto = getFaixa(score).bloqueado,
-    // que o SCORE_BLOQUEIO (400) do Guardian espelha → !bloqueado equivale a
-    // score >= SCORE_BLOQUEIO. Zero query adicional.
+    // `safeScore.bloqueado` já presente no objeto = getFaixa(score).bloqueado =
+    // scoreBloqueado(score), o mesmo corte do Guardian (safeScore/corte).
+    // Zero query adicional.
     const isDev = process.env.NODE_ENV !== "production";
     const liberados = publicos.filter((m) => m.safeScore.bloqueado === false);
 

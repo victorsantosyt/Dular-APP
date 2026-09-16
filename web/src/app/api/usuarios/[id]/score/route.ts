@@ -73,25 +73,13 @@ export async function GET(req: Request, { params }: Params) {
       return NextResponse.json({ ok: false, error: "Acesso negado." }, { status: 403 });
     }
 
-    // Dual-read: SafeScoreProfile (novo) com fallback para SafeScore (legado)
-    let score = 500;
-    let tier = "BRONZE";
-
+    // Só o V2: sem perfil, 500/BRONZE. O legado não é consultado.
     const profile = await prisma.safeScoreProfile.findUnique({
       where: { userId: id },
       select: { currentScore: true, tier: true },
     });
-
-    if (profile) {
-      score = profile.currentScore;
-      tier = profile.tier;
-    } else {
-      const legacy = await prisma.safeScore.findUnique({
-        where: { userId: id },
-        select: { score: true },
-      });
-      if (legacy) score = legacy.score;
-    }
+    const score = profile?.currentScore ?? 500;
+    const tier = profile?.tier ?? "BRONZE";
 
     const totalServicos =
       user.diaristaProfile?.totalServicos ??

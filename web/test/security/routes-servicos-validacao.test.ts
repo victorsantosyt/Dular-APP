@@ -22,7 +22,6 @@ function setupEmpregadorGuardianOk(userId: string) {
   });
   mockPrisma.userRestriction.findMany = async () => [];
   mockPrisma.safeScoreProfile.findUnique = async () => null;
-  mockPrisma.safeScore.findUnique = async () => null;
   mockPrisma.subscription.findUnique = async () => null;
   mockPrisma.featureLimit.findUnique = async () => null; // sem limite → allowed
 }

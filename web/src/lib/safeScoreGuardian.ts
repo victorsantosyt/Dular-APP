@@ -8,7 +8,7 @@
  *   - User.status (BLOQUEADO derrota tudo)
  *   - DocumentVerification mais recente
  *   - DiaristaProfile.verificacao / MontadorPerfil.verificado
- *   - SafeScoreProfile (novo) → tier; fallback SafeScore legado
+ *   - SafeScoreProfile → score e tier (sem perfil: 500/BRONZE; o legado não é lido)
  *   - UserRestrictions ativas (SHADOW_BAN / LIMIT_BOOKINGS / SUSPEND / BLOCK)
  *   - Perfil completo por role
  *
@@ -27,6 +27,7 @@ import {
 } from "@/lib/profileVerification";
 import { calcularCompletudeMontador } from "@/lib/montadorProfile";
 import { getDiaristaProfileCompleteness } from "@/lib/diaristaProfile";
+import { scoreBloqueado } from "@/lib/safeScore/corte";
 
 export type GuardianTier = "BRONZE" | "SILVER" | "GOLD" | "PLATINUM" | "BLOCKED";
 
@@ -128,7 +129,8 @@ async function getActiveRestrictions(userId: string): Promise<ActiveRestriction[
 async function getScoreAndTier(
   userId: string,
 ): Promise<{ score: number; tier: GuardianTier }> {
-  // dual-read: SafeScoreProfile (novo) → fallback SafeScore legado
+  // Só o V2. Sem perfil = conta que nunca teve evento: 500, o mesmo início dos
+  // dois ledgers. O legado não é consultado (PR B, etapa 3).
   const profile = await prisma.safeScoreProfile.findUnique({
     where: { userId },
     select: { currentScore: true, tier: true },
@@ -136,26 +138,8 @@ async function getScoreAndTier(
   if (profile) {
     return { score: profile.currentScore, tier: profile.tier as GuardianTier };
   }
-  const legacy = await prisma.safeScore.findUnique({
-    where: { userId },
-    select: { score: true },
-  });
-  if (legacy) {
-    return { score: legacy.score, tier: scoreToGuardianTier(legacy.score) };
-  }
   return { score: 500, tier: "BRONZE" };
 }
-
-function scoreToGuardianTier(score: number): GuardianTier {
-  if (score >= 850) return "PLATINUM";
-  if (score >= 650) return "GOLD";
-  if (score >= 400) return "SILVER";
-  return "BRONZE";
-}
-
-// Score abaixo desse limite bloqueia ações sensíveis mesmo com KYC aprovado.
-// Espelha o limiar do getFaixa legado em safeScore.ts ("Risco Alto" < 400).
-const SCORE_BLOQUEIO = 400;
 
 async function getVerificationByRole(
   userId: string,
@@ -334,8 +318,8 @@ export async function getGuardianStatusForUser(
     tier = "BLOCKED";
   }
 
-  // 4) Score baixo: SCORE_BLOQUEIO (espelha getFaixa < 400 do legado)
-  const scoreBaixo = score < SCORE_BLOQUEIO;
+  // 4) Score baixo: corte único (safeScore/corte), o mesmo das buscas.
+  const scoreBaixo = scoreBloqueado(score);
   if (scoreBaixo) motivos.push("score_baixo");
 
   // 5) Verificação documental

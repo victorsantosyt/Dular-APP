@@ -36,7 +36,6 @@ describe("busca de profissionais — verificação filtra no where", () => {
   it("montador: a verificação está no WHERE, não em filtro pós-query", async () => {
     const where = capturarWhere();
     mockPrisma.safeScoreProfile.findMany = async () => [];
-    mockPrisma.safeScore.findMany = async () => [];
 
     const GET = await getBuscaMontadores();
     await GET(new Request("http://test/api/montadores/buscar?cidade=Cuiaba&uf=MT"));
@@ -56,7 +55,6 @@ describe("busca de profissionais — verificação filtra no where", () => {
     // tem verificado=false e sumiria da busca.
     const where = capturarWhere();
     mockPrisma.safeScoreProfile.findMany = async () => [];
-    mockPrisma.safeScore.findMany = async () => [];
 
     const GET = await getBuscaMontadores();
     await GET(new Request("http://test/api/montadores/buscar?cidade=Cuiaba&uf=MT"));
@@ -100,7 +98,6 @@ describe("busca de diaristas — o filtro de verificação sobrevive ao filtro d
   it("sem filtro de tipo, a verificação está no where", async () => {
     const where = capturarWhereDiaristas();
     mockPrisma.safeScoreProfile.findMany = async () => [];
-    mockPrisma.safeScore.findMany = async () => [];
 
     const mod = await import("../../src/app/api/diaristas/buscar/route");
     await mod.GET(new Request("http://test/api/diaristas/buscar?cidade=Agua%20Boa&uf=MT"));
@@ -111,7 +108,6 @@ describe("busca de diaristas — o filtro de verificação sobrevive ao filtro d
   it("COM filtro de tipo, a verificação CONTINUA no where", async () => {
     const where = capturarWhereDiaristas();
     mockPrisma.safeScoreProfile.findMany = async () => [];
-    mockPrisma.safeScore.findMany = async () => [];
 
     const mod = await import("../../src/app/api/diaristas/buscar/route");
     await mod.GET(

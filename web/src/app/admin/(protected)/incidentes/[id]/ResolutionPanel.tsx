@@ -3,8 +3,15 @@
 import { useState } from "react";
 
 type ResolutionResult = {
-  safeScore?: { score: number };
+  /** Score exibido: V2. */
+  safeScore?: { score: number; tier?: string };
   faixa?: { label: string; cor: string; bloqueado: boolean };
+  /**
+   * Suspensão como FATO (status do usuário antes/depois), vinda da rota. A
+   * tela não deduz suspensão do score: quem suspende é o score legado, dentro
+   * de aplicarEvento, e ele pode divergir do score exibido.
+   */
+  usuario?: { status: string | null; suspensoAutomaticamente: boolean };
 };
 
 export function ResolutionPanel({ incidentId }: { incidentId: string }) {
@@ -43,7 +50,7 @@ export function ResolutionPanel({ incidentId }: { incidentId: string }) {
 
   const score = result?.safeScore?.score;
   const faixa = result?.faixa;
-  const suspenso = typeof score === "number" && score < 200;
+  const suspenso = result?.usuario?.suspensoAutomaticamente === true;
 
   return (
     <section className="mt-4 rounded-2xl border bg-surface p-5">

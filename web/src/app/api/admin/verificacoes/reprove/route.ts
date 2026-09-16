@@ -82,7 +82,24 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: "Perfil não suportado para verificação documental." }, { status: 400 });
   }
 
-  const verification = await prisma.$transaction(async (tx) => {
+  // CAS: só reprova se ainda estiver PENDING. Mesma razão do approve: sem
+  // isso, reprovar/aprovar a mesma verificação duas vezes reaplicava os
+  // efeitos de perfil e arriscava reprocessar o evento de score sobre uma
+  // verificação já decidida — checar `existing.status` antes da transação não
+  // bastava, porque ele já podia estar desatualizado no momento da escrita.
+  const resultado = await prisma.$transaction(async (tx) => {
+    const { count } = await tx.documentVerification.updateMany({
+      where: { id, status: "PENDING" },
+      data: {
+        status: "REJECTED",
+        reviewedBy: gate.auth.userId,
+        reviewNote: `KYC REPROVADO por admin ${gate.auth.userId} em ${new Date().toISOString()} - ${motivo}`,
+      },
+    });
+    if (count !== 1) {
+      return { conflito: true as const };
+    }
+
     await ensureUserRoleProfile(tx, existing.userId, existing.user.role);
 
     if (existing.user.role === "DIARISTA") {
@@ -99,13 +116,8 @@ export async function POST(req: Request) {
       });
     }
 
-    return tx.documentVerification.update({
+    const verification = await tx.documentVerification.findUniqueOrThrow({
       where: { id },
-      data: {
-        status: "REJECTED",
-        reviewedBy: gate.auth.userId,
-        reviewNote: `KYC REPROVADO por admin ${gate.auth.userId} em ${new Date().toISOString()} - ${motivo}`,
-      },
       select: {
         id: true,
         userId: true,
@@ -117,7 +129,25 @@ export async function POST(req: Request) {
         updatedAt: true,
       },
     });
+    return { conflito: false as const, verification };
   });
+
+  if (resultado.conflito) {
+    const atual = await prisma.documentVerification.findUnique({ where: { id }, select: { status: true } });
+    return NextResponse.json(
+      {
+        ok: false,
+        error:
+          atual?.status === "REJECTED"
+            ? "Esta verificação já foi reprovada."
+            : "Esta verificação já foi aprovada — não pode ser reprovada sem um novo envio de documento.",
+        statusAtual: atual?.status ?? null,
+      },
+      { status: 409 },
+    );
+  }
+
+  const { verification } = resultado;
 
   // A reprovação já está gravada: falha no score não a desfaz, mas não pode
   // sumir em silêncio.

@@ -1,5 +1,5 @@
 import React, { useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, Image, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import * as ImagePicker from "expo-image-picker";
 
@@ -7,6 +7,7 @@ import { Screen } from "@/components/Screen";
 import { AppIcon, BackCircleButton, type AppIconName } from "@/components/ui";
 import { SOSIcon } from "@/assets/icons";
 import { acionarSos, protocoloFromId } from "@/api/segurancaApi";
+import { sosWhatsapp } from "@/config/api";
 import { useAuth } from "@/stores/authStore";
 import { useProfileTheme } from "@/hooks/useProfileTheme";
 import type { ProfileTheme } from "@/theme/profileTheme";
@@ -120,18 +121,27 @@ export default function SosFlowScreen() {
       .filter(Boolean)
       .join(" — ")
       .slice(0, 500);
+
+    // PASSO 1 — WhatsApp abre ANTES de qualquer await, igual ao padrão já
+    // usado em useSeguranca.ts. Regra do projeto: o SOS nunca pode depender
+    // do sucesso da API — o fallback imediato é o que garante ajuda de
+    // verdade caso o backend esteja fora do ar.
+    const textoWhatsapp = encodeURIComponent(`EMERGÊNCIA (SOS): ${mensagem}`);
+    Linking.openURL(`https://wa.me/${sosWhatsapp}?text=${textoWhatsapp}`).catch(() => {});
+
+    // PASSO 2 — registro no backend é best-effort: o WhatsApp já disparou,
+    // então uma falha aqui não pode travar o usuário na revisão nem passar a
+    // impressão de que o SOS não funcionou. Usa protocolo local (gerarProtocolo)
+    // quando a API falhar ou não devolver id.
     try {
       const res = await acionarSos({ mensagem, tipo: tipo?.label, prioridade: prioridadeInfo.label });
       setProtocolo(res?.id ? protocoloFromId(res.id) : gerarProtocolo());
-      enviadoEm.current = agora;
-      setStep("sucesso");
-    } catch {
-      Alert.alert(
-        "Falha ao enviar SOS",
-        "Não foi possível registrar seu SOS agora. Verifique sua conexão e tente novamente.",
-      );
-      setStep("revisao");
+    } catch (err) {
+      console.error("[SOS] falha ao registrar no backend:", err);
+      setProtocolo(gerarProtocolo());
     }
+    enviadoEm.current = agora;
+    setStep("sucesso");
   };
 
   const dataHora = enviadoEm.current

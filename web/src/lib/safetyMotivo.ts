@@ -1,7 +1,5 @@
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
-import { aplicarEvento } from "@/lib/safeScore";
-import { applyEvent } from "@/lib/safeScore/applyEvent";
 import { MOTIVOS_GRAVES, type MotivoCancelamento } from "@/lib/schemas/servicos";
 
 /**
@@ -35,10 +33,14 @@ export function isMotivoGrave(motivo: MotivoCancelamento | null): motivo is Moti
  * Dispara as anotações de segurança quando o motivo é grave
  * (comportamento_inadequado / problema_seguranca).
  *
- *  - Cria um `SafetyEvent` do tipo `SOS_SILENT` apontando para o serviço
- *    (reusa a enum existente; não introduzimos novo tipo nesta task).
- *  - Aplica um `SafeScoreEvent` negativo via `applyEvent` para registrar o
- *    impacto no ledger novo.
+ *  - Cria um `SafetyEvent` do tipo `SOS_SILENT` apontando para o serviço.
+ *  - Abre um `IncidentReport` para revisão do admin. NÃO mexe no score: a
+ *    alegação é da contraparte e ninguém a verificou. O evento de score só
+ *    nasce quando o admin confirma a denúncia em admin/incidentes/[id]/resolver.
+ *
+ * Antes, este fluxo aplicava DENUNCIA_CONFIRMADA (gravidade ALTA, −150) direto
+ * nos dois ledgers: três cancelamentos com motivo grave suspendiam a conta sem
+ * que ninguém tivesse olhado.
  *
  * Falhas aqui são logadas mas nunca quebram o fluxo principal.
  */
@@ -73,30 +75,58 @@ export async function registrarMotivoGrave(params: {
 
   if (reportedUserId) {
     try {
-      const idempotencyKey = `motivo:${motivo}:${servicoId}:${reportedUserId}`;
-      await applyEvent({
-        userId: reportedUserId,
-        eventType: motivo === "problema_seguranca"
-          ? "motivo_problema_seguranca"
-          : "motivo_comportamento_inadequado",
-        source: "ServicoMotivo",
-        sourceId: servicoId,
-        idempotencyKey,
-        payload: {
-          motivo,
-          observacao: observacao ?? null,
-          acao,
-          reporterId,
-        },
-      });
+      await abrirIncidenteDeMotivoGrave({ servicoId, motivo, observacao, reporterId, reportedUserId, acao });
     } catch (err) {
-      console.error("[safetyMotivo] falha ao aplicar SafeScoreEvent", err);
-    }
-
-    try {
-      await aplicarEvento(reportedUserId, "DENUNCIA_CONFIRMADA", servicoId, `motivo=${motivo} gravidade=ALTA`);
-    } catch (err) {
-      console.error("[safetyMotivo] falha ao aplicar safeScore legado", err);
+      console.error("[safetyMotivo] falha ao abrir incidente para revisão", err);
     }
   }
+}
+
+export type ResultadoIncidenteMotivoGrave = {
+  status: "criado" | "ja_aberto";
+  incidenteId: string;
+};
+
+/**
+ * Um incidente por par (serviço, denunciado). Se já existe um ainda não
+ * resolvido para o par — ABERTO ou EM_ANALISE —, devolve esse em vez de abrir
+ * outro: repetir o motivo não pode virar duas denúncias contra a mesma pessoa.
+ */
+export async function abrirIncidenteDeMotivoGrave(p: {
+  servicoId: string;
+  motivo: MotivoCancelamento;
+  observacao?: string | null;
+  reporterId: string;
+  reportedUserId: string;
+  acao: "RECUSADO" | "CANCELADO";
+}): Promise<ResultadoIncidenteMotivoGrave> {
+  const aberto = await prisma.incidentReport.findFirst({
+    where: {
+      serviceId: p.servicoId,
+      reportedUserId: p.reportedUserId,
+      status: { in: ["ABERTO", "EM_ANALISE"] },
+    },
+    select: { id: true },
+  });
+  if (aberto) return { status: "ja_aberto", incidenteId: aberto.id };
+
+  const verbo = p.acao === "CANCELADO" ? "cancelar" : "recusar";
+  const incidente = await prisma.incidentReport.create({
+    data: {
+      reportedById: p.reporterId,
+      reportedUserId: p.reportedUserId,
+      serviceId: p.servicoId,
+      type: "OUTRO",
+      severity: "ALTA",
+      categoria: "OUTRO",
+      subtipo: p.motivo,
+      gravidade: "ALTA",
+      status: "ABERTO",
+      description:
+        `Motivo grave informado ao ${verbo} o serviço: ${p.motivo}.` +
+        (p.observacao ? `\nObservação: ${p.observacao}` : ""),
+    },
+    select: { id: true },
+  });
+  return { status: "criado", incidenteId: incidente.id };
 }

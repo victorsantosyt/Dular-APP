@@ -1,7 +1,13 @@
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import type { IncidenteGravidade, SafeScore, ScoreEventoTipo } from "@prisma/client";
-import { applyEvent } from "@/lib/safeScore/applyEvent";
+import {
+  applyEvent,
+  aplicarEventoV2,
+  buscarPoliticaAtiva,
+  type PoliticaAtiva,
+  type SafeScoreEventInput,
+} from "@/lib/safeScore/applyEvent";
 
 const SCORE_INICIAL = 500;
 
@@ -115,8 +121,8 @@ async function calcularPeso(
   return resolverPeso(tipo);
 }
 
-export async function suspenderUsuario(userId: string) {
-  await prisma.user.update({
+export async function suspenderUsuario(userId: string, db: Prisma.TransactionClient = prisma) {
+  await db.user.update({
     where: { id: userId },
     data: { status: "BLOQUEADO", emObservacao: true },
   });
@@ -160,94 +166,224 @@ async function safeScoreSeFatoJaContado(
   return evento ? atual : null;
 }
 
+export type EventoPreparado = {
+  userId: string;
+  tipo: ScoreEventoTipo;
+  referenciaId?: string;
+  descricao?: string;
+  peso: number;
+  parametro?: string;
+  /** Identidade do fato no legado: `tipo:referência` ("sem-ref" quando falta). */
+  chaveIdempotencia: string;
+};
+
+async function prepararEvento(
+  userId: string,
+  tipo: ScoreEventoTipo,
+  referenciaId?: string,
+  descricao?: string,
+): Promise<EventoPreparado> {
+  const { peso, parametro } = await calcularPeso(tipo, referenciaId, descricao);
+  return {
+    userId,
+    tipo,
+    referenciaId,
+    descricao,
+    peso,
+    parametro,
+    chaveIdempotencia: `${tipo}:${referenciaId ?? "sem-ref"}`,
+  };
+}
+
+/**
+ * Entrada do V2 para o mesmo fato. A chave é a do legado prefixada pelo
+ * usuário: o mesmo fato entra uma vez só em cada ledger, por mais que a chamada
+ * se repita. Todo call-site de hoje passa referenciaId; sem ele, "sem-ref" faz
+ * o tipo valer uma única vez por usuário.
+ */
+function entradaV2(evento: EventoPreparado): SafeScoreEventInput {
+  return {
+    userId: evento.userId,
+    eventType: EVENT_TYPE_V2[evento.tipo],
+    source: evento.tipo,
+    sourceId: evento.referenciaId,
+    idempotencyKey: `${evento.userId}:${evento.chaveIdempotencia}`,
+    parametro: evento.parametro,
+    payload: evento.descricao ? { descricao: evento.descricao } : undefined,
+  };
+}
+
+/**
+ * Grava o fato no legado, dentro de `tx`. Condicional à `chaveIdempotencia`:
+ * se o SafeScore já tem esse fato, não escreve nada. A checagem vem antes do
+ * insert porque, numa transação aberta pelo chamador, um P2002 abortaria também
+ * o que ele já gravou; a constraint única cobre a corrida entre os dois.
+ */
+async function aplicarNoLegado(
+  tx: Prisma.TransactionClient,
+  evento: EventoPreparado,
+): Promise<{ safeScore: SafeScore; jaContado: boolean }> {
+  const existente = await tx.safeScore.findUnique({ where: { userId: evento.userId } });
+  if (existente) {
+    const fato = await tx.scoreEvento.findUnique({
+      where: {
+        safeScoreId_chaveIdempotencia: { safeScoreId: existente.id, chaveIdempotencia: evento.chaveIdempotencia },
+      },
+      select: { id: true },
+    });
+    if (fato) return { safeScore: existente, jaContado: true };
+  }
+
+  const current = await tx.safeScore.upsert({
+    where: { userId: evento.userId },
+    create: { userId: evento.userId, score: SCORE_INICIAL },
+    update: {},
+  });
+
+  const score = clampScore(current.score + evento.peso);
+
+  const safeScore = await tx.safeScore.update({
+    where: { id: current.id },
+    data: { score },
+  });
+
+  await tx.scoreEvento.create({
+    data: {
+      safeScoreId: current.id,
+      tipo: evento.tipo,
+      peso: evento.peso,
+      referenciaId: evento.referenciaId,
+      descricao: evento.descricao,
+      chaveIdempotencia: evento.chaveIdempotencia,
+    },
+  });
+
+  if (score < 400) {
+    await tx.user.update({
+      where: { id: evento.userId },
+      data: { emObservacao: true },
+    });
+  }
+
+  return { safeScore, jaContado: false };
+}
+
+/**
+ * Registra um fato de score nos dois ledgers — escrita dupla da transição.
+ *
+ * 1. V2 PRIMEIRO, e sem engolir erro: o V2 é o lado autoritativo. Se ele não
+ *    grava, a chamada falha. Idempotente pela chave — uma retentativa não soma
+ *    de novo, e é ela que completa um legado que tenha falhado depois de um V2
+ *    bem-sucedido.
+ * 2. Legado depois, condicional à `chaveIdempotencia`.
+ *
+ * Retorna o SafeScore LEGADO: as leituras que ainda usam o legado (resolver de
+ * incidentes) dependem dele até a etapa 3.
+ */
 export async function aplicarEvento(
   userId: string,
   tipo: ScoreEventoTipo,
   referenciaId?: string,
   descricao?: string,
 ): Promise<SafeScore> {
-  const { peso, parametro } = await calcularPeso(tipo, referenciaId, descricao);
-  // Identidade do fato: a mesma do V2, sem o userId (o SafeScore já é do usuário).
-  const chaveIdempotencia = `${tipo}:${referenciaId ?? "sem-ref"}`;
+  const evento = await prepararEvento(userId, tipo, referenciaId, descricao);
 
-  // ── LEGADO ────────────────────────────────────────────────────────────
-  // Idempotente: a constraint única (safeScoreId, chaveIdempotencia) faz a
-  // segunda gravação do MESMO fato abortar esta transação inteira — inclusive
-  // o score já somado. MUDANÇA DE COMPORTAMENTO, intencional: até aqui o legado
-  // somava a cada chamada repetida.
-  let updated: SafeScore;
-  let jaContado = false;
+  // ── 1. V2 — autoritativo ──────────────────────────────────────────────
+  await applyEvent(entradaV2(evento));
+
+  // ── 2. Legado + suspensão — condicional à chave do fato ───────────────
+  return aplicarLegadoESuspensao(evento);
+}
+
+/**
+ * Parte NÃO-atômica de um evento: legado (condicional à chave) e a
+ * auto-suspensão abaixo de 200. Fica fora de qualquer transação que precise
+ * ser curta — o V2 já é a fonte de verdade e já commitou quando isto roda.
+ *
+ * Extraída de `aplicarEvento` para ser reaproveitada por quem grava o V2
+ * dentro da PRÓPRIA transação de status (`aplicarEventoV2NaTransacao`) sem
+ * pagar aqui dentro o custo do legado — ver `confirmar/route.ts`: as ~10
+ * queries a mais por usuário do legado, dentro da transação de status,
+ * encostavam no timeout padrão do Prisma sob concorrência e derrubavam as
+ * requisições perdedoras com erro de timeout em vez do 409 esperado.
+ */
+export async function aplicarLegadoESuspensao(evento: EventoPreparado): Promise<SafeScore> {
+  let resultado: { safeScore: SafeScore; jaContado: boolean };
   try {
-    updated = await prisma.$transaction(async (tx) => {
-      const current = await tx.safeScore.upsert({
-        where: { userId },
-        create: { userId, score: SCORE_INICIAL },
-        update: {},
-      });
-
-      const score = clampScore(current.score + peso);
-
-      const safeScore = await tx.safeScore.update({
-        where: { id: current.id },
-        data: { score },
-      });
-
-      await tx.scoreEvento.create({
-        data: { safeScoreId: current.id, tipo, peso, referenciaId, descricao, chaveIdempotencia },
-      });
-
-      if (score < 400) {
-        await tx.user.update({
-          where: { id: userId },
-          data: { emObservacao: true },
-        });
-      }
-
-      return safeScore;
-    });
+    resultado = await prisma.$transaction((tx) => aplicarNoLegado(tx, evento));
   } catch (e) {
-    const existente = await safeScoreSeFatoJaContado(e, userId, chaveIdempotencia);
+    const existente = await safeScoreSeFatoJaContado(e, evento.userId, evento.chaveIdempotencia);
     if (!existente) throw e;
-    updated = existente;
-    jaContado = true;
+    resultado = { safeScore: existente, jaContado: true };
   }
 
   // Fato repetido não reavalia a suspensão: se um admin já desfez o bloqueio,
-  // uma retentativa não pode reaplicá-lo.
-  if (!jaContado && updated.score < 200) {
-    await suspenderUsuario(userId);
+  // uma retentativa não pode reaplicá-lo. (Auto-suspensão < 200 continua só no
+  // legado; o substituto no V2 é pré-requisito para remover a escrita legada.)
+  if (!resultado.jaContado && resultado.safeScore.score < 200) {
+    await suspenderUsuario(evento.userId);
   }
-  // ── FIM LEGADO ────────────────────────────────────────────────────────
 
-  // ── NOVO LEDGER: dual-write silencioso ───────────────────────────────
-  // Falha aqui nunca quebra o fluxo principal
-  try {
-    // Chave determinística: o mesmo fato (usuário + tipo + referência) entra
-    // no V2 uma vez só, por mais que a chamada se repita. Com `Date.now()` na
-    // chave, cada repetição virava evento novo — o banco local tem um KYC
-    // aprovado duas vezes para o mesmo documento, 5 s de diferença, somado
-    // duas vezes. O legado acima continua somando a cada chamada; alinhar os
-    // dois é a PR que troca o ledger.
-    //
-    // Todo call-site de hoje passa referenciaId. Sem ele, "sem-ref" faz o tipo
-    // valer uma única vez por usuário — correto para fato único, e um limite a
-    // lembrar se surgir evento recorrente sem referência.
-    const idempotencyKey = `${userId}:${tipo}:${referenciaId ?? "sem-ref"}`;
-    await applyEvent({
-      userId,
-      eventType: EVENT_TYPE_V2[tipo],
-      source: tipo,
-      sourceId: referenciaId,
-      idempotencyKey,
-      parametro,
-      payload: descricao ? { descricao } : undefined,
-    });
-  } catch (err) {
-    console.error("[SafeScore:dual-write] falha silenciosa:", err);
+  return resultado.safeScore;
+}
+
+/**
+ * O mesmo efeito de `aplicarEvento`, dentro da transação de quem chama: V2,
+ * legado e suspensão sobem ou voltam junto com o que o chamador já gravou.
+ *
+ * Não trata P2002: numa transação aberta ele já abortou tudo. A corrida é
+ * barrada antes — pelo CAS no status do chamador e pelas checagens de chave
+ * em aplicarEventoV2 e aplicarNoLegado.
+ *
+ * ATENÇÃO: isto mantém legado + suspensão DENTRO da transação do chamador.
+ * Numa transação que também faz um CAS de status sob concorrência real
+ * (ex.: confirmar serviço), isso é o que estourava o timeout padrão do
+ * Prisma — prefira `aplicarEventoV2NaTransacao` (só a parte atômica) seguido
+ * de `aplicarLegadoESuspensao` depois do commit. Mantida como está para não
+ * mudar de comportamento nenhum outro call-site que já a use.
+ */
+export async function aplicarEventoNaTransacao(
+  tx: Prisma.TransactionClient,
+  userId: string,
+  tipo: ScoreEventoTipo,
+  referenciaId?: string,
+  descricao?: string,
+): Promise<SafeScore> {
+  const evento = await prepararEvento(userId, tipo, referenciaId, descricao);
+  const politica = await buscarPoliticaAtiva(tx);
+
+  await aplicarEventoV2(tx, entradaV2(evento), politica);
+  const { safeScore, jaContado } = await aplicarNoLegado(tx, evento);
+
+  if (!jaContado && safeScore.score < 200) {
+    await suspenderUsuario(userId, tx);
   }
-  // ── FIM NOVO LEDGER ───────────────────────────────────────────────────
 
-  return updated;
+  return safeScore;
+}
+
+/**
+ * Só a parte ATÔMICA de um evento V2, dentro da transação de quem chama.
+ * Devolve o evento preparado para o chamador rodar `aplicarLegadoESuspensao`
+ * depois do commit — sem isso, esta chamada sozinha NUNCA grava no legado
+ * nem aplica a auto-suspensão.
+ *
+ * `politicaPreCarregada`: evita buscar a política uma vez por usuário quando
+ * o chamador já a tem (ex.: confirmar serviço, que chama isto até 2 vezes na
+ * mesma transação — cliente e profissional).
+ */
+export async function aplicarEventoV2NaTransacao(
+  tx: Prisma.TransactionClient,
+  userId: string,
+  tipo: ScoreEventoTipo,
+  referenciaId?: string,
+  descricao?: string,
+  politicaPreCarregada?: PoliticaAtiva,
+): Promise<EventoPreparado> {
+  const evento = await prepararEvento(userId, tipo, referenciaId, descricao);
+  const politica = politicaPreCarregada ?? (await buscarPoliticaAtiva(tx));
+  await aplicarEventoV2(tx, entradaV2(evento), politica);
+  return evento;
 }
 
 export function getFaixa(score: number): {

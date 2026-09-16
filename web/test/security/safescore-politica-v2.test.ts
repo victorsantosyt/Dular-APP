@@ -202,6 +202,7 @@ describe("aplicarEvento → applyEvent", () => {
   let chaves: string[];
   let criados: Array<Record<string, any>>;
   let legado: Array<Record<string, any>>;
+  let ordem: string[];
   let usuariosAtualizados: Array<Record<string, any>>;
   let score: number;
 
@@ -210,6 +211,7 @@ describe("aplicarEvento → applyEvent", () => {
     chaves = [];
     criados = [];
     legado = [];
+    ordem = [];
     usuariosAtualizados = [];
     score = 500;
     const m = mockPrisma as any;
@@ -217,12 +219,14 @@ describe("aplicarEvento → applyEvent", () => {
     // criado, não o singleton que este teste configura abaixo.
     m.$transaction = async (cb: any) => (typeof cb === "function" ? cb(m) : Promise.all(cb));
     m.avaliacao = { findUnique: async () => null };
+    m.safeScore.findUnique = async () => null;
     m.incidentReport = { findUnique: async () => null };
     m.safeScore.upsert = async () => ({ id: "ss-1", score: 500 });
     m.safeScore.update = async (args: any) => ({ id: "ss-1", score: args.data.score });
     m.scoreEvento = {
       create: async (args: any) => {
         legado.push(args.data);
+        ordem.push("legado");
         return {};
       },
       findUnique: async () => null,
@@ -242,6 +246,7 @@ describe("aplicarEvento → applyEvent", () => {
       create: async (args: any) => {
         chaves.push(args.data.idempotencyKey);
         criados.push(args.data);
+        ordem.push("v2");
         return {};
       },
       findUnique: async () => null,
@@ -289,6 +294,18 @@ describe("aplicarEvento → applyEvent", () => {
       aplicarEvento("u-1", "KYC_APROVADO", "doc-1"),
       (e: unknown) => e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002",
     );
+  });
+
+  it("escrita dupla: V2 primeiro, legado depois", async () => {
+    await aplicarEvento("u-1", "KYC_APROVADO", "doc-1");
+    assert.deepEqual(ordem, ["v2", "legado"]);
+  });
+
+  it("V2 falhou: aplicarEvento rejeita e o legado não é gravado", async () => {
+    (mockPrisma as any).safeScorePolicyVersion.findFirst = async () => null;
+    await assert.rejects(aplicarEvento("u-1", "KYC_APROVADO", "doc-1"), /nenhuma política ativa/);
+    assert.deepEqual(legado, []);
+    assert.deepEqual(ordem, []);
   });
 
   it("sem referência, a chave usa sem-ref", async () => {

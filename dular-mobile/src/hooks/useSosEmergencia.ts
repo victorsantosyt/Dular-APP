@@ -10,6 +10,12 @@ export const SOS_190_SEGUNDOS = 5;
 /** Tempo máximo esperando o GPS; depois disso vale a última posição conhecida. */
 const LIMITE_GPS_MS = 4000;
 
+/** Tempo máximo esperando a resposta do diálogo de permissão. */
+const LIMITE_PERMISSAO_MS = 6000;
+
+/** Tempo máximo esperando o app voltar ao primeiro plano antes de contar assim mesmo. */
+const ESPERA_FOREGROUND_MS = 15000;
+
 const TIPO = "Emergência 190";
 const PRIORIDADE = "CRITICA";
 const MENSAGEM = "Botão de emergência: ligação para a Polícia Militar (190) aberta pelo app.";
@@ -21,8 +27,11 @@ type Coordenadas = { latitude: number; longitude: number };
  * montador e diarista.
  *
  * `iniciar` primeiro resolve a permissão de localização: na primeira vez o
- * sistema mostra o diálogo; já decidida, resolve na hora. Só depois abre a
- * contagem de SOS_190_SEGUNDOS, que pode ser cancelada, e começa a buscar a
+ * sistema mostra o diálogo; já concedida ou negada em definitivo, resolve em
+ * milissegundos (ver `pedirPermissaoDeLocalizacao`). Resolvida a permissão, só
+ * abre a contagem com o app em primeiro plano (ver `esperarPrimeiroPlano`), para
+ * a pessoa ver o contador e alcançar o cancelar. Só então começa a
+ * contagem de SOS_190_SEGUNDOS, que pode ser cancelada, e a busca da
  * localização (se permitida). Se ninguém cancelar, duas coisas começam juntas,
  * sem uma esperar a outra:
  *  - a discagem do 190 via `tel:`. Sem permissão CALL_PHONE: o sistema só abre
@@ -38,7 +47,7 @@ export function useSosEmergencia() {
   const [segundosRestantes, setSegundosRestantes] = useState<number | null>(null);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
   const localizacao = useRef<Promise<Coordenadas | undefined> | null>(null);
-  /** Entre o toque e o fim do pedido de permissão (o diálogo pode estar na tela). */
+  /** Do toque até a contagem abrir: pedido de permissão e espera pelo primeiro plano. */
   const pedindoPermissao = useRef(false);
   const montado = useRef(true);
 
@@ -63,11 +72,28 @@ export function useSosEmergencia() {
       let permitido = false;
       try {
         permitido = await pedirPermissaoDeLocalizacao();
+
+        // A tela pode ter sido fechada enquanto o diálogo estava aberto.
+        if (!montado.current) return;
+
+        // No iOS o diálogo deixa o app em "inactive" sem parar o JS: sem esta
+        // espera, a contagem correria atrás do modal — a pessoa não veria o
+        // contador, não alcançaria o cancelar, e a ligação sairia às cegas.
+        await esperarPrimeiroPlano();
+        if (!montado.current) return;
+
+        // A resposta pode ter chegado depois de LIMITE_PERMISSAO_MS, durante a
+        // espera. Reler o estado é barato e não abre diálogo, então uma
+        // concessão atrasada ainda vale para ESTE acionamento, e não só para o
+        // toque seguinte.
+        if (!permitido) permitido = await permissaoConcedidaAgora();
       } finally {
+        // Sempre liberado: o pedido desiste sozinho depois de LIMITE_PERMISSAO_MS
+        // e a espera tem teto, então nem um diálogo sem resposta nem um app que
+        // não volta deixam o botão preso nos toques seguintes.
         pedindoPermissao.current = false;
       }
 
-      // A tela pode ter sido fechada enquanto o diálogo estava aberto.
       if (!montado.current) return;
 
       // A busca começa junto com a contagem para estar pronta (ou desistida)
@@ -143,14 +169,86 @@ function dispararEmergencia(servicoId: string | undefined, localizacao: Promise<
 }
 
 /**
+ * Estado atual da permissão, sem pedir nada: responde em milissegundos, não abre
+ * diálogo e não tira o app de "active". Serve para aproveitar uma concessão que
+ * chegou tarde demais para o prazo do pedido. Qualquer falha conta como não
+ * permitida.
+ */
+async function permissaoConcedidaAgora(): Promise<boolean> {
+  try {
+    const { status } = await Location.getForegroundPermissionsAsync();
+    return status === "granted";
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Espera o app estar em primeiro plano para a contagem começar. Já em "active",
+ * resolve na hora e nada muda.
+ *
+ * O diálogo de permissão do iOS deixa o app em "inactive" mas não para o JS: uma
+ * contagem aberta ali rodaria escondida atrás do modal, sem contador visível e
+ * sem cancelar alcançável, e discaria o 190 sozinha. Esperar o "active" devolve
+ * à pessoa os dois. Passado ESPERA_FOREGROUND_MS sem voltar, a contagem começa
+ * assim mesmo: um SOS que some é pior que um SOS que a pessoa não viu começar.
+ *
+ * O listener daqui é removido assim que resolve — ele é da fase anterior à
+ * contagem e não se cruza com o listener de cancelamento, que só age com a
+ * contagem já rodando.
+ */
+function esperarPrimeiroPlano(): Promise<void> {
+  if (AppState.currentState === "active") return Promise.resolve();
+
+  return new Promise((resolve) => {
+    let encerrado = false;
+    const encerrar = () => {
+      if (encerrado) return;
+      encerrado = true;
+      clearTimeout(teto);
+      assinatura.remove();
+      resolve();
+    };
+
+    const assinatura = AppState.addEventListener("change", (estado) => {
+      if (estado === "active") encerrar();
+    });
+    const teto = setTimeout(encerrar, ESPERA_FOREGROUND_MS);
+  });
+}
+
+/**
  * Pede a permissão de localização em primeiro plano, a mesma do SOS antigo
- * (`useSeguranca`). Primeira vez: o sistema mostra o diálogo. Já concedida ou
- * negada: resolve na hora, sem diálogo. Qualquer falha conta como não permitida.
+ * (`useSeguranca`).
+ *
+ * A consulta do estado atual vem primeiro porque responde em milissegundos, sem
+ * diálogo e sem tirar o app de "active". Ela resolve sozinha os dois casos já
+ * decididos — concedida e negada sem poder pedir de novo — e o pedido só é feito
+ * quando o sistema ainda vai mostrar o diálogo. Isso importa no Android: pedir
+ * de novo uma permissão negada em definitivo abre a tela de permissão invisível
+ * e deixa o app alguns segundos fora de "active" só para responder que não.
+ *
+ * Como o estado é lido a cada toque, liberar a localização nas Configurações e
+ * voltar para o app passa a valer no toque seguinte. Qualquer falha conta como
+ * não permitida.
+ *
+ * O pedido em si tem prazo: um diálogo que fica sem resposta — ou que é fechado
+ * sem responder, o que deixa a promessa pendurada — não pode prender o botão de
+ * emergência. Passado LIMITE_PERMISSAO_MS o toque segue sem localização, e a
+ * resposta que vier depois não se perde: o próximo toque relê o estado.
  */
 async function pedirPermissaoDeLocalizacao(): Promise<boolean> {
   try {
-    const { status } = await Location.requestForegroundPermissionsAsync();
-    return status === "granted";
+    const atual = await Location.getForegroundPermissionsAsync();
+    if (atual.status === "granted") return true;
+    if (!atual.canAskAgain) return false;
+
+    const pedido = Location.requestForegroundPermissionsAsync()
+      .then(({ status }) => status === "granted")
+      .catch(() => false);
+    const limite = new Promise<boolean>((resolve) => setTimeout(() => resolve(false), LIMITE_PERMISSAO_MS));
+
+    return await Promise.race([pedido, limite]);
   } catch {
     return false;
   }

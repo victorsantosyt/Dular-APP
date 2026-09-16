@@ -49,6 +49,7 @@ export async function POST(req: Request) {
       const evento = await tx.safetyEvent.create({
         data: {
           type: "SOS_SILENT",
+          status: "ACIONADO",
           userId: auth.userId,
           serviceId: serviceId || null,
           lat: lat ?? null,

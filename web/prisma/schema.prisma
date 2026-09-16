@@ -38,6 +38,14 @@ enum SafetyEventType {
   SOS_SILENT
 }
 
+/// Andamento do atendimento de um SOS no painel. Nulo em check-ins e nos SOS
+/// gravados antes desta coluna existir; o painel mostra esses SOS como ACIONADO.
+enum SafetyEventStatus {
+  ACIONADO
+  EM_ATENDIMENTO
+  RESOLVIDO
+}
+
 enum IncidentType {
   ASSEDIO
   IMPORTUNACAO
@@ -712,7 +720,16 @@ model SafetyEvent {
   meta      Json?
   createdAt DateTime        @default(now())
 
+  /// Só SOS_SILENT: quem grava o SOS preenche ACIONADO, e o admin muda pelo
+  /// painel. Nulo em check-ins e nos SOS anteriores à coluna.
+  status                SafetyEventStatus?
+  statusAtualizadoEm    DateTime?
+  /// Admin que mudou o status por último. Sem relação: o histórico fica no AuditLog.
+  statusAtualizadoPorId String?
+
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([type, status, createdAt])
 }
 
 model IncidentReport {

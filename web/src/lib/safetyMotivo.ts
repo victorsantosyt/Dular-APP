@@ -56,6 +56,7 @@ export async function registrarMotivoGrave(params: {
     await prisma.safetyEvent.create({
       data: {
         type: "SOS_SILENT",
+        status: "ACIONADO",
         userId: reporterId,
         serviceId: servicoId,
         meta: {

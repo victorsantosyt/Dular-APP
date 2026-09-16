@@ -4,12 +4,14 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import { AppIcon, DAvatar, DCard, DEmptyState, DErrorState, DLoadingState, DScreen } from "@/components/ui";
-import { acionarSosMontador, atualizarPerfilMontador, carregarPerfilMontador } from "@/api/montadorApi";
+import { atualizarPerfilMontador, carregarPerfilMontador } from "@/api/montadorApi";
 import { getPublicScore } from "@/api/safeScoreApi";
+import { SosEmergenciaModal } from "@/components/SosEmergenciaModal";
 import { useMontadorServicos } from "@/hooks/useMontadorServicos";
 import { useApresentarPlanos } from "@/hooks/useApresentarPlanos";
 import { useNotificacoes } from "@/hooks/useNotificacoes";
 import { useProfileTheme } from "@/hooks/useProfileTheme";
+import { useSosEmergencia } from "@/hooks/useSosEmergencia";
 import { useAuth } from "@/stores/authStore";
 import type { MontadorTabParamList } from "@/navigation/MontadorNavigator";
 import { colors, radius, shadows, typography } from "@/theme";
@@ -38,7 +40,8 @@ export function MontadorHome() {
   const [online, setOnline] = useState(true);
   const [onlineSaving, setOnlineSaving] = useState(false);
   const [safeFaixa, setSafeFaixa] = useState<string | null>(null);
-  const [sosLoading, setSosLoading] = useState(false);
+  // Botão de emergência: contagem com cancelamento, depois registro + ligação para o 190.
+  const sos190 = useSosEmergencia();
 
   const displayName = firstName(user?.nome);
   const proximoServico = agenda.find((item) => !["FINALIZADO", "CONCLUIDO"].includes(upperStatus(item.status)));
@@ -90,27 +93,10 @@ export function MontadorHome() {
   };
   const abrirCarteira = () => navigation.navigate("Carteira", { from: "MontadorHome" });
   const abrirDetalheServico = (servicoId: string) => navigation.navigate("MontadorDetalheServico", { servicoId });
-  const acionarSOS = async () => {
-    const servicoId = proximoServico?.id ?? agenda[0]?.id;
-    if (!servicoId) {
-      Alert.alert("SOS indisponível", "O SOS fica disponível quando houver um serviço aceito ou em andamento.");
-      return;
-    }
-    try {
-      setSosLoading(true);
-      await acionarSosMontador(servicoId);
-      Alert.alert(
-        "SOS acionado",
-        // O botão promete socorro; sem esta ressalva alguém em perigo pode
-        // acionar e ESPERAR, achando que chamou a polícia.
-        "A equipe de segurança foi notificada.\n\nIsto NÃO aciona polícia, SAMU nem bombeiros. Em perigo imediato, ligue 190, 192 ou 193.",
-      );
-    } catch {
-      Alert.alert("Falha ao acionar SOS", "Não foi possível registrar o SOS no momento.");
-    } finally {
-      setSosLoading(false);
-    }
-  };
+  // Serviço do SOS: só o próximo serviço não encerrado. Sem ele, o 190 funciona
+  // do mesmo jeito e o SOS é registrado sem serviço. Sem fallback para
+  // `agenda[0]`: um serviço antigo abriria incidente contra o empregador dele.
+  const servicoDoSos = proximoServico?.id;
 
   return (
     <DScreen
@@ -238,14 +224,15 @@ export function MontadorHome() {
           <Text style={styles.securitySub}>{safeFaixa ?? "Proteção ativa"}</Text>
         </Pressable>
         <Pressable
-          onPress={acionarSOS}
-          disabled={sosLoading}
+          onPress={() => sos190.iniciar(servicoDoSos)}
           style={({ pressed }) => [styles.sosCard, pressed && styles.pressed]}
         >
-          <Text style={styles.sosTitle}>{sosLoading ? "Enviando" : "SOS"}</Text>
-          <Text style={styles.sosSub}>Segurança</Text>
+          <Text style={styles.sosTitle}>SOS</Text>
+          <Text style={styles.sosSub}>Ligar 190</Text>
         </Pressable>
       </View>
+
+      <SosEmergenciaModal segundosRestantes={sos190.segundosRestantes} onCancelar={sos190.cancelar} />
     </DScreen>
   );
 }

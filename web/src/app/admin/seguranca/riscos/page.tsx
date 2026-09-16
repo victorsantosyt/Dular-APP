@@ -15,9 +15,9 @@ import {
   gravidadeTone,
   incidenteStatusTone,
   rotuloEnum,
-  type Tone,
 } from "@/design-system/ui";
 import { Siren, AlertTriangle, ListChecks, Radar } from "lucide-react";
+import { SOS_STATUS_TOM, origemDoSos, prioridadeNaFila, statusDoSos } from "@/lib/sosPainel";
 
 function fmt(dt: Date) {
   return new Date(dt).toLocaleString("pt-BR");
@@ -26,13 +26,21 @@ function fmt(dt: Date) {
 export default async function RiscosPage() {
   const [sosEvents, incidents] = await Promise.all([
     prisma.safetyEvent.findMany({
-      where: { type: "SOS_SILENT" },
+      // Fila de risco: só SOS em aberto. Status nulo é SOS anterior à coluna
+      // existir e conta como ACIONADO. (Um `NOT: { status: "RESOLVIDO" }`
+      // descartaria os nulos, porque NULL = 'RESOLVIDO' não é verdadeiro.)
+      where: {
+        type: "SOS_SILENT",
+        OR: [{ status: null }, { status: { in: ["ACIONADO", "EM_ATENDIMENTO"] } }],
+      },
       orderBy: { createdAt: "desc" },
       take: 50,
       select: {
         id: true,
         userId: true,
         serviceId: true,
+        meta: true,
+        status: true,
         createdAt: true,
         user: { select: { nome: true, telefone: true } },
       },
@@ -54,20 +62,26 @@ export default async function RiscosPage() {
   ]);
 
   const rows = [
-    ...sosEvents.map((event) => ({
-      id: `sos-${event.id}`,
-      tipo: "SOS",
-      // SOS é sempre o topo da escala: acionamento silencioso em campo.
-      prioridade: "CRITICA",
-      prioridadeTone: "critical" as Tone,
-      usuario: event.user?.nome ?? event.user?.telefone ?? event.userId,
-      servico: event.serviceId ?? "—",
-      status: "ACIONADO",
-      statusTone: "critical" as Tone,
-      horarioRaw: event.createdAt,
-      horario: fmt(event.createdAt),
-      href: null as string | null,
-    })),
+    ...sosEvents.map((event) => {
+      const status = statusDoSos(event.status);
+      // SOS do botão é o topo da escala (CRITICA); motivo grave registrado ao
+      // recusar ou cancelar um serviço entra como ALTA.
+      const prioridade = prioridadeNaFila(event.meta);
+      return {
+        id: `sos-${event.id}`,
+        tipo: origemDoSos(event.meta) === "MOTIVO_GRAVE" ? "Motivo grave" : "SOS",
+        prioridade,
+        prioridadeTone: gravidadeTone(prioridade),
+        usuario: event.user?.nome ?? event.user?.telefone ?? event.userId,
+        servico: event.serviceId ?? "—",
+        status: status as string,
+        statusTone: SOS_STATUS_TOM[status],
+        horarioRaw: event.createdAt,
+        horario: fmt(event.createdAt),
+        // O andamento (e a mudança de status) fica na página de SOS.
+        href: "/admin/seguranca/sos" as string | null,
+      };
+    }),
     ...incidents.map((incident) => ({
       id: `incident-${incident.id}`,
       tipo: rotuloEnum(incident.type),

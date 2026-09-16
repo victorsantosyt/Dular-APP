@@ -9,7 +9,7 @@ Use este checklist antes do primeiro deploy. Execute os comandos a partir da rai
 - [ ] Se o banco ja existir, fazer backup de `public._prisma_migrations` antes de qualquer `migrate resolve`
 - [ ] Todas as variáveis de ambiente configuradas
 - [ ] `cd web && npx prisma validate` rodado com sucesso
-- [ ] `cd web && npx prisma migrate deploy` rodado no banco de produção
+- [ ] Migrations: o deploy de produção na Vercel roda `prisma migrate deploy` sozinho (regras em `docs/migrations-em-producao.md`); toda migration em `main` precisa ser aditiva
 - [ ] `cd web && npx prisma migrate status` confirmando todas as migrations como aplicadas
 - [ ] `cd web && npm run seed:prod` rodado com `PROD_ADMIN_EMAIL`/`PROD_ADMIN_PASSWORD` e `PILOT_CITY`/`PILOT_UF`/`PILOT_BAIRROS` definidos (cria admin inicial + bairros da cidade piloto; idempotente)
 - [ ] NUNCA rodar o seed de desenvolvimento (`prisma db seed`) em produção — ele cria usuários demo e é bloqueado com `NODE_ENV=production`
@@ -19,11 +19,12 @@ Use este checklist antes do primeiro deploy. Execute os comandos a partir da rai
 ## DEPLOY WEB (Vercel)
 
 - [ ] Repositório conectado à Vercel
-- [ ] Root directory configurado como raiz do monorepo ou build command apontando para `web`
+- [ ] Root directory configurado como `web`
 - [ ] Variáveis de ambiente de `web/.env.production.example` adicionadas no painel Vercel
-- [ ] Build command: `cd web && npm run build`
+- [ ] `DATABASE_URL_UNPOOLED` (conexão direta, sem pooler) disponível no ambiente Production
+- [ ] Build command: vem de `web/vercel.json` (`bash scripts/vercel-build.sh`); não sobrescrever no painel
 - [ ] Output directory: `web/.next`
-- [ ] `npx prisma generate` no build (ja incluido em `web/package.json`)
+- [ ] `npx prisma generate` no build (ja incluido em `web/package.json`, chamado pelo script)
 - [ ] Webhook do Stripe apontando para URL de produção: `https://SEU_DOMINIO/api/webhooks/stripe`
 - [ ] `STRIPE_WEBHOOK_SECRET` copiado do endpoint webhook de produção
 - [ ] Deploy criado e rota `/api/health` validada
@@ -49,6 +50,8 @@ Use este checklist antes do primeiro deploy. Execute os comandos a partir da rai
 
 ## ROLLBACK
 
+**Rollback da Vercel não desfaz migration.** Ele troca só o código; o banco continua com o schema novo. Para desfazer schema, crie uma migration corretiva nova por PR. Se uma migration falhou no deploy, todo deploy seguinte falha com `P3009` até ela ser resolvida: procedimento em `docs/migrations-em-producao.md`.
+
 Se uma migration foi marcada/aplicada por engano, primeiro pare novos deploys e confirme o estado real do banco. Para marcar uma migration como revertida no historico do Prisma:
 
 ```bash
@@ -63,6 +66,6 @@ Para reverter deploy na Vercel:
 - Abra o projeto na Vercel
 - Entre em Deployments
 - Selecione o ultimo deploy estavel
-- Clique em Redeploy ou Promote to Production, conforme a configuracao do projeto
+- Use Instant Rollback (não reconstrói nem migra). Evite "Promote to Production" de um preview como rollback: ele reconstrói como produção e aplica as migrations daquela branch
 
 Depois do rollback, valide `/api/health`, login, criacao de servico e logs do webhook Stripe.

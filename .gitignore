@@ -33,3 +33,7 @@ AGENTS.md
 /web/docs/SECURITY-TESTING.md
 /web/docs/T-17-MATRIZ-QA.md
 backup_pre_baseline.sql
+
+# Material de trabalho do agente: prompts de tarefa e auditorias de segurança.
+# Não faz parte do projeto e descreve falhas antes de corrigidas — fica local.
+**/Claude outputs/

@@ -23,6 +23,7 @@ import {
 import { DButton } from "@/components/DButton";
 import { MotivoModal } from "@/components/MotivoModal";
 import { AvaliacaoModal, BackCircleButton } from "@/components/ui";
+import { pedirAvaliacaoDaLoja } from "@/lib/avaliacaoDaLoja";
 import { formatHorario } from "@/utils/formatters";
 import { isStatusEncerrado } from "@/utils/servicoStatus";
 import { colors, radius, shadow, spacing, typography } from "@/theme/tokens";
@@ -475,10 +476,15 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
         servicoId={svc.id}
         nomeAvaliado={svc.diarista?.nome ?? "Diarista"}
         onClose={() => setAvaliacaoVisible(false)}
-        onSucesso={() => {
+        onSucesso={(nota) => {
           setAvaliacaoVisible(false);
           setSvc((cur) => cur ? { ...cur, __ratedByClient: true } as any : cur);
           setToast("Avaliação enviada. Obrigado!");
+          // Momento de sucesso comprovado: serviço concluído, confirmado e bem
+          // avaliado. É daqui que o pedido de nota na loja pode partir — e só
+          // daqui, porque ele nunca pode ser um botão. A função decide sozinha
+          // se é hora; com nota baixa ela nem chega a consultar a loja.
+          void pedirAvaliacaoDaLoja(nota);
         }}
       />
     </SafeAreaView>

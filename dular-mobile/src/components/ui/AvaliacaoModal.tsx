@@ -22,7 +22,12 @@ export interface AvaliacaoModalProps {
   servicoId: string;
   nomeAvaliado: string;
   onClose: () => void;
-  onSucesso: () => void;
+  /**
+   * Recebe a nota enviada. Quem chama usa isso para decidir o que vem depois —
+   * hoje, se é momento de pedir a nota do APP na loja (só com nota alta).
+   * Handlers antigos sem argumento continuam válidos em TypeScript.
+   */
+  onSucesso: (nota: number) => void;
   /**
    * Rota de avaliação. Default = empregador→profissional (`/avaliar`).
    * O profissional avaliando o empregador passa `/avaliar-empregador`.
@@ -64,9 +69,12 @@ export default function AvaliacaoModal({
         comunicacao: nota,
         ...(comentario.trim() ? { comentario: comentario.trim() } : {}),
       });
+      // `nota` é a const capturada no início do handler: os setState acima não
+      // alteram o valor local, então o que chega ao pai é a nota enviada.
+      const notaEnviada = nota;
       setNota(0);
       setComentario("");
-      onSucesso();
+      onSucesso(notaEnviada);
     } catch (e: any) {
       const backendMsg = e?.response?.data?.error ?? e?.response?.data?.message;
       Alert.alert(

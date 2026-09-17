@@ -4,6 +4,7 @@ import * as Clipboard from "expo-clipboard";
 import type { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
 import { useFocusEffect } from "@react-navigation/native";
 import { AppIcon, AvaliacaoModal, BackCircleButton, DAvatar, DEmptyState, DErrorState, DLoadingState, DScreen } from "@/components/ui";
+import { pedirAvaliacaoDaLoja } from "@/lib/avaliacaoDaLoja";
 import {
   cancelarServicoMontador,
   confirmarFinalizacaoMontador,
@@ -359,11 +360,15 @@ export default function MontadorDetalheServico({ route, navigation }: Props) {
           endpoint={`/api/servicos/${servico.id}/avaliar-empregador`}
           accent={profileTheme.primary}
           onClose={() => setAvaliarOpen(false)}
-          onSucesso={() => {
+          onSucesso={(nota) => {
             setAvaliarOpen(false);
             setAvaliouLocal(true);
             refetch();
-            Alert.alert("Avaliação enviada", "Obrigado por avaliar o empregador.");
+            // O pedido da loja entra no OK do alerta, e não antes: disparar a
+            // folha do sistema por cima de um Alert empilharia dois modais.
+            Alert.alert("Avaliação enviada", "Obrigado por avaliar o empregador.", [
+              { text: "OK", onPress: () => void pedirAvaliacaoDaLoja(nota) },
+            ]);
           }}
         />
       ) : null}

@@ -118,7 +118,9 @@ export const NICHO: Record<ServicoOferecido, IdentidadeDeNicho> = {
     rotuloCartao: "Cuidadora",
     cor: "#2BA15F",
     descricao: "Cuidados a idosos e pessoas",
-    contatoDireto: false,
+    // Dentro da casa, com pessoa idosa ou dependente e quase sempre sem mais
+    // ninguém por perto — é o nicho mais exposto dos seis, não o menos.
+    contatoDireto: true,
   },
 };
 

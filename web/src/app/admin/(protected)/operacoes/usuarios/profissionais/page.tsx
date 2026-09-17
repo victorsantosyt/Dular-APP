@@ -18,7 +18,13 @@ import { AdminCard } from "@/components/admin-ui/AdminCard";
 import { AdminKpi } from "@/components/admin-ui/AdminKpi";
 import { AdminEmpty } from "@/components/admin-ui/AdminEmpty";
 import { Badge } from "@/design-system/ui";
-import { PAPEL, resumoDosNichos, type NichoNoPainel } from "@/lib/adminPerfis";
+import {
+  PAPEL,
+  profissionaisInvisiveis,
+  resumoDosNichos,
+  type NichoNoPainel,
+} from "@/lib/adminPerfis";
+import { rotuloDoMotivo } from "@/lib/motivosDoPerfil";
 
 function pct(parte: number, todo: number): string {
   if (todo === 0) return "—";
@@ -95,7 +101,10 @@ function CartaoDeNicho({
 }
 
 export default async function ProfissionaisPorNichoPage() {
-  const resumo = await resumoDosNichos();
+  const [resumo, invisiveis] = await Promise.all([
+    resumoDosNichos(),
+    profissionaisInvisiveis(),
+  ]);
 
   const porProcura = [...resumo.nichos].sort((a, b) => b.servicos - a.servicos);
   const maisProcurado = porProcura[0]?.servicos ? porProcura[0] : null;
@@ -180,6 +189,55 @@ export default async function ProfissionaisPorNichoPage() {
             />
           ))}
         </div>
+      </AdminCard>
+
+      {/*
+        O estado que não tinha nome: o KYC aprova olhando só o documento, o
+        perfil segue pela metade e a busca o descarta em silêncio. Enquanto isso
+        só existia como console.log em desenvolvimento, a pessoa ficava
+        aprovada, ativa e sem receber um pedido sequer.
+      */}
+      <AdminCard
+        title="Aprovados que não aparecem"
+        icon={EyeOff}
+        className="mt-4"
+        right={
+          invisiveis.length > 0 ? <Badge tone="critical">{invisiveis.length}</Badge> : null
+        }
+      >
+        {invisiveis.length === 0 ? (
+          <AdminEmpty
+            title="Ninguém nesta situação"
+            hint="Todo profissional aprovado está completo e aparece na busca."
+          />
+        ) : (
+          <>
+            <p className="mb-4 text-sm leading-6 text-fg-muted">
+              O documento foi aprovado, mas a busca exige perfil completo — e
+              descarta o incompleto sem avisar ninguém. Estas contas estão
+              aprovadas, ativas e não recebem pedido nenhum.
+            </p>
+            <ul className="flex flex-col gap-2">
+              {invisiveis.map((p) => (
+                <li
+                  key={p.userId}
+                  className="flex flex-col gap-2 rounded-lg border border-border bg-surface-secondary p-3.5 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <span className="text-sm font-semibold text-fg">
+                    {p.nome ?? p.userId.slice(0, 8)}
+                  </span>
+                  <span className="flex flex-wrap gap-1.5">
+                    {p.motivos.map((m) => (
+                      <Badge key={m} tone="high">
+                        {rotuloDoMotivo(m)}
+                      </Badge>
+                    ))}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
       </AdminCard>
 
       <AdminCard title="O que exige atenção" icon={AlertTriangle} className="mt-4">

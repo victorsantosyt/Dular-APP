@@ -6,6 +6,7 @@ import { getRequestIp } from "@/lib/requestIp";
 import { aplicarEvento } from "@/lib/safeScore";
 import { ensureUserRoleProfile } from "@/lib/userProfiles";
 import { getGuardianStatusForUser } from "@/lib/safeScoreGuardian";
+import { pendenciasDeVisibilidade } from "@/lib/adminPerfis";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -119,5 +120,16 @@ export async function POST(req: Request) {
   await aplicarEvento(existing.userId, "KYC_APROVADO", id, motivo);
   const guardian = await getGuardianStatusForUser(existing.userId);
 
-  return NextResponse.json({ ok: true, verification, guardian });
+  // A aprovação continua sendo sobre o DOCUMENTO: um KYC válido não deixa de
+  // ser válido porque o perfil está pela metade, e nada aqui muda essa regra.
+  //
+  // O que mudou é a aprovação parar de prometer o que não cumpre. A busca exige
+  // VERIFICADO **e** perfil completo (api/diaristas/buscar), e descarta o
+  // incompleto em silêncio. Aprovar sem olhar a completude criava gente
+  // aprovada, ativa e invisível — sem fila, sem aviso e sem nada que
+  // apontasse para ela. Agora a resposta diz o que ainda falta, no mesmo lugar
+  // onde a decisão humana acontece.
+  const visibilidade = await pendenciasDeVisibilidade(existing.userId, existing.user.role);
+
+  return NextResponse.json({ ok: true, verification, guardian, visibilidade });
 }

@@ -24,6 +24,7 @@ import { DularBadge } from "@/components/DularBadge";
 import { MotivoModal } from "@/components/MotivoModal";
 import { SafeScoreBadge } from "@/components/SafeScoreBadge";
 import { AvaliacaoModal, BackCircleButton } from "@/components/ui";
+import { pedirAvaliacaoDaLoja } from "@/lib/avaliacaoDaLoja";
 import { useLimiteDePlano } from "@/hooks/useLimiteDePlano";
 import { useSeguranca } from "@/hooks/useSeguranca";
 import { formatPrice } from "@/utils/formatPrice";
@@ -624,11 +625,15 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
         endpoint={`/api/servicos/${svc.id}/avaliar-empregador`}
         accent={theme.primary}
         onClose={() => setAvaliarOpen(false)}
-        onSucesso={() => {
+        onSucesso={(nota) => {
           setAvaliarOpen(false);
           setAvaliouLocal(true);
           void reloadFromList();
-          Alert.alert("Avaliação enviada", "Obrigada por avaliar o empregador.");
+          // O pedido da loja entra no OK do alerta, e não antes: a folha do
+          // sistema por cima de um Alert empilharia dois modais.
+          Alert.alert("Avaliação enviada", "Obrigada por avaliar o empregador.", [
+            { text: "OK", onPress: () => void pedirAvaliacaoDaLoja(nota) },
+          ]);
         }}
       />
     </SafeAreaView>

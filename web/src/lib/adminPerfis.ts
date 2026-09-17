@@ -1,9 +1,11 @@
 import { prisma } from "@/lib/prisma";
 import {
   SERVICOS_OFERECIDOS_VALIDOS,
+  getDiaristaProfileCompleteness,
   nichoFromTipo,
   type ServicoOferecido,
 } from "@/lib/diaristaProfile";
+import { getMontadorProfileCompleteness } from "@/lib/montadorProfile";
 
 /**
  * Identidade de papel e de nicho para o painel.
@@ -118,9 +120,130 @@ export const NICHO: Record<ServicoOferecido, IdentidadeDeNicho> = {
     rotuloCartao: "Cuidadora",
     cor: "#2BA15F",
     descricao: "Cuidados a idosos e pessoas",
-    contatoDireto: false,
+    // Dentro da casa, com pessoa idosa ou dependente e quase sempre sem mais
+    // ninguém por perto — é o nicho mais exposto dos seis, não o menos.
+    contatoDireto: true,
   },
 };
+
+/**
+ * O que ainda impede este perfil de aparecer na busca.
+ *
+ * A busca (api/diaristas/buscar) exige VERIFICADO **e** perfil completo, e
+ * descarta o incompleto em silêncio — a lista de rejeitados só existe como
+ * console.log em desenvolvimento. Esta função traz essa mesma regra para onde
+ * dá para agir sobre ela: a aprovação do KYC e o painel.
+ *
+ * Usa as mesmas funções que a busca usa. Reimplementar a conta aqui garantiria
+ * que as duas divergissem, e aí o painel passaria a prometer uma visibilidade
+ * que o produto não entrega — que é exatamente o problema que isto resolve.
+ */
+export type PendenciaDeVisibilidade = {
+  /** false = está aprovado e mesmo assim não aparece para ninguém. */
+  visivel: boolean;
+  /**
+   * Motivos crus. Atenção: o vocabulário difere por papel — o da profissional
+   * são slugs (`falta_bio`), o do montador são frases (`sem bio`). Quem exibe
+   * decide como rotular; ver `rotuloDoMotivo`.
+   */
+  motivos: string[];
+};
+
+const SELECT_PERFIL_DIARISTA = {
+  ativo: true,
+  bio: true,
+  servicosOferecidos: true,
+  cidade: true,
+  estado: true,
+  atendeTodaCidade: true,
+  raioAtendimentoKm: true,
+  precoLeve: true,
+  precoMedio: true,
+  precoPesada: true,
+  precoBabaHora: true,
+  precoCozinheiraBase: true,
+  taxaMinima: true,
+  valorACombinar: true,
+  verificacao: true,
+  bairros: { select: { id: true } },
+  user: { select: { nome: true, status: true } },
+} as const;
+
+export async function pendenciasDeVisibilidade(
+  userId: string,
+  role: string,
+): Promise<PendenciaDeVisibilidade> {
+  if (role === "DIARISTA") {
+    const perfil = await prisma.diaristaProfile.findUnique({
+      where: { userId },
+      select: SELECT_PERFIL_DIARISTA,
+    });
+    if (!perfil) return { visivel: false, motivos: ["sem_perfil_diarista"] };
+    const { completo, motivos } = getDiaristaProfileCompleteness(perfil);
+    return { visivel: completo, motivos };
+  }
+
+  if (role === "MONTADOR") {
+    const perfil = await prisma.montadorPerfil.findUnique({
+      where: { userId },
+      select: {
+        bio: true,
+        especialidades: true,
+        cidade: true,
+        estado: true,
+        bairros: true,
+        atendeTodaCidade: true,
+        ativo: true,
+        user: { select: { nome: true, status: true } },
+      },
+    });
+    if (!perfil) return { visivel: false, motivos: ["sem_perfil_montador"] };
+    const { completo, motivos } = getMontadorProfileCompleteness({
+      nome: perfil.user?.nome,
+      bio: perfil.bio,
+      especialidades: perfil.especialidades,
+      cidade: perfil.cidade,
+      estado: perfil.estado,
+      bairros: perfil.bairros,
+      atendeTodaCidade: perfil.atendeTodaCidade,
+      ativo: perfil.ativo,
+      userStatus: perfil.user?.status,
+    });
+    return { visivel: completo, motivos };
+  }
+
+  // O Empregador não aparece em busca nenhuma: não há visibilidade a cobrar.
+  return { visivel: true, motivos: [] };
+}
+
+export type ProfissionalInvisivel = {
+  userId: string;
+  nome: string | null;
+  motivos: string[];
+};
+
+/**
+ * Aprovados que, ainda assim, não aparecem para ninguém.
+ *
+ * É o estado que não tinha nome: a aprovação do KYC olha só o documento, então
+ * ela concede VERIFICADO a um perfil pela metade; a busca então o descarta pela
+ * completude, sem avisar ninguém. A pessoa fica cadastrada, aprovada e sem
+ * receber um pedido sequer.
+ */
+export async function profissionaisInvisiveis(): Promise<ProfissionalInvisivel[]> {
+  const perfis = await prisma.diaristaProfile.findMany({
+    where: { verificacao: "VERIFICADO" },
+    select: { userId: true, ...SELECT_PERFIL_DIARISTA },
+  });
+
+  const invisiveis: ProfissionalInvisivel[] = [];
+  for (const perfil of perfis) {
+    const { completo, motivos } = getDiaristaProfileCompleteness(perfil);
+    if (completo) continue;
+    invisiveis.push({ userId: perfil.userId, nome: perfil.user?.nome ?? null, motivos });
+  }
+  return invisiveis;
+}
 
 export type ContagemPorPapel = {
   total: number;

@@ -110,7 +110,13 @@ export default async function ProfissionaisPorNichoPage() {
   const maisProcurado = porProcura[0]?.servicos ? porProcura[0] : null;
   const maiorOferta = Math.max(0, ...resumo.nichos.map((n) => n.profissionais));
 
-  const semNinguem = resumo.nichos.filter((n) => n.profissionais === 0);
+  // Com zero profissionais TODO nicho está vazio, e dizer isso seis vezes
+  // afogaria o único fato que importa: ainda não há base. Um card que grita o
+  // óbvio em série ensina a ignorá-lo — que é o contrário do que ele serve.
+  const semBase = resumo.totalProfissionais === 0;
+  const semNinguem = semBase
+    ? []
+    : resumo.nichos.filter((n) => n.profissionais === 0);
 
   return (
     <AdminPage title="" subtitle="">
@@ -138,8 +144,13 @@ export default async function ProfissionaisPorNichoPage() {
           <AdminKpi
             label="Com nicho declarado"
             value={String(resumo.comNicho)}
-            hint={`${resumo.declaracoes} escolhas no total — a seleção é múltipla`}
-            tone="success"
+            hint={
+              resumo.declaracoes > 0
+                ? `${resumo.declaracoes} escolhas no total — a seleção é múltipla`
+                : "Ninguém declarou nicho ainda"
+            }
+            // Verde num zero diz "está tudo certo" sobre a ausência de base.
+            tone={resumo.comNicho > 0 ? "success" : "neutral"}
             icon={Layers}
           />
         </div>
@@ -166,10 +177,17 @@ export default async function ProfissionaisPorNichoPage() {
       <AdminCard title="Nichos do perfil" icon={Layers} className="mt-4">
         <p className="mb-4 text-sm leading-6 text-fg-muted">
           Cada profissional escolhe um ou mais nichos ao montar o perfil, e é
-          essa escolha que a busca do empregador filtra. Por ser múltipla, a soma
-          dos nichos é maior que o número de pessoas: {resumo.declaracoes}{" "}
-          escolhas para {resumo.comNicho}{" "}
-          {resumo.comNicho === 1 ? "pessoa" : "pessoas"}.
+          essa escolha que a busca do empregador filtra.
+          {/* Sem ninguém declarando, a conta vira "0 escolhas para 0 pessoas" —
+              uma explicação de aritmética que não se aplica a nada. */}
+          {resumo.declaracoes > 0 ? (
+            <>
+              {" "}
+              Por ser múltipla, a soma dos nichos é maior que o número de
+              pessoas: {resumo.declaracoes} escolhas para {resumo.comNicho}{" "}
+              {resumo.comNicho === 1 ? "pessoa" : "pessoas"}.
+            </>
+          ) : null}
           {maisProcurado ? (
             <>
               {" "}
@@ -281,7 +299,17 @@ export default async function ProfissionaisPorNichoPage() {
             </div>
           ) : null}
 
-          {resumo.semNicho === 0 && semNinguem.length === 0 && resumo.emContatoDireto === 0 ? (
+          {semBase ? (
+            <AdminEmpty
+              title="Nenhum profissional cadastrado ainda"
+              hint="Não há o que sinalizar enquanto não houver base. Os avisos por nicho voltam assim que o primeiro profissional se cadastrar."
+            />
+          ) : null}
+
+          {!semBase &&
+          resumo.semNicho === 0 &&
+          semNinguem.length === 0 &&
+          resumo.emContatoDireto === 0 ? (
             <AdminEmpty
               title="Nada a sinalizar"
               hint="Sem nicho vazio e sem profissional invisível para a busca."

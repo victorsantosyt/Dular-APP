@@ -251,6 +251,18 @@ export type ContagemPorPapel = {
   profissionais: number;
   montadores: number;
   admins: number;
+  /**
+   * Contas sem papel definido.
+   *
+   * `User.role` é anulável de propósito: o login social cria a conta e só o
+   * PATCH /api/me/role grava o papel depois ("role fica null até ele escolher o
+   * perfil", em lib/auth-oauth.ts). Quem fechou o app entre uma coisa e outra
+   * ficou assim para sempre — nada reprocessa.
+   *
+   * Sem este número, essas pessoas entram no total e em nenhum dos cards de
+   * papel: a soma não fecha e ninguém percebe que elas existem.
+   */
+  semPapel: number;
 };
 
 export async function contarPorPapel(): Promise<ContagemPorPapel> {
@@ -262,12 +274,21 @@ export async function contarPorPapel(): Promise<ContagemPorPapel> {
   const de = (role: string) =>
     porPapel.find((g) => g.role === role)?._count._all ?? 0;
 
+  const empregadores = de("EMPREGADOR");
+  const profissionais = de("DIARISTA");
+  const montadores = de("MONTADOR");
+  const admins = de("ADMIN");
+
   return {
     total,
-    empregadores: de("EMPREGADOR"),
-    profissionais: de("DIARISTA"),
-    montadores: de("MONTADOR"),
-    admins: de("ADMIN"),
+    empregadores,
+    profissionais,
+    montadores,
+    admins,
+    // Diferença em vez de `count({ role: null })`: assim o número cobre também
+    // qualquer papel novo que entre no enum e que esta função ainda não conte —
+    // o card acusa a discrepância em vez de ela sumir na soma.
+    semPapel: Math.max(0, total - empregadores - profissionais - montadores - admins),
   };
 }
 

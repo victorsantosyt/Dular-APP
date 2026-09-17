@@ -1,8 +1,9 @@
 import { prisma } from "@/lib/prisma";
-import { PLANS } from "@/lib/stripe";
+import { PLANS, planoPorProdutoDaLoja } from "@/lib/stripe";
 import { checkFeatureAccess } from "@/lib/featureGate";
 import type {
   FeatureKey,
+  Prisma,
   SubscriptionPlan,
   SubscriptionProvider,
   SubscriptionStatus,
@@ -102,6 +103,47 @@ function catalogoDoPlano(plan: SubscriptionPlan) {
   };
 }
 
+/**
+ * O limite que o catálogo anuncia para um plano.
+ *
+ * Descrições diferentes para o mesmo plano (o mensal e o anual do Pro) só são
+ * comparáveis quando todas anunciam o mesmo limite — se divergirem, não há um
+ * "anunciado" único para confrontar com o aplicado.
+ */
+function anuncioDoPlano(catalogo: { descricoes: string[] } | null): {
+  valor: number | null;
+  legivel: boolean;
+} {
+  if (!catalogo) return { valor: null, legivel: false };
+  const lidos = catalogo.descricoes.map(limiteAnunciado);
+  const valores = [...new Set(lidos.map((l) => l.valor))];
+  if (lidos.every((l) => l.legivel) && valores.length === 1) {
+    return { valor: valores[0], legivel: true };
+  }
+  return { valor: null, legivel: false };
+}
+
+/**
+ * Preços do catálogo para um plano, em centavos. FREE não é vendido e não tem.
+ *
+ * Diarista e Montador custam o mesmo por decisão do dono; caso um dia divirjam,
+ * vale o menor — descrever o plano pelo maior prometeria à operação uma receita
+ * que nem todo assinante paga.
+ */
+function precosDoPlano(plan: SubscriptionPlan): {
+  mensal: number | null;
+  anual: number | null;
+} {
+  const itens = Object.values(PLANS).filter((p) => p.plan === plan);
+  const menor = (intervalo: "month" | "year") => {
+    const valores = itens
+      .filter((p) => p.interval === intervalo)
+      .map((p) => p.priceInCents);
+    return valores.length > 0 ? Math.min(...valores) : null;
+  };
+  return { mensal: menor("month"), anual: menor("year") };
+}
+
 export async function diagnosticarGate(): Promise<DiagnosticoDoGate> {
   const noBanco = await prisma.featureLimit.findMany({
     select: { plan: true, feature: true, limit: true, enabled: true },
@@ -140,20 +182,8 @@ export async function diagnosticarGate(): Promise<DiagnosticoDoGate> {
           ? "DESABILITADO"
           : "APLICADO";
 
-      // O anúncio só existe para plano que está no catálogo. Descrições
-      // diferentes para o mesmo plano (mensal e anual do Pro) só são
-      // comparáveis quando todas anunciam o mesmo limite.
-      let anunciado: number | null = null;
-      let legivel = false;
-      if (catalogo) {
-        const lidos = catalogo.descricoes.map(limiteAnunciado);
-        const todosLegiveis = lidos.every((l) => l.legivel);
-        const valores = [...new Set(lidos.map((l) => l.valor))];
-        if (todosLegiveis && valores.length === 1) {
-          anunciado = valores[0];
-          legivel = true;
-        }
-      }
+      // O anúncio só existe para plano que está no catálogo.
+      const { valor: anunciado, legivel } = anuncioDoPlano(catalogo);
 
       const aplicado = row?.limit ?? null;
       const divergente =
@@ -327,4 +357,186 @@ export async function usoContraLimite(
   );
 
   return resultados;
+}
+
+// ─── Visão de negócio ───────────────────────────────────────────────────────
+
+/**
+ * Rótulos para leitura humana. O enum é o que o banco guarda; ninguém na
+ * operação chama o plano de PREMIUM nem a assinatura de TRIAL.
+ */
+export const NOME_DO_PLANO: Record<SubscriptionPlan, string> = {
+  FREE: "Gratuito",
+  BASIC: "Básico",
+  PREMIUM: "Pro",
+};
+
+export const ROTULO_DO_STATUS: Record<SubscriptionStatus, string> = {
+  TRIAL: "Em teste",
+  ACTIVE: "Ativa",
+  CANCELED: "Cancelada",
+  EXPIRED: "Expirada",
+};
+
+export const ROTULO_DO_PROVEDOR: Record<SubscriptionProvider, string> = {
+  STRIPE: "Stripe",
+  APPLE: "App Store",
+  GOOGLE: "Google Play",
+  MANUAL: "Manual",
+};
+
+/**
+ * Assinatura que vale hoje — mesma regra do `checkFeatureAccess`: status válido
+ * E dentro do prazo. Sem a checagem de prazo, uma assinatura cujo aviso de
+ * cancelamento se perdeu ficaria ACTIVE para sempre, e o painel contaria como
+ * pagante quem já não paga.
+ */
+function assinaturaViva(agora: Date): Prisma.SubscriptionWhereInput {
+  return {
+    status: { in: ["ACTIVE", "TRIAL"] },
+    OR: [{ expiresAt: null }, { expiresAt: { gt: agora } }],
+  };
+}
+
+/**
+ * Quanto uma assinatura vale por mês, em centavos.
+ *
+ * A anual entra rateada por 12: somar R$ 359 inteiros no mês da compra faria a
+ * receita daquele mês parecer nove vezes o que de fato se repete.
+ *
+ * Sem `storeProductId` não há como saber o intervalo — é o caso do Stripe, que
+ * manda o preço inline no checkout e não grava produto. Aí vale o preço mensal
+ * de tabela, e é por isso que a tela apresenta o número como estimativa.
+ */
+function valorMensalEmCentavos(
+  plan: SubscriptionPlan,
+  storeProductId: string | null
+): number {
+  const doCatalogo = storeProductId ? planoPorProdutoDaLoja(storeProductId) : null;
+  if (doCatalogo) {
+    return doCatalogo.interval === "year"
+      ? Math.round(doCatalogo.priceInCents / 12)
+      : doCatalogo.priceInCents;
+  }
+  return precosDoPlano(plan).mensal ?? 0;
+}
+
+export type PlanoNoPainel = {
+  plan: SubscriptionPlan;
+  nome: string;
+  /** Preço mensal em centavos. null no Gratuito, que não é vendido. */
+  precoMensalEmCentavos: number | null;
+  /** Preço da versão anual, quando o plano tem uma. */
+  precoAnualEmCentavos: number | null;
+  /** Serviços por mês que o app realmente aplica. null = ilimitado. */
+  limiteDeServicos: number | null;
+  /** Sem linha em FeatureLimit: não trava nada, mesmo anunciando limite. */
+  semTrava: boolean;
+  /** Linha com enabled = false: nega todo mundo, inclusive quem está na cota. */
+  desligado: boolean;
+  /** O catálogo anuncia um limite diferente do que o app aplica. */
+  divergente: boolean;
+  limiteAnunciado: number | null;
+  /** Pessoas com esse plano valendo hoje. */
+  pessoas: number;
+};
+
+/**
+ * Os três planos como a operação precisa vê-los: preço, limite em vigor e
+ * quanta gente está em cada um.
+ *
+ * Só olha SOLICITACOES_MES porque é a única chave que algum código consulta
+ * (ver FEATURES_APLICADAS). Apresentar as outras como limite diria que existe
+ * uma trava onde não há nenhuma.
+ */
+export async function resumoDosPlanos(): Promise<PlanoNoPainel[]> {
+  const agora = new Date();
+
+  const [limites, porPlano, profissionais] = await Promise.all([
+    prisma.featureLimit.findMany({
+      where: { feature: "SOLICITACOES_MES" },
+      select: { plan: true, limit: true, enabled: true },
+    }),
+    prisma.subscription.groupBy({
+      by: ["plan"],
+      where: assinaturaViva(agora),
+      _count: { _all: true },
+    }),
+    // O universo do paywall é o profissional: o Empregador nunca paga
+    // (auditoria/00-fonte-unica-verdade.md).
+    prisma.user.count({ where: { role: { in: ["DIARISTA", "MONTADOR"] } } }),
+  ]);
+
+  const limitePorPlano = new Map(limites.map((l) => [l.plan, l]));
+  const pessoasPorPlano = new Map(porPlano.map((g) => [g.plan, g._count._all]));
+  const pagantes =
+    (pessoasPorPlano.get("BASIC") ?? 0) + (pessoasPorPlano.get("PREMIUM") ?? 0);
+
+  return TODOS_OS_PLANOS.map((plan) => {
+    const linha = limitePorPlano.get(plan);
+    const { valor: anunciado, legivel } = anuncioDoPlano(catalogoDoPlano(plan));
+    const precos = precosDoPlano(plan);
+    const aplicado = linha?.limit ?? null;
+
+    return {
+      plan,
+      nome: NOME_DO_PLANO[plan],
+      precoMensalEmCentavos: precos.mensal,
+      precoAnualEmCentavos: precos.anual,
+      limiteDeServicos: aplicado,
+      semTrava: !linha,
+      desligado: linha?.enabled === false,
+      divergente: Boolean(linha) && legivel && anunciado !== aplicado,
+      limiteAnunciado: anunciado,
+      // Quem não tem assinatura paga viva está no gratuito, tenha ou não linha
+      // em Subscription — é assim que o featureGate decide o plano.
+      pessoas:
+        plan === "FREE"
+          ? Math.max(0, profissionais - pagantes)
+          : (pessoasPorPlano.get(plan) ?? 0),
+    };
+  });
+}
+
+export type IndicadoresDePlano = {
+  /** Assinaturas ativas, dentro do prazo, em plano pago. */
+  pagantes: number;
+  emTeste: number;
+  /** Profissionais sem assinatura paga viva. */
+  noGratuito: number;
+  vencendoEm7Dias: number;
+  /** Receita recorrente mensal, em centavos, do que está ativo hoje. */
+  receitaMensalEmCentavos: number;
+};
+
+export async function indicadoresDePlano(): Promise<IndicadoresDePlano> {
+  const agora = new Date();
+  const em7Dias = new Date(agora.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+  const [vivas, profissionais] = await Promise.all([
+    prisma.subscription.findMany({
+      where: assinaturaViva(agora),
+      select: { plan: true, status: true, storeProductId: true, expiresAt: true },
+    }),
+    prisma.user.count({ where: { role: { in: ["DIARISTA", "MONTADOR"] } } }),
+  ]);
+
+  const pagas = vivas.filter((a) => a.plan !== "FREE");
+  const ativas = pagas.filter((a) => a.status === "ACTIVE");
+
+  return {
+    pagantes: ativas.length,
+    emTeste: pagas.filter((a) => a.status === "TRIAL").length,
+    noGratuito: Math.max(0, profissionais - pagas.length),
+    // Quem está em teste também vence: o fim do teste é a hora em que a cobrança
+    // entra ou o acesso cai, e as duas coisas merecem aviso.
+    vencendoEm7Dias: pagas.filter(
+      (a) => a.expiresAt !== null && a.expiresAt <= em7Dias
+    ).length,
+    // Teste não gera receita: somá-lo antes da primeira cobrança infla o número.
+    receitaMensalEmCentavos: ativas.reduce(
+      (soma, a) => soma + valorMensalEmCentavos(a.plan, a.storeProductId),
+      0
+    ),
+  };
 }

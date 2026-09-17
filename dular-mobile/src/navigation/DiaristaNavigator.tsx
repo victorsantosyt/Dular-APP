@@ -21,6 +21,7 @@ import SafeScoreScreen from "@/screens/perfil/SafeScoreScreen";
 import SosFlowScreen from "@/screens/perfil/SosFlowScreen";
 import ReportIncident from "@/screens/perfil/ReportIncident";
 import Suporte from "@/screens/perfil/Suporte";
+import EnviarFeedback from "@/screens/perfil/EnviarFeedback";
 import Termos from "@/screens/perfil/Termos";
 import Privacidade from "@/screens/perfil/Privacidade";
 import ExcluirConta from "@/screens/perfil/ExcluirConta";
@@ -50,6 +51,7 @@ export type DiaristaTabParamList = {
   SosFlow: undefined;
   ReportIncident: undefined;
   Suporte: undefined;
+  EnviarFeedback: undefined;
   Termos: undefined;
   Privacidade: undefined;
   ExcluirConta: undefined;
@@ -148,6 +150,7 @@ export function DiaristaNavigator() {
       <RootStack.Screen name="SosFlow" component={SosFlowScreen} />
       <RootStack.Screen name="ReportIncident" component={ReportIncident} />
       <RootStack.Screen name="Suporte" component={Suporte} />
+      <RootStack.Screen name="EnviarFeedback" component={EnviarFeedback} />
       <RootStack.Screen name="Termos" component={Termos} />
       <RootStack.Screen name="Privacidade" component={Privacidade} />
       <RootStack.Screen name="ExcluirConta" component={ExcluirConta} />

@@ -1087,6 +1087,8 @@ export default function MontadorPerfil() {
       <Section title="Conta, suporte e termos" borderColor={profileTheme.border}>
         <Row icon="Shield" title="Privacidade" subtitle="Controle seus dados" theme={profileTheme} onPress={() => navigation.navigate("Privacidade")} />
         <Row icon="HelpCircle" title="Suporte" subtitle="Fale com o Dular" theme={profileTheme} onPress={() => navigation.navigate("Suporte")} />
+        {/* Opinião sobre o app, vizinha do Suporte — é ali que se procura. */}
+        <Row icon="MessageCircle" title="Enviar feedback" subtitle="O que você achou do app" theme={profileTheme} onPress={() => navigation.navigate("EnviarFeedback")} />
         <Row icon="FileText" title="Termos" subtitle="Termos e políticas da plataforma" theme={profileTheme} onPress={() => navigation.navigate("Termos")} />
         <Row icon="Trash2" title="Excluir conta" subtitle="Apagar seus dados do Dular" theme={profileTheme} danger onPress={() => navigation.navigate("ExcluirConta")} />
         <Row icon="LogOut" title="Sair" subtitle="Encerrar sessão da conta" theme={profileTheme} danger onPress={sairDaConta} />

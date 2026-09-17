@@ -7,6 +7,7 @@ import {
   Gauge,
   BarChart3,
   MessageSquareText,
+  MessageCircle,
   Radar,
   Siren,
   MapPinCheck,
@@ -59,6 +60,9 @@ export const NAV_SECTIONS: NavSection[] = [
     items: [
       { href: "/admin/insights", label: "Analytics", icon: BarChart3, iconColor: "text-violet" },
       { href: "/admin/insights/feedbacks", label: "Feedbacks", icon: MessageSquareText, iconColor: "text-warning" },
+      // Opinião sobre o APP — distinta de "Feedbacks", que mostra a nota dada a
+      // quem prestou o serviço. Nomes parecidos, filas diferentes.
+      { href: "/admin/insights/sugestoes", label: "Opinião do app", icon: MessageCircle, iconColor: "text-info" },
     ],
   },
   {
@@ -93,6 +97,7 @@ export const ROUTE_TITLES: Record<string, string> = {
   "/admin/planos": "Planos e limites",
   "/admin/insights": "Analytics",
   "/admin/insights/feedbacks": "Feedbacks e avaliações",
+  "/admin/insights/sugestoes": "Opinião sobre o app",
   "/admin/insights/avaliacoes": "Avaliações",
   "/admin/insights/downloads": "Downloads",
   "/admin/seguranca": "Segurança",

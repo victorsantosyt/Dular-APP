@@ -275,6 +275,7 @@ model User {
   subscription          Subscription?
   creditWallet          CreditWallet?
   notifications         Notification[]
+  feedbacks             Feedback[]
   empregadorFavoritos   EmpregadorFavorito[] @relation("EmpregadorFavoritos")
   profissionalFavoritado EmpregadorFavorito[] @relation("ProfissionalFavoritado")
   enderecos             EnderecoUsuario[]
@@ -837,6 +838,53 @@ model ChatMessage {
 
   @@index([roomId, createdAt])
   @@index([senderId])
+}
+
+enum FeedbackTipo {
+  SUGESTAO
+  PROBLEMA
+  ELOGIO
+  OUTRO
+}
+
+/// Opinião da pessoa sobre o APP — não sobre quem prestou o serviço.
+///
+/// `Avaliacao` e `AvaliacaoEmpregador` avaliam a pessoa do outro lado e ficam
+/// atreladas a um serviço. Isto aqui é o canal que faltava: quem quer sugerir,
+/// reclamar do app ou avisar de um bug não tinha para onde escrever — o Suporte
+/// é FAQ + WhatsApp e não grava nada, e "Reportar incidente" é denúncia formal
+/// sobre conduta de alguém. Misturar os três num lugar só faria a operação
+/// perder de vista qual é qual.
+///
+/// `onDelete: Cascade` de propósito: feedback não deve segurar a exclusão de uma
+/// conta. Uma FK RESTRICT aqui entraria na fila que já trava o DELETE de `User`
+/// (Servico, IncidentReport, SafeScore, ChatMessage) e cobraria o preço na
+/// próxima limpeza de base.
+model Feedback {
+  id     String       @id @default(cuid())
+  userId String
+  user   User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tipo   FeedbackTipo @default(SUGESTAO)
+
+  /// 1–5 quando a pessoa quis dar nota. Nulo quando ela só escreveu — a nota é
+  /// opcional para não transformar um desabafo em formulário.
+  nota     Int?
+  mensagem String
+
+  /// De qual tela o formulário foi aberto. Sem isto, "não consigo pagar" chega
+  /// sem dizer onde a pessoa estava quando desistiu.
+  origem     String?
+  /// Versão e plataforma separam "bug da 1.4.2 no Android" de "sempre foi assim".
+  appVersao  String?
+  plataforma String?
+
+  /// Marcado quando alguém do time leu. Nulo = ainda na fila.
+  lidoEm    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([createdAt])
+  @@index([tipo, createdAt])
+  @@index([userId])
 }
 
 model Notification {

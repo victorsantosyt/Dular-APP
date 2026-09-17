@@ -694,6 +694,15 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
                   title="Suporte"
                   subtitle="Fale com o Dular"
                   onPress={() => navigation.navigate("Suporte")}
+                />
+                {/* Logo abaixo do Suporte de propósito: quem procura onde
+                    reclamar olha para cá. É botão porque a pessoa é que decide
+                    falar — diferente do pedido de nota na loja, que interrompe. */}
+                <ProfileRow
+                  icon="MessageCircle"
+                  title="Enviar feedback"
+                  subtitle="O que você achou do app"
+                  onPress={() => navigation.navigate("EnviarFeedback")}
                   isLast
                 />
               </ProfileSection>

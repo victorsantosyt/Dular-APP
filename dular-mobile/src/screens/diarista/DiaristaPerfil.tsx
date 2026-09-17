@@ -1553,6 +1553,16 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                   subtitle="Fale com o Dular"
                   onPress={() => navigation.navigate("Suporte")}
                 />
+                {/* Ao lado do Suporte: é onde se procura quando se quer falar
+                    com alguém do Dular. Opinião sobre o app, não sobre serviço. */}
+                <ProfileRow
+                  accentColor={theme.primary}
+                  accentSoft={theme.primarySoft}
+                  icon="MessageCircle"
+                  title="Enviar feedback"
+                  subtitle="O que você achou do app"
+                  onPress={() => navigation.navigate("EnviarFeedback")}
+                />
                 <ProfileRow
                   accentColor={theme.primary}
                   accentSoft={theme.primarySoft}

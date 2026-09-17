@@ -18,6 +18,7 @@ import HistoricoEmpregadorScreen from "@/screens/empregador/HistoricoEmpregadorS
 import { CategoriasTodasScreen } from "@/screens/empregador/CategoriasTodasScreen";
 import { DadosContaScreen } from "@/screens/empregador/DadosContaScreen";
 import Suporte from "@/screens/perfil/Suporte";
+import EnviarFeedback from "@/screens/perfil/EnviarFeedback";
 import ProfissionaisSugeridosScreen from "@/screens/empregador/ProfissionaisSugeridosScreen";
 import AcoesRapidasEmpregadorScreen from "@/screens/empregador/AcoesRapidasEmpregadorScreen";
 import ProfissionaisDestaqueScreen from "@/screens/empregador/ProfissionaisDestaqueScreen";
@@ -99,6 +100,7 @@ export type EmpregadorTabParamList = {
   CategoriasTodas: undefined;
   DadosConta: undefined;
   Suporte: undefined;
+  EnviarFeedback: undefined;
   CadastroEndereco: CadastroEnderecoParams;
   MeusEnderecos: MeusEnderecosParams;
 };
@@ -184,6 +186,7 @@ export function EmpregadorNavigator() {
       <RootStack.Screen name="CategoriasTodas" component={CategoriasTodasScreen} />
       <RootStack.Screen name="DadosConta" component={DadosContaScreen} />
       <RootStack.Screen name="Suporte" component={Suporte} />
+      <RootStack.Screen name="EnviarFeedback" component={EnviarFeedback} />
       <RootStack.Screen name="ProfissionaisSugeridos" component={ProfissionaisSugeridosScreen} />
       <RootStack.Screen name="AcoesRapidas" component={AcoesRapidasEmpregadorScreen} />
       <RootStack.Screen name="ProfissionaisDestaque" component={ProfissionaisDestaqueScreen} />

@@ -241,6 +241,27 @@ async function main() {
   console.log(`  eventos SafeScore v2 .... ${safeScoreEventos}`);
   console.log(`  mensagens (via cascata) . ${mensagens}`);
 
+  // Um número não deixa ninguém decidir. Numa base pequena, uma destas linhas
+  // pode ser gente de verdade que se cadastrou cedo — e não mais uma conta de
+  // teste. Quem vai apagar precisa ver o nome, o e-mail e a data antes.
+  if (usuarios > 0) {
+    const aApagar = await prisma.user.findMany({
+      where: alvo,
+      select: { email: true, nome: true, role: true, createdAt: true },
+      orderBy: { createdAt: "asc" },
+      take: 50,
+    });
+    console.log("\nUsuários que serão APAGADOS:");
+    for (const u of aApagar) {
+      const quando = u.createdAt.toISOString().slice(0, 10);
+      const papel = (u.role ?? "sem papel").padEnd(11);
+      console.log(`  ${quando}  ${papel} ${u.email ?? "(sem e-mail)"}  ${u.nome}`);
+    }
+    if (usuarios > aApagar.length) {
+      console.log(`  … e mais ${usuarios - aApagar.length} não listados`);
+    }
+  }
+
   // ── Bairro da profissional ──────────────────────────────────────────────────
   // Resolvido, nunca criado: inventar bairro em produção mudaria a área de
   // cobertura da operação sem ninguém decidir isso.

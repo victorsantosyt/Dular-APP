@@ -8,16 +8,29 @@ import { AdminGrid } from "@/components/admin-ui/AdminGrid";
 import { AdminKpi } from "@/components/admin-ui/AdminKpi";
 import { AdminCard } from "@/components/admin-ui/AdminCard";
 import { AdminTable } from "@/components/admin-ui/AdminTable";
-import { Users } from "lucide-react";
 import { AdminEmpty } from "@/components/admin-ui/AdminEmpty";
+import { BriefcaseBusiness, ShieldCheck, UserRound, Users, Wrench } from "lucide-react";
+import { PAPEL, contarPorPapel } from "@/lib/adminPerfis";
+
+function Papel({ role }: { role: string | null }) {
+  const identidade = role ? PAPEL[role] : undefined;
+  if (!identidade) return <>—</>;
+
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <span
+        aria-hidden
+        className="h-2 w-2 shrink-0 rounded-full"
+        style={{ backgroundColor: identidade.cor }}
+      />
+      {identidade.rotulo}
+    </span>
+  );
+}
 
 export default async function UsuariosPage() {
-  const [total, empregadores, diaristas, montadores, admins, rows] = await Promise.all([
-    prisma.user.count(),
-    prisma.user.count({ where: { role: "EMPREGADOR" } }),
-    prisma.user.count({ where: { role: "DIARISTA" } }),
-    prisma.user.count({ where: { role: "MONTADOR" } }),
-    prisma.user.count({ where: { role: "ADMIN" } }),
+  const [contagem, rows] = await Promise.all([
+    contarPorPapel(),
     prisma.user.findMany({
       orderBy: { createdAt: "desc" },
       take: 10,
@@ -29,19 +42,50 @@ export default async function UsuariosPage() {
     <AdminPage title="" subtitle="">
       <AdminGrid>
         <div className="md:col-span-3">
-          <AdminKpi label="Total" value={String(total)} />
+          <AdminKpi label="Total" value={String(contagem.total)} icon={Users} />
         </div>
         <div className="md:col-span-3">
-          <AdminKpi label="Empregadores" value={String(empregadores)} />
+          <AdminKpi
+            label={PAPEL.EMPREGADOR.rotuloCartao}
+            value={String(contagem.empregadores)}
+            hint={PAPEL.EMPREGADOR.descricao}
+            identidade={PAPEL.EMPREGADOR.cor}
+            icon={UserRound}
+          />
+        </div>
+        {/*
+          Um cartão que abre a quebra por nicho. É o único perfil com
+          sub-identidade: sob ele vivem diarista, babá, cozinheira, cuidadora,
+          passadeira e lavadeira, e é essa distribuição que diz onde a procura
+          está e para onde o suporte precisa olhar primeiro.
+        */}
+        <div className="md:col-span-3">
+          <AdminKpi
+            label={PAPEL.DIARISTA.rotuloCartao}
+            value={String(contagem.profissionais)}
+            hint="Ver a distribuição por nicho"
+            identidade={PAPEL.DIARISTA.cor}
+            icon={BriefcaseBusiness}
+            href="/admin/operacoes/usuarios/profissionais"
+          />
         </div>
         <div className="md:col-span-3">
-          <AdminKpi label="Diaristas" value={String(diaristas)} />
+          <AdminKpi
+            label={PAPEL.MONTADOR.rotuloCartao}
+            value={String(contagem.montadores)}
+            hint={PAPEL.MONTADOR.descricao}
+            identidade={PAPEL.MONTADOR.cor}
+            icon={Wrench}
+          />
         </div>
         <div className="md:col-span-3">
-          <AdminKpi label="Montadores" value={String(montadores)} />
-        </div>
-        <div className="md:col-span-3">
-          <AdminKpi label="Admins" value={String(admins)} />
+          <AdminKpi
+            label="Administradores"
+            value={String(contagem.admins)}
+            hint={PAPEL.ADMIN.descricao}
+            identidade={PAPEL.ADMIN.cor}
+            icon={ShieldCheck}
+          />
         </div>
 
         <div className="md:col-span-12">
@@ -54,7 +98,7 @@ export default async function UsuariosPage() {
                   { key: "nome", label: "Nome" },
                   { key: "telefone", label: "Telefone" },
                   { key: "email", label: "Email" },
-                  { key: "role", label: "Perfil" },
+                  { key: "role", label: "Perfil", render: (r) => <Papel role={r.role} /> },
                   {
                     key: "createdAt",
                     label: "Criado em",

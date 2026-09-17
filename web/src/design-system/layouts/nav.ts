@@ -87,6 +87,7 @@ export const ROUTE_TITLES: Record<string, string> = {
   "/admin": "Dashboard",
   "/admin/operacoes": "Operações",
   "/admin/operacoes/usuarios": "Usuários",
+  "/admin/operacoes/usuarios/profissionais": "Profissionais por nicho",
   "/admin/operacoes/servicos": "Serviços",
   "/admin/operacoes/suporte": "Suporte",
   "/admin/planos": "Planos e limites",

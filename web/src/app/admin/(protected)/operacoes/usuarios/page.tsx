@@ -9,7 +9,14 @@ import { AdminKpi } from "@/components/admin-ui/AdminKpi";
 import { AdminCard } from "@/components/admin-ui/AdminCard";
 import { AdminTable } from "@/components/admin-ui/AdminTable";
 import { AdminEmpty } from "@/components/admin-ui/AdminEmpty";
-import { BriefcaseBusiness, ShieldCheck, UserRound, Users, Wrench } from "lucide-react";
+import {
+  BriefcaseBusiness,
+  CircleSlash,
+  ShieldCheck,
+  UserRound,
+  Users,
+  Wrench,
+} from "lucide-react";
 import { PAPEL, contarPorPapel } from "@/lib/adminPerfis";
 
 function Papel({ role }: { role: string | null }) {
@@ -41,10 +48,12 @@ export default async function UsuariosPage() {
   return (
     <AdminPage title="" subtitle="">
       <AdminGrid>
-        <div className="md:col-span-3">
+        {/* Seis cartões: duas fileiras de três. Com col-span-3 a segunda
+            fileira ficaria com dois órfãos e metade da linha vazia. */}
+        <div className="md:col-span-4">
           <AdminKpi label="Total" value={String(contagem.total)} icon={Users} />
         </div>
-        <div className="md:col-span-3">
+        <div className="md:col-span-4">
           <AdminKpi
             label={PAPEL.EMPREGADOR.rotuloCartao}
             value={String(contagem.empregadores)}
@@ -59,7 +68,7 @@ export default async function UsuariosPage() {
           passadeira e lavadeira, e é essa distribuição que diz onde a procura
           está e para onde o suporte precisa olhar primeiro.
         */}
-        <div className="md:col-span-3">
+        <div className="md:col-span-4">
           <AdminKpi
             label={PAPEL.DIARISTA.rotuloCartao}
             value={String(contagem.profissionais)}
@@ -69,7 +78,7 @@ export default async function UsuariosPage() {
             href="/admin/operacoes/usuarios/profissionais"
           />
         </div>
-        <div className="md:col-span-3">
+        <div className="md:col-span-4">
           <AdminKpi
             label={PAPEL.MONTADOR.rotuloCartao}
             value={String(contagem.montadores)}
@@ -78,13 +87,32 @@ export default async function UsuariosPage() {
             icon={Wrench}
           />
         </div>
-        <div className="md:col-span-3">
+        <div className="md:col-span-4">
           <AdminKpi
             label="Administradores"
             value={String(contagem.admins)}
             hint={PAPEL.ADMIN.descricao}
             identidade={PAPEL.ADMIN.cor}
             icon={ShieldCheck}
+          />
+        </div>
+        {/*
+          O ponto cego: quem entra pelo login social nasce sem papel e só o
+          recebe ao escolher o perfil. Quem parou no meio ficava dentro do total
+          e fora de todos os outros cards — a soma não fechava e nada apontava
+          para isso. Agora aponta.
+        */}
+        <div className="md:col-span-4">
+          <AdminKpi
+            label="Sem perfil escolhido"
+            value={String(contagem.semPapel)}
+            hint={
+              contagem.semPapel > 0
+                ? "Entraram pelo login social e não concluíram a escolha"
+                : "Todas as contas têm perfil definido"
+            }
+            tone={contagem.semPapel > 0 ? "critical" : "neutral"}
+            icon={CircleSlash}
           />
         </div>
 

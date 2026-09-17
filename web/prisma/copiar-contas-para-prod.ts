@@ -56,8 +56,19 @@
  * A origem é a DATABASE_URL do ambiente (o banco local), ou ORIGEM_DATABASE_URL.
  * Idempotente: re-rodar atualiza as mesmas contas.
  */
-import "dotenv/config";
+import dotenv from "dotenv";
 import { Prisma, PrismaClient } from "@prisma/client";
+
+// `dotenv/config` lê SÓ `.env`, e a DATABASE_URL do banco local mora em
+// `.env.local` — que o Next carrega e o dotenv puro ignora. Sem isto o script
+// sobe sem origem e morre na validação, que foi o que aconteceu na primeira
+// tentativa real.
+//
+// A ordem importa: o dotenv não sobrescreve variável já definida, então o
+// primeiro arquivo carregado vence. Carregar `.env.local` antes de `.env`
+// reproduz a precedência do Next, onde o local manda.
+dotenv.config({ path: ".env.local" });
+dotenv.config({ path: ".env" });
 import { PrismaPg } from "@prisma/adapter-pg";
 import pg from "pg";
 
@@ -324,8 +335,23 @@ main()
   .catch(async (e: any) => {
     if (e instanceof AbortoControlado) {
       console.error(`\n✖ ${e.message}`);
+    } else if (e?.code === "P1001") {
+      // Falha de conexão acontece ANTES de qualquer transação. Dizer aqui que
+      // "a transação foi revertida" descreveria algo que nunca existiu.
+      console.error(
+        "\n✖ Não foi possível conectar ao banco de DESTINO. Nada foi lido nem escrito.\n" +
+          "  Confira a DESTINO_DATABASE_URL — o `vercel env pull` grava [SENSITIVE]\n" +
+          "  no lugar de variáveis marcadas como secretas.",
+      );
     } else {
-      console.error("\n✖ Erro inesperado. A transação foi revertida; o destino não mudou.");
+      // A cópia é conta a conta: cada uma tem a própria transação. Um erro na
+      // terceira não desfaz as duas primeiras, e prometer o contrário faria
+      // alguém parar de investigar um destino que ficou pela metade.
+      console.error(
+        "\n✖ Erro inesperado. A conta em andamento foi revertida por inteiro;\n" +
+          "  as contas copiadas antes dela PERMANECEM no destino.\n" +
+          "  Re-rodar é seguro: o script é idempotente.",
+      );
       console.error(e);
     }
     await origem.$disconnect();

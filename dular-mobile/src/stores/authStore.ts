@@ -4,6 +4,10 @@ import { api, setAuthToken, registerClearSession } from "@/lib/api";
 import { SecureStorage } from "@/services/secureStorage";
 import { useThemeStore } from "@/stores/useThemeStore";
 import type { ServicoOferecido } from "@/types/diarista";
+import {
+  classifyBootstrapFailure,
+  type AuthBootstrapStatus,
+} from "@/stores/authBootstrap";
 
 function isJwtExpired(token: string): boolean {
   try {
@@ -60,6 +64,11 @@ type AuthState = {
   role: Role | null;
   selectedRole: Role | null;
   servicosOferecidos: ServicoOferecido[];
+  bootstrapStatus: AuthBootstrapStatus;
+  bootstrapError: string | null;
+  // Mantido por compatibilidade com consumidores existentes. Gates e
+  // navegação devem usar bootstrapStatus, pois `hydrated` não prova que o
+  // usuário canônico foi carregado.
   hydrated: boolean;
   isAuthenticated: boolean;
   setSelectedRole: (role: Role) => void;
@@ -80,11 +89,6 @@ function normalizeRole(value: string | null | undefined): Role | null {
   return null;
 }
 
-function normalizeGenero(value: string | null | undefined): Genero | null {
-  if (value === "MASCULINO" || value === "FEMININO") return value;
-  return null;
-}
-
 function normalizeServicosOferecidos(value: unknown): ServicoOferecido[] {
   const raw = Array.isArray(value)
     ? value
@@ -93,19 +97,59 @@ function normalizeServicosOferecidos(value: unknown): ServicoOferecido[] {
       : [];
   const normalized = raw.filter(
     (item): item is ServicoOferecido =>
-      item === "DIARISTA" || item === "BABA" || item === "COZINHEIRA",
+      item === "DIARISTA" ||
+      item === "BABA" ||
+      item === "COZINHEIRA" ||
+      item === "PASSADEIRA" ||
+      item === "LAVADEIRA" ||
+      item === "CUIDADORA",
   );
   return Array.from(new Set(normalized));
 }
 
-async function fetchSessionUser(): Promise<User | null> {
-  try {
-    const res = await api.get<{ user?: User } | User>("/api/me");
-    const payload = res.data as { user?: User };
-    return payload.user ?? (res.data as User);
-  } catch {
-    return null;
+async function fetchCanonicalSessionUser(): Promise<User> {
+  const res = await api.get<{ user?: User } | User>("/api/me");
+  const payload = res.data as { user?: User };
+  const user = payload.user ?? (res.data as User);
+  if (!user || typeof user !== "object" || !user.id) {
+    throw new Error("Resposta de sessão sem usuário canônico.");
   }
+  return user;
+}
+
+function canonicalizeUser(apiUser: User): { user: User; role: Role; servicosOferecidos: ServicoOferecido[] } {
+  const role = normalizeRole(apiUser.role);
+  if (!role) {
+    throw new Error("Resposta de sessão com papel inválido.");
+  }
+
+  const servicosOferecidos = normalizeServicosOferecidos(apiUser.servicosOferecidos);
+  return {
+    role,
+    servicosOferecidos,
+    user: {
+      ...apiUser,
+      role,
+      servicosOferecidos,
+    },
+  };
+}
+
+async function persistCanonicalSession(user: User, role: Role): Promise<void> {
+  await SecureStorage.saveUser(user);
+
+  const entries: [string, string][] = [
+    ["role", role],
+    ["servicosOferecidos", (user.servicosOferecidos ?? []).join(",")],
+  ];
+  if (user.nome) entries.push(["userName", user.nome]);
+  if (user.id) entries.push(["userId", user.id]);
+  if (user.genero) entries.push(["genero", user.genero]);
+  await AsyncStorage.multiSet(entries);
+}
+
+function bootstrapRetryMessage(): string {
+  return "Não foi possível restaurar sua sessão. Verifique sua conexão e tente novamente.";
 }
 
 export const useAuth = create<AuthState>((set, get) => ({
@@ -114,6 +158,8 @@ export const useAuth = create<AuthState>((set, get) => ({
   role: null,
   selectedRole: null,
   servicosOferecidos: [],
+  bootstrapStatus: "bootstrapping",
+  bootstrapError: null,
   hydrated: false,
   isAuthenticated: false,
   setSelectedRole: (role) => set({ selectedRole: role }),
@@ -127,45 +173,45 @@ export const useAuth = create<AuthState>((set, get) => ({
   },
 
   async setSession(data) {
-    const { token, role, user } = data;
+    const { token, role } = data;
+    set({ bootstrapStatus: "bootstrapping", bootstrapError: null, isAuthenticated: false, user: null });
     await setAuthToken(token);
     await SecureStorage.saveToken(token);
 
-    const selectedServicos = get().servicosOferecidos;
-    const apiUser = await fetchSessionUser();
-    const apiServicos = normalizeServicosOferecidos(apiUser?.servicosOferecidos);
-    const userServicos = normalizeServicosOferecidos(user?.servicosOferecidos);
-    const reconciledServicos =
-      selectedServicos.length > 0
-        ? selectedServicos
-        : apiServicos.length > 0
-          ? apiServicos
-          : userServicos;
-    const reconciledUser: User = {
-      ...(user ?? apiUser ?? { id: "", nome: "", role }),
-      ...(apiUser ?? {}),
-      role: (apiUser?.role ?? user?.role ?? role) as Role,
-      genero: apiUser?.genero ?? user?.genero ?? null,
-      servicosOferecidos: reconciledServicos,
-    };
-
-    await SecureStorage.saveUser(reconciledUser);
-
-    // Non-sensitive: store in AsyncStorage
-    const entries: [string, string][] = [["role", role]];
-    if (reconciledUser.nome) entries.push(["userName", reconciledUser.nome]);
-    if (reconciledUser.id) entries.push(["userId", reconciledUser.id]);
-    if (reconciledUser.genero) entries.push(["genero", reconciledUser.genero]);
-    if (reconciledUser.servicosOferecidos?.length) entries.push(["servicosOferecidos", reconciledUser.servicosOferecidos.join(",")]);
-    await AsyncStorage.multiSet(entries);
-
-    set({
-      token,
-      role: reconciledUser.role ?? role,
-      user: reconciledUser,
-      servicosOferecidos: reconciledUser.servicosOferecidos ?? selectedServicos,
-      isAuthenticated: true,
-    });
+    try {
+      const canonical = canonicalizeUser(await fetchCanonicalSessionUser());
+      try {
+        await persistCanonicalSession(canonical.user, canonical.role);
+      } catch {
+        // A sessão canônica já foi obtida; falhar ao renovar cache não pode
+        // reclassificar a conta como incompleta nem derrubar o login atual.
+      }
+      set({
+        token,
+        role: canonical.role,
+        user: canonical.user,
+        servicosOferecidos: canonical.servicosOferecidos,
+        hydrated: true,
+        isAuthenticated: true,
+        bootstrapStatus: "authenticated",
+        bootstrapError: null,
+      });
+    } catch (error) {
+      if (classifyBootstrapFailure(error) === "invalid-session") {
+        await get().clearSession();
+        return;
+      }
+      set({
+        token,
+        role,
+        user: null,
+        servicosOferecidos: [],
+        hydrated: true,
+        isAuthenticated: false,
+        bootstrapStatus: "error",
+        bootstrapError: bootstrapRetryMessage(),
+      });
+    }
   },
 
   async clearSession() {
@@ -176,71 +222,93 @@ export const useAuth = create<AuthState>((set, get) => ({
     // próximo usuário (também garantido pelo ThemeScope forceLight, mas
     // limpar o store evita que o próximo login herde o dark mode anterior).
     useThemeStore.getState().setTheme("light");
-    set({ token: null, role: null, user: null, isAuthenticated: false, selectedRole: null, servicosOferecidos: [] });
+    set({
+      token: null,
+      role: null,
+      user: null,
+      isAuthenticated: false,
+      selectedRole: null,
+      servicosOferecidos: [],
+      hydrated: true,
+      bootstrapStatus: "unauthenticated",
+      bootstrapError: null,
+    });
   },
 
   async hydrate() {
-    // Sensitive: read from SecureStore
-    const token = await SecureStorage.getToken();
-    const userFromSecure = await SecureStorage.getUser<User>();
+    set({ bootstrapStatus: "bootstrapping", bootstrapError: null, isAuthenticated: false, user: null });
 
-    // Non-sensitive: read from AsyncStorage
-    const pairs = await AsyncStorage.multiGet(ASYNC_KEYS as unknown as string[]);
-    const map = Object.fromEntries(pairs);
-    const role = normalizeRole(map["role"] || map["dular_role"]);
-    const genero = normalizeGenero(map["genero"]);
-    const servicosOferecidos = normalizeServicosOferecidos(map["servicosOferecidos"]);
-    const userName = map["userName"];
-    const userId = map["userId"];
-
-    if (token && role) {
-      if (isJwtExpired(token)) {
-        await setAuthToken(null);
-        await SecureStorage.clearAll();
-        await AsyncStorage.multiRemove(ASYNC_KEYS as unknown as string[]);
-        set({ token: null, role: null, user: null, servicosOferecidos: [], hydrated: true, isAuthenticated: false });
-        return;
-      }
-
-      let userObj: User | null = userFromSecure
-        ? {
-            ...userFromSecure,
-            role,
-            genero: userFromSecure.genero ?? genero,
-            servicosOferecidos: servicosOferecidos.length > 0
-              ? servicosOferecidos
-              : normalizeServicosOferecidos(userFromSecure.servicosOferecidos),
-          }
-        : null;
-      if (!userObj && (userName || userId)) {
-        userObj = { id: userId || "", nome: userName || "", role, genero, servicosOferecidos };
-      }
-
-      await setAuthToken(token);
-      set({ token, role, user: userObj, servicosOferecidos: userObj?.servicosOferecidos ?? servicosOferecidos, hydrated: true, isAuthenticated: true });
-
-      void fetchSessionUser().then(async (apiUser) => {
-        if (!apiUser) return;
-        const apiServicos = normalizeServicosOferecidos(apiUser.servicosOferecidos);
-        const cachedServicos = normalizeServicosOferecidos(userObj?.servicosOferecidos);
-        const nextServicos = apiServicos.length > 0 ? apiServicos : cachedServicos;
-        const nextUser: User = {
-          ...(userObj ?? apiUser),
-          ...apiUser,
-          role: (apiUser.role ?? role) as Role,
-          genero: apiUser.genero ?? userObj?.genero ?? genero,
-          servicosOferecidos: nextServicos,
-        };
-        await SecureStorage.saveUser(nextUser);
-        set({
-          role: nextUser.role,
-          user: nextUser,
-          servicosOferecidos: nextServicos,
-        });
+    let token: string | null;
+    try {
+      token = await SecureStorage.getToken();
+    } catch {
+      set({
+        token: null,
+        role: null,
+        user: null,
+        servicosOferecidos: [],
+        hydrated: true,
+        isAuthenticated: false,
+        bootstrapStatus: "error",
+        bootstrapError: bootstrapRetryMessage(),
       });
       return;
     }
-    set({ hydrated: true, isAuthenticated: false, servicosOferecidos });
+
+    if (!token) {
+      set({
+        token: null,
+        role: null,
+        user: null,
+        servicosOferecidos: [],
+        hydrated: true,
+        isAuthenticated: false,
+        bootstrapStatus: "unauthenticated",
+        bootstrapError: null,
+      });
+      return;
+    }
+
+    if (isJwtExpired(token)) {
+      await get().clearSession();
+      return;
+    }
+
+    try {
+      await setAuthToken(token);
+      const canonical = canonicalizeUser(await fetchCanonicalSessionUser());
+      try {
+        await persistCanonicalSession(canonical.user, canonical.role);
+      } catch {
+        // Cache é apenas uma otimização. A resposta canônica já basta para
+        // decidir gates de forma segura neste processo.
+      }
+      set({
+        token,
+        role: canonical.role,
+        user: canonical.user,
+        servicosOferecidos: canonical.servicosOferecidos,
+        hydrated: true,
+        isAuthenticated: true,
+        bootstrapStatus: "authenticated",
+        bootstrapError: null,
+      });
+    } catch (error) {
+      if (classifyBootstrapFailure(error) === "invalid-session") {
+        await get().clearSession();
+        return;
+      }
+      set({
+        token,
+        role: null,
+        user: null,
+        servicosOferecidos: [],
+        hydrated: true,
+        isAuthenticated: false,
+        bootstrapStatus: "error",
+        bootstrapError: bootstrapRetryMessage(),
+      });
+    }
   },
 
   setUser(next) {

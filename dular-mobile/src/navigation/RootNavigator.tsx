@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from "react";
-import { StyleSheet, View } from "react-native";
+import React, { useEffect, useRef, useState } from "react";
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 import * as ExpoSplashScreen from "expo-splash-screen";
 import OnboardingNavigator from "@/navigation/OnboardingNavigator";
 import { GeneroGateScreen } from "@/screens/onboarding/GeneroGateScreen";
@@ -17,6 +17,7 @@ import { DadosPessoaisGateScreen } from "@/screens/onboarding/DadosPessoaisGateS
 import { fetchEnderecos } from "@/api/enderecoApi";
 import { useSincronizarBadge } from "@/hooks/useSincronizarBadge";
 import { colors } from "@/theme";
+import { getAuthenticatedGate } from "@/stores/authBootstrap";
 
 function PushNotificationsGate({ children }: { children: React.ReactNode }) {
   usePushNotifications();
@@ -66,11 +67,14 @@ function EnderecoGate({
 
 function AuthenticatedFlow({ role, onboardingSeen }: { role: string | null; onboardingSeen: boolean }) {
   const user = useAuthStore((state) => state.user);
+  if (!user) return null;
+
+  const gate = getAuthenticatedGate(role, user);
 
   // FASE 3 (gate de gênero, subset seguro): conta autenticada que ainda não tem
   // gênero o define agora — grava no backend (fonte de verdade) e o gate some.
   // Para contas que já têm gênero, esta tela nunca aparece. Não toca login/OAuth.
-  if (user && user.genero == null) {
+  if (gate === "genero") {
     return (
       <ThemeScope forceLight>
         <GeneroGateScreen />
@@ -82,7 +86,7 @@ function AuthenticatedFlow({ role, onboardingSeen }: { role: string | null; onbo
   // contam na completude do perfil e não tinham NENHUMA tela que os coletasse
   // — todo mundo ficava travado em "Perfil incompleto" para sempre. Vale para
   // os três papéis e aparece uma vez só.
-  if (user && (!user.cpf || !user.dataNascimento)) {
+  if (gate === "dados-pessoais") {
     return (
       <ThemeScope forceLight>
         <DadosPessoaisGateScreen />
@@ -105,7 +109,7 @@ function AuthenticatedFlow({ role, onboardingSeen }: { role: string | null; onbo
     // profissional de casa que ainda não escolheu nenhum serviço define agora —
     // grava no backend (fonte de verdade) e o gate some. Garante que o perfil
     // já nasça com os serviços certos, evitando pedidos fora do que ela faz.
-    if (user && (user.servicosOferecidos?.length ?? 0) === 0) {
+    if (gate === "nichos") {
       return (
         <ThemeScope forceLight>
           <NichosGateScreen />
@@ -124,7 +128,7 @@ function AuthenticatedFlow({ role, onboardingSeen }: { role: string | null; onbo
     // Gate de especialidades (pós-login, mesmo padrão da diarista): o montador
     // que ainda não escolheu nenhuma especialidade define agora — grava no
     // backend e o gate some. Aparece só uma vez (conta nova).
-    if (user && (user.especialidades?.length ?? 0) === 0) {
+    if (gate === "especialidades") {
       return (
         <ThemeScope forceLight>
           <MontadorEspecialidadesGateScreen />
@@ -148,13 +152,38 @@ function AuthenticatedFlow({ role, onboardingSeen }: { role: string | null; onbo
   );
 }
 
-export function RootNavigator() {
-  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+function BootstrapRecovery({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return (
+    <View style={styles.recoveryScreen}>
+      <Text style={styles.recoveryTitle}>Não foi possível abrir sua conta</Text>
+      <Text style={styles.recoveryMessage}>{message}</Text>
+      <Pressable style={styles.retryButton} onPress={onRetry} accessibilityRole="button">
+        <Text style={styles.retryButtonText}>Tentar novamente</Text>
+      </Pressable>
+    </View>
+  );
+}
+
+function BootstrapLoading() {
+  return (
+    <View style={styles.bootScreen}>
+      <ActivityIndicator color={colors.primary} />
+    </View>
+  );
+}
+
+type RootNavigatorProps = {
+  fontsReady?: boolean;
+};
+
+export function RootNavigator({ fontsReady = true }: RootNavigatorProps) {
   const role = useAuthStore((state) => state.role);
   const user = useAuthStore((state) => state.user);
-  const hydrated = useAuthStore((state) => state.hydrated);
+  const bootstrapStatus = useAuthStore((state) => state.bootstrapStatus);
+  const bootstrapError = useAuthStore((state) => state.bootstrapError);
   const hydrate = useAuthStore((state) => state.hydrate);
   const [onboardingSeen, setOnboardingSeen] = useState<boolean | null>(null);
+  const splashHiddenRef = useRef(false);
 
   useEffect(() => {
     let mounted = true;
@@ -182,16 +211,23 @@ export function RootNavigator() {
   }, [hydrate]);
 
   useEffect(() => {
-    if (hydrated && onboardingSeen !== null) {
-      ExpoSplashScreen.hideAsync().catch(() => {});
+    const isReadyToRender =
+      fontsReady && bootstrapStatus !== "bootstrapping" && onboardingSeen !== null;
+    if (isReadyToRender && !splashHiddenRef.current) {
+      splashHiddenRef.current = true;
+      void ExpoSplashScreen.hideAsync().catch(() => {});
     }
-  }, [hydrated, onboardingSeen]);
+  }, [bootstrapStatus, fontsReady, onboardingSeen]);
 
-  if (!hydrated || onboardingSeen === null) {
-    return <View style={styles.bootScreen} />;
+  if (!fontsReady || bootstrapStatus === "bootstrapping" || onboardingSeen === null) {
+    return <BootstrapLoading />;
   }
 
-  if (!isAuthenticated) {
+  if (bootstrapStatus === "error") {
+    return <BootstrapRecovery message={bootstrapError ?? "Tente novamente."} onRetry={() => { void hydrate(); }} />;
+  }
+
+  if (bootstrapStatus === "unauthenticated") {
     const initialRouteName = onboardingSeen ? "RoleSelect" : "Splash";
     return (
       <ThemeScope forceLight>
@@ -200,11 +236,11 @@ export function RootNavigator() {
     );
   }
 
-  // FASE 5B — autenticado mas objeto user ainda não resolvido (ex.: hydrate sem
-  // cache aguardando /api/me): segura na tela de boot. Nunca avança para o app
-  // nem pula o gate de gênero com user == null.
-  if (!user) {
-    return <View style={styles.bootScreen} />;
+  // Invariante do bootstrap: este estado só é publicado depois de /api/me
+  // devolver usuário canônico. Nunca usar cache parcial como evidência para
+  // montar um gate de cadastro.
+  if (bootstrapStatus !== "authenticated" || !user) {
+    return <BootstrapRecovery message="Não foi possível validar sua sessão." onRetry={() => { void hydrate(); }} />;
   }
 
   return <AuthenticatedFlow role={role} onboardingSeen={onboardingSeen} />;
@@ -216,5 +252,42 @@ const styles = StyleSheet.create({
   bootScreen: {
     flex: 1,
     backgroundColor: colors.background,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  recoveryScreen: {
+    flex: 1,
+    backgroundColor: colors.background,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+    gap: 12,
+  },
+  recoveryTitle: {
+    color: colors.textPrimary,
+    fontSize: 20,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  recoveryMessage: {
+    color: colors.textSecondary,
+    fontSize: 15,
+    lineHeight: 22,
+    textAlign: "center",
+    maxWidth: 320,
+  },
+  retryButton: {
+    marginTop: 8,
+    backgroundColor: colors.primary,
+    borderRadius: 12,
+    minHeight: 48,
+    paddingHorizontal: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  retryButtonText: {
+    color: colors.white,
+    fontSize: 15,
+    fontWeight: "700",
   },
 });

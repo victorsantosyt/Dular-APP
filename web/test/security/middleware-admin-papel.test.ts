@@ -104,4 +104,36 @@ describe("middleware — /admin exige papel ADMIN", () => {
     const res = await middleware(req("/api/servicos"));
     assert.equal(res.status, 200);
   });
+
+  for (const path of [
+    "/auth/callback/cliente?platform=mobile",
+    "/auth/callback/empregador?platform=mobile",
+    "/auth/callback/diarista?platform=mobile",
+    "/auth/callback/montador?platform=mobile",
+    "/onboarding?platform=mobile",
+    "/login/cliente?platform=mobile",
+    "/login/empregador?platform=mobile",
+    "/login/diarista?platform=mobile",
+    "/login/montador?platform=mobile",
+  ]) {
+    it(`${path} é liberada somente para concluir o handoff OAuth mobile`, async () => {
+      const res = await middleware(req(path));
+      assert.equal(res.status, 200);
+    });
+  }
+
+  for (const path of [
+    "/login/cliente",
+    "/login/empregador",
+    "/auth/callback/empregador",
+    "/onboarding",
+    "/auth/callback/admin?platform=mobile",
+    "/qualquer-coisa?platform=mobile",
+  ]) {
+    it(`${path} não ganha acesso público pela exceção mobile`, async () => {
+      const res = await middleware(req(path));
+      assert.equal(res.status, 307);
+      assert.match(res.headers.get("location") ?? "", /\/admin\/login$/);
+    });
+  }
 });

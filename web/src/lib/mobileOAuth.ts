@@ -53,7 +53,14 @@ export async function startMobileOAuth(
   let signinCookies: string[] = [];
   try {
     const body = new URLSearchParams({ csrfToken, callbackUrl });
-    const signinResp = await fetch(`${BASE}/api/auth/signin/${provider}`, {
+    const signinUrl = new URL(`/api/auth/signin/${provider}`, BASE);
+    if (provider === "google") {
+      // Esta chamada só é feita pelos endpoints /api/auth/mobile-*, portanto
+      // não altera o login Google iniciado pelas páginas web/admin.
+      signinUrl.searchParams.set("prompt", "select_account");
+    }
+
+    const signinResp = await fetch(signinUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",

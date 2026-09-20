@@ -24,6 +24,17 @@ function redirectToLogin(req: NextRequest) {
   return response;
 }
 
+function isMobileOAuthHandoff(req: NextRequest): boolean {
+  const { pathname, searchParams } = req.nextUrl;
+  if (searchParams.get("platform") !== "mobile") return false;
+
+  return (
+    pathname === "/onboarding" ||
+    /^\/auth\/callback\/(cliente|empregador|diarista|montador)$/.test(pathname) ||
+    /^\/login\/(cliente|empregador|diarista|montador)$/.test(pathname)
+  );
+}
+
 // V1 sai só por mobile (TestFlight) + admin web. O app web consumidor
 // (raiz, /login/[role], /cliente, /diarista, /montador, /billing, /servicos,
 // /onboarding, /escolher-perfil, /auth) continua no repo, só não fica
@@ -40,6 +51,13 @@ export async function middleware(req: NextRequest) {
   }
 
   if (pathname.startsWith("/api")) {
+    return NextResponse.next();
+  }
+
+  // O OAuth mobile precisa concluir o handoff no browser antes de voltar pelo
+  // deep link. A exceção é deliberadamente fechada aos caminhos e papéis
+  // conhecidos; `platform=mobile` sozinho nunca libera uma rota arbitrária.
+  if (isMobileOAuthHandoff(req)) {
     return NextResponse.next();
   }
 

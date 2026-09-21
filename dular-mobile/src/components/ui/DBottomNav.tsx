@@ -183,8 +183,15 @@ export function DBottomNav({
   const activeSoft = profileTheme?.primarySoft ?? colors.lavenderSoft;
   const bottomPadding = getBottomNavSafeAreaPadding(insets.bottom);
 
+  const handleLayout = (event: LayoutChangeEvent) => {
+    // Diagnóstico temporário do espaço real ocupado pela barra flutuante.
+    console.info("[BOTTOMNAV] layoutHeight", event.nativeEvent.layout.height);
+    console.info("[BOTTOMNAV] insetBottom", insets.bottom);
+    onLayout?.(event);
+  };
+
   return (
-    <View style={{ paddingBottom: bottomPadding }} onLayout={onLayout}>
+    <View style={{ paddingBottom: bottomPadding }} onLayout={handleLayout}>
       <BlurView
         intensity={60}
         tint={isDark ? "dark" : "light"}

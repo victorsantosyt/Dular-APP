@@ -201,6 +201,13 @@ export function AgendamentosEmpregadorScreen() {
     bannerHeight + spacing.md,
   );
 
+  useEffect(() => {
+    // Diagnóstico temporário do clearance, incluindo o banner fixado nesta aba.
+    console.info("[SCREEN] routeName", "Agendamentos");
+    console.info("[SCREEN] consumedTabBarHeight", tabBarHeight);
+    console.info("[SCREEN] finalPaddingBottom", bottomContentPadding);
+  }, [bottomContentPadding, tabBarHeight]);
+
   return (
     <SafeAreaView style={s.safe} edges={["top", "left", "right"]}>
       <View style={s.root}>

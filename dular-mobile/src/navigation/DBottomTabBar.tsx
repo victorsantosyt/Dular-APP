@@ -75,7 +75,10 @@ export function DBottomTabBar({ state, navigation, variant, messagesBadge, reque
 
   const handleLayout = useCallback(
     (event: LayoutChangeEvent) => {
-      onHeightChange?.(event.nativeEvent.layout.height);
+      const publishedHeight = event.nativeEvent.layout.height;
+      // Diagnóstico temporário do valor enviado ao contexto do navigator.
+      console.info("[BOTTOMNAV] publishedHeight", publishedHeight);
+      onHeightChange?.(publishedHeight);
     },
     [onHeightChange],
   );

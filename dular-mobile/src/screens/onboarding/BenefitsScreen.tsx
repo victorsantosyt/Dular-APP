@@ -34,7 +34,7 @@ export function BenefitsScreen() {
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <View style={styles.titleBlock}>
-          <Text style={styles.title} numberOfLines={1}>
+          <Text style={styles.title}>
             Mais <Text style={styles.titleAccent}>praticidade</Text> para você
           </Text>
           <Text style={styles.subtitle}>

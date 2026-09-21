@@ -41,7 +41,7 @@ export function StartScreen() {
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <View style={styles.titleBlock}>
-          <Text style={styles.title} numberOfLines={1}>
+          <Text style={styles.title}>
             Hora de ter mais <Text style={styles.titleAccent}>liberdade</Text>
           </Text>
           <Text style={styles.subtitle}>

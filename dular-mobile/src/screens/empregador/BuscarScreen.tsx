@@ -12,7 +12,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
-import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
+import { useBottomTabBarHeight, type BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import {
   AppIcon,
   type AppIconName,
@@ -34,6 +34,7 @@ import { salvarLocalizacaoAtual } from "@/api/localizacaoApi";
 import { useAuth } from "@/stores/authStore";
 import { useCurrentRegion, type CurrentRegion } from "@/hooks/useCurrentRegion";
 import type { MontadorItem } from "@/types/montador";
+import { getBottomNavContentPadding } from "@/navigation/bottomNavLayout";
 
 type Navigation = BottomTabNavigationProp<EmpregadorTabParamList>;
 type BuscarRoute = RouteProp<EmpregadorTabParamList, "Buscar">;
@@ -236,6 +237,8 @@ function profToCardData(prof: Profissional): ProfissionalCardData {
 }
 
 export function BuscarScreen() {
+  const tabBarHeight = useBottomTabBarHeight();
+  const bottomContentPadding = getBottomNavContentPadding(tabBarHeight, spacing.xl);
   // Cor do título seguindo o perfil (ver comentário em `title`).
   const theme = useGenderTheme();
   const navigation = useNavigation<Navigation>();
@@ -262,6 +265,13 @@ export function BuscarScreen() {
     buscar,
   } = useBuscar();
   const { isFavorito, toggle: toggleFavorito } = useFavoritos();
+
+  useEffect(() => {
+    // Diagnóstico temporário do clearance do ScrollView próprio desta aba.
+    console.info("[SCREEN] routeName", "Buscar");
+    console.info("[SCREEN] consumedTabBarHeight", tabBarHeight);
+    console.info("[SCREEN] finalPaddingBottom", bottomContentPadding);
+  }, [bottomContentPadding, tabBarHeight]);
 
   const handleToggleFavorito = useCallback(
     async (prof: Profissional) => {
@@ -423,7 +433,7 @@ export function BuscarScreen() {
       <View style={s.root}>
         <ScrollView
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={s.scroll}
+          contentContainerStyle={[s.scroll, { paddingBottom: bottomContentPadding }]}
           keyboardShouldPersistTaps="handled"
         >
           <View style={s.header}>
@@ -542,7 +552,6 @@ const s = StyleSheet.create({
     flex: 1,
   },
   scroll: {
-    paddingBottom: 118,
     gap: 16,
   },
   header: {

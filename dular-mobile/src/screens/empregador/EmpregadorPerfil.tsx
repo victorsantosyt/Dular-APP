@@ -17,7 +17,7 @@ import {
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
-import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
+import { useBottomTabBarHeight, type BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import * as ImagePicker from "expo-image-picker";
 import { salvarLocalizacaoAtual } from "@/api/localizacaoApi";
 import { api } from "@/lib/api";
@@ -33,6 +33,7 @@ import { radius, shadows, spacing, typography } from "@/theme";
 import { useDularColors } from "@/hooks/useDularColors";
 import { useGenderTheme } from "@/hooks/useProfileTheme";
 import { platformSelect } from "@/utils/platform";
+import { getBottomNavContentPadding } from "@/navigation/bottomNavLayout";
 import {
   ProfileHeroCard,
   ProfileRow,
@@ -160,6 +161,7 @@ function calculateProfileProgress(perfil: ProfileData | null, location: string) 
 }
 
 export default function EmpregadorPerfil({ onLogout }: Props) {
+  const bottomContentPadding = getBottomNavContentPadding(useBottomTabBarHeight(), spacing.xl);
   const navigation = useNavigation<Navigation>();
   const colors = useDularColors();
   // Cor de destaque do perfil para o título da aba (useDularColors só traz
@@ -517,7 +519,7 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
       ) : null}
 
       <View style={s.root}>
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.scroll}>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[s.scroll, { paddingBottom: bottomContentPadding }]}>
           <View style={s.header}>
             <View style={s.headerSide} />
             <Text style={[s.title, { color: tema.textAccent }]}>Perfil</Text>
@@ -820,7 +822,6 @@ function makeStyles(colors: ThemeColors) {
   scroll: {
     paddingHorizontal: spacing.screenPadding,
     paddingTop: 10,
-    paddingBottom: 122,
     gap: 14,
   },
   header: {

@@ -117,12 +117,12 @@ const styles = StyleSheet.create({
   headerSlot: { width: 42, height: 42 },
   scrollContent: {
     paddingTop: 8,
-    paddingBottom: 120,
+    paddingBottom: spacing.xl,
     gap: spacing.itemGap,
   },
   flatContent: {
     flex: 1,
     paddingTop: 8,
-    paddingBottom: 120,
+    paddingBottom: spacing.xl,
   },
 });

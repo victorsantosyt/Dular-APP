@@ -80,7 +80,7 @@ export default function MontadorDetalheSolicitacao({ route, navigation }: Props)
   };
 
   return (
-    <DScreen scroll withBottomPadding backgroundColor={profileTheme.background} contentContainerStyle={styles.scroll}>
+    <DScreen scroll backgroundColor={profileTheme.background} contentContainerStyle={styles.scroll}>
       <View style={styles.header}>
         <BackCircleButton onPress={() => navigation.goBack()} color={profileTheme.icon} borderColor={profileTheme.border} />
         <Text style={[styles.title, { color: profileTheme.textAccent }]}>Detalhe da solicitação</Text>

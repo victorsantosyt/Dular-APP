@@ -2,7 +2,7 @@ import React, { useMemo, useState } from "react";
 import { ActivityIndicator, Alert, FlatList, RefreshControl, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
-import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
+import { useBottomTabBarHeight, type BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import { AppIcon, BarraFiltros, DAvatar, DBadge, DButton, DCard } from "@/components/ui";
 import { colors, radius, spacing, typography } from "@/theme";
 import { useGenderTheme } from "@/hooks/useProfileTheme";
@@ -11,6 +11,7 @@ import { useAgendamentosDiarista } from "@/hooks/useAgendamentosDiarista";
 import { aceitarServicoDiarista, concluirServicoDiarista } from "@/api/diaristaApi";
 import { diasAteServico } from "@/utils/formatters";
 import { useLimiteDePlano } from "@/hooks/useLimiteDePlano";
+import { getBottomNavContentPadding } from "@/navigation/bottomNavLayout";
 
 type Navigation = BottomTabNavigationProp<DiaristaTabParamList>;
 type Filtro = "hoje" | "amanha" | "semana" | "pendentes" | "confirmados" | "concluidos";
@@ -243,6 +244,7 @@ function AgendamentoDiaristaCard({
 }
 
 export function AgendamentosDiaristaScreen() {
+  const bottomContentPadding = getBottomNavContentPadding(useBottomTabBarHeight(), spacing.xl);
   const theme = useGenderTheme("DIARISTA");
   const [activeFilter, setActiveFilter] = useState<Filtro>("hoje");
   const { agendamentos: realAgendamentos, loading, error, refetch } = useAgendamentosDiarista();
@@ -304,7 +306,7 @@ export function AgendamentosDiaristaScreen() {
             data={agendamentos}
             keyExtractor={(item) => item.id}
             renderItem={({ item }) => <AgendamentoDiaristaCard agendamento={item} accentColor={theme.primary} onChanged={refetch} />}
-            contentContainerStyle={styles.listContent}
+            contentContainerStyle={[styles.listContent, { paddingBottom: bottomContentPadding }]}
             showsVerticalScrollIndicator={false}
             ItemSeparatorComponent={() => <View style={styles.listSeparator} />}
             ListEmptyComponent={
@@ -449,7 +451,6 @@ const styles = StyleSheet.create({
   },
   listContent: {
     padding: spacing.screenPadding,
-    paddingBottom: spacing["5xl"],
   },
   listSeparator: {
     height: spacing.sm,

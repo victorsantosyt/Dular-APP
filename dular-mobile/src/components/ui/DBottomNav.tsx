@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef } from "react";
-import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
+import { Animated, Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from "react-native";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -8,6 +8,7 @@ import { useDularColors } from "@/hooks/useDularColors";
 import { useThemeStore } from "@/stores/useThemeStore";
 import { AppIcon, type AppIconName } from "./AppIcon";
 import type { ProfileTheme } from "@/theme/profileTheme";
+import { getBottomNavSafeAreaPadding } from "@/navigation/bottomNavLayout";
 
 export type NavTab = "home" | "search" | "new" | "messages" | "profile";
 
@@ -20,6 +21,7 @@ type Props = {
   requestsBadge?: number;
   variant?: "empregador" | "diarista" | "montador";
   profileTheme?: ProfileTheme;
+  onLayout?: (event: LayoutChangeEvent) => void;
 };
 
 type Item = {
@@ -123,7 +125,7 @@ function TabItem({
             </View>
           ) : null}
         </Animated.View>
-        <Text style={[s.label, s.centerLabel, { color: selectedColor }]} numberOfLines={1}>{item.label}</Text>
+        <Text style={[s.label, s.centerLabel, { color: selectedColor }]} numberOfLines={2}>{item.label}</Text>
       </Pressable>
     );
   }
@@ -149,7 +151,7 @@ function TabItem({
           </View>
         ) : null}
       </View>
-      <Text style={[s.label, { color: labelColor, fontWeight: isActive ? "700" : "500" }]} numberOfLines={1}>
+      <Text style={[s.label, { color: labelColor, fontWeight: isActive ? "700" : "500" }]} numberOfLines={2}>
         {item.label}
       </Text>
     </Pressable>
@@ -165,6 +167,7 @@ export function DBottomNav({
   requestsBadge,
   variant = "empregador",
   profileTheme,
+  onLayout,
 }: Props) {
   const insets = useSafeAreaInsets();
   const colors = useDularColors();
@@ -178,31 +181,38 @@ export function DBottomNav({
   const activeColor = profileTheme?.tabActive ?? colors.primary;
   const inactiveColor = profileTheme?.tabInactive ?? colors.textMuted;
   const activeSoft = profileTheme?.primarySoft ?? colors.lavenderSoft;
-  // Encosta a tab bar logo acima do home indicator do iPhone (sem gap extra).
-  // Em devices sem safe area inferior (Android sem gesto), mantém 8px de respiro.
-  const bottomMargin = Math.max(insets.bottom - 24, 8);
+  const bottomPadding = getBottomNavSafeAreaPadding(insets.bottom);
+
+  const handleLayout = (event: LayoutChangeEvent) => {
+    // Diagnóstico temporário do espaço real ocupado pela barra flutuante.
+    console.info("[BOTTOMNAV] layoutHeight", event.nativeEvent.layout.height);
+    console.info("[BOTTOMNAV] insetBottom", insets.bottom);
+    onLayout?.(event);
+  };
 
   return (
-    <BlurView
-      intensity={60}
-      tint={isDark ? "dark" : "light"}
-      style={[s.bar, { marginBottom: bottomMargin }]}
-    >
-      {items.map((item) => (
-        <TabItem
-          key={item.id}
-          item={item}
-          isActive={activeTab === item.id}
-          isCenter={item.id === "new"}
-          badge={item.id === "messages" ? messagesBadge : item.id === "new" ? requestsBadge : undefined}
-          onPress={() => onPress(item.id)}
-          activeColor={activeColor}
-          inactiveColor={inactiveColor}
-          activeSoft={activeSoft}
-          centerGradient={item.id === "new" ? centerGradient : undefined}
-        />
-      ))}
-    </BlurView>
+    <View style={{ paddingBottom: bottomPadding }} onLayout={handleLayout}>
+      <BlurView
+        intensity={60}
+        tint={isDark ? "dark" : "light"}
+        style={s.bar}
+      >
+        {items.map((item) => (
+          <TabItem
+            key={item.id}
+            item={item}
+            isActive={activeTab === item.id}
+            isCenter={item.id === "new"}
+            badge={item.id === "messages" ? messagesBadge : item.id === "new" ? requestsBadge : undefined}
+            onPress={() => onPress(item.id)}
+            activeColor={activeColor}
+            inactiveColor={inactiveColor}
+            activeSoft={activeSoft}
+            centerGradient={item.id === "new" ? centerGradient : undefined}
+          />
+        ))}
+      </BlurView>
+    </View>
   );
 }
 
@@ -235,7 +245,7 @@ function makeStyles(colors: ThemeColors) {
       borderRadius: radius.lg,
     },
     label: {
-      fontSize: 11, lineHeight: 14, textAlign: "center", width: "100%",
+      fontSize: 11, textAlign: "center", width: "100%",
     },
     centerWrap: {
       flex: 1, alignItems: "center", justifyContent: "flex-start",
@@ -255,7 +265,7 @@ function makeStyles(colors: ThemeColors) {
       justifyContent: "center",
     },
     centerLabel: {
-      color: colors.primary, fontWeight: "600", fontSize: 10, lineHeight: 12,
+      color: colors.primary, fontWeight: "600", fontSize: 10,
     },
     centerBadge: {
       position: "absolute", top: -2, right: -2,

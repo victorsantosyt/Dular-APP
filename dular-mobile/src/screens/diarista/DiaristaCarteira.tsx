@@ -162,7 +162,6 @@ export default function DiaristaCarteira() {
   return (
     <DScreen
       scroll
-      withBottomPadding
       backgroundColor={theme.background}
       contentContainerStyle={styles.scroll}
       refreshing={refreshing}

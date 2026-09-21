@@ -270,7 +270,7 @@ const s = StyleSheet.create({
   listContent: {
     paddingHorizontal: spacing.screenPadding,
     paddingTop: 16,
-    paddingBottom: 118,
+    paddingBottom: spacing.xl,
     gap: 8,
   },
   card: {

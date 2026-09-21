@@ -148,7 +148,7 @@ export default function MontadorDetalheServico({ route, navigation }: Props) {
     navigation.navigate("ReportIncident", { servicoId: servico.id });
   };
   return (
-    <DScreen scroll withBottomPadding backgroundColor={profileTheme.background} contentContainerStyle={styles.scroll}>
+    <DScreen scroll backgroundColor={profileTheme.background} contentContainerStyle={styles.scroll}>
       <View style={styles.header}>
         <BackCircleButton onPress={() => navigation.goBack()} color={profileTheme.icon} borderColor={profileTheme.border} />
         <Text style={[styles.title, { color: profileTheme.textAccent }]}>

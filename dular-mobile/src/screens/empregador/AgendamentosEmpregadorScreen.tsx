@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
-import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
+import { useBottomTabBarHeight, type BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import { AppIcon } from "@/components/ui";
 import { fetchServicosMinhas } from "@/api/sharedFetcher";
 import type { EmpregadorTabParamList } from "@/navigation/EmpregadorNavigator";
 import { colors, radius, shadows, spacing, typography } from "@/theme";
 import { useGenderTheme } from "@/hooks/useProfileTheme";
+import { getBottomNavContentPadding } from "@/navigation/bottomNavLayout";
 import {
   AgendamentoItem,
   AppointmentCard,
@@ -150,7 +151,6 @@ export function AgendamentosEmpregadorScreen() {
   // Cor do título seguindo o perfil (ver comentário em `title`).
   const theme = useGenderTheme();
   const navigation = useNavigation<Navigation>();
-  const insets = useSafeAreaInsets();
   const [categoriaAtiva, setCategoriaAtiva] = useState<CategoriaFiltro>("todas");
   const [statusAtivo, setStatusAtivo] = useState<StatusFiltro>("todas");
   const [agendamentos, setAgendamentos] = useState<AgendamentoItem[]>([]);
@@ -193,15 +193,20 @@ export function AgendamentosEmpregadorScreen() {
       }),
     [agendamentos, categoriaAtiva, statusAtivo],
   );
-  const tabBarBottomMargin = Math.max(insets.bottom - 24, 8);
-  const bannerBottom = tabBarBottomMargin + 86;
+  const tabBarHeight = useBottomTabBarHeight();
+  const [bannerHeight, setBannerHeight] = useState(0);
+  const bannerBottom = tabBarHeight + spacing.sm;
+  const bottomContentPadding = getBottomNavContentPadding(
+    tabBarHeight,
+    bannerHeight + spacing.md,
+  );
 
   return (
     <SafeAreaView style={s.safe} edges={["top", "left", "right"]}>
       <View style={s.root}>
         <ScrollView
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={[s.scroll, { paddingBottom: bannerBottom + 96 }]}
+          contentContainerStyle={[s.scroll, { paddingBottom: bottomContentPadding }]}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load("refresh")} />}
         >
           <View style={s.header}>
@@ -302,7 +307,11 @@ export function AgendamentosEmpregadorScreen() {
           </View>
 
         </ScrollView>
-        <View pointerEvents="box-none" style={[s.bannerDock, { bottom: bannerBottom }]}>
+        <View
+          pointerEvents="box-none"
+          onLayout={(event) => setBannerHeight(event.nativeEvent.layout.height)}
+          style={[s.bannerDock, { bottom: bannerBottom }]}
+        >
           {/* A tela de Histórico existe e está registrada no navegador; aqui
               tinha ficado um Alert de "em breve" do tempo em que ela ainda não
               existia, então o botão não levava a lugar nenhum. */}

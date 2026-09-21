@@ -79,7 +79,7 @@ const s = StyleSheet.create({
     flex: 1,
     textAlign: "center",
   },
-  scroll: { paddingHorizontal: spacing.screenPadding, paddingBottom: 122, gap: 14 },
+  scroll: { paddingHorizontal: spacing.screenPadding, paddingBottom: spacing.xl, gap: 14 },
   intro: { ...typography.bodySm, color: colors.textSecondary, fontWeight: "500" },
   grid: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
   card: {

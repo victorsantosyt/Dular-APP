@@ -2,12 +2,13 @@ import React, { useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
-import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
+import { useBottomTabBarHeight, type BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import { AppIcon, type AppIconName, DBadge, DCard } from "@/components/ui";
 import { colors, radius, spacing, typography } from "@/theme";
 import { useGenderTheme } from "@/hooks/useProfileTheme";
 import type { ProfileTheme } from "@/theme/profileTheme";
 import type { DiaristaTabParamList } from "@/navigation/DiaristaNavigator";
+import { getBottomNavContentPadding } from "@/navigation/bottomNavLayout";
 import {
   useAgendamentosDiarista,
   type AgendamentoDiarista,
@@ -115,6 +116,7 @@ function ServicoCard({
 }
 
 export function ServicosDiaristaScreen() {
+  const bottomContentPadding = getBottomNavContentPadding(useBottomTabBarHeight(), spacing.xl);
   const navigation = useNavigation<Navigation>();
   const theme = useGenderTheme("DIARISTA");
   const s = makeStyles(theme);
@@ -188,7 +190,7 @@ export function ServicosDiaristaScreen() {
         </View>
       ) : (
         <ScrollView
-          contentContainerStyle={s.scroll}
+          contentContainerStyle={[s.scroll, { paddingBottom: bottomContentPadding }]}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl refreshing={loading} onRefresh={refetch} tintColor={theme.primary} colors={[theme.primary]} />
@@ -279,7 +281,7 @@ function makeStyles(theme: ProfileTheme) {
     },
     segmentText: { ...typography.caption, fontWeight: "700", color: colors.textMuted },
 
-    scroll: { padding: spacing.screenPadding, paddingBottom: 122, gap: 18 },
+    scroll: { padding: spacing.screenPadding, gap: 18 },
 
     group: { gap: 10 },
     groupHeader: { flexDirection: "row", alignItems: "center", gap: 10 },

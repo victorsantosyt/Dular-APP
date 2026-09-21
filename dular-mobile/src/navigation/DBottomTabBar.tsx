@@ -1,6 +1,9 @@
-import React, { useCallback } from "react";
-import { StyleSheet, View } from "react-native";
-import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
+import React, { useCallback, useContext } from "react";
+import { StyleSheet, View, type LayoutChangeEvent } from "react-native";
+import {
+  BottomTabBarHeightCallbackContext,
+  type BottomTabBarProps,
+} from "@react-navigation/bottom-tabs";
 import { DBottomNav } from "@/components/ui";
 import type { NavTab } from "@/components/ui/DBottomNav";
 import { useAuth } from "@/stores/authStore";
@@ -68,6 +71,14 @@ export function DBottomTabBar({ state, navigation, variant, messagesBadge, reque
     // FASE 4 — gênero só de user.genero; empregador não tematiza por gênero.
     genero: variant === "empregador" ? undefined : user?.genero,
   });
+  const onHeightChange = useContext(BottomTabBarHeightCallbackContext);
+
+  const handleLayout = useCallback(
+    (event: LayoutChangeEvent) => {
+      onHeightChange?.(event.nativeEvent.layout.height);
+    },
+    [onHeightChange],
+  );
 
   const handlePress = useCallback(
     (tab: NavTab) => {
@@ -88,6 +99,7 @@ export function DBottomTabBar({ state, navigation, variant, messagesBadge, reque
         requestsBadge={requestsBadge}
         profileTheme={profileTheme}
         onPress={handlePress}
+        onLayout={handleLayout}
       />
     </View>
   );

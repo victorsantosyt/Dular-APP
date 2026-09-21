@@ -104,7 +104,7 @@ const s = StyleSheet.create({
     flex: 1,
     textAlign: "center",
   },
-  scroll: { paddingHorizontal: spacing.screenPadding, paddingBottom: 122, gap: 16 },
+  scroll: { paddingHorizontal: spacing.screenPadding, paddingBottom: spacing.xl, gap: 16 },
 
   hero: { alignItems: "center", gap: 8, paddingTop: 12 },
   avatarRing: {

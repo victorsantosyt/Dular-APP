@@ -2,13 +2,14 @@ import { useCallback, useMemo, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
-import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
+import { useBottomTabBarHeight, type BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import { AppIcon, DCard, DEmptyState, DErrorState, DLoadingState } from "@/components/ui";
 import { useMensagens, type ChatRoom } from "@/hooks/useMensagens";
 import { useAuth } from "@/stores/authStore";
 import type { EmpregadorTabParamList } from "@/navigation/EmpregadorNavigator";
 import { colors, radius, shadows, spacing, typography } from "@/theme";
 import { useGenderTheme } from "@/hooks/useProfileTheme";
+import { getBottomNavContentPadding } from "@/navigation/bottomNavLayout";
 import {
   ConversationCard,
   ConversationItem,
@@ -72,6 +73,7 @@ function roomToConversation(room: ChatRoom, myId: string): ConversationItem {
 }
 
 export function MensagensEmpregadorScreen() {
+  const bottomContentPadding = getBottomNavContentPadding(useBottomTabBarHeight(), spacing.xl);
   // Cor do título seguindo o perfil (ver comentário em `title`).
   const theme = useGenderTheme();
   const navigation = useNavigation<Navigation>();
@@ -104,7 +106,7 @@ export function MensagensEmpregadorScreen() {
   return (
     <SafeAreaView style={s.safe} edges={["top", "left", "right"]}>
       <View style={s.root}>
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.scroll}>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[s.scroll, { paddingBottom: bottomContentPadding }]}>
           <View style={s.header}>
             <View style={s.headerCopy}>
               <Text style={[s.title, { color: theme.textAccent }]}>Mensagens</Text>
@@ -175,7 +177,6 @@ const s = StyleSheet.create({
   scroll: {
     paddingHorizontal: spacing.screenPadding,
     paddingTop: 10,
-    paddingBottom: 122,
     gap: 16,
   },
   header: {

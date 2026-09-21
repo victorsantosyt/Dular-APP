@@ -34,7 +34,7 @@ import {
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
-import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
+import { useBottomTabBarHeight, type BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import * as ImagePicker from "expo-image-picker";
 
 import { api } from "@/lib/api";
@@ -79,6 +79,7 @@ import {
 import type { ServicoOferecido } from "@/types/diarista";
 import { OFERTAS_DIARISTA } from "@/constants/categorias";
 import { mascaraTelefone, plural, somenteDigitos } from "@/utils/formatters";
+import { getBottomNavContentPadding } from "@/navigation/bottomNavLayout";
 
 type Props = { onLogout: () => void };
 type Navigation = BottomTabNavigationProp<DiaristaTabParamList>;
@@ -294,6 +295,7 @@ function splitBairros(value: string): string[] {
 // ── Componente ───────────────────────────────────────────────────────────────
 
 export default function DiaristaPerfil({ onLogout }: Props) {
+  const bottomContentPadding = getBottomNavContentPadding(useBottomTabBarHeight(), spacing.xl);
   const navigation = useNavigation<Navigation>();
   const colors = useDularColors();
   const theme = useGenderTheme("DIARISTA");
@@ -1226,7 +1228,7 @@ export default function DiaristaPerfil({ onLogout }: Props) {
       ) : null}
 
       <View style={s.root}>
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.scroll}>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[s.scroll, { paddingBottom: bottomContentPadding }]}>
           <View style={s.header}>
             <View style={s.headerSide} />
             <Text style={[s.title, { color: theme.textAccent }]}>Perfil</Text>
@@ -2263,7 +2265,6 @@ function makeStyles(colors: ThemeColors, theme: ProfileTheme) {
     scroll: {
       paddingHorizontal: spacing.screenPadding,
       paddingTop: 10,
-      paddingBottom: 122,
       gap: 14,
     },
     header: {

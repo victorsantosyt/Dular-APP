@@ -248,7 +248,6 @@ export function NotificacoesView({ theme, onVoltar, onOpenChat, onOpenServico }:
   return (
     <DScreen
       scroll
-      withBottomPadding
       backgroundColor={theme.background}
       contentContainerStyle={styles.scroll}
       // Puxar para atualizar: era o único jeito de recarregar depois que o

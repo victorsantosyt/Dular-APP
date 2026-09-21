@@ -1,11 +1,13 @@
 import React, { useCallback, useMemo, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { AppIcon, DCard, DEmptyState, DErrorState, DLoadingState } from "@/components/ui";
 import { useAuth } from "@/stores/authStore";
 import { useMensagens, type ChatRoom } from "@/hooks/useMensagens";
 import type { ProfileTheme } from "@/theme/profileTheme";
 import { colors, radius, shadows, spacing, typography } from "@/theme";
+import { getBottomNavContentPadding } from "@/navigation/bottomNavLayout";
 import {
   ConversationCard,
   ConversationItem,
@@ -83,6 +85,7 @@ type Props = {
 };
 
 export function MensagensView({ theme, infoTitle, infoText, onOpenChat }: Props) {
+  const bottomContentPadding = getBottomNavContentPadding(useBottomTabBarHeight(), spacing.xl);
   const [activeTab, setActiveTab] = useState<MessagesTab>("conversas");
   const { rooms, loading, error, refetch } = useMensagens();
   const myId = useAuth((state) => state.user?.id) ?? "";
@@ -98,7 +101,7 @@ export function MensagensView({ theme, infoTitle, infoText, onOpenChat }: Props)
   return (
     <SafeAreaView style={[s.safe, { backgroundColor: theme.background }]} edges={["top", "left", "right"]}>
       <View style={s.root}>
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.scroll}>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[s.scroll, { paddingBottom: bottomContentPadding }]}>
           <View style={s.header}>
             <Text style={[s.title, { color: theme.textAccent }]}>Mensagens</Text>
           </View>
@@ -170,7 +173,6 @@ const s = StyleSheet.create({
   scroll: {
     paddingHorizontal: spacing.screenPadding,
     paddingTop: 10,
-    paddingBottom: 122,
     gap: 16,
   },
   header: {

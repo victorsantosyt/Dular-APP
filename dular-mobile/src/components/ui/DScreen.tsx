@@ -1,4 +1,4 @@
-import { ReactNode, useMemo } from "react";
+import { ReactNode, useContext, useMemo } from "react";
 import {
   KeyboardAvoidingView,
   Platform,
@@ -13,9 +13,8 @@ import { StatusBar } from "expo-status-bar";
 import { useDularColors } from "@/hooks/useDularColors";
 import { useThemeStore } from "@/stores/useThemeStore";
 import { spacing } from "@/theme";
-
-// Extra bottom breathing room when scroll content lives above a floating bottom nav.
-export const BOTTOM_NAV_CLEARANCE = 108;
+import { BottomTabBarHeightContext } from "@react-navigation/bottom-tabs";
+import { getBottomNavContentPadding } from "@/navigation/bottomNavLayout";
 
 type EdgeValue = "top" | "bottom" | "left" | "right";
 type ThemeColors = ReturnType<typeof useDularColors>;
@@ -38,7 +37,7 @@ type Props = {
   /** Status bar appearance. "auto" (default) deriva do tema; "light"/"dark"
    *  forçam o estilo independentemente do modo. */
   statusBarStyle?: "dark" | "light" | "auto";
-  /** When scroll=true, adds BOTTOM_NAV_CLEARANCE at the end of scroll content */
+  /** Quando há uma tab bar acima desta tela, libera sua altura medida no fim do conteúdo. */
   withBottomPadding?: boolean;
   /** Wrap in KeyboardAvoidingView (iOS "padding", Android "height") */
   keyboardAvoiding?: boolean;
@@ -66,6 +65,7 @@ export function DScreen({
   const colors = useDularColors();
   const mode = useThemeStore((state) => state.mode);
   const s = useMemo(() => makeStyles(colors), [colors]);
+  const bottomTabBarHeight = useContext(BottomTabBarHeightContext) ?? 0;
 
   const isScrollable = scroll ?? scrollable ?? false;
   const bg = backgroundColor ?? colors.background;
@@ -100,7 +100,9 @@ export function DScreen({
       contentContainerStyle={[
         s.scrollContent,
         contentContainerStyle,
-        withBottomPadding && { paddingBottom: BOTTOM_NAV_CLEARANCE },
+        withBottomPadding && {
+          paddingBottom: getBottomNavContentPadding(bottomTabBarHeight, spacing.xl),
+        },
       ]}
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"

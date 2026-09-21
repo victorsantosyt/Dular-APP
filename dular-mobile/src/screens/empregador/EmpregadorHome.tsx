@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
-import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
+import { useBottomTabBarHeight, type BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import * as Location from "expo-location";
 
 import { api } from "@/lib/api";
@@ -39,6 +39,7 @@ import {
 import { colors, radius, shadows, spacing, typography } from "@/theme";
 import { getProfileTheme } from "@/theme/profileTheme";
 import type { EmpregadorTabParamList } from "@/navigation/EmpregadorNavigator";
+import { getBottomNavContentPadding } from "@/navigation/bottomNavLayout";
 
 // Categorias em destaque na home (subconjunto da fonte única); demais em "Ver todos".
 const CATEGORIAS_HOME = CATEGORIAS.filter((c) =>
@@ -180,6 +181,7 @@ function CategoriaCard({
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function EmpregadorHome() {
+  const bottomContentPadding = getBottomNavContentPadding(useBottomTabBarHeight(), spacing.xl);
   const navigation = useNavigation<Navigation>();
   const user = useAuth((state) => state.user);
   const geo = useGeoDefaults();
@@ -343,7 +345,7 @@ export default function EmpregadorHome() {
       <View style={s.root}>
         <ScrollView
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={s.scroll}
+          contentContainerStyle={[s.scroll, { paddingBottom: bottomContentPadding }]}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -536,7 +538,6 @@ export default function EmpregadorHome() {
 const s = StyleSheet.create({
   root: { flex: 1 },
   scroll: {
-    paddingBottom: 112,
     gap: spacing.sectionGap,
   },
 

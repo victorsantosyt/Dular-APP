@@ -225,6 +225,6 @@ const s = StyleSheet.create({
   listContent: {
     paddingHorizontal: spacing.screenPadding,
     paddingTop: spacing.md,
-    paddingBottom: 120,
+    paddingBottom: spacing.xl,
   },
 });

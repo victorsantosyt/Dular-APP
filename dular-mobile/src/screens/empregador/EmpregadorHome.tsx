@@ -181,8 +181,7 @@ function CategoriaCard({
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function EmpregadorHome() {
-  const tabBarHeight = useBottomTabBarHeight();
-  const bottomContentPadding = getBottomNavContentPadding(tabBarHeight, spacing.xl);
+  const bottomContentPadding = getBottomNavContentPadding(useBottomTabBarHeight(), spacing.xl);
   const navigation = useNavigation<Navigation>();
   const user = useAuth((state) => state.user);
   const geo = useGeoDefaults();
@@ -277,13 +276,6 @@ export default function EmpregadorHome() {
   useEffect(() => {
     handleBuscarRef.current = () => handleBuscar();
   }, [handleBuscar]);
-
-  useEffect(() => {
-    // Diagnóstico temporário do clearance do ScrollView próprio desta aba.
-    console.info("[SCREEN] routeName", "Home");
-    console.info("[SCREEN] consumedTabBarHeight", tabBarHeight);
-    console.info("[SCREEN] finalPaddingBottom", bottomContentPadding);
-  }, [bottomContentPadding, tabBarHeight]);
 
   useEffect(() => {
     if (PILOT_MODE) return;

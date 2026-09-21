@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
@@ -73,21 +73,13 @@ function roomToConversation(room: ChatRoom, myId: string): ConversationItem {
 }
 
 export function MensagensEmpregadorScreen() {
-  const tabBarHeight = useBottomTabBarHeight();
-  const bottomContentPadding = getBottomNavContentPadding(tabBarHeight, spacing.xl);
+  const bottomContentPadding = getBottomNavContentPadding(useBottomTabBarHeight(), spacing.xl);
   // Cor do título seguindo o perfil (ver comentário em `title`).
   const theme = useGenderTheme();
   const navigation = useNavigation<Navigation>();
   const [activeTab, setActiveTab] = useState<MessagesTab>("conversas");
   const { rooms, loading, error, refetch } = useMensagens();
   const myId = useAuth((state) => state.user?.id) ?? "";
-
-  useEffect(() => {
-    // Diagnóstico temporário do clearance do ScrollView próprio desta aba.
-    console.info("[SCREEN] routeName", "Mensagens");
-    console.info("[SCREEN] consumedTabBarHeight", tabBarHeight);
-    console.info("[SCREEN] finalPaddingBottom", bottomContentPadding);
-  }, [bottomContentPadding, tabBarHeight]);
 
   const visibleConversations = useMemo(() => {
     const filtered =

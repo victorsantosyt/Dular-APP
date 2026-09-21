@@ -237,8 +237,7 @@ function profToCardData(prof: Profissional): ProfissionalCardData {
 }
 
 export function BuscarScreen() {
-  const tabBarHeight = useBottomTabBarHeight();
-  const bottomContentPadding = getBottomNavContentPadding(tabBarHeight, spacing.xl);
+  const bottomContentPadding = getBottomNavContentPadding(useBottomTabBarHeight(), spacing.xl);
   // Cor do título seguindo o perfil (ver comentário em `title`).
   const theme = useGenderTheme();
   const navigation = useNavigation<Navigation>();
@@ -265,13 +264,6 @@ export function BuscarScreen() {
     buscar,
   } = useBuscar();
   const { isFavorito, toggle: toggleFavorito } = useFavoritos();
-
-  useEffect(() => {
-    // Diagnóstico temporário do clearance do ScrollView próprio desta aba.
-    console.info("[SCREEN] routeName", "Buscar");
-    console.info("[SCREEN] consumedTabBarHeight", tabBarHeight);
-    console.info("[SCREEN] finalPaddingBottom", bottomContentPadding);
-  }, [bottomContentPadding, tabBarHeight]);
 
   const handleToggleFavorito = useCallback(
     async (prof: Profissional) => {

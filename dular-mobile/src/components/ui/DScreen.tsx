@@ -1,4 +1,4 @@
-import { ReactNode, useContext, useEffect, useMemo } from "react";
+import { ReactNode, useContext, useMemo } from "react";
 import {
   KeyboardAvoidingView,
   Platform,
@@ -14,7 +14,6 @@ import { useDularColors } from "@/hooks/useDularColors";
 import { useThemeStore } from "@/stores/useThemeStore";
 import { spacing } from "@/theme";
 import { BottomTabBarHeightContext } from "@react-navigation/bottom-tabs";
-import { useRoute } from "@react-navigation/native";
 import { getBottomNavContentPadding } from "@/navigation/bottomNavLayout";
 
 type EdgeValue = "top" | "bottom" | "left" | "right";
@@ -67,23 +66,9 @@ export function DScreen({
   const mode = useThemeStore((state) => state.mode);
   const s = useMemo(() => makeStyles(colors), [colors]);
   const bottomTabBarHeight = useContext(BottomTabBarHeightContext) ?? 0;
-  const route = useRoute();
 
   const isScrollable = scroll ?? scrollable ?? false;
   const bg = backgroundColor ?? colors.background;
-  const bottomPadding = getBottomNavContentPadding(bottomTabBarHeight, spacing.xl);
-  const finalPaddingBottom = isScrollable
-    ? withBottomPadding
-      ? bottomPadding
-      : StyleSheet.flatten([s.scrollContent, contentContainerStyle]).paddingBottom ?? 0
-    : 0;
-
-  useEffect(() => {
-    // Diagnóstico temporário do valor visto pelo shell de tela compartilhado.
-    console.info("[SCREEN] routeName", route.name);
-    console.info("[SCREEN] consumedTabBarHeight", bottomTabBarHeight);
-    console.info("[SCREEN] finalPaddingBottom", finalPaddingBottom);
-  }, [bottomTabBarHeight, finalPaddingBottom, route.name]);
 
   const safeStyle = [s.safe, { backgroundColor: bg }, style];
 
@@ -116,7 +101,7 @@ export function DScreen({
         s.scrollContent,
         contentContainerStyle,
         withBottomPadding && {
-          paddingBottom: bottomPadding,
+          paddingBottom: getBottomNavContentPadding(bottomTabBarHeight, spacing.xl),
         },
       ]}
       showsVerticalScrollIndicator={false}

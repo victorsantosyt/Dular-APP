@@ -13,6 +13,7 @@ import MontadorDetalheSolicitacao from "@/screens/montador/MontadorDetalheSolici
 import MontadorDetalheServico from "@/screens/montador/MontadorDetalheServico";
 import CarteiraScreen from "@/screens/montador/CarteiraScreen";
 import PaywallScreen from "@/screens/PaywallScreen";
+import type { PaywallParams } from "@/lib/paywall";
 import { ChatAbertoScreen } from "@/screens/shared/ChatAbertoScreen";
 import type { ChatAbertoParams } from "@/screens/shared/ChatAbertoScreen";
 import VerificacaoDocs from "@/screens/perfil/VerificacaoDocs";
@@ -42,7 +43,7 @@ export type MontadorTabParamList = {
   MontadorDetalheServico: { servicoId: string };
   MontadorChat: ChatAbertoParams;
   Carteira: { from?: keyof MontadorTabParamList } | undefined;
-  Paywall: { mensagem?: string };
+  Paywall: PaywallParams;
   VerificacaoDocs: undefined;
   SafeScore: undefined;
   SosFlow: undefined;

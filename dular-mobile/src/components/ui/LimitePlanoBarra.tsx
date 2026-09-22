@@ -5,6 +5,7 @@ import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { api } from "@/lib/api";
 import { colors, radius, spacing, typography } from "@/theme/tokens";
 import { plural } from "@/utils/formatters";
+import { MotivoPaywall } from "@/lib/paywall";
 
 type Props = {
   /** Cor do perfil (verde na diarista, etc.). */
@@ -66,7 +67,7 @@ export function LimitePlanoBarra({ cor, corSuave, concluidos }: Props) {
 
   return (
     <Pressable
-      onPress={() => navigation.navigate("Paywall", {})}
+      onPress={() => navigation.navigate("Paywall", { motivo: MotivoPaywall.USER_REQUESTED })}
       accessibilityRole="button"
       accessibilityLabel={
         estourou

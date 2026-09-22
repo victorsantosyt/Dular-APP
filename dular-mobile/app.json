@@ -36,7 +36,6 @@
       "edgeToEdgeEnabled": true
     },
     "androidNavigationBar": {
-      "barStyle": "dark-content",
       "enforceContrast": false
     },
     "web": {

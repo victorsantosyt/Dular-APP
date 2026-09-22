@@ -35,6 +35,9 @@
       },
       "edgeToEdgeEnabled": true
     },
+    "androidNavigationBar": {
+      "enforceContrast": false
+    },
     "web": {
       "favicon": "./assets/favicon.png"
     },

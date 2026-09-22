@@ -5,7 +5,7 @@
  * Todas as telas devem usar este componente como raiz.
  */
 
-import React from "react";
+import React, { useContext } from "react";
 import {
   ScrollView,
   StyleSheet,
@@ -13,8 +13,10 @@ import {
   View,
   ViewStyle,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { BottomTabBarHeightContext } from "@react-navigation/bottom-tabs";
 import { useGenderTheme } from "@/hooks/useProfileTheme";
+import { getScrollBottomClearance } from "@/lib/screenLayout";
 import { colors, spacing, typography } from "@/theme/tokens";
 
 type Props = {
@@ -51,7 +53,23 @@ export function Screen({
   // Título na cor de destaque do perfil, como nas telas com cabeçalho
   // próprio — este componente serve 6 telas e era o último ponto em preto.
   const tema = useGenderTheme();
+  const insets = useSafeAreaInsets();
+  // `undefined` fora de uma aba — é assim que Stack e Tab se distinguem, sem
+  // olhar nome de rota nem plataforma.
+  const bottomTabBarHeight = useContext(BottomTabBarHeightContext) ?? 0;
   const horizontalPadding = padded ? px : 0;
+
+  // Parte do respiro que a tela já tinha e soma o que a barra inferior ocupa.
+  // Entra POR ÚLTIMO no array de estilos: um `contentStyle` da tela pode
+  // ajustar o respiro visual, mas não pode apagar a reserva de safe area.
+  const bottomClearance = getScrollBottomClearance({
+    basePadding:
+      (StyleSheet.flatten([styles.scrollContent, contentStyle, contentContainerStyle])
+        ?.paddingBottom as number) ?? spacing.xl,
+    systemInset: insets.bottom,
+    bottomTabBarHeight,
+  });
+
   const inner = scroll ? (
     <ScrollView
       contentContainerStyle={[
@@ -59,6 +77,7 @@ export function Screen({
         { paddingHorizontal: horizontalPadding },
         contentStyle,
         contentContainerStyle,
+        { paddingBottom: bottomClearance },
       ]}
       keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef } from "react";
-import { Animated, Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from "react-native";
+import { Animated, Platform, Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from "react-native";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -182,29 +182,34 @@ export function DBottomNav({
   const inactiveColor = profileTheme?.tabInactive ?? colors.textMuted;
   const activeSoft = profileTheme?.primarySoft ?? colors.lavenderSoft;
   const bottomPadding = getBottomNavSafeAreaPadding(insets.bottom);
+  const tabItems = items.map((item) => (
+    <TabItem
+      key={item.id}
+      item={item}
+      isActive={activeTab === item.id}
+      isCenter={item.id === "new"}
+      badge={item.id === "messages" ? messagesBadge : item.id === "new" ? requestsBadge : undefined}
+      onPress={() => onPress(item.id)}
+      activeColor={activeColor}
+      inactiveColor={inactiveColor}
+      activeSoft={activeSoft}
+      centerGradient={item.id === "new" ? centerGradient : undefined}
+    />
+  ));
 
   return (
     <View style={{ paddingBottom: bottomPadding }} onLayout={onLayout}>
-      <BlurView
-        intensity={60}
-        tint={isDark ? "dark" : "light"}
-        style={s.bar}
-      >
-        {items.map((item) => (
-          <TabItem
-            key={item.id}
-            item={item}
-            isActive={activeTab === item.id}
-            isCenter={item.id === "new"}
-            badge={item.id === "messages" ? messagesBadge : item.id === "new" ? requestsBadge : undefined}
-            onPress={() => onPress(item.id)}
-            activeColor={activeColor}
-            inactiveColor={inactiveColor}
-            activeSoft={activeSoft}
-            centerGradient={item.id === "new" ? centerGradient : undefined}
-          />
-        ))}
-      </BlurView>
+      {Platform.OS === "android" ? (
+        <View style={[s.bar, s.androidBar]}>{tabItems}</View>
+      ) : (
+        <BlurView
+          intensity={60}
+          tint={isDark ? "dark" : "light"}
+          style={s.bar}
+        >
+          {tabItems}
+        </BlurView>
+      )}
     </View>
   );
 }
@@ -226,6 +231,10 @@ function makeStyles(colors: ThemeColors) {
       alignItems: "flex-start",
       overflow: "hidden",
       ...shadows.floating,
+    },
+    androidBar: {
+      backgroundColor: colors.surface,
+      borderColor: colors.border,
     },
     item: {
       flex: 1, alignItems: "center", gap: 4, paddingTop: 2,

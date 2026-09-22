@@ -10,7 +10,7 @@ import type { EmpregadorServiceFlowStackParamList } from "@/navigation/Empregado
 import { goToTab } from "@/navigation/navHelpers";
 import { colors, radius, spacing } from "@/theme";
 import { useServiceFlow } from "./ServiceFlowContext";
-import { FlowPrimaryButton, flowStyles, SuccessBadge } from "./components";
+import { FlowFooter, FlowPrimaryButton, flowStyles, SuccessBadge } from "./components";
 import { getServiceFlowTheme } from "@/theme/serviceFlowTheme";
 import { protocoloServico as derivarProtocolo } from "@/utils/formatters";
 
@@ -61,10 +61,10 @@ export function SolicitacaoSucessoScreen() {
         ) : null}
       </View>
 
-      <SafeAreaView style={flowStyles.footer}>
+      <FlowFooter>
         <FlowPrimaryButton label="Acompanhar solicitações" theme={flowTheme} onPress={acompanharSolicitacoes} />
         <DButton label="Voltar ao início" variant="ghost" onPress={goHome} style={s.secondaryButton} />
-      </SafeAreaView>
+      </FlowFooter>
     </SafeAreaView>
   );
 }

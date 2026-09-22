@@ -8,7 +8,7 @@ import type { EmpregadorServiceFlowStackParamList } from "@/navigation/Empregado
 import { goToTab } from "@/navigation/navHelpers";
 import { ServiceCategory, useServiceFlow, type PrecoInfo } from "./ServiceFlowContext";
 import { categoriaTemIntensidade } from "./EscolherIntensidadeScreen";
-import { FlowPrimaryButton, flowStyles, ServiceOptionCard, StepHeader } from "./components";
+import { FlowFooter, FlowPrimaryButton, flowStyles, ServiceOptionCard, StepHeader } from "./components";
 import { MONTADOR_ESPECIALIDADES } from "./montadorEspecialidades";
 import { AppIcon } from "@/components/ui";
 import { getServiceFlowTheme } from "@/theme/serviceFlowTheme";
@@ -175,13 +175,13 @@ export function SolicitarServicoScreen() {
           </View>
         </ScrollView>
 
-        <SafeAreaView style={flowStyles.footer}>
+        <FlowFooter>
           <FlowPrimaryButton
             label="Escolher montador"
             theme={flowTheme}
             onPress={goToMontadores}
           />
-        </SafeAreaView>
+        </FlowFooter>
       </SafeAreaView>
     );
   }
@@ -300,7 +300,7 @@ export function SolicitarServicoScreen() {
           </View>
         ) : null}
       </ScrollView>
-      <SafeAreaView style={flowStyles.footer}>
+      <FlowFooter>
         <FlowPrimaryButton
           label="Continuar"
           theme={flowTheme}
@@ -315,7 +315,7 @@ export function SolicitarServicoScreen() {
             )
           }
         />
-      </SafeAreaView>
+      </FlowFooter>
     </SafeAreaView>
   );
 }

@@ -11,7 +11,7 @@
  */
 import React from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { AppIcon , DAvatar } from "@/components/ui";
 import { useDularColors } from "@/hooks/useDularColors";
 import { getProfileTheme } from "@/theme/profileTheme";
@@ -62,6 +62,7 @@ export function PerfilPublicoLayout({
   error,
 }: Props) {
   const colors = useDularColors();
+  const insets = useSafeAreaInsets();
   const theme = React.useMemo(() => getProfileTheme({ role: "EMPREGADOR" }), []);
   const s = React.useMemo(() => makeStyles({ theme, colors }), [theme, colors]);
 
@@ -144,7 +145,9 @@ export function PerfilPublicoLayout({
         ))}
       </ScrollView>
 
-      {footer ? <View style={s.footer}>{footer}</View> : null}
+      {footer ? (
+        <View style={[s.footer, { paddingBottom: spacing.xl + insets.bottom }]}>{footer}</View>
+      ) : null}
     </SafeAreaView>
   );
 }

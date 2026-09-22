@@ -7,7 +7,7 @@ import { DCard } from "@/components/ui/DCard";
 import type { EmpregadorServiceFlowStackParamList } from "@/navigation/EmpregadorServiceFlowNavigator";
 import { colors, radius, shadows, spacing } from "@/theme";
 import { useServiceFlow } from "./ServiceFlowContext";
-import { FlowPrimaryButton, flowStyles, StepHeader, TimeSlotButton } from "./components";
+import { FlowFooter, FlowPrimaryButton, flowStyles, StepHeader, TimeSlotButton } from "./components";
 import { getServiceFlowTheme } from "@/theme/serviceFlowTheme";
 
 type Navigation = NativeStackNavigationProp<EmpregadorServiceFlowStackParamList, "EscolherData">;
@@ -161,9 +161,9 @@ export function EscolherDataScreen() {
         </DCard>
       </ScrollView>
 
-      <SafeAreaView style={flowStyles.footer}>
+      <FlowFooter>
         <FlowPrimaryButton label="Continuar" theme={flowTheme} onPress={continueFlow} />
-      </SafeAreaView>
+      </FlowFooter>
     </SafeAreaView>
   );
 }

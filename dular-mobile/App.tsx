@@ -16,6 +16,7 @@ import * as ExpoSplashScreen from "expo-splash-screen";
 import { navRef } from "@/navigation/nav";
 import RootNavigator from "@/navigation/RootNavigator";
 import { NotificacaoPopup } from "@/components/ui/NotificacaoPopup";
+import { SystemNavigationBarSurface } from "@/components/ui/SystemNavigationBarSurface";
 import { colors } from "@/theme/tokens";
 import { aplicarFonteGlobal } from "@/theme/fonte";
 
@@ -68,6 +69,10 @@ export default function App() {
             toque) e depois do navegador, para ficar por cima de tudo. */}
         <NotificacaoPopup />
       </NavigationContainer>
+      {/* Depois do navegador, dentro do SafeAreaProvider: a faixa da barra de
+          navegação do Android precisa cobrir qualquer tela, inclusive as
+          modais, e depende do inset que o provider publica. */}
+      <SystemNavigationBarSurface />
       <StatusBar style="dark" />
     </SafeAreaProvider>
   );

@@ -11,6 +11,7 @@ export { DInput }          from "./DInput";
 export { DSectionHeader }  from "./DSectionHeader";
 export { DScreen }         from "./DScreen";
 export { DScreenHeader }   from "./DScreenHeader";
+export { SystemNavigationBarSurface } from "./SystemNavigationBarSurface";
 export { DLoadingState, DSkeletonCard, DEmptyState, DErrorState } from "./DStateViews";
 export { GradientButton } from "./GradientButton";
 export { ConversaCard, ConversaCardSkeleton } from "./ConversaCard";

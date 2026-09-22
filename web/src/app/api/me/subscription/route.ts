@@ -14,7 +14,7 @@ export async function GET(request: Request) {
     return fail("UNAUTHORIZED", "Não autenticado", 401);
   }
 
-  const [subscription, solicitacoes] = await Promise.all([
+  const [subscription, solicitacoes, usuario] = await Promise.all([
     prisma.subscription.findUnique({
       where: { userId: payload.userId },
       select: {
@@ -26,6 +26,10 @@ export async function GET(request: Request) {
       },
     }),
     checkFeatureAccess(payload.userId, "SOLICITACOES_MES"),
+    prisma.user.findUnique({
+      where: { id: payload.userId },
+      select: { premiumIntroShownAt: true },
+    }),
   ]);
 
   return ok({
@@ -46,5 +50,10 @@ export async function GET(request: Request) {
         allowed: solicitacoes.allowed,
       },
     },
+    // Só LEITURA: quem decide se a apresentação aparece é o POST claim-intro,
+    // que marca e responde no mesmo passo. Este campo existe para telas que
+    // queiram saber o estado sem reivindicar nada — ler não pode consumir a
+    // única exibição a que a conta tem direito.
+    premiumIntroShown: usuario?.premiumIntroShownAt != null,
   });
 }

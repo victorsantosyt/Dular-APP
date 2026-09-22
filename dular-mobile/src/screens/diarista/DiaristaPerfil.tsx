@@ -78,6 +78,7 @@ import {
 } from "../empregador/profile/components";
 import type { ServicoOferecido } from "@/types/diarista";
 import { OFERTAS_DIARISTA } from "@/constants/categorias";
+import { MotivoPaywall } from "@/lib/paywall";
 import { mascaraTelefone, plural, somenteDigitos } from "@/utils/formatters";
 import { getBottomNavContentPadding } from "@/navigation/bottomNavLayout";
 
@@ -1459,7 +1460,7 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                   icon="Sparkles"
                   title="Meu plano"
                   subtitle="Assine antes de atingir o limite de serviços"
-                  onPress={() => navigation.navigate("Paywall", {})}
+                  onPress={() => navigation.navigate("Paywall", { motivo: MotivoPaywall.USER_REQUESTED })}
                 />
                 <ProfileRow
                   accentColor={theme.primary}

@@ -16,6 +16,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
 
 import { api } from "@/lib/api";
+import { MotivoPaywall, type PaywallParams } from "@/lib/paywall";
 import {
   abrirCheckout,
   comprarPlano,
@@ -448,7 +449,15 @@ export default function PaywallScreen({ onClose }: Props) {
   const [ultimoEscolhido, setUltimoEscolhido] = useState<string | null>(null);
   const [assinando, setAssinando] = useState(false);
 
-  const mensagem = (route.params as { mensagem?: string } | undefined)?.mensagem;
+  // Por que esta tela abriu. Sem motivo declarado, trata como abertura manual:
+  // é o caso de quem chegou por "Meu plano" ou pela barra de limite, e é o
+  // padrão seguro — nenhuma regra de exibição depende disto.
+  const params = route.params as PaywallParams | undefined;
+  const motivo = params?.motivo ?? MotivoPaywall.USER_REQUESTED;
+  // O aviso é do limite esgotado, e só dele. Amarrado ao motivo, e não à mera
+  // presença de um texto, para que um `mensagem` vindo de outro caminho não
+  // herde a moldura de alerta sem querer.
+  const mensagem = motivo === MotivoPaywall.FREE_LIMIT_REACHED ? params?.mensagem : undefined;
 
   // Refaz ao focar para refletir a assinatura logo após voltar do Stripe.
   // Fonte: /api/me/subscription — `useRestricoes` tipa um campo `plano` que a

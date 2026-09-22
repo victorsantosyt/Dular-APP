@@ -17,7 +17,7 @@ if (process.env.LOG_LEVEL === "silent") {
 type AnyFn = (...args: any[]) => any;
 
 export type MockPrisma = {
-  user: { findUnique: AnyFn; findFirst: AnyFn; update: AnyFn; count: AnyFn; create: AnyFn; upsert: AnyFn };
+  user: { findUnique: AnyFn; findFirst: AnyFn; update: AnyFn; updateMany: AnyFn; count: AnyFn; create: AnyFn; upsert: AnyFn };
   servico: { findUnique: AnyFn; count: AnyFn; create: AnyFn; update: AnyFn; updateMany: AnyFn };
   paymentInfo: { findUnique: AnyFn; upsert: AnyFn };
   paymentEvent: { create: AnyFn };
@@ -73,6 +73,7 @@ export function createMockPrisma(): MockPrisma {
       findUnique: (async () => ({ status: "ATIVO" })) as AnyFn,
       findFirst: notMocked("user.findFirst"),
       update: notMocked("user.update"),
+      updateMany: notMocked("user.updateMany"),
       count: notMocked("user.count"),
       create: notMocked("user.create"),
       upsert: notMocked("user.upsert"),

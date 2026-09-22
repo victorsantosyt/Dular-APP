@@ -14,6 +14,7 @@ import DiaristaDetalhe from "@/screens/diarista/DiaristaDetalhe";
 import { ChatAbertoScreen } from "@/screens/shared/ChatAbertoScreen";
 import type { ChatAbertoParams } from "@/screens/shared/ChatAbertoScreen";
 import PaywallScreen from "@/screens/PaywallScreen";
+import type { PaywallParams } from "@/lib/paywall";
 import SegurancaScreen from "@/screens/diarista/SegurancaScreen";
 import DiaristaCarteira from "@/screens/diarista/DiaristaCarteira";
 import VerificacaoDocs from "@/screens/perfil/VerificacaoDocs";
@@ -43,7 +44,7 @@ export type DiaristaTabParamList = {
   ProfissionalPerfil: { id: string };
   DetalheServico: { id: string };
   DiaristaDetalhe: { servicoId: string };
-  Paywall: { mensagem?: string };
+  Paywall: PaywallParams;
   Seguranca: { servicoId: string; enderecoServico?: string };
   Carteira: { from?: keyof DiaristaTabParamList } | undefined;
   VerificacaoDocs: undefined;

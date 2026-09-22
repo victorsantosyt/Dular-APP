@@ -46,6 +46,7 @@ import { platformSelect } from "@/utils/platform";
 import { VerifiedBadge } from "@/components/ui/VerifiedBadge";
 import { firstName, formatMoneyFromCents, upperStatus } from "./montadorUtils";
 import { plural } from "@/utils/formatters";
+import { MotivoPaywall } from "@/lib/paywall";
 
 type ModalType = "dados" | "especialidades" | "area" | "precos" | "portfolio" | "avaliacoes" | null;
 
@@ -1054,7 +1055,7 @@ export default function MontadorPerfil() {
         <Row icon="CreditCard" title="Carteira/Ganhos" subtitle={formatMoneyFromCents(ganhos)} theme={profileTheme} onPress={() => navigation.navigate("Carteira", { from: "MontadorPerfil" })} />
         {/* Mesma entrada voluntária da diarista: sem isso o paywall só abria
             depois de estourar o limite, e não havia como assinar antes. */}
-        <Row icon="Sparkles" title="Meu plano" subtitle="Assine antes de atingir o limite de serviços" theme={profileTheme} onPress={() => navigation.navigate("Paywall", {})} />
+        <Row icon="Sparkles" title="Meu plano" subtitle="Assine antes de atingir o limite de serviços" theme={profileTheme} onPress={() => navigation.navigate("Paywall", { motivo: MotivoPaywall.USER_REQUESTED })} />
         <Row icon="Landmark" title="Recebimentos" subtitle="Receber pelo PIX" theme={profileTheme} onPress={() => navigation.navigate("Recebimentos")} />
       </Section>
 

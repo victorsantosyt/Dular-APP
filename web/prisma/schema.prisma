@@ -256,6 +256,28 @@ model User {
   /** Último heartbeat do usuário (presença "online / visto por último"). */
   lastSeenAt     DateTime?
 
+  /// Quando esta CONTA viu a apresentação do Premium (paywall de primeiro
+  /// acesso). Nulo = ainda não viu.
+  ///
+  /// Mora aqui, e não em `Subscription`, porque a assinatura pode não existir
+  /// (`findUnique` devolve null para quem nunca assinou) e a marca precisa
+  /// valer desde o primeiro login. Sendo do usuário, sobrevive a fechar o app,
+  /// a logout/login, a troca de aparelho e a reinstalação — o que um flag em
+  /// memória ou em AsyncStorage não faz.
+  ///
+  /// Único escritor em runtime: POST /api/me/subscription/claim-intro, que
+  /// grava com `updateMany ... where premiumIntroShownAt: null` para que duas
+  /// chamadas simultâneas não reivindiquem a mesma apresentação duas vezes.
+  ///
+  /// A migration que criou a coluna também escreveu nela, uma vez só: marcou
+  /// como vista toda conta que já existia. FIRST_LOGIN é de primeiro acesso, e
+  /// quem já usava o app não está no primeiro acesso. Por isso o nulo só
+  /// aparece em conta criada DEPOIS da migration — é o que a torna elegível.
+  ///
+  /// NÃO é gate de acesso nem concede benefício: só decide se uma tela de
+  /// apresentação aparece. O bloqueio por plano continua em `featureGate`.
+  premiumIntroShownAt DateTime?
+
   empregadorPerfil      EmpregadorPerfil?
   diaristaProfile       DiaristaProfile?
   montadorPerfil        MontadorPerfil?

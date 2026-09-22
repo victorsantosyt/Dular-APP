@@ -1,6 +1,8 @@
 import { useCallback } from "react";
 import { useNavigation } from "@react-navigation/native";
 
+import { paramsDeLimiteExcedido } from "@/lib/paywall";
+
 /**
  * Trata o 403 LIMIT_EXCEEDED do backend levando o profissional ao paywall.
  *
@@ -18,18 +20,12 @@ export function useLimiteDePlano() {
   /** Devolve true quando reconheceu o limite e já navegou. */
   const tratar = useCallback(
     (erro: unknown): boolean => {
-      const e = erro as {
-        response?: { status?: number; data?: { error?: string; message?: string } };
-      };
-      const dados = e?.response?.data;
-      if (e?.response?.status !== 403 || dados?.error !== "LIMIT_EXCEEDED") {
-        return false;
-      }
-      navigation.navigate("Paywall", {
-        mensagem:
-          dados.message ??
-          "Você atingiu o limite do seu plano. Assine para continuar aceitando serviços.",
-      });
+      // O reconhecimento do 403 mora em `paramsDeLimiteExcedido` para poder
+      // ser exercitado sem React — é a regra que decide se a pessoa vê uma
+      // oferta de plano no lugar de uma mensagem de erro.
+      const params = paramsDeLimiteExcedido(erro);
+      if (!params) return false;
+      navigation.navigate("Paywall", params);
       return true;
     },
     [navigation],

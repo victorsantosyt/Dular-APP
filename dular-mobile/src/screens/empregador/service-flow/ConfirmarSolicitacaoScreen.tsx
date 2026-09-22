@@ -9,7 +9,7 @@ import { criarServico, prepararPayload } from "@/api/empregadorApi";
 import { motivoLabel } from "@/api/perfilApi";
 import { useAuth } from "@/stores/authStore";
 import { SERVICE_LABELS, useServiceFlow } from "./ServiceFlowContext";
-import { FlowPrimaryButton, flowStyles, StepHeader, SummaryCard } from "./components";
+import { FlowFooter, FlowPrimaryButton, flowStyles, StepHeader, SummaryCard } from "./components";
 import { getServiceFlowTheme } from "@/theme/serviceFlowTheme";
 
 type Navigation = NativeStackNavigationProp<EmpregadorServiceFlowStackParamList, "ConfirmarSolicitacao">;
@@ -193,7 +193,7 @@ export function ConfirmarSolicitacaoScreen() {
         </DCard>
       </ScrollView>
 
-      <SafeAreaView style={flowStyles.footer}>
+      <FlowFooter>
         <FlowPrimaryButton
           label="Confirmar solicitação"
           theme={flowTheme}
@@ -201,7 +201,7 @@ export function ConfirmarSolicitacaoScreen() {
           onPress={confirmRequest}
         />
         <Text style={s.editLink} onPress={() => navigation.navigate("EscolherServico")}>Editar informações</Text>
-      </SafeAreaView>
+      </FlowFooter>
     </SafeAreaView>
   );
 }

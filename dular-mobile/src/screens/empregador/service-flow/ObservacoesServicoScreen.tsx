@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { KeyboardAvoidingView, Platform, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { AppIcon } from "@/components/ui/AppIcon";
@@ -7,7 +7,7 @@ import { DCard } from "@/components/ui/DCard";
 import type { EmpregadorServiceFlowStackParamList } from "@/navigation/EmpregadorServiceFlowNavigator";
 import { colors, radius, spacing } from "@/theme";
 import { useServiceFlow } from "./ServiceFlowContext";
-import { FlowPrimaryButton, flowStyles, StepHeader } from "./components";
+import { FlowFooter, FlowPrimaryButton, flowStyles, StepHeader } from "./components";
 import { getServiceFlowTheme } from "@/theme/serviceFlowTheme";
 
 type Navigation = NativeStackNavigationProp<EmpregadorServiceFlowStackParamList, "ObservacoesServico">;
@@ -32,55 +32,61 @@ export function ObservacoesServicoScreen() {
 
   return (
     <SafeAreaView style={flowStyles.screen}>
-      <ScrollView contentContainerStyle={flowStyles.scrollContent} showsVerticalScrollIndicator={false}>
-        <StepHeader
-          title="Observações"
-          subtitle="Adicione detalhes para deixar a solicitação mais precisa."
-          step={5}
-          total={6}
-          onBack={() => navigation.goBack()}
-          theme={flowTheme}
-        />
-
-        <DCard style={s.textareaCard}>
-          <TextInput
-            value={draft.observacoes}
-            onChangeText={(observacoes) => updateDraft({ observacoes })}
-            placeholder={observacoesPlaceholder}
-            placeholderTextColor={colors.textDisabled}
-            multiline
-            maxLength={1000}
-            textAlignVertical="top"
-            style={[s.textarea, descriptionInvalid && { borderColor: colors.danger }]}
+      <KeyboardAvoidingView
+        style={flowStyles.screen}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
+      >
+        <ScrollView contentContainerStyle={flowStyles.scrollContent} showsVerticalScrollIndicator={false}>
+          <StepHeader
+            title="Observações"
+            subtitle="Adicione detalhes para deixar a solicitação mais precisa."
+            step={5}
+            total={6}
+            onBack={() => navigation.goBack()}
+            theme={flowTheme}
           />
-          <View style={s.counterRow}>
-            {descriptionInvalid ? (
-              <Text style={s.errorText}>Descreva o serviço com pelo menos 20 caracteres.</Text>
-            ) : <View />}
-            <Text style={s.counter}>{draft.observacoes.length}/1000</Text>
-          </View>
-        </DCard>
 
-        {isMontador ? (
-          <DCard style={s.uploadCard}>
-            <View style={s.uploadHeader}>
-              <View style={[s.uploadIcon, { backgroundColor: flowTheme.primarySoft }]}>
-                <AppIcon name="Wrench" size={19} color={flowTheme.primary} />
-              </View>
-              <View style={s.uploadText}>
-                <Text style={s.uploadTitle}>Especialidade selecionada</Text>
-                <Text style={s.uploadSubtitle}>
-                  {draft.especialidadeLabel ?? "Volte para escolher a especialidade do serviço."}
-                </Text>
-              </View>
+          <DCard style={s.textareaCard}>
+            <TextInput
+              value={draft.observacoes}
+              onChangeText={(observacoes) => updateDraft({ observacoes })}
+              placeholder={observacoesPlaceholder}
+              placeholderTextColor={colors.textDisabled}
+              multiline
+              maxLength={1000}
+              textAlignVertical="top"
+              style={[s.textarea, descriptionInvalid && { borderColor: colors.danger }]}
+            />
+            <View style={s.counterRow}>
+              {descriptionInvalid ? (
+                <Text style={s.errorText}>Descreva o serviço com pelo menos 20 caracteres.</Text>
+              ) : <View />}
+              <Text style={s.counter}>{draft.observacoes.length}/1000</Text>
             </View>
           </DCard>
-        ) : null}
-      </ScrollView>
 
-      <SafeAreaView style={flowStyles.footer}>
-        <FlowPrimaryButton label="Continuar" theme={flowTheme} onPress={continueFlow} />
-      </SafeAreaView>
+          {isMontador ? (
+            <DCard style={s.uploadCard}>
+              <View style={s.uploadHeader}>
+                <View style={[s.uploadIcon, { backgroundColor: flowTheme.primarySoft }]}>
+                  <AppIcon name="Wrench" size={19} color={flowTheme.primary} />
+                </View>
+                <View style={s.uploadText}>
+                  <Text style={s.uploadTitle}>Especialidade selecionada</Text>
+                  <Text style={s.uploadSubtitle}>
+                    {draft.especialidadeLabel ?? "Volte para escolher a especialidade do serviço."}
+                  </Text>
+                </View>
+              </View>
+            </DCard>
+          ) : null}
+        </ScrollView>
+
+        <FlowFooter>
+          <FlowPrimaryButton label="Continuar" theme={flowTheme} onPress={continueFlow} />
+        </FlowFooter>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

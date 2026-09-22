@@ -5,7 +5,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { AppIconName } from "@/components/ui";
 import type { EmpregadorServiceFlowStackParamList } from "@/navigation/EmpregadorServiceFlowNavigator";
 import { ServiceCategory, useServiceFlow } from "./ServiceFlowContext";
-import { FlowPrimaryButton, flowStyles, ServiceOptionCard, StepHeader } from "./components";
+import { FlowFooter, FlowPrimaryButton, flowStyles, ServiceOptionCard, StepHeader } from "./components";
 import { getServiceFlowTheme } from "@/theme/serviceFlowTheme";
 
 type Navigation = NativeStackNavigationProp<EmpregadorServiceFlowStackParamList, "EscolherIntensidade">;
@@ -132,14 +132,14 @@ export function EscolherIntensidadeScreen() {
           ))}
         </View>
       </ScrollView>
-      <SafeAreaView style={flowStyles.footer}>
+      <FlowFooter>
         <FlowPrimaryButton
           label="Continuar"
           theme={flowTheme}
           disabled={!canContinue}
           onPress={() => navigation.navigate("EscolherData")}
         />
-      </SafeAreaView>
+      </FlowFooter>
     </SafeAreaView>
   );
 }

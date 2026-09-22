@@ -210,20 +210,10 @@ export function AgendamentosEmpregadorScreen() {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load("refresh")} />}
         >
           <View style={s.header}>
-            <Pressable
-              onPress={() => navigation.navigate("Home")}
-              style={({ pressed }) => [s.backButton, pressed && { opacity: 0.7 }]}
-              hitSlop={10}
-            >
-              <AppIcon name="ArrowLeft" size={20} color={colors.primary} strokeWidth={2.2} />
-            </Pressable>
             <View style={s.headerCopy}>
               <Text style={[s.title, { color: theme.textAccent }]}>Solicitações</Text>
               <Text style={s.subtitle}>Acompanhe todas as suas solicitações</Text>
             </View>
-            {/* Espaçador do tamanho do botão de voltar, para o título ficar no
-                centro da linha e não no centro do que sobra. */}
-            <View style={s.headerSlot} />
           </View>
 
           {/* As duas fileiras de filtro dentro da MESMA barra que a Agenda da
@@ -351,23 +341,10 @@ const s = StyleSheet.create({
     justifyContent: "space-between",
     gap: spacing.md,
   },
-  headerSlot: { width: 42, height: 42 },
   headerCopy: {
     flex: 1,
     gap: 2,
   },
-  backButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    ...shadows.soft,
-  },
-
   title: {
 
     // Título das telas principais: um corpo (h1) e a cor de destaque do

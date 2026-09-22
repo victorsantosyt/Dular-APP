@@ -1,6 +1,7 @@
 import React, { ReactNode } from "react";
 import { LinearGradient } from "expo-linear-gradient";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View, ViewStyle } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BackCircleButton } from "@/components/ui";
 import { AppIcon, type AppIconName } from "@/components/ui/AppIcon";
 import { DCard } from "@/components/ui/DCard";
@@ -206,6 +207,16 @@ export function FlowPrimaryButton({
           )}
         </LinearGradient>
       </Pressable>
+    </View>
+  );
+}
+
+export function FlowFooter({ children }: { children: ReactNode }) {
+  const insets = useSafeAreaInsets();
+
+  return (
+    <View style={[flowStyles.footer, { paddingBottom: spacing.xl + insets.bottom }]}>
+      {children}
     </View>
   );
 }

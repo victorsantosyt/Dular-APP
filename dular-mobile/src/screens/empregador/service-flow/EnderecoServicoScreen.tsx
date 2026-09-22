@@ -10,7 +10,7 @@ import { colors, radius, shadows, spacing } from "@/theme";
 import { useAuth } from "@/stores/authStore";
 import { fetchBairrosDaCidade, fetchEnderecos, normalizarBairro, type Endereco } from "@/api/enderecoApi";
 import { useServiceFlow } from "./ServiceFlowContext";
-import { FlowPrimaryButton, flowStyles, StepHeader } from "./components";
+import { FlowFooter, FlowPrimaryButton, flowStyles, StepHeader } from "./components";
 import { getServiceFlowTheme } from "@/theme/serviceFlowTheme";
 
 const TIPO_LABEL: Record<Endereco["tipo"], string> = {
@@ -325,9 +325,9 @@ export function EnderecoServicoScreen() {
 
       </ScrollView>
 
-      <SafeAreaView style={flowStyles.footer}>
+      <FlowFooter>
         <FlowPrimaryButton label="Continuar" theme={flowTheme} onPress={continuar} />
-      </SafeAreaView>
+      </FlowFooter>
     </SafeAreaView>
   );
 }

@@ -8,13 +8,13 @@ import {
   View,
   type ViewStyle,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { useDularColors } from "@/hooks/useDularColors";
 import { useThemeStore } from "@/stores/useThemeStore";
 import { spacing } from "@/theme";
 import { BottomTabBarHeightContext } from "@react-navigation/bottom-tabs";
-import { getBottomNavContentPadding } from "@/navigation/bottomNavLayout";
+import { getScrollBottomClearance } from "@/lib/screenLayout";
 
 type EdgeValue = "top" | "bottom" | "left" | "right";
 type ThemeColors = ReturnType<typeof useDularColors>;
@@ -37,7 +37,14 @@ type Props = {
   /** Status bar appearance. "auto" (default) deriva do tema; "light"/"dark"
    *  forçam o estilo independentemente do modo. */
   statusBarStyle?: "dark" | "light" | "auto";
-  /** Quando há uma tab bar acima desta tela, libera sua altura medida no fim do conteúdo. */
+  /**
+   * @deprecated Não faz mais diferença, e é aceita só para não quebrar as
+   * dezesseis telas que a passam. A reserva do fim do conteúdo passou a ser
+   * automática: quando a tela está numa aba, o `BottomTabBarHeightContext`
+   * informa a altura medida da BottomNav; fora dela, vale o inset do sistema.
+   * Depender de uma prop opcional era o bug — quem não a passava terminava
+   * embaixo da barra.
+   */
   withBottomPadding?: boolean;
   /** Wrap in KeyboardAvoidingView (iOS "padding", Android "height") */
   keyboardAvoiding?: boolean;
@@ -56,7 +63,6 @@ export function DScreen({
   contentContainerStyle,
   safeAreaEdges = ["top", "left", "right"],
   statusBarStyle = "dark",
-  withBottomPadding = false,
   keyboardAvoiding = false,
   refreshing,
   onRefresh,
@@ -66,6 +72,7 @@ export function DScreen({
   const mode = useThemeStore((state) => state.mode);
   const s = useMemo(() => makeStyles(colors), [colors]);
   const bottomTabBarHeight = useContext(BottomTabBarHeightContext) ?? 0;
+  const insets = useSafeAreaInsets();
 
   const isScrollable = scroll ?? scrollable ?? false;
   const bg = backgroundColor ?? colors.background;
@@ -94,15 +101,27 @@ export function DScreen({
       />
     ) : undefined;
 
+  // A reserva não depende mais de `withBottomPadding`: uma tela Stack que não
+  // passava a prop ficava com respiro fixo e terminava embaixo da barra do
+  // sistema. Agora o contexto decide sozinho qual barra está no rodapé.
+  const bottomClearance = getScrollBottomClearance({
+    basePadding:
+      (StyleSheet.flatten([s.scrollContent, contentContainerStyle])
+        ?.paddingBottom as number) ?? spacing.xl,
+    systemInset: insets.bottom,
+    bottomTabBarHeight,
+  });
+
   const content = isScrollable ? (
     <ScrollView
       style={s.flex}
       contentContainerStyle={[
         s.scrollContent,
         contentContainerStyle,
-        withBottomPadding && {
-          paddingBottom: getBottomNavContentPadding(bottomTabBarHeight, spacing.xl),
-        },
+        // Por último, sempre: o respiro visual da tela continua valendo, e a
+        // reserva da barra inferior não pode ser perdida por um
+        // `contentContainerStyle` que redefina `paddingBottom`.
+        { paddingBottom: bottomClearance },
       ]}
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"

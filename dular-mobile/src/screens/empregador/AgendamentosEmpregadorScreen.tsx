@@ -10,6 +10,7 @@ import { colors, radius, shadows, spacing, typography } from "@/theme";
 import { useGenderTheme } from "@/hooks/useProfileTheme";
 import { getBottomNavContentPadding } from "@/navigation/bottomNavLayout";
 import { shouldShowHistoryBanner } from "./agendamentos/historyBanner";
+import { statusMatchesFilter } from "./agendamentos/statusFiltro";
 import {
   AgendamentoItem,
   AppointmentCard,
@@ -20,7 +21,6 @@ import {
   STATUS_FILTERS,
   StatusChip,
   StatusFiltro,
-  statusMatchesFilter,
 } from "./agendamentos/components";
 
 type Navigation = BottomTabNavigationProp<EmpregadorTabParamList>;
@@ -58,9 +58,19 @@ type MinhasServicosResponse = {
 function normalizeStatus(status?: string | null): AgendamentoItem["status"] {
   const value = String(status ?? "").toUpperCase();
   if (value === "SOLICITADO" || value === "PENDENTE" || value === "RASCUNHO") return "pendente";
-  if (value === "ACEITO" || value === "CONFIRMADO") return "aceita";
+  if (value === "ACEITO") return "aceita";
   if (value === "EM_ANDAMENTO" || value === "AGUARDANDO_FINALIZACAO") return "andamento";
-  if (value === "CONCLUIDO" || value === "CONCLUÍDO" || value === "FINALIZADO") return "concluida";
+  // CONFIRMADO é terminal: só se chega nele a partir de CONCLUIDO, pela rota
+  // `/servicos/[id]/confirmar`, e dali só se segue para FINALIZADO. O chat já
+  // está arquivado e a avaliação já é permitida. O pill dizia "Aceita" enquanto
+  // o filtro o classificava em Concluídas — mesma linha, duas respostas.
+  if (
+    value === "CONCLUIDO" ||
+    value === "CONCLUÍDO" ||
+    value === "CONFIRMADO" ||
+    value === "FINALIZADO"
+  )
+    return "concluida";
   if (value === "CANCELADO" || value === "RECUSADO") return "cancelada";
   return "pendente";
 }

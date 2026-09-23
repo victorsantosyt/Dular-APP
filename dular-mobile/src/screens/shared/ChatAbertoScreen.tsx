@@ -275,7 +275,7 @@ export function ChatAbertoScreen({ route }: Props) {
 
       <KeyboardAvoidingView
         style={[styles.kav, { backgroundColor: theme.background }]}
-        behavior={platformSelect({ ios: "padding", android: undefined })}
+        behavior={platformSelect({ ios: "padding", android: "height" })}
         keyboardVerticalOffset={0}
       >
         {/* Messages area */}

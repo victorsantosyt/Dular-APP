@@ -249,7 +249,7 @@ export function CadastroEnderecoScreen({ role, mode = "onboarding", initial, onD
         {onCancel ? (
           <View style={s.header}>
             <BackCircleButton onPress={onCancel} color={theme.primary} borderColor={theme.border} />
-            <Text style={s.headerTitle} numberOfLines={1}>
+            <Text style={[s.headerTitle, { color: theme.textAccent }]} numberOfLines={1}>
               Endereço
             </Text>
             <View style={s.backBtn} />
@@ -294,7 +294,7 @@ export function CadastroEnderecoScreen({ role, mode = "onboarding", initial, onD
           ) : (
             <View style={s.backBtn} />
           )}
-          <Text style={s.headerTitle} numberOfLines={1}>
+          <Text style={[s.headerTitle, { color: theme.textAccent }]} numberOfLines={1}>
             {initial ? "Atualizar endereço" : "Endereço"}
           </Text>
           <View style={s.backBtn} />
@@ -450,7 +450,7 @@ function makeStyles(colors: ReturnType<typeof useDularColors>) {
     headerTitle: {
     // Título de tela secundária: h2 e cor de destaque do perfil.
       ...typography.h2,
-      flex: 1, textAlign: "center",  color: colors.textPrimary, fontWeight: "700"
+      flex: 1, textAlign: "center", fontWeight: "700"
     },
     scroll: { paddingHorizontal: spacing.screenPadding, paddingTop: spacing.sm, paddingBottom: 48, gap: 6 },
     title: { ...typography.h2, color: colors.textPrimary, fontWeight: "800", marginTop: spacing.lg,

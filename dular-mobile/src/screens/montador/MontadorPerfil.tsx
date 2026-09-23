@@ -47,6 +47,7 @@ import { VerifiedBadge } from "@/components/ui/VerifiedBadge";
 import { firstName, formatMoneyFromCents, upperStatus } from "./montadorUtils";
 import { plural } from "@/utils/formatters";
 import { MotivoPaywall } from "@/lib/paywall";
+import { deveMostrarProgresso, estadoDaCompletude } from "@/lib/profileProgress";
 
 type ModalType = "dados" | "especialidades" | "area" | "precos" | "portfolio" | "avaliacoes" | null;
 
@@ -422,6 +423,16 @@ export default function MontadorPerfil() {
   const avaliacoesTotal = perfil?.avaliacoes?.total ?? 0;
   const progresso = perfil?.completude.progresso ?? 0;
   const completo = Boolean(perfil?.completude.completo);
+  // A barra só existe enquanto falta preencher algo. Antes ela era renderizada
+  // sempre: com o perfil ainda nulo mostrava "Perfil 0% completo", e em 100%
+  // continuava na tela anunciando que estava completo.
+  const mostrarProgresso = deveMostrarProgresso(
+    estadoDaCompletude({
+      carregado: perfil != null,
+      progresso: perfil?.completude.progresso,
+      completo: perfil?.completude.completo,
+    }),
+  );
   const verificado = Boolean(perfil?.verificado);
   const ativo = perfil?.ativo ?? true;
   const statusLabel = !completo ? "Incompleto" : !ativo ? "Indisponível" : verificado ? "Ativo" : "Verificação pendente";
@@ -954,12 +965,14 @@ export default function MontadorPerfil() {
             <View style={styles.badge}><Text style={styles.badgeText}>{perfil.totalServicos} serviço(s)</Text></View>
             <View style={styles.badge}><Text style={styles.badgeText}>{statusLabel}</Text></View>
           </View>
-          <View style={styles.progressTop}>
-            <Text style={styles.progressLabel}>Perfil {progresso}% completo</Text>
-            <View style={styles.progressTrack}>
-              <View style={[styles.progressFill, { width: `${progresso}%` }]} />
+          {mostrarProgresso ? (
+            <View style={styles.progressTop}>
+              <Text style={styles.progressLabel}>Perfil {progresso}% completo</Text>
+              <View style={styles.progressTrack}>
+                <View style={[styles.progressFill, { width: `${progresso}%` }]} />
+              </View>
             </View>
-          </View>
+          ) : null}
         </View>
       </LinearGradient>
 

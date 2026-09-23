@@ -80,6 +80,7 @@ import type { ServicoOferecido } from "@/types/diarista";
 import { OFERTAS_DIARISTA } from "@/constants/categorias";
 import { MotivoPaywall } from "@/lib/paywall";
 import { deveMostrarProgresso, estadoDaCompletude } from "@/lib/profileProgress";
+import { estadoDeVisibilidadeDiarista } from "@/lib/diaristaVisibilidade";
 import { mascaraTelefone, plural, somenteDigitos } from "@/utils/formatters";
 import { getBottomNavContentPadding } from "@/navigation/bottomNavLayout";
 
@@ -99,7 +100,12 @@ type StatusCardCase =
   | "AGUARDANDO"
   | "VERIFICAR"
   | "REPROVADO"
-  | "INCOMPLETO";
+  | "INCOMPLETO"
+  // Bloqueios que NÃO se resolvem preenchendo campo nem enviando documento.
+  | "PERFIL_INATIVO"
+  | "CONTA_BLOQUEADA"
+  | "CONTA_REMOVIDA"
+  | "STATUS_INDETERMINADO";
 
 function statusCardCopy(
   kase: StatusCardCase,
@@ -108,6 +114,34 @@ function statusCardCopy(
     return {
       title: "Perfil visível",
       text: "Seu perfil está completo e aparece na busca para empregadores.",
+    };
+  }
+  if (kase === "PERFIL_INATIVO") {
+    return {
+      title: "Perfil inativo",
+      text:
+        "Seu perfil está inativo e não aparece na busca para empregadores. Ative “Perfil ativo” para voltar a ser encontrada.",
+    };
+  }
+  if (kase === "CONTA_BLOQUEADA") {
+    return {
+      title: "Conta bloqueada",
+      text:
+        "Sua conta está bloqueada e seu perfil não aparece na busca. Fale com o suporte se acha que houve engano.",
+    };
+  }
+  if (kase === "CONTA_REMOVIDA") {
+    return {
+      title: "Conta excluída",
+      text: "Esta conta foi excluída e seu perfil não aparece na busca.",
+    };
+  }
+  if (kase === "STATUS_INDETERMINADO") {
+    // Sem saber o status, o app não afirma visibilidade em nenhuma direção.
+    return {
+      title: "Não foi possível confirmar sua visibilidade",
+      text:
+        "Não conseguimos confirmar se seu perfil aparece na busca. Verifique sua conexão e abra o perfil novamente.",
     };
   }
   if (kase === "AGUARDANDO") {
@@ -557,13 +591,26 @@ export default function DiaristaPerfil({ onLogout }: Props) {
   // o schema tem @default(PENDENTE), então a coluna nasce PENDENTE mesmo com
   // docUrl=null. A única fonte da verdade para "doc enviado" é docUrl.
   const hasDocUrl = Boolean(profile?.docUrl);
+  // Elegibilidade vem ANTES de completude e de documento: perfil inativo ou
+  // conta bloqueada não aparecem na busca por mais preenchido e verificado que
+  // o cadastro esteja, e o app dizia o contrário.
+  const visibilidade = estadoDeVisibilidadeDiarista({
+    dadosCompletos: completude.completo,
+    profileAtivo: profile?.ativo,
+    userStatus: profile?.user?.status ?? user?.status,
+  });
+
   const statusCardCase: StatusCardCase = useMemo(() => {
+    if (visibilidade === "CONTA_REMOVIDA") return "CONTA_REMOVIDA";
+    if (visibilidade === "CONTA_BLOQUEADA") return "CONTA_BLOQUEADA";
+    if (visibilidade === "STATUS_INDETERMINADO") return "STATUS_INDETERMINADO";
+    if (visibilidade === "PERFIL_INATIVO") return "PERFIL_INATIVO";
     if (!completude.completo) return "INCOMPLETO";
     if (verificacao === "APROVADO") return "VISIVEL";
     if (verificacao === "REPROVADO") return "REPROVADO";
     if (hasDocUrl && verificacao === "PENDENTE") return "AGUARDANDO";
     return "VERIFICAR";
-  }, [completude.completo, verificacao, hasDocUrl]);
+  }, [visibilidade, completude.completo, verificacao, hasDocUrl]);
 
   // Card de status "Perfil visível" é transitório: mostra ~20s na transição
   // não-aprovado -> aprovado e some, deixando o perfil limpo.

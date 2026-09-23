@@ -127,8 +127,14 @@ export function ChatAbertoScreen({ route }: Props) {
   // já é coberto pelo próprio teclado — sem isso, gera "espaço enorme" entre
   // o input e o teclado).
   useEffect(() => {
-    const showSub = Keyboard.addListener("keyboardWillShow", () => setKeyboardOpen(true));
-    const hideSub = Keyboard.addListener("keyboardWillHide", () => setKeyboardOpen(false));
+    // `keyboardWillShow`/`keyboardWillHide` NÃO são emitidos no Android — lá só
+    // existem os eventos `did`. Ouvindo apenas os `will`, `keyboardOpen` ficava
+    // preso em false no Android e o composer mantinha o inset inteiro embaixo
+    // do teclado, que é a faixa que aparecia entre os dois.
+    const eventoShow = platformSelect({ ios: "keyboardWillShow", android: "keyboardDidShow" });
+    const eventoHide = platformSelect({ ios: "keyboardWillHide", android: "keyboardDidHide" });
+    const showSub = Keyboard.addListener(eventoShow as "keyboardDidShow", () => setKeyboardOpen(true));
+    const hideSub = Keyboard.addListener(eventoHide as "keyboardDidHide", () => setKeyboardOpen(false));
     return () => {
       showSub.remove();
       hideSub.remove();
@@ -269,7 +275,7 @@ export function ChatAbertoScreen({ route }: Props) {
 
       <KeyboardAvoidingView
         style={[styles.kav, { backgroundColor: theme.background }]}
-        behavior={platformSelect({ ios: "padding", android: "height" })}
+        behavior={platformSelect({ ios: "padding", android: undefined })}
         keyboardVerticalOffset={0}
       >
         {/* Messages area */}

@@ -21,7 +21,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { AppIcon, DInput, type AppIconName } from "@/components/ui";
+import { BackCircleButton, AppIcon, DInput, type AppIconName } from "@/components/ui";
 import { useDularColors } from "@/hooks/useDularColors";
 import { useGenderTheme } from "@/hooks/useProfileTheme";
 import { radius, shadows, spacing, typography } from "@/theme";
@@ -248,9 +248,7 @@ export function CadastroEnderecoScreen({ role, mode = "onboarding", initial, onD
       <SafeAreaView style={s.safe} edges={["top", "left", "right"]}>
         {onCancel ? (
           <View style={s.header}>
-            <Pressable onPress={onCancel} hitSlop={10} style={({ pressed }) => [s.backBtn, pressed && s.pressed]}>
-              <AppIcon name="ArrowLeft" size={20} color={theme.primary} strokeWidth={2.4} />
-            </Pressable>
+            <BackCircleButton onPress={onCancel} color={theme.primary} borderColor={theme.border} />
             <Text style={s.headerTitle} numberOfLines={1}>
               Endereço
             </Text>
@@ -292,9 +290,7 @@ export function CadastroEnderecoScreen({ role, mode = "onboarding", initial, onD
       <KeyboardAvoidingView style={s.flex} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <View style={s.header}>
           {onCancel ? (
-            <Pressable onPress={onCancel} hitSlop={10} style={({ pressed }) => [s.backBtn, pressed && s.pressed]}>
-              <AppIcon name="ArrowLeft" size={20} color={theme.primary} strokeWidth={2.4} />
-            </Pressable>
+            <BackCircleButton onPress={onCancel} color={theme.primary} borderColor={theme.border} />
           ) : (
             <View style={s.backBtn} />
           )}
@@ -444,9 +440,10 @@ function makeStyles(colors: ReturnType<typeof useDularColors>) {
       paddingVertical: spacing.sm,
     },
     backBtn: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
+      // Mesma medida do BackCircleButton, senão o título perde o centro.
+      width: 42,
+      height: 42,
+      borderRadius: 21,
       alignItems: "center",
       justifyContent: "center",
     },

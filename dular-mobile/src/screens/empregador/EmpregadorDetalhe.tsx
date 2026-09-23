@@ -415,6 +415,20 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
           />
         ) : null}
 
+        {/* Relatar incidente. O empregador era o único papel sem entrada
+            contextual: sobrava só Perfil → SOS, que abria a denúncia sem
+            `serviceId` e sem saber quem é a contraparte. Fica disponível mesmo
+            depois do serviço encerrado — um incidente pode ser relatado depois
+            do atendimento, e o backend não restringe por status. */}
+        {svc.diarista || svc.montador ? (
+          <DButton
+            tint={colors.warning}
+            title="Reportar problema"
+            variant="outline"
+            onPress={() => navigation.navigate("ReportIncident", { serviceId: svc.id })}
+          />
+        ) : null}
+
         {/* Confirmação do empregador. Em AGUARDANDO_FINALIZACAO o profissional
             já finalizou → "Confirmar finalização" (→ CONCLUIDO). Em CONCLUIDO
             falta liberar a avaliação → "Confirmar recebimento" (→ CONFIRMADO).

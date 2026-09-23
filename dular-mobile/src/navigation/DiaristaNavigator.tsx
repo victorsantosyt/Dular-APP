@@ -21,6 +21,7 @@ import VerificacaoDocs from "@/screens/perfil/VerificacaoDocs";
 import SafeScoreScreen from "@/screens/perfil/SafeScoreScreen";
 import SosFlowScreen from "@/screens/perfil/SosFlowScreen";
 import ReportIncident from "@/screens/perfil/ReportIncident";
+import type { ReportIncidentParams } from "@/lib/reportIncident";
 import Suporte from "@/screens/perfil/Suporte";
 import EnviarFeedback from "@/screens/perfil/EnviarFeedback";
 import Termos from "@/screens/perfil/Termos";
@@ -50,7 +51,7 @@ export type DiaristaTabParamList = {
   VerificacaoDocs: undefined;
   SafeScore: undefined;
   SosFlow: undefined;
-  ReportIncident: undefined;
+  ReportIncident: ReportIncidentParams | undefined;
   Suporte: undefined;
   EnviarFeedback: undefined;
   Termos: undefined;

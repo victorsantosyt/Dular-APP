@@ -27,6 +27,7 @@ import type { ChatAbertoParams } from "@/screens/shared/ChatAbertoScreen";
 import Privacidade from "@/screens/perfil/Privacidade";
 import ExcluirConta from "@/screens/perfil/ExcluirConta";
 import ReportIncident from "@/screens/perfil/ReportIncident";
+import type { ReportIncidentParams } from "@/lib/reportIncident";
 import Termos from "@/screens/perfil/Termos";
 import VerificacaoDocs from "@/screens/perfil/VerificacaoDocs";
 import SosFlowScreen from "@/screens/perfil/SosFlowScreen";
@@ -86,7 +87,7 @@ export type EmpregadorTabParamList = {
   DetalheServico: { id: string };
   EmpregadorDetalhe: { servicoId: string };
   VerificacaoDocs: undefined;
-  ReportIncident: undefined;
+  ReportIncident: ReportIncidentParams | undefined;
   SosFlow: undefined;
   SafeScore: undefined;
   Termos: undefined;

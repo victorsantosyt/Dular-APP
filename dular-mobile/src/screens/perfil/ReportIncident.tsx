@@ -17,6 +17,10 @@ import { api } from "@/lib/api";
 import { apiMsg } from "@/utils/apiMsg";
 import { useAuth } from "@/stores/authStore";
 import { useProfileTheme } from "@/hooks/useProfileTheme";
+import {
+  conjuntoDeCategorias,
+  resolveCounterpartFromService,
+} from "@/lib/reportIncident";
 import { AppIcon, BackCircleButton, type AppIconName } from "@/components/ui";
 import { PaperPlane3DIcon, SOSIcon } from "@/assets/icons";
 import { colors, radius, shadow, spacing, typography } from "@/theme/tokens";
@@ -86,7 +90,7 @@ const EMPREGADOR_GROUPS: CategoryGroup[] = [
   },
 ];
 
-const DIARISTA_GROUPS: CategoryGroup[] = [
+const PROFISSIONAL_GROUPS: CategoryGroup[] = [
   {
     key: "agressao",
     title: "Agressão",
@@ -167,11 +171,24 @@ export default function ReportIncident({ route }: any) {
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
-  const groups = role === "DIARISTA" ? DIARISTA_GROUPS : EMPREGADOR_GROUPS;
+  // Montador é profissional. Antes caía no `else` e recebia as categorias do
+  // empregador (patrimônio, comportamento, segurança), que são o que se
+  // denuncia SOBRE um profissional, não o que um profissional denuncia.
+  const groups =
+    conjuntoDeCategorias(role) === "PROFISSIONAL" ? PROFISSIONAL_GROUPS : EMPREGADOR_GROUPS;
   const selectedGroup = useMemo(
     () => groups.find((g) => g.key === selectedGroupKey) ?? null,
     [groups, selectedGroupKey],
   );
+  // Sem serviço e sem contraparte a tela não tem o que denunciar. Isto é um
+  // estado explicável, não um usuário misterioso: dizer "Usuário não
+  // identificado" aqui fazia parecer defeito de dado quando é falta de contexto.
+  const semAtendimento = !serviceId && !reportedUserId;
+  const nomeDaContraparte = semAtendimento
+    ? "Nenhum atendimento selecionado"
+    : resolvingUser
+      ? "Identificando..."
+      : otherUser?.nome ?? "Usuário não identificado";
   const canContinueStep1 = !!reportedUserId && !resolvingUser;
   const canContinueStep2 = !!selectedGroup && !!selectedSubtipo;
   const canSubmit = canContinueStep1 && canContinueStep2 && !saving;
@@ -193,13 +210,17 @@ export default function ReportIncident({ route }: any) {
         setResolvingUser(true);
         const res = await api.get(`/api/servicos/${serviceId}`);
         const servico = res.data?.servico ?? res.data;
-        const other =
-          servico?.cliente?.id === user?.id
-            ? servico?.diarista
-            : servico?.diarista?.id === user?.id
-              ? servico?.cliente
-              : null;
-        const otherUserId = res.data?.otherUserId ?? other?.id ?? null;
+        // A identidade canônica vem do backend, que já calcula
+        // `montadorId ?? diaristaId` e recusa quem não participa do serviço.
+        // A tela só localiza, entre as partes, quem tem esse id — assim os três
+        // papéis funcionam sem a tela reimplementar a regra.
+        const otherUserId = res.data?.otherUserId ?? null;
+        const other = resolveCounterpartFromService({
+          otherUserId,
+          cliente: servico?.cliente,
+          diarista: servico?.diarista,
+          montador: servico?.montador,
+        });
 
         if (!alive) return;
 
@@ -227,7 +248,7 @@ export default function ReportIncident({ route }: any) {
     return () => {
       alive = false;
     };
-  }, [otherUser?.nome, reportedUserId, serviceId, user?.id]);
+  }, [otherUser?.nome, reportedUserId, serviceId]);
 
   async function enviar() {
     if (!canSubmit || !selectedSubtipo) return;
@@ -277,7 +298,14 @@ export default function ReportIncident({ route }: any) {
           </Text>
         </View>
 
-        {resolvingUser ? (
+        {semAtendimento ? (
+          <View style={s.infoBox}>
+            <AppIcon name="AlertTriangle" size={18} color={theme.primary} />
+            <Text style={s.infoText}>
+              Selecione um atendimento para informar quem está envolvido no incidente.
+            </Text>
+          </View>
+        ) : resolvingUser ? (
           <View style={s.infoBox}>
             <ActivityIndicator color={theme.primary} />
             <Text style={s.infoText}>Carregando dados do serviço...</Text>
@@ -316,7 +344,7 @@ export default function ReportIncident({ route }: any) {
               )}
               <View style={{ flex: 1 }}>
                 <Text style={s.personLabel}>Você está reportando</Text>
-                <Text style={s.personName}>{otherUser?.nome ?? "Usuário não identificado"}</Text>
+                <Text style={s.personName}>{nomeDaContraparte}</Text>
               </View>
             </View>
 

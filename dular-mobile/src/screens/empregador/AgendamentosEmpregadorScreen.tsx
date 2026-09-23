@@ -9,6 +9,7 @@ import type { EmpregadorTabParamList } from "@/navigation/EmpregadorNavigator";
 import { colors, radius, shadows, spacing, typography } from "@/theme";
 import { useGenderTheme } from "@/hooks/useProfileTheme";
 import { getBottomNavContentPadding } from "@/navigation/bottomNavLayout";
+import { shouldShowHistoryBanner } from "./agendamentos/historyBanner";
 import {
   AgendamentoItem,
   AppointmentCard,
@@ -194,12 +195,12 @@ export function AgendamentosEmpregadorScreen() {
     [agendamentos, categoriaAtiva, statusAtivo],
   );
   const tabBarHeight = useBottomTabBarHeight();
-  const [bannerHeight, setBannerHeight] = useState(0);
-  const bannerBottom = tabBarHeight + spacing.sm;
-  const bottomContentPadding = getBottomNavContentPadding(
-    tabBarHeight,
-    bannerHeight + spacing.md,
-  );
+  const bottomContentPadding = getBottomNavContentPadding(tabBarHeight, spacing.md);
+  const showHistoryBanner = !loading && !error && shouldShowHistoryBanner({
+    category: categoriaAtiva,
+    status: statusAtivo,
+    resultCount: filteredAgendamentos.length,
+  });
 
   return (
     <SafeAreaView style={s.safe} edges={["top", "left", "right"]}>
@@ -296,17 +297,12 @@ export function AgendamentosEmpregadorScreen() {
             )}
           </View>
 
+          {showHistoryBanner ? (
+            <View style={s.bannerFooter}>
+              <BottomInfoBanner onPress={() => navigation.navigate("Historico")} />
+            </View>
+          ) : null}
         </ScrollView>
-        <View
-          pointerEvents="box-none"
-          onLayout={(event) => setBannerHeight(event.nativeEvent.layout.height)}
-          style={[s.bannerDock, { bottom: bannerBottom }]}
-        >
-          {/* A tela de Histórico existe e está registrada no navegador; aqui
-              tinha ficado um Alert de "em breve" do tempo em que ela ainda não
-              existia, então o botão não levava a lugar nenhum. */}
-          <BottomInfoBanner onPress={() => navigation.navigate("Historico")} />
-        </View>
       </View>
     </SafeAreaView>
   );
@@ -327,12 +323,8 @@ const s = StyleSheet.create({
     paddingTop: 10,
     gap: 9,
   },
-  bannerDock: {
-    position: "absolute",
-    left: 0,
-    right: 0,
+  bannerFooter: {
     alignItems: "center",
-    paddingHorizontal: spacing.screenPadding,
   },
   header: {
     minHeight: 52,

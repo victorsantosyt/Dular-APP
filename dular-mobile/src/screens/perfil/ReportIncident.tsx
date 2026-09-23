@@ -256,7 +256,6 @@ export default function ReportIncident({ route }: any) {
   return (
     <SafeAreaView style={s.safe} edges={["top", "left", "right"]}>
       <View style={s.header}>
-        <View style={{ width: 42 }} />
         <BackCircleButton onPress={voltarPerfil} color={theme.icon} borderColor={theme.border} />
         <Text style={[s.headerTitle, { color: theme.textAccent }]}>Relatar incidente</Text>
         {/* Espaçador: sem ele o título centraliza no espaço que sobra

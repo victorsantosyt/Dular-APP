@@ -1685,7 +1685,7 @@ export default function DiaristaPerfil({ onLogout }: Props) {
           <View
             style={[
               s.modalSheet,
-              { maxHeight: "85%", paddingBottom: Math.max(insets.bottom, spacing.xl) },
+              { maxHeight: "85%", paddingBottom: Math.max(insets.bottom, spacing.md) + spacing.md },
             ]}
           >
             <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
@@ -1846,7 +1846,7 @@ export default function DiaristaPerfil({ onLogout }: Props) {
           <View
             style={[
               s.modalSheet,
-              { maxHeight: "85%", paddingBottom: Math.max(insets.bottom, spacing.xl) },
+              { maxHeight: "85%", paddingBottom: Math.max(insets.bottom, spacing.md) + spacing.md },
             ]}
           >
             <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
@@ -1972,7 +1972,7 @@ export default function DiaristaPerfil({ onLogout }: Props) {
           <View
             style={[
               s.modalSheet,
-              { maxHeight: "85%", paddingBottom: Math.max(insets.bottom, spacing.xl) },
+              { maxHeight: "85%", paddingBottom: Math.max(insets.bottom, spacing.md) + spacing.md },
             ]}
           >
             <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>

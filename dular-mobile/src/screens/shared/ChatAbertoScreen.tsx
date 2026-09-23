@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Dimensions,
   FlatList,
   Keyboard,
   KeyboardAvoidingView,
@@ -24,7 +25,8 @@ import { useAuth } from "@/stores/authStore";
 import { useGenderTheme } from "@/hooks/useProfileTheme";
 import { requestLocationWithAddress } from "@/lib/location";
 import { colors, radius, spacing, typography } from "@/theme/tokens";
-import { platformSelect, shadow } from "@/utils/platform";
+import { calcularImeInsetAndroid } from "@/lib/keyboardInset";
+import { isAndroid, platformSelect, shadow } from "@/utils/platform";
 
 export type ChatAbertoParams = {
   roomId: string;
@@ -122,13 +124,35 @@ export function ChatAbertoScreen({ route }: Props) {
   const [enviando, setEnviando] = useState(false);
   const [anexando, setAnexando] = useState(false);
   const [keyboardOpen, setKeyboardOpen] = useState(false);
+  // Oclusão do teclado no Android, calculada aqui em vez de delegada ao
+  // KeyboardAvoidingView. Ver `calcularImeInsetAndroid` para o motivo: com
+  // `behavior="height"` o componente não voltava ao tamanho original no hide.
+  // Sempre 0 no iOS, onde `behavior="padding"` resolve sozinho.
+  const [androidImeInset, setAndroidImeInset] = useState(0);
 
-  // Detecta teclado aberto pra remover paddingBottom redundante (insets.bottom
-  // já é coberto pelo próprio teclado — sem isso, gera "espaço enorme" entre
-  // o input e o teclado).
   useEffect(() => {
-    const showSub = Keyboard.addListener("keyboardWillShow", () => setKeyboardOpen(true));
-    const hideSub = Keyboard.addListener("keyboardWillHide", () => setKeyboardOpen(false));
+    // `keyboardWillShow`/`keyboardWillHide` NÃO são emitidos no Android — lá só
+    // existem os eventos `did`. Ouvindo apenas os `will`, `keyboardOpen` ficava
+    // preso em false no Android e o composer mantinha o inset inteiro embaixo
+    // do teclado, que é a faixa que aparecia entre os dois.
+    const eventoShow = platformSelect({ ios: "keyboardWillShow", android: "keyboardDidShow" });
+    const eventoHide = platformSelect({ ios: "keyboardWillHide", android: "keyboardDidHide" });
+    const showSub = Keyboard.addListener(eventoShow as "keyboardDidShow", (evento) => {
+      if (isAndroid) {
+        // Altura da tela lida NO EVENTO: rotação e janelas redimensionáveis
+        // mudam esse número, e guardá-lo fora daqui congelaria o valor antigo.
+        setAndroidImeInset(
+          calcularImeInsetAndroid(Dimensions.get("screen").height, evento?.endCoordinates?.screenY)
+        );
+      }
+      setKeyboardOpen(true);
+    });
+    const hideSub = Keyboard.addListener(eventoHide as "keyboardDidHide", () => {
+      // Zerar direto, sem recalcular nada a partir do payload do hide — é
+      // exatamente o recálculo que deixava a faixa residual para trás.
+      setAndroidImeInset(0);
+      setKeyboardOpen(false);
+    });
     return () => {
       showSub.remove();
       hideSub.remove();
@@ -268,8 +292,13 @@ export function ChatAbertoScreen({ route }: Props) {
       ) : null}
 
       <KeyboardAvoidingView
-        style={[styles.kav, { backgroundColor: theme.background }]}
-        behavior={platformSelect({ ios: "padding", android: "height" })}
+        // No Android o wrapper é só um View em flex: a oclusão do IME entra
+        // como `paddingBottom` no container inteiro (lista + composer), que
+        // assim termina exatamente no topo do teclado e volta sozinho ao
+        // fechar. `behavior` de altura/padding/posição aqui depende do estado
+        // interno do componente, que não se restaura no Android edge-to-edge.
+        style={[styles.kav, { backgroundColor: theme.background, paddingBottom: androidImeInset }]}
+        behavior={platformSelect<"padding" | undefined>({ ios: "padding", android: undefined })}
         keyboardVerticalOffset={0}
       >
         {/* Messages area */}

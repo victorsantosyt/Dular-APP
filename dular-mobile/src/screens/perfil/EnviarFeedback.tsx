@@ -90,13 +90,10 @@ export default function EnviarFeedback() {
   };
 
   return (
-    <Screen>
-      <View style={s.header}>
-        <BackCircleButton onPress={() => navigation.goBack()} />
-        <Text style={s.titulo}>Enviar feedback</Text>
-        <View style={s.headerSpacer} />
-      </View>
-
+    <Screen
+      title="Enviar feedback"
+      leftAction={<BackCircleButton onPress={() => navigation.goBack()} />}
+    >
       <KeyboardAvoidingView
         style={s.flex}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -180,16 +177,6 @@ export default function EnviarFeedback() {
 
 const s = StyleSheet.create({
   flex: { flex: 1 },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: spacing.md,
-    paddingBottom: spacing.sm,
-  },
-  titulo: { ...typography.h3, color: colors.textPrimary },
-  // Mesma largura do botão de voltar, para o título ficar centrado de verdade.
-  headerSpacer: { width: 40 },
   conteudo: {
     paddingHorizontal: spacing.md,
     paddingBottom: spacing.xxl,

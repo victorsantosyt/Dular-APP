@@ -11,7 +11,6 @@ import {
   TextInput,
   View,
 } from "react-native";
-import type { KeyboardEvent as RNKeyboardEvent, LayoutChangeEvent } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import * as ImagePicker from "expo-image-picker";
@@ -26,7 +25,8 @@ import { useAuth } from "@/stores/authStore";
 import { useGenderTheme } from "@/hooks/useProfileTheme";
 import { requestLocationWithAddress } from "@/lib/location";
 import { colors, radius, spacing, typography } from "@/theme/tokens";
-import { platformSelect, shadow } from "@/utils/platform";
+import { calcularImeInsetAndroid } from "@/lib/keyboardInset";
+import { isAndroid, platformSelect, shadow } from "@/utils/platform";
 
 export type ChatAbertoParams = {
   roomId: string;
@@ -124,10 +124,12 @@ export function ChatAbertoScreen({ route }: Props) {
   const [enviando, setEnviando] = useState(false);
   const [anexando, setAnexando] = useState(false);
   const [keyboardOpen, setKeyboardOpen] = useState(false);
+  // Oclusão do teclado no Android, calculada aqui em vez de delegada ao
+  // KeyboardAvoidingView. Ver `calcularImeInsetAndroid` para o motivo: com
+  // `behavior="height"` o componente não voltava ao tamanho original no hide.
+  // Sempre 0 no iOS, onde `behavior="padding"` resolve sozinho.
+  const [androidImeInset, setAndroidImeInset] = useState(0);
 
-  // Detecta teclado aberto pra remover paddingBottom redundante (insets.bottom
-  // já é coberto pelo próprio teclado — sem isso, gera "espaço enorme" entre
-  // o input e o teclado).
   useEffect(() => {
     // `keyboardWillShow`/`keyboardWillHide` NÃO são emitidos no Android — lá só
     // existem os eventos `did`. Ouvindo apenas os `will`, `keyboardOpen` ficava
@@ -135,63 +137,27 @@ export function ChatAbertoScreen({ route }: Props) {
     // do teclado, que é a faixa que aparecia entre os dois.
     const eventoShow = platformSelect({ ios: "keyboardWillShow", android: "keyboardDidShow" });
     const eventoHide = platformSelect({ ios: "keyboardWillHide", android: "keyboardDidHide" });
-    const showSub = Keyboard.addListener(eventoShow as "keyboardDidShow", () => setKeyboardOpen(true));
-    const hideSub = Keyboard.addListener(eventoHide as "keyboardDidHide", () => setKeyboardOpen(false));
+    const showSub = Keyboard.addListener(eventoShow as "keyboardDidShow", (evento) => {
+      if (isAndroid) {
+        // Altura da tela lida NO EVENTO: rotação e janelas redimensionáveis
+        // mudam esse número, e guardá-lo fora daqui congelaria o valor antigo.
+        setAndroidImeInset(
+          calcularImeInsetAndroid(Dimensions.get("screen").height, evento?.endCoordinates?.screenY)
+        );
+      }
+      setKeyboardOpen(true);
+    });
+    const hideSub = Keyboard.addListener(eventoHide as "keyboardDidHide", () => {
+      // Zerar direto, sem recalcular nada a partir do payload do hide — é
+      // exatamente o recálculo que deixava a faixa residual para trás.
+      setAndroidImeInset(0);
+      setKeyboardOpen(false);
+    });
     return () => {
       showSub.remove();
       hideSub.remove();
     };
   }, []);
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // DIAGNÓSTICO TEMPORÁRIO — REMOVER ANTES DO FIX. Prefixo [CHAT_KB_DIAG].
-  // Mede as reservas verticais reais (y/height) de cada nível da árvore e os
-  // números brutos dos eventos de teclado. Não loga conteúdo de mensagem,
-  // nome, id nem token — apenas geometria.
-  // ─────────────────────────────────────────────────────────────────────────
-  const diagRef = useRef<Record<string, string>>({});
-  const logLayout = useCallback(
-    (tag: string) => (e: LayoutChangeEvent) => {
-      const { x, y, width, height } = e.nativeEvent.layout;
-      const assinatura = `${y.toFixed(1)}/${height.toFixed(1)}`;
-      if (diagRef.current[tag] === assinatura) return;
-      diagRef.current[tag] = assinatura;
-      console.log(
-        `[CHAT_KB_DIAG] layout ${tag} y=${y.toFixed(1)} h=${height.toFixed(1)} x=${x.toFixed(1)} w=${width.toFixed(1)}`
-      );
-    },
-    []
-  );
-
-  useEffect(() => {
-    const win = Dimensions.get("window");
-    const scr = Dimensions.get("screen");
-    const behaviorAtual = platformSelect({ ios: "padding", android: "height" });
-    console.log(
-      `[CHAT_KB_DIAG] base window=${win.width}x${win.height} screen=${scr.width}x${scr.height}` +
-        ` insetTop=${insets.top} insetBottom=${insets.bottom} kvOffset=0 behavior=${behaviorAtual}`
-    );
-    const dump = (nome: string) => (evt: RNKeyboardEvent) => {
-      const c = evt?.endCoordinates;
-      console.log(
-        `[CHAT_KB_DIAG] ${nome} screenY=${c?.screenY} kbHeight=${c?.height}` +
-          ` duration=${evt?.duration} easing=${evt?.easing} insetBottom=${insets.bottom}`
-      );
-    };
-    const s1 = Keyboard.addListener("keyboardDidShow", dump("keyboardDidShow"));
-    const s2 = Keyboard.addListener("keyboardDidHide", dump("keyboardDidHide"));
-    return () => {
-      s1.remove();
-      s2.remove();
-    };
-  }, [insets.top, insets.bottom]);
-
-  useEffect(() => {
-    console.log(
-      `[CHAT_KB_DIAG] estado banner=${servicoStatus ? 1 : 0} arquivada=${arquivada ? 1 : 0}` +
-        ` keyboardOpen=${keyboardOpen ? 1 : 0}`
-    );
-  }, [servicoStatus, arquivada, keyboardOpen]);
 
   // Mensagens em ordem cronológica (mais antiga em cima, recente embaixo — padrão WhatsApp).
   // Backend devolve por `criadaEm ASC` mas a FlatList anterior usava `inverted`,
@@ -278,14 +244,10 @@ export function ChatAbertoScreen({ route }: Props) {
   const canSend = text.trim().length > 0 && !enviando;
 
   return (
-    <SafeAreaView
-      style={[styles.safe, { backgroundColor: theme.background }]}
-      edges={["top", "left", "right"]}
-      onLayout={logLayout("ROOT")}
-    >
+    <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={["top", "left", "right"]}>
       {/* Botão de sair FORA do card; card arredondado (foto + nome + categoria)
           preenchido com a cor do gênero, centralizado. */}
-      <View style={styles.headerRow} onLayout={logLayout("HEADER")}>
+      <View style={styles.headerRow}>
         <BackCircleButton onPress={() => navigation.goBack()} color={theme.icon} borderColor={theme.border} />
         <View style={[styles.header, { backgroundColor: theme.primary }]}>
           <DAvatar size="md" uri={avatarFinal} initials={initials} />
@@ -330,10 +292,14 @@ export function ChatAbertoScreen({ route }: Props) {
       ) : null}
 
       <KeyboardAvoidingView
-        style={[styles.kav, { backgroundColor: theme.background }]}
-        behavior={platformSelect({ ios: "padding", android: "height" })}
+        // No Android o wrapper é só um View em flex: a oclusão do IME entra
+        // como `paddingBottom` no container inteiro (lista + composer), que
+        // assim termina exatamente no topo do teclado e volta sozinho ao
+        // fechar. `behavior` de altura/padding/posição aqui depende do estado
+        // interno do componente, que não se restaura no Android edge-to-edge.
+        style={[styles.kav, { backgroundColor: theme.background, paddingBottom: androidImeInset }]}
+        behavior={platformSelect<"padding" | undefined>({ ios: "padding", android: undefined })}
         keyboardVerticalOffset={0}
-        onLayout={logLayout("KAV")}
       >
         {/* Messages area */}
         {loading ? (
@@ -367,7 +333,6 @@ export function ChatAbertoScreen({ route }: Props) {
             contentContainerStyle={styles.listContent}
             ItemSeparatorComponent={() => <View style={styles.separator} />}
             style={styles.list}
-            onLayout={logLayout("LIST")}
             onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
           />
         )}
@@ -379,7 +344,6 @@ export function ChatAbertoScreen({ route }: Props) {
               styles.archivedBar,
               { paddingBottom: Math.max(12, insets.bottom) },
             ]}
-            onLayout={logLayout("ARCHIVED")}
           >
             <AppIcon name="Archive" size={16} color={colors.textMuted} strokeWidth={2.2} />
             <Text style={styles.archivedText}>Conversa encerrada. Só leitura.</Text>
@@ -391,7 +355,6 @@ export function ChatAbertoScreen({ route }: Props) {
               styles.inputBar,
               { paddingBottom: keyboardOpen ? 8 : Math.max(8, insets.bottom) },
             ]}
-            onLayout={logLayout("COMPOSER")}
           >
             <Pressable onPress={enviarLocalizacao} disabled={anexando} hitSlop={8} style={styles.attachBtn}>
               <AppIcon name="MapPin" size={22} color={theme.primary} strokeWidth={2.2} />

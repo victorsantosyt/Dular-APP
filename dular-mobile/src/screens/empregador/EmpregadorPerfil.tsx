@@ -21,6 +21,7 @@ import { useBottomTabBarHeight, type BottomTabNavigationProp } from "@react-navi
 import * as ImagePicker from "expo-image-picker";
 import { salvarLocalizacaoAtual } from "@/api/localizacaoApi";
 import { api } from "@/lib/api";
+import { deveMostrarProgresso, estadoDaCompletude } from "@/lib/profileProgress";
 import { uploadAvatarDataUrl } from "@/api/perfilApi";
 import { fetchEnderecos, type Endereco } from "@/api/enderecoApi";
 import { AppIcon, DButton, DCard } from "@/components/ui";
@@ -455,6 +456,16 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
   // completo mas a verificação não está aprovada. REPROVADO tem fluxo
   // visual próprio (pílula/card), não recebe modal genérico.
   const perfilCarregado = !loading && !!profileData;
+  // A barra de percentual responde SÓ à completude. O card em volta pode
+  // continuar aparecendo por pendência documental — são coisas diferentes, e
+  // hoje o percentual pega carona nesse card e fica exibindo "100%".
+  const mostrarProgresso = deveMostrarProgresso(
+    estadoDaCompletude({
+      carregado: perfilCarregado,
+      progresso: perfilCarregado ? completion.progresso : null,
+      completo: perfilCarregado ? completion.completo : null,
+    }),
+  );
   useEffect(() => {
     const uid = user?.id;
     if (!uid) return;
@@ -609,19 +620,23 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
                         {statusCopy.title}
                       </Text>
                     </View>
-                    <Text style={s.statusProgress}>{completion.progresso}%</Text>
+                    {mostrarProgresso ? (
+                      <Text style={s.statusProgress}>{completion.progresso}%</Text>
+                    ) : null}
                   </View>
-                  <View style={s.progressTrack}>
-                    <View
-                      style={[
-                        s.progressFill,
-                        {
-                          width: `${completion.progresso}%`,
-                          backgroundColor: progressTone,
-                        },
-                      ]}
-                    />
-                  </View>
+                  {mostrarProgresso ? (
+                    <View style={s.progressTrack}>
+                      <View
+                        style={[
+                          s.progressFill,
+                          {
+                            width: `${completion.progresso}%`,
+                            backgroundColor: progressTone,
+                          },
+                        ]}
+                      />
+                    </View>
+                  ) : null}
                   <Text style={s.statusHint}>
                     {completion.completo ? "Cadastro básico completo." : missingText}
                   </Text>

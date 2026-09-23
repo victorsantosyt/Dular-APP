@@ -79,6 +79,7 @@ import {
 import type { ServicoOferecido } from "@/types/diarista";
 import { OFERTAS_DIARISTA } from "@/constants/categorias";
 import { MotivoPaywall } from "@/lib/paywall";
+import { deveMostrarProgresso, estadoDaCompletude } from "@/lib/profileProgress";
 import { mascaraTelefone, plural, somenteDigitos } from "@/utils/formatters";
 import { getBottomNavContentPadding } from "@/navigation/bottomNavLayout";
 
@@ -531,6 +532,20 @@ export default function DiaristaPerfil({ onLogout }: Props) {
   const completude: DiaristaCompletude = useMemo(
     () => calcularCompletudeDiarista(profile, me?.nome ?? user?.nome ?? ""),
     [profile, me?.nome, user?.nome],
+  );
+
+  // O percentual responde SÓ à completude do cadastro. O card em volta também
+  // aparece por pendência documental, e sem esta separação a barra ficava
+  // exibindo "100%" ao lado de um aviso que não fala de preenchimento.
+  //
+  // `profile` nulo significa que o GET ainda não voltou: calcular ali dava um
+  // percentual baixo que aparecia por um instante e saltava.
+  const mostrarProgresso = deveMostrarProgresso(
+    estadoDaCompletude({
+      carregado: !loading && profile != null,
+      progresso: profile != null ? completude.progresso : null,
+      completo: profile != null ? completude.completo : null,
+    }),
   );
 
   // ── Verificação documental: estado derivado (T-18.4) ─────────────────────
@@ -1322,8 +1337,11 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                         {statusCopy.title}
                       </Text>
                     </View>
-                    <Text style={s.statusProgress}>{completude.progresso}%</Text>
+                    {mostrarProgresso ? (
+                      <Text style={s.statusProgress}>{completude.progresso}%</Text>
+                    ) : null}
                   </View>
+                  {mostrarProgresso ? (
                   <View style={s.progressTrack}>
                     <View
                       style={[
@@ -1342,6 +1360,7 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                       ]}
                     />
                   </View>
+                  ) : null}
                   <Text style={s.statusHint}>
                     {completude.completo
                       ? "Cadastro básico completo."

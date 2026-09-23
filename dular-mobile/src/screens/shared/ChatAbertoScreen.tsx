@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Dimensions,
   FlatList,
   Keyboard,
   KeyboardAvoidingView,
@@ -10,6 +11,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import type { KeyboardEvent as RNKeyboardEvent, LayoutChangeEvent } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import * as ImagePicker from "expo-image-picker";
@@ -141,6 +143,56 @@ export function ChatAbertoScreen({ route }: Props) {
     };
   }, []);
 
+  // ─────────────────────────────────────────────────────────────────────────
+  // DIAGNÓSTICO TEMPORÁRIO — REMOVER ANTES DO FIX. Prefixo [CHAT_KB_DIAG].
+  // Mede as reservas verticais reais (y/height) de cada nível da árvore e os
+  // números brutos dos eventos de teclado. Não loga conteúdo de mensagem,
+  // nome, id nem token — apenas geometria.
+  // ─────────────────────────────────────────────────────────────────────────
+  const diagRef = useRef<Record<string, string>>({});
+  const logLayout = useCallback(
+    (tag: string) => (e: LayoutChangeEvent) => {
+      const { x, y, width, height } = e.nativeEvent.layout;
+      const assinatura = `${y.toFixed(1)}/${height.toFixed(1)}`;
+      if (diagRef.current[tag] === assinatura) return;
+      diagRef.current[tag] = assinatura;
+      console.log(
+        `[CHAT_KB_DIAG] layout ${tag} y=${y.toFixed(1)} h=${height.toFixed(1)} x=${x.toFixed(1)} w=${width.toFixed(1)}`
+      );
+    },
+    []
+  );
+
+  useEffect(() => {
+    const win = Dimensions.get("window");
+    const scr = Dimensions.get("screen");
+    const behaviorAtual = platformSelect({ ios: "padding", android: "height" });
+    console.log(
+      `[CHAT_KB_DIAG] base window=${win.width}x${win.height} screen=${scr.width}x${scr.height}` +
+        ` insetTop=${insets.top} insetBottom=${insets.bottom} kvOffset=0 behavior=${behaviorAtual}`
+    );
+    const dump = (nome: string) => (evt: RNKeyboardEvent) => {
+      const c = evt?.endCoordinates;
+      console.log(
+        `[CHAT_KB_DIAG] ${nome} screenY=${c?.screenY} kbHeight=${c?.height}` +
+          ` duration=${evt?.duration} easing=${evt?.easing} insetBottom=${insets.bottom}`
+      );
+    };
+    const s1 = Keyboard.addListener("keyboardDidShow", dump("keyboardDidShow"));
+    const s2 = Keyboard.addListener("keyboardDidHide", dump("keyboardDidHide"));
+    return () => {
+      s1.remove();
+      s2.remove();
+    };
+  }, [insets.top, insets.bottom]);
+
+  useEffect(() => {
+    console.log(
+      `[CHAT_KB_DIAG] estado banner=${servicoStatus ? 1 : 0} arquivada=${arquivada ? 1 : 0}` +
+        ` keyboardOpen=${keyboardOpen ? 1 : 0}`
+    );
+  }, [servicoStatus, arquivada, keyboardOpen]);
+
   // Mensagens em ordem cronológica (mais antiga em cima, recente embaixo — padrão WhatsApp).
   // Backend devolve por `criadaEm ASC` mas a FlatList anterior usava `inverted`,
   // o que mostrava a mensagem mais antiga embaixo. Removemos `inverted` e
@@ -226,10 +278,14 @@ export function ChatAbertoScreen({ route }: Props) {
   const canSend = text.trim().length > 0 && !enviando;
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={["top", "left", "right"]}>
+    <SafeAreaView
+      style={[styles.safe, { backgroundColor: theme.background }]}
+      edges={["top", "left", "right"]}
+      onLayout={logLayout("ROOT")}
+    >
       {/* Botão de sair FORA do card; card arredondado (foto + nome + categoria)
           preenchido com a cor do gênero, centralizado. */}
-      <View style={styles.headerRow}>
+      <View style={styles.headerRow} onLayout={logLayout("HEADER")}>
         <BackCircleButton onPress={() => navigation.goBack()} color={theme.icon} borderColor={theme.border} />
         <View style={[styles.header, { backgroundColor: theme.primary }]}>
           <DAvatar size="md" uri={avatarFinal} initials={initials} />
@@ -277,6 +333,7 @@ export function ChatAbertoScreen({ route }: Props) {
         style={[styles.kav, { backgroundColor: theme.background }]}
         behavior={platformSelect({ ios: "padding", android: "height" })}
         keyboardVerticalOffset={0}
+        onLayout={logLayout("KAV")}
       >
         {/* Messages area */}
         {loading ? (
@@ -310,6 +367,7 @@ export function ChatAbertoScreen({ route }: Props) {
             contentContainerStyle={styles.listContent}
             ItemSeparatorComponent={() => <View style={styles.separator} />}
             style={styles.list}
+            onLayout={logLayout("LIST")}
             onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
           />
         )}
@@ -321,6 +379,7 @@ export function ChatAbertoScreen({ route }: Props) {
               styles.archivedBar,
               { paddingBottom: Math.max(12, insets.bottom) },
             ]}
+            onLayout={logLayout("ARCHIVED")}
           >
             <AppIcon name="Archive" size={16} color={colors.textMuted} strokeWidth={2.2} />
             <Text style={styles.archivedText}>Conversa encerrada. Só leitura.</Text>
@@ -332,6 +391,7 @@ export function ChatAbertoScreen({ route }: Props) {
               styles.inputBar,
               { paddingBottom: keyboardOpen ? 8 : Math.max(8, insets.bottom) },
             ]}
+            onLayout={logLayout("COMPOSER")}
           >
             <Pressable onPress={enviarLocalizacao} disabled={anexando} hitSlop={8} style={styles.attachBtn}>
               <AppIcon name="MapPin" size={22} color={theme.primary} strokeWidth={2.2} />

@@ -50,16 +50,6 @@ export const STATUS_FILTERS: { label: string; value: StatusFiltro; color?: strin
   { label: "Canceladas", value: "canceladas", color: colors.danger },
 ];
 
-// Filtro por STATUS CRU do backend (não pelo bucket visual). Aguardando=SOLICITADO;
-// Aceitas=ACEITO/EM_ANDAMENTO (+AGUARDANDO_FINALIZACAO, ainda ativo); Concluídas=
-// CONCLUIDO/CONFIRMADO/FINALIZADO; Canceladas=CANCELADO/RECUSADO.
-const STATUS_FILTER_RAW: Record<Exclude<StatusFiltro, "todas">, string[]> = {
-  aguardando: ["SOLICITADO", "PENDENTE", "RASCUNHO"],
-  aceitas: ["ACEITO", "EM_ANDAMENTO", "AGUARDANDO_FINALIZACAO"],
-  concluidas: ["CONCLUIDO", "CONFIRMADO", "FINALIZADO"],
-  canceladas: ["CANCELADO", "RECUSADO"],
-};
-
 const STATUS_UI: Record<
   StatusAgendamento,
   { label: string; color: string; bg: string; actionColor: string; actionIcon: AppIconName }
@@ -100,13 +90,6 @@ const STATUS_UI: Record<
     actionIcon: "XCircle",
   },
 };
-
-export function statusMatchesFilter(item: AgendamentoItem, status: StatusFiltro) {
-  // "Todos" = só as solicitações ainda pendentes (feitas e não aceitas).
-  // Aceitas, em andamento, concluídas e canceladas aparecem só nas próprias abas.
-  if (status === "todas") return STATUS_FILTER_RAW.aguardando.includes(item.statusRaw);
-  return STATUS_FILTER_RAW[status].includes(item.statusRaw);
-}
 
 export function CategoryChip({
   label,

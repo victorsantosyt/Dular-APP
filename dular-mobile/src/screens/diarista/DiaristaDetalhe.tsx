@@ -516,7 +516,7 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
               <DButton tint={colors.warning}
                 title="Reportar problema"
                 variant="outline"
-                onPress={() => navigation.navigate("ReportIncident", { servicoId: svc.id })}
+                onPress={() => navigation.navigate("ReportIncident", { serviceId: svc.id })}
               />
             </>
           )}

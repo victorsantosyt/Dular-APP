@@ -145,7 +145,7 @@ export default function MontadorDetalheServico({ route, navigation }: Props) {
   };
   const reportarProblema = () => {
     if (!servico) return;
-    navigation.navigate("ReportIncident", { servicoId: servico.id });
+    navigation.navigate("ReportIncident", { serviceId: servico.id });
   };
   return (
     <DScreen scroll backgroundColor={profileTheme.background} contentContainerStyle={styles.scroll}>

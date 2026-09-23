@@ -1,5 +1,6 @@
 import React, { useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import * as ImagePicker from "expo-image-picker";
 
@@ -7,6 +8,12 @@ import { Screen } from "@/components/Screen";
 import { AppIcon, BackCircleButton, type AppIconName } from "@/components/ui";
 import { SOSIcon } from "@/assets/icons";
 import { acionarSos, protocoloFromId } from "@/api/segurancaApi";
+import { fetchServicosMinhas } from "@/api/sharedFetcher";
+import {
+  decidirServicoParaDenuncia,
+  type OpcaoDeDenuncia,
+  type ServicoParaDenuncia,
+} from "@/lib/reportIncident";
 import { useAuth } from "@/stores/authStore";
 import { useProfileTheme } from "@/hooks/useProfileTheme";
 import type { ProfileTheme } from "@/theme/profileTheme";
@@ -44,6 +51,13 @@ const PRIORIDADES: { value: Prioridade; label: string; color: string }[] = [
   { value: "CRITICA", label: "Crítica", color: colors.incidentCritical },
 ];
 
+/** "EM_ANDAMENTO" → "Em andamento". Mesmo tratamento já usado nas listas. */
+function rotulo(valor?: string | null) {
+  const texto = String(valor ?? "").replace(/_/g, " ").trim().toLowerCase();
+  if (!texto) return null;
+  return texto.charAt(0).toUpperCase() + texto.slice(1);
+}
+
 function gerarProtocolo() {
   const now = new Date();
   const y = now.getFullYear();
@@ -67,6 +81,10 @@ export default function SosFlowScreen() {
   const [provas, setProvas] = useState<string[]>([]);
   const [protocolo, setProtocolo] = useState<string | null>(null);
   const enviadoEm = useRef<Date | null>(null);
+  // Denúncia formal: precisa de um atendimento para saber quem está sendo
+  // denunciado. Antes navegava direto e a tela abria sem contraparte.
+  const [buscandoAtendimentos, setBuscandoAtendimentos] = useState(false);
+  const [opcoesDenuncia, setOpcoesDenuncia] = useState<OpcaoDeDenuncia[] | null>(null);
 
   const tipo = useMemo(() => TIPOS.find((t) => t.id === tipoId) ?? null, [tipoId]);
   // Prestadores (montador/diarista) não relatam "danos materiais" — não são donos
@@ -76,6 +94,40 @@ export default function SosFlowScreen() {
     [currentUser?.role],
   );
   const prioridadeInfo = PRIORIDADES.find((p) => p.value === prioridade) ?? PRIORIDADES[1];
+
+  const irParaDenuncia = (serviceId: string) => {
+    setOpcoesDenuncia(null);
+    nav.navigate("ReportIncident", { serviceId });
+  };
+
+  const abrirDenunciaFormal = async () => {
+    if (buscandoAtendimentos) return;
+    try {
+      setBuscandoAtendimentos(true);
+      const data = (await fetchServicosMinhas(true)) as { servicos?: ServicoParaDenuncia[] };
+      const servicos = Array.isArray(data?.servicos) ? data.servicos : [];
+      const decisao = decidirServicoParaDenuncia(servicos, currentUser?.id);
+
+      if (decisao.tipo === "VAZIO") {
+        Alert.alert(
+          "Nenhum atendimento para vincular",
+          "A denúncia formal precisa estar ligada a um atendimento seu. Quando houver um, ele aparece aqui.",
+        );
+        return;
+      }
+      // Auto-seleção só com UM candidato. Com dois ou mais, escolher pela ordem
+      // da lista seria apontar a denúncia para alguém por acaso.
+      if (decisao.tipo === "AUTOMATICO") {
+        irParaDenuncia(decisao.opcao.serviceId);
+        return;
+      }
+      setOpcoesDenuncia(decisao.opcoes);
+    } catch {
+      Alert.alert("Não foi possível carregar seus atendimentos", "Tente de novo em instantes.");
+    } finally {
+      setBuscandoAtendimentos(false);
+    }
+  };
 
   const adicionarUri = (uri?: string) => {
     if (uri) setProvas((prev) => [...prev, uri]);
@@ -196,8 +248,16 @@ export default function SosFlowScreen() {
           >
             <Text style={st.primaryBtnText}>Relatar incidente</Text>
           </Pressable>
-          <Pressable onPress={() => nav.navigate("ReportIncident")} style={st.secondaryBtn}>
-            <Text style={st.secondaryBtnText}>Fazer denúncia formal</Text>
+          <Pressable
+            onPress={abrirDenunciaFormal}
+            disabled={buscandoAtendimentos}
+            style={[st.secondaryBtn, buscandoAtendimentos && st.disabled]}
+          >
+            {buscandoAtendimentos ? (
+              <ActivityIndicator size="small" color={theme.primary} />
+            ) : (
+              <Text style={st.secondaryBtnText}>Fazer denúncia formal</Text>
+            )}
           </Pressable>
         </>
       ) : null}
@@ -369,6 +429,56 @@ export default function SosFlowScreen() {
           </Pressable>
         </ScrollView>
       ) : null}
+
+      {/* Seleção do atendimento. Só aparece com DOIS ou mais candidatos —
+          com um só o fluxo segue direto, e com nenhum a denúncia nem abre.
+          Bottom sheet no mesmo formato do MotivoModal, com safe area inferior. */}
+      <Modal
+        visible={!!opcoesDenuncia}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setOpcoesDenuncia(null)}
+      >
+        <View style={st.sheetOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setOpcoesDenuncia(null)} />
+          <SafeAreaView style={st.sheet} edges={["bottom"]}>
+            <View style={st.sheetHandle} />
+            <Text style={st.sheetTitle}>Qual atendimento?</Text>
+            <Text style={st.sheetSubtitle}>
+              A denúncia fica ligada a este atendimento e à pessoa envolvida nele.
+            </Text>
+
+            <ScrollView style={st.sheetList} showsVerticalScrollIndicator={false}>
+              {(opcoesDenuncia ?? []).map((opcao) => {
+                const detalhes = [rotulo(opcao.tipo), rotulo(opcao.status)].filter(Boolean).join(" · ");
+                return (
+                  <Pressable
+                    key={opcao.serviceId}
+                    onPress={() => irParaDenuncia(opcao.serviceId)}
+                    style={({ pressed }) => [st.sheetOption, pressed && { opacity: 0.85 }]}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text style={st.sheetOptionName} numberOfLines={1}>
+                        {opcao.contraparte.nome?.trim() || "Pessoa do atendimento"}
+                      </Text>
+                      {detalhes ? (
+                        <Text style={st.sheetOptionMeta} numberOfLines={1}>
+                          {detalhes}
+                        </Text>
+                      ) : null}
+                    </View>
+                    <AppIcon name="ChevronRight" size={18} color={theme.primary} strokeWidth={2.4} />
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+
+            <Pressable onPress={() => setOpcoesDenuncia(null)} style={st.sheetCancel}>
+              <Text style={st.sheetCancelText}>Cancelar</Text>
+            </Pressable>
+          </SafeAreaView>
+        </View>
+      </Modal>
     </Screen>
   );
 }
@@ -541,5 +651,38 @@ function makeStyles(theme: ProfileTheme) {
 
     checkRow: { flexDirection: "row", gap: 8, alignItems: "flex-start" },
     checkText: { color: colors.sub, flex: 1, fontSize: 13, fontWeight: "500" },
+
+    sheetOverlay: { flex: 1, backgroundColor: colors.overlay, justifyContent: "flex-end" },
+    sheet: {
+      backgroundColor: colors.white,
+      borderTopLeftRadius: radius.xl,
+      borderTopRightRadius: radius.xl,
+      paddingHorizontal: 16,
+      paddingTop: 10,
+      gap: 8,
+    },
+    sheetHandle: {
+      alignSelf: "center",
+      width: 40,
+      height: 4,
+      borderRadius: radius.pill,
+      backgroundColor: colors.border,
+      marginBottom: 6,
+    },
+    sheetTitle: { ...typography.h3, color: colors.ink },
+    sheetSubtitle: { color: colors.sub, fontSize: 13, fontWeight: "500" },
+    sheetList: { maxHeight: 320 },
+    sheetOption: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+      paddingVertical: 14,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    sheetOptionName: { color: colors.ink, fontWeight: "700", fontSize: 15 },
+    sheetOptionMeta: { color: colors.sub, fontSize: 12, fontWeight: "500", marginTop: 2 },
+    sheetCancel: { alignItems: "center", paddingVertical: 14 },
+    sheetCancelText: { color: colors.sub, fontWeight: "700", fontSize: 14 },
   });
 }

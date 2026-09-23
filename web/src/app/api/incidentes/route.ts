@@ -4,7 +4,11 @@ import type formidable from "formidable";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/requireAuth";
 import { requireAuthAtivo, respostaDeSessao } from "@/lib/contaAtiva";
-import { isServiceParticipant } from "@/lib/requireAuth";
+import {
+  resolverContraparte,
+  respostaDeRecusa,
+  type ResolucaoDaContraparte,
+} from "@/lib/incidenteContraparte";
 import { parseMultipart } from "@/lib/parseMultipart";
 import { makeKey, putObject } from "@/lib/s3Objects";
 import { cleanupRateLimit, rateLimit, rateLimitRetryAfterMs } from "@/lib/rateLimit";
@@ -50,11 +54,18 @@ const incidentSchema = z
     anonimo: z.boolean().default(false),
   })
   .superRefine((value, ctx) => {
-    if (!value.reportedUserId && !value.serviceId) {
+    // `serviceId` é obrigatório, e não "um dos dois".
+    //
+    // Antes o schema aceitava só `reportedUserId`, mas a resolução da contraparte
+    // devolvia null sem serviceId — o pedido passava a validação e morria com
+    // 403 "Acesso negado ao serviço informado", falando de um serviço que nunca
+    // foi informado. A denúncia sempre nasce de um atendimento: é o serviço que
+    // prova quem pode denunciar quem.
+    if (!value.serviceId) {
       ctx.addIssue({
         code: "custom",
         path: ["serviceId"],
-        message: "Informe serviceId para reportar incidente.",
+        message: "Informe o atendimento (serviceId) ao qual o incidente se refere.",
       });
     }
     if (!value.subtipo && value.categoria !== "OUTRO") {
@@ -127,29 +138,25 @@ function parseIncidentFields(fields: Record<string, any>) {
   };
 }
 
-async function resolveReportedUserId(
+/**
+ * Lê o serviço e delega a decisão ao helper puro.
+ *
+ * A regra de permissão mora em `@/lib/incidenteContraparte` para poder ser
+ * exercitada sem banco; aqui fica só o acesso ao Prisma. Handlers de rota do
+ * App Router também não podem exportar nomes fora dos métodos HTTP, então o
+ * helper não caberia neste arquivo de qualquer forma.
+ */
+async function resolverContraparteDoServico(
   reporterId: string,
   reportedUserId: string | undefined,
   serviceId: string | undefined,
-): Promise<string | null> {
-  if (!serviceId) return null;
-  const svc = await prisma.servico.findUnique({
+): Promise<ResolucaoDaContraparte> {
+  if (!serviceId) return { ok: false, motivo: "SEM_SERVICO" };
+  const servico = await prisma.servico.findUnique({
     where: { id: serviceId },
     select: { clientId: true, diaristaId: true, montadorId: true },
   });
-  if (!svc) return null;
-  if (!isServiceParticipant(reporterId, svc)) return null;
-
-  const counterpartIds =
-    reporterId === svc.clientId
-      ? [svc.diaristaId, svc.montadorId].filter(Boolean)
-      : [svc.clientId];
-
-  if (reportedUserId) {
-    return counterpartIds.includes(reportedUserId) ? reportedUserId : null;
-  }
-
-  return counterpartIds[0] ?? null;
+  return resolverContraparte({ reporterId, reportedUserId, serviceId, servico });
 }
 
 export async function POST(req: Request) {
@@ -188,10 +195,12 @@ export async function POST(req: Request) {
       }
       const { reportedUserId, serviceId, type, severity, categoria, subtipo, gravidade, description, anonimo } = valid;
 
-      const resolvedReportedUserId = await resolveReportedUserId(auth.userId, reportedUserId, serviceId);
-      if (!resolvedReportedUserId) {
-        return NextResponse.json({ ok: false, error: "Acesso negado ao serviço informado." }, { status: 403 });
+      const resolucao = await resolverContraparteDoServico(auth.userId, reportedUserId, serviceId);
+      if (!resolucao.ok) {
+        const { status, error } = respostaDeRecusa(resolucao.motivo);
+        return NextResponse.json({ ok: false, error }, { status });
       }
+      const resolvedReportedUserId = resolucao.reportedUserId;
 
       const incident = await prisma.incidentReport.create({
         data: {
@@ -225,10 +234,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: "Limite de anexos excedido (3)." }, { status: 400 });
     }
 
-    const resolvedReportedUserId = await resolveReportedUserId(auth.userId, reportedUserId, serviceId);
-    if (!resolvedReportedUserId) {
-      return NextResponse.json({ ok: false, error: "Acesso negado ao serviço informado." }, { status: 403 });
+    const resolucao = await resolverContraparteDoServico(auth.userId, reportedUserId, serviceId);
+    if (!resolucao.ok) {
+      const { status, error } = respostaDeRecusa(resolucao.motivo);
+      return NextResponse.json({ ok: false, error }, { status });
     }
+    const resolvedReportedUserId = resolucao.reportedUserId;
 
     const incident = await prisma.incidentReport.create({
       data: {

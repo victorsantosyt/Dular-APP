@@ -14,6 +14,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { AppIcon , DAvatar } from "@/components/ui";
 import { useDularColors } from "@/hooks/useDularColors";
+import { getScrollBottomClearance } from "@/lib/screenLayout";
 import { getProfileTheme } from "@/theme/profileTheme";
 import { radius, shadows, spacing, typography } from "@/theme";
 
@@ -65,6 +66,12 @@ export function PerfilPublicoLayout({
   const insets = useSafeAreaInsets();
   const theme = React.useMemo(() => getProfileTheme({ role: "EMPREGADOR" }), []);
   const s = React.useMemo(() => makeStyles({ theme, colors }), [theme, colors]);
+  // O footer já reserva o inset; sem ele, a reserva pertence ao scroll da Stack.
+  const bottomContentPadding = getScrollBottomClearance({
+    basePadding: s.scroll.paddingBottom,
+    systemInset: footer ? 0 : insets.bottom,
+    bottomTabBarHeight: 0,
+  });
 
   const showFav = typeof onToggleFavorito === "function";
   const initials = hero.nome.slice(0, 2).toUpperCase();
@@ -100,7 +107,10 @@ export function PerfilPublicoLayout({
         )}
       </View>
 
-      <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={[s.scroll, { paddingBottom: bottomContentPadding }]}
+        showsVerticalScrollIndicator={false}
+      >
         {error ? (
           <View style={s.errorCard}>
             <Text style={s.errorText}>{error}</Text>

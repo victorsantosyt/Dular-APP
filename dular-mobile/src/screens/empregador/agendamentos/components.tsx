@@ -35,7 +35,7 @@ export type AgendamentoItem = {
 };
 
 export const CATEGORIAS: { label: string; value: CategoriaFiltro; icon: AppIconName }[] = [
-  { label: "Todas", value: "todas", icon: "Grid2x2" },
+  { label: "Todos", value: "todas", icon: "Grid2x2" },
   { label: "Diarista", value: "diarista", icon: "BrushCleaning" },
   { label: "Babá", value: "baba", icon: "Baby" },
   { label: "Cozinheira", value: "cozinheira", icon: "ChefHat" },

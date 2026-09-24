@@ -1719,20 +1719,26 @@ export default function DiaristaPerfil({ onLogout }: Props) {
           <View
             style={[
               s.modalSheet,
-              {
-                maxHeight: "85%",
-                // O respiro é do design, não do sistema: no Android o overlay já
-                // reservou a região protegida, então aqui entra só o respiro; no
-                // iOS ninguém reservou nada fora, e o sheet cobre os dois.
-                paddingBottom: calcularPaddingInternoModal({
-                  safeAreaInset: insets.bottom,
-                  insetJaReservadoFora: isAndroid,
-                }),
-              },
+              // O respiro inferior NÃO mora aqui, mora no `contentContainerStyle`
+              // do ScrollView. No container ele vira faixa fixa acima da barra:
+              // a área de rolagem acaba antes do fim do sheet e o conteúdo some
+              // sob ela, cortado no meio. Medido no v25 — 63px de branco
+              // permanente, com o botão partido ao meio.
+              { maxHeight: "85%" },
             ]}
           >
             <ScrollView
               style={s.modalScrollView}
+              // O respiro é do design, não do sistema: no Android o overlay já
+              // reservou a região protegida, então aqui entra só o respiro; no
+              // iOS ninguém reservou nada fora, e o sheet cobre os dois. Dentro
+              // do conteúdo, ele só aparece ao chegar no fim da lista.
+              contentContainerStyle={{
+                paddingBottom: calcularPaddingInternoModal({
+                  safeAreaInset: insets.bottom,
+                  insetJaReservadoFora: isAndroid,
+                }),
+              }}
               keyboardShouldPersistTaps="handled"
               keyboardDismissMode="on-drag"
               showsVerticalScrollIndicator={false}
@@ -1902,20 +1908,26 @@ export default function DiaristaPerfil({ onLogout }: Props) {
           <View
             style={[
               s.modalSheet,
-              {
-                maxHeight: "85%",
-                // O respiro é do design, não do sistema: no Android o overlay já
-                // reservou a região protegida, então aqui entra só o respiro; no
-                // iOS ninguém reservou nada fora, e o sheet cobre os dois.
-                paddingBottom: calcularPaddingInternoModal({
-                  safeAreaInset: insets.bottom,
-                  insetJaReservadoFora: isAndroid,
-                }),
-              },
+              // O respiro inferior NÃO mora aqui, mora no `contentContainerStyle`
+              // do ScrollView. No container ele vira faixa fixa acima da barra:
+              // a área de rolagem acaba antes do fim do sheet e o conteúdo some
+              // sob ela, cortado no meio. Medido no v25 — 63px de branco
+              // permanente, com o botão partido ao meio.
+              { maxHeight: "85%" },
             ]}
           >
             <ScrollView
               style={s.modalScrollView}
+              // O respiro é do design, não do sistema: no Android o overlay já
+              // reservou a região protegida, então aqui entra só o respiro; no
+              // iOS ninguém reservou nada fora, e o sheet cobre os dois. Dentro
+              // do conteúdo, ele só aparece ao chegar no fim da lista.
+              contentContainerStyle={{
+                paddingBottom: calcularPaddingInternoModal({
+                  safeAreaInset: insets.bottom,
+                  insetJaReservadoFora: isAndroid,
+                }),
+              }}
               keyboardShouldPersistTaps="handled"
               keyboardDismissMode="on-drag"
               showsVerticalScrollIndicator={false}
@@ -2050,20 +2062,26 @@ export default function DiaristaPerfil({ onLogout }: Props) {
           <View
             style={[
               s.modalSheet,
-              {
-                maxHeight: "85%",
-                // O respiro é do design, não do sistema: no Android o overlay já
-                // reservou a região protegida, então aqui entra só o respiro; no
-                // iOS ninguém reservou nada fora, e o sheet cobre os dois.
-                paddingBottom: calcularPaddingInternoModal({
-                  safeAreaInset: insets.bottom,
-                  insetJaReservadoFora: isAndroid,
-                }),
-              },
+              // O respiro inferior NÃO mora aqui, mora no `contentContainerStyle`
+              // do ScrollView. No container ele vira faixa fixa acima da barra:
+              // a área de rolagem acaba antes do fim do sheet e o conteúdo some
+              // sob ela, cortado no meio. Medido no v25 — 63px de branco
+              // permanente, com o botão partido ao meio.
+              { maxHeight: "85%" },
             ]}
           >
             <ScrollView
               style={s.modalScrollView}
+              // O respiro é do design, não do sistema: no Android o overlay já
+              // reservou a região protegida, então aqui entra só o respiro; no
+              // iOS ninguém reservou nada fora, e o sheet cobre os dois. Dentro
+              // do conteúdo, ele só aparece ao chegar no fim da lista.
+              contentContainerStyle={{
+                paddingBottom: calcularPaddingInternoModal({
+                  safeAreaInset: insets.bottom,
+                  insetJaReservadoFora: isAndroid,
+                }),
+              }}
               keyboardShouldPersistTaps="handled"
               keyboardDismissMode="on-drag"
               showsVerticalScrollIndicator={false}
@@ -2599,7 +2617,8 @@ function makeStyles(colors: ThemeColors, theme: ProfileTheme) {
       borderTopRightRadius: radius.xl,
       paddingHorizontal: spacing.md,
       paddingTop: spacing.md,
-      paddingBottom: spacing.xl,
+      // Sem paddingBottom: o respiro inferior é do conteúdo rolável, não do
+      // container. Ver o `contentContainerStyle` de cada ScrollView.
       backgroundColor: colors.surface,
       gap: spacing.xs,
     },

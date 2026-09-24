@@ -71,7 +71,11 @@ import { useDularColors } from "@/hooks/useDularColors";
 import { useGenderTheme } from "@/hooks/useProfileTheme";
 import type { ProfileTheme } from "@/theme/profileTheme";
 import { isAndroid, platformSelect } from "@/utils/platform";
-import { calcularDeslocamentoInferiorModal, calcularImeInsetAndroid } from "@/lib/keyboardInset";
+import {
+  calcularDeslocamentoInferiorModal,
+  calcularImeInsetAndroid,
+  calcularPaddingInternoModal,
+} from "@/lib/keyboardInset";
 import {
   ProfileHeroCard,
   ProfileRow,
@@ -1717,9 +1721,12 @@ export default function DiaristaPerfil({ onLogout }: Props) {
               s.modalSheet,
               {
                 maxHeight: "85%",
-                paddingBottom: platformSelect({
-                  ios: Math.max(insets.bottom, spacing.md) + spacing.md,
-                  android: spacing.md,
+                // O respiro é do design, não do sistema: no Android o overlay já
+                // reservou a região protegida, então aqui entra só o respiro; no
+                // iOS ninguém reservou nada fora, e o sheet cobre os dois.
+                paddingBottom: calcularPaddingInternoModal({
+                  safeAreaInset: insets.bottom,
+                  insetJaReservadoFora: isAndroid,
                 }),
               },
             ]}
@@ -1897,9 +1904,12 @@ export default function DiaristaPerfil({ onLogout }: Props) {
               s.modalSheet,
               {
                 maxHeight: "85%",
-                paddingBottom: platformSelect({
-                  ios: Math.max(insets.bottom, spacing.md) + spacing.md,
-                  android: spacing.md,
+                // O respiro é do design, não do sistema: no Android o overlay já
+                // reservou a região protegida, então aqui entra só o respiro; no
+                // iOS ninguém reservou nada fora, e o sheet cobre os dois.
+                paddingBottom: calcularPaddingInternoModal({
+                  safeAreaInset: insets.bottom,
+                  insetJaReservadoFora: isAndroid,
                 }),
               },
             ]}
@@ -2042,9 +2052,12 @@ export default function DiaristaPerfil({ onLogout }: Props) {
               s.modalSheet,
               {
                 maxHeight: "85%",
-                paddingBottom: platformSelect({
-                  ios: Math.max(insets.bottom, spacing.md) + spacing.md,
-                  android: spacing.md,
+                // O respiro é do design, não do sistema: no Android o overlay já
+                // reservou a região protegida, então aqui entra só o respiro; no
+                // iOS ninguém reservou nada fora, e o sheet cobre os dois.
+                paddingBottom: calcularPaddingInternoModal({
+                  safeAreaInset: insets.bottom,
+                  insetJaReservadoFora: isAndroid,
                 }),
               },
             ]}

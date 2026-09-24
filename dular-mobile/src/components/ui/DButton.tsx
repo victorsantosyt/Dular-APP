@@ -10,7 +10,7 @@ import {
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useDularColors } from "@/hooks/useDularColors";
-import { radius, shadows } from "@/theme";
+import { raioDoBotao, shadows } from "@/theme";
 
 type Variant = "primary" | "secondary" | "outline" | "accent" | "ghost" | "danger" | "warning";
 type Size = "sm" | "md" | "lg";
@@ -77,7 +77,7 @@ export function DButton({
     minHeight: 44,
     paddingVertical: sz.paddingVertical,
     paddingHorizontal: sz.paddingHorizontal,
-    borderRadius: flat ? radius.lg : radius.pill,
+    borderRadius: raioDoBotao(flat),
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
@@ -106,7 +106,7 @@ export function DButton({
         ? [tint ?? colors.primary, tintDark ?? tint ?? colors.primaryDark]
         : [colors.accent, colors.accentDark];
     return (
-      <Animated.View style={[{ transform: [{ scale }] }, gradientShadow(variant, colors, tint), style]}>
+      <Animated.View style={[{ transform: [{ scale }] }, gradientShadow(variant, colors, tint, flat), style]}>
         <Pressable
           onPress={onPress}
           onPressIn={onIn}
@@ -130,7 +130,7 @@ export function DButton({
   // flat + primary/accent ganham a sombra de botão (igual ao gradiente).
   const flatShadow =
     flat && (variant === "primary" || variant === "accent")
-      ? gradientShadow(variant, colors, tint)
+      ? gradientShadow(variant, colors, tint, flat)
       : undefined;
   return (
     <Animated.View style={[{ transform: [{ scale }] }, flatShadow, style]}>
@@ -190,12 +190,15 @@ function flatStyle(v: Variant, colors: ThemeColors, tint?: string): ViewStyle {
   }
 }
 
-function gradientShadow(v: Variant, colors: ThemeColors, tint?: string): ViewStyle {
+function gradientShadow(v: Variant, colors: ThemeColors, tint?: string, flat?: boolean): ViewStyle {
   const color = v === "primary" ? tint ?? colors.primary : colors.accent;
   return {
     ...shadows.primaryButton,
     shadowColor: color,
-    borderRadius: radius.pill,
+    // MESMO raio do `containerStyle`. A elevation do Android é recortada pelo
+    // borderRadius deste View; se ele for maior que o do preenchimento, as
+    // quinas do botão ficam para fora da sombra e aparecem soltas.
+    borderRadius: raioDoBotao(flat),
   };
 }
 

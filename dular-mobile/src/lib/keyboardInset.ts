@@ -37,3 +37,20 @@ export function calcularImeInsetAndroid(
 
   return screenHeight - keyboardScreenY;
 }
+
+/**
+ * Deslocamento externo de um modal ancorado no rodapé.
+ *
+ * Fechado, o modal sai da região protegida pelo sistema. Com o IME aberto, a
+ * oclusão medida já inclui essa região, portanto os valores nunca são somados.
+ * O respiro visual pertence ao conteúdo do modal e deve ser aplicado uma única
+ * vez dentro dele.
+ */
+export function calcularDeslocamentoInferiorModal(
+  safeAreaInset: number,
+  imeInset: number,
+): number {
+  const safe = Number.isFinite(safeAreaInset) ? Math.max(safeAreaInset, 0) : 0;
+  const ime = Number.isFinite(imeInset) ? Math.max(imeInset, 0) : 0;
+  return ime > 0 ? ime : safe;
+}

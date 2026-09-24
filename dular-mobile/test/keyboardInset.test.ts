@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { calcularImeInsetAndroid } from "../src/lib/keyboardInset";
+import {
+  calcularDeslocamentoInferiorModal,
+  calcularImeInsetAndroid,
+} from "../src/lib/keyboardInset";
 
 /**
  * Conta da oclusão do teclado no Android edge-to-edge.
@@ -69,4 +72,27 @@ test("falha aberta é impossível: o valor nunca é negativo", () => {
   for (const [tela, topo] of casos) {
     assert.ok(calcularImeInsetAndroid(tela, topo) >= 0);
   }
+});
+
+test("modal fechado usa somente o inset seguro de três botões", () => {
+  assert.equal(calcularDeslocamentoInferiorModal(48, 0), 48);
+});
+
+test("modal fechado em gestos não inventa inset", () => {
+  assert.equal(calcularDeslocamentoInferiorModal(0, 0), 0);
+});
+
+test("IME substitui o inset seguro em vez de duplicá-lo", () => {
+  assert.equal(calcularDeslocamentoInferiorModal(48, 377.528), 377.528);
+});
+
+test("fechar o IME restaura exatamente o deslocamento inicial", () => {
+  const inicial = calcularDeslocamentoInferiorModal(48, 0);
+  assert.equal(calcularDeslocamentoInferiorModal(48, 377.528), 377.528);
+  assert.equal(calcularDeslocamentoInferiorModal(48, 0), inicial);
+});
+
+test("deslocamentos inválidos nunca geram compensação residual", () => {
+  assert.equal(calcularDeslocamentoInferiorModal(Number.NaN, Number.NaN), 0);
+  assert.equal(calcularDeslocamentoInferiorModal(-48, -300), 0);
 });

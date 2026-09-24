@@ -19,6 +19,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   ActivityIndicator,
   Alert,
+  Dimensions,
   ImageSourcePropType,
   Keyboard,
   KeyboardAvoidingView,
@@ -69,7 +70,8 @@ import { radius, shadows, spacing, typography } from "@/theme";
 import { useDularColors } from "@/hooks/useDularColors";
 import { useGenderTheme } from "@/hooks/useProfileTheme";
 import type { ProfileTheme } from "@/theme/profileTheme";
-import { platformSelect } from "@/utils/platform";
+import { isAndroid, platformSelect } from "@/utils/platform";
+import { calcularDeslocamentoInferiorModal, calcularImeInsetAndroid } from "@/lib/keyboardInset";
 import {
   ProfileHeroCard,
   ProfileRow,
@@ -376,6 +378,7 @@ export default function DiaristaPerfil({ onLogout }: Props) {
 
   // Modais
   const [modal, setModal] = useState<ModalType>(null);
+  const [androidImeInset, setAndroidImeInset] = useState(0);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [localizacaoLoading, setLocalizacaoLoading] = useState(false);
@@ -405,6 +408,25 @@ export default function DiaristaPerfil({ onLogout }: Props) {
     valorACombinar: false,
     observacao: "",
   });
+
+  useEffect(() => {
+    if (!isAndroid || !["dados", "area", "precos"].includes(modal ?? "")) {
+      setAndroidImeInset(0);
+      return;
+    }
+
+    const showSub = Keyboard.addListener("keyboardDidShow", (event) => {
+      setAndroidImeInset(
+        calcularImeInsetAndroid(Dimensions.get("screen").height, event.endCoordinates?.screenY),
+      );
+    });
+    const hideSub = Keyboard.addListener("keyboardDidHide", () => setAndroidImeInset(0));
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, [modal]);
   // Qual card de nicho está aberto na tela "Valores por intensidade de serviço".
   const [disponibilidadeForm, setDisponibilidadeForm] = useState<{ dias: number[]; turnos: string[] }>({
     dias: [],
@@ -1676,7 +1698,15 @@ export default function DiaristaPerfil({ onLogout }: Props) {
       {/* Modal Dados profissionais (B) */}
       <Modal visible={modal === "dados"} animationType="slide" transparent onRequestClose={closeModal}>
         <KeyboardAvoidingView
-          style={s.modalOverlay}
+          style={[
+            s.modalOverlay,
+            {
+              paddingBottom: platformSelect({
+                ios: 0,
+                android: calcularDeslocamentoInferiorModal(insets.bottom, androidImeInset),
+              }),
+            },
+          ]}
           behavior={platformSelect({ ios: "padding", android: undefined })}
         >
           <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
@@ -1685,10 +1715,21 @@ export default function DiaristaPerfil({ onLogout }: Props) {
           <View
             style={[
               s.modalSheet,
-              { maxHeight: "85%", paddingBottom: Math.max(insets.bottom, spacing.md) + spacing.md },
+              {
+                maxHeight: "85%",
+                paddingBottom: platformSelect({
+                  ios: Math.max(insets.bottom, spacing.md) + spacing.md,
+                  android: spacing.md,
+                }),
+              },
             ]}
           >
-            <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+            <ScrollView
+              style={s.modalScrollView}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
+              showsVerticalScrollIndicator={false}
+            >
               <View style={s.modalHeader}>
                 <Text style={s.modalTitle}>Dados profissionais</Text>
                 <Pressable onPress={closeModal} hitSlop={16} style={{ padding: 6 }}>
@@ -1837,7 +1878,15 @@ export default function DiaristaPerfil({ onLogout }: Props) {
       {/* Modal Área de atendimento (D) */}
       <Modal visible={modal === "area"} animationType="slide" transparent onRequestClose={closeModal}>
         <KeyboardAvoidingView
-          style={s.modalOverlay}
+          style={[
+            s.modalOverlay,
+            {
+              paddingBottom: platformSelect({
+                ios: 0,
+                android: calcularDeslocamentoInferiorModal(insets.bottom, androidImeInset),
+              }),
+            },
+          ]}
           behavior={platformSelect({ ios: "padding", android: undefined })}
         >
           <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
@@ -1846,10 +1895,21 @@ export default function DiaristaPerfil({ onLogout }: Props) {
           <View
             style={[
               s.modalSheet,
-              { maxHeight: "85%", paddingBottom: Math.max(insets.bottom, spacing.md) + spacing.md },
+              {
+                maxHeight: "85%",
+                paddingBottom: platformSelect({
+                  ios: Math.max(insets.bottom, spacing.md) + spacing.md,
+                  android: spacing.md,
+                }),
+              },
             ]}
           >
-            <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+            <ScrollView
+              style={s.modalScrollView}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
+              showsVerticalScrollIndicator={false}
+            >
               <View style={s.modalHeader}>
                 <Text style={s.modalTitle}>Área de atendimento</Text>
                 <Pressable onPress={closeModal} hitSlop={16} style={{ padding: 6 }}>
@@ -1963,7 +2023,15 @@ export default function DiaristaPerfil({ onLogout }: Props) {
       {/* Modal Preços (E) */}
       <Modal visible={modal === "precos"} animationType="slide" transparent onRequestClose={closeModal}>
         <KeyboardAvoidingView
-          style={s.modalOverlay}
+          style={[
+            s.modalOverlay,
+            {
+              paddingBottom: platformSelect({
+                ios: 0,
+                android: calcularDeslocamentoInferiorModal(insets.bottom, androidImeInset),
+              }),
+            },
+          ]}
           behavior={platformSelect({ ios: "padding", android: undefined })}
         >
           <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
@@ -1972,10 +2040,21 @@ export default function DiaristaPerfil({ onLogout }: Props) {
           <View
             style={[
               s.modalSheet,
-              { maxHeight: "85%", paddingBottom: Math.max(insets.bottom, spacing.md) + spacing.md },
+              {
+                maxHeight: "85%",
+                paddingBottom: platformSelect({
+                  ios: Math.max(insets.bottom, spacing.md) + spacing.md,
+                  android: spacing.md,
+                }),
+              },
             ]}
           >
-            <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+            <ScrollView
+              style={s.modalScrollView}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
+              showsVerticalScrollIndicator={false}
+            >
               <View style={s.modalHeader}>
                 <Text style={s.modalTitle}>Preços</Text>
                 <Pressable onPress={closeModal} hitSlop={16} style={{ padding: 6 }}>
@@ -2510,6 +2589,9 @@ function makeStyles(colors: ThemeColors, theme: ProfileTheme) {
       paddingBottom: spacing.xl,
       backgroundColor: colors.surface,
       gap: spacing.xs,
+    },
+    modalScrollView: {
+      flexShrink: 1,
     },
     modalHeader: {
       flexDirection: "row",

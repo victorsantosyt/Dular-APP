@@ -5,7 +5,9 @@ import type { MontadorTabParamList } from "@/navigation/MontadorNavigator";
 import {
   ActivityIndicator,
   Alert,
+  Dimensions,
   Image,
+  Keyboard,
   KeyboardAvoidingView,
   Modal,
   Pressable,
@@ -48,6 +50,7 @@ import { firstName, formatMoneyFromCents, upperStatus } from "./montadorUtils";
 import { plural } from "@/utils/formatters";
 import { MotivoPaywall } from "@/lib/paywall";
 import { deveMostrarProgresso, estadoDaCompletude } from "@/lib/profileProgress";
+import { calcularImeInsetAndroid } from "@/lib/keyboardInset";
 
 type ModalType = "dados" | "especialidades" | "area" | "precos" | "portfolio" | "avaliacoes" | null;
 
@@ -268,6 +271,7 @@ function FloatingCard({
   subtitle,
   theme,
   onClose,
+  avoidKeyboard = false,
   children,
 }: {
   visible: boolean;
@@ -275,13 +279,38 @@ function FloatingCard({
   subtitle?: string;
   theme: ProfileTheme;
   onClose: () => void;
+  avoidKeyboard?: boolean;
   children: React.ReactNode;
 }) {
+  const [androidImeInset, setAndroidImeInset] = useState(0);
+
+  useEffect(() => {
+    if (!visible || !avoidKeyboard) {
+      setAndroidImeInset(0);
+      return;
+    }
+
+    const showSub = Keyboard.addListener("keyboardDidShow", (event) => {
+      setAndroidImeInset(
+        calcularImeInsetAndroid(Dimensions.get("screen").height, event.endCoordinates?.screenY),
+      );
+    });
+    const hideSub = Keyboard.addListener("keyboardDidHide", () => setAndroidImeInset(0));
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, [avoidKeyboard, visible]);
+
   return (
     <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
       <KeyboardAvoidingView
-        style={styles.modalOverlay}
-        behavior={platformSelect({ ios: "padding", android: "height" })}
+        style={[
+          styles.modalOverlay,
+          { paddingBottom: platformSelect({ ios: 0, android: androidImeInset }) },
+        ]}
+        behavior={platformSelect<"padding" | undefined>({ ios: "padding", android: undefined })}
         keyboardVerticalOffset={platformSelect({ ios: 16, android: 0 })}
       >
         <View style={[styles.modalCard, { borderColor: theme.border }]}>
@@ -1108,7 +1137,7 @@ export default function MontadorPerfil() {
         <Row icon="LogOut" title="Sair" subtitle="Encerrar sessão da conta" theme={profileTheme} danger onPress={sairDaConta} />
       </Section>
 
-      <FloatingCard visible={modal === "dados"} title="Dados profissionais" subtitle="Essas informações aparecem no seu perfil público." theme={profileTheme} onClose={() => setModal(null)}>
+      <FloatingCard avoidKeyboard visible={modal === "dados"} title="Dados profissionais" subtitle="Essas informações aparecem no seu perfil público." theme={profileTheme} onClose={() => setModal(null)}>
         <ScrollView
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
@@ -1157,7 +1186,7 @@ export default function MontadorPerfil() {
         </ScrollView>
       </FloatingCard>
 
-      <FloatingCard visible={modal === "area"} title="Área de atendimento" subtitle="Use bairros separados por vírgula." theme={profileTheme} onClose={() => setModal(null)}>
+      <FloatingCard avoidKeyboard visible={modal === "area"} title="Área de atendimento" subtitle="Use bairros separados por vírgula." theme={profileTheme} onClose={() => setModal(null)}>
         <ScrollView
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
@@ -1218,7 +1247,7 @@ export default function MontadorPerfil() {
         </ScrollView>
       </FloatingCard>
 
-      <FloatingCard visible={modal === "precos"} title="Preços" subtitle="Defina uma referência de valor ou deixe a combinar." theme={profileTheme} onClose={() => setModal(null)}>
+      <FloatingCard avoidKeyboard visible={modal === "precos"} title="Preços" subtitle="Defina uma referência de valor ou deixe a combinar." theme={profileTheme} onClose={() => setModal(null)}>
         <ScrollView
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"

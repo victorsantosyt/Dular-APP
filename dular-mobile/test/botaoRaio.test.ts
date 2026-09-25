@@ -75,3 +75,21 @@ test("toda chamada de gradientShadow passa flat — senão a sombra ignora o mod
 test("gradientShadow declara o parâmetro flat", () => {
   assert.match(CODIGO, /function gradientShadow\([^)]*flat\?: boolean[^)]*\)/);
 });
+
+// ── Sombra: chapado e gradiente não usam a mesma ─────────────────────────────
+// O botão `flat` herdava `shadows.primaryButton` (elevation 8), pensada para o
+// gradiente. Sobre o branco do sheet isso virava um halo colorido de 54 px
+// abaixo do CTA — medido no APK v26. O gradiente mantém a sombra forte.
+
+test("a sombra do DButton depende de flat: soft no chapado, primaryButton no gradiente", () => {
+  assert.match(
+    CODIGO,
+    /\.\.\.\(\s*flat\s*\?\s*shadows\.soft\s*:\s*shadows\.primaryButton\s*\)/,
+    "o chapado voltou a usar a mesma sombra do gradiente",
+  );
+});
+
+test("o DButton usa exatamente estes dois tokens de sombra", () => {
+  const usados = [...new Set([...CODIGO.matchAll(/shadows\.(\w+)/g)].map((m) => m[1]))];
+  assert.deepEqual(usados.sort(), ["primaryButton", "soft"]);
+});

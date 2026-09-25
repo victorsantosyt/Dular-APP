@@ -34,6 +34,7 @@ import { radius, shadows, spacing, typography } from "@/theme";
 import { useDularColors } from "@/hooks/useDularColors";
 import { useGenderTheme } from "@/hooks/useProfileTheme";
 import { platformSelect } from "@/utils/platform";
+import { calcularPaddingInternoModal } from "@/lib/keyboardInset";
 import { getBottomNavContentPadding } from "@/navigation/bottomNavLayout";
 import {
   ProfileHeroCard,
@@ -774,11 +775,21 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
           <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
             <View style={s.modalBackdrop} />
           </TouchableWithoutFeedback>
-          <View style={[s.modalSheet, { maxHeight: "85%", paddingBottom: Math.max(insets.bottom, spacing.xl) }]}>
+          {/* O container só reserva a região do sistema; o respiro do design
+              fica DENTRO da rolagem. Medido no v28: com 12 dp de conteúdo
+              abaixo do CTA e o resto do padding atrás da barra do Android, a
+              sombra do botão era cortada numa linha reta e sobravam 11,8 dp
+              até a barra. Mesmo tratamento que os sheets da diarista. */}
+          <View style={[s.modalSheet, { maxHeight: "85%", paddingBottom: insets.bottom }]}>
             <ScrollView
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
-              contentContainerStyle={{ paddingBottom: spacing.md }}
+              contentContainerStyle={{
+                paddingBottom: calcularPaddingInternoModal({
+                  safeAreaInset: insets.bottom,
+                  insetJaReservadoFora: true,
+                }),
+              }}
             >
               <View style={s.modalHeader}>
                 <Text style={s.modalTitle}>Editar perfil</Text>
@@ -809,7 +820,10 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
                 returnKeyType="done"
               />
 
+              {/* `flat`, como os botões dos perfis da diarista: sem a sombra
+                  forte do gradiente, que sobre o branco do sheet vira halo. */}
               <DButton
+                flat
                 label={saving ? "Salvando..." : "Salvar alterações"}
                 onPress={saveEdits}
                 loading={saving}

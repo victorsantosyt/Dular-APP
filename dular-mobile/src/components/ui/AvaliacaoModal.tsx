@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { api } from "@/lib/api";
 import { DButton } from "@/components/ui/DButton";
+import { calcularPaddingInternoModal } from "@/lib/keyboardInset";
 import { colors, radius, spacing, typography } from "@/theme/tokens";
 
 export interface AvaliacaoModalProps {
@@ -100,12 +101,26 @@ export default function AvaliacaoModal({
         {/* Inset aplicado à mão em vez de <SafeAreaView edges={["bottom"]}>:
             dentro de um Modal o contexto de área segura nem sempre chega, e os
             botões acabavam encostados na barra de gestos do iPhone — a área de
-            "Enviar" disputava o toque com o gesto de home. */}
-        <View style={[s.sheet, { paddingBottom: Math.max(insets.bottom, spacing.md) + spacing.md }]}>
+            "Enviar" disputava o toque com o gesto de home.
+
+            O container reserva só essa região do sistema; o respiro do design
+            fica DENTRO da rolagem. Com ele no container, a sombra dos botões
+            batia no fim do ScrollView e era cortada numa linha reta — o mesmo
+            defeito medido no modal de perfil do empregador (v28) e nos sheets
+            da diarista (v25). Mesmo helper dos dois. */}
+        <View style={[s.sheet, { paddingBottom: insets.bottom }]}>
           <ScrollView
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
-            contentContainerStyle={s.sheetContent}
+            contentContainerStyle={[
+              s.sheetContent,
+              {
+                paddingBottom: calcularPaddingInternoModal({
+                  safeAreaInset: insets.bottom,
+                  insetJaReservadoFora: true,
+                }),
+              },
+            ]}
           >
             <Text style={s.title}>Avaliar {nomeAvaliado}</Text>
 
@@ -131,9 +146,12 @@ export default function AvaliacaoModal({
             />
             <Text style={s.charCount}>{comentario.length}/300</Text>
 
-            {/* Buttons */}
+            {/* Os dois `flat`, como os pares Cancelar/Salvar dos perfis: o
+                "Enviar" sem a sombra forte do gradiente, e o "Cancelar" com o
+                mesmo raio para os dois lado a lado terem o mesmo formato. */}
             <View style={s.btns}>
               <DButton
+                flat
                 label="Cancelar"
                 onPress={onClose}
                 variant="outline"
@@ -141,6 +159,7 @@ export default function AvaliacaoModal({
                 style={s.btnHalf}
               />
               <DButton
+                flat
                 label="Enviar"
                 onPress={handleEnviar}
                 loading={enviando}

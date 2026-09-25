@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { AppIcon } from "@/components/ui/AppIcon";
@@ -7,7 +7,7 @@ import { DCard } from "@/components/ui/DCard";
 import type { EmpregadorServiceFlowStackParamList } from "@/navigation/EmpregadorServiceFlowNavigator";
 import { colors, radius, shadows, spacing } from "@/theme";
 import { useServiceFlow } from "./ServiceFlowContext";
-import { FlowFooter, FlowPrimaryButton, flowStyles, StepHeader, TimeSlotButton } from "./components";
+import { FlowFooter, FlowPrimaryButton, FlowScreen, flowStyles, StepHeader, TimeSlotButton } from "./components";
 import { getServiceFlowTheme } from "@/theme/serviceFlowTheme";
 
 type Navigation = NativeStackNavigationProp<EmpregadorServiceFlowStackParamList, "EscolherData">;
@@ -81,7 +81,7 @@ export function EscolherDataScreen() {
   };
 
   return (
-    <SafeAreaView style={flowStyles.screen}>
+    <FlowScreen>
       <ScrollView contentContainerStyle={flowStyles.scrollContent} showsVerticalScrollIndicator={false}>
         <StepHeader
           title="Escolher data"
@@ -164,7 +164,7 @@ export function EscolherDataScreen() {
       <FlowFooter>
         <FlowPrimaryButton label="Continuar" theme={flowTheme} onPress={continueFlow} />
       </FlowFooter>
-    </SafeAreaView>
+    </FlowScreen>
   );
 }
 

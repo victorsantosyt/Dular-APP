@@ -1,7 +1,7 @@
 import React, { ReactNode } from "react";
 import { LinearGradient } from "expo-linear-gradient";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View, ViewStyle } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { BackCircleButton } from "@/components/ui";
 import { AppIcon, type AppIconName } from "@/components/ui/AppIcon";
 import { DCard } from "@/components/ui/DCard";
@@ -208,6 +208,17 @@ export function FlowPrimaryButton({
         </LinearGradient>
       </Pressable>
     </View>
+  );
+}
+
+/** Raiz de toda etapa do fluxo. O `SafeAreaView` do react-native só age no
+ *  iOS: no Android edge-to-edge o cabeçalho ficava sob a barra de status e o
+ *  recorte da câmera. A base fica de fora porque o `FlowFooter` já a reserva. */
+export function FlowScreen({ children }: { children: ReactNode }) {
+  return (
+    <SafeAreaView style={flowStyles.screen} edges={["top", "left", "right"]}>
+      {children}
+    </SafeAreaView>
   );
 }
 

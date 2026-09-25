@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { KeyboardAvoidingView, Platform, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { AppIcon } from "@/components/ui/AppIcon";
@@ -7,7 +7,7 @@ import { DCard } from "@/components/ui/DCard";
 import type { EmpregadorServiceFlowStackParamList } from "@/navigation/EmpregadorServiceFlowNavigator";
 import { colors, radius, spacing } from "@/theme";
 import { useServiceFlow } from "./ServiceFlowContext";
-import { FlowFooter, FlowPrimaryButton, flowStyles, StepHeader } from "./components";
+import { FlowFooter, FlowPrimaryButton, FlowScreen, flowStyles, StepHeader } from "./components";
 import { getServiceFlowTheme } from "@/theme/serviceFlowTheme";
 
 type Navigation = NativeStackNavigationProp<EmpregadorServiceFlowStackParamList, "ObservacoesServico">;
@@ -31,7 +31,7 @@ export function ObservacoesServicoScreen() {
   };
 
   return (
-    <SafeAreaView style={flowStyles.screen}>
+    <FlowScreen>
       <KeyboardAvoidingView
         style={flowStyles.screen}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -87,7 +87,7 @@ export function ObservacoesServicoScreen() {
           <FlowPrimaryButton label="Continuar" theme={flowTheme} onPress={continueFlow} />
         </FlowFooter>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </FlowScreen>
   );
 }
 

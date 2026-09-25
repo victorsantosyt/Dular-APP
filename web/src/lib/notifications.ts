@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { conteudoPublico, dadosPublicos } from "@/lib/pushPublico";
 
 // ──────────────────────────────────────────────────────────────────────────
 // Notificações in-app + push remoto (best-effort)
@@ -39,8 +40,6 @@ type PushMessage = {
   data?: Record<string, unknown>;
   sound?: "default";
   badge?: number;
-  /** iOS: linha em negrito entre título e corpo. Ver `subtituloDoServico`. */
-  subtitle?: string;
   /** iOS: agrupa visualmente os avisos. Ver `threadIdDe`. */
   threadId?: string;
 };
@@ -82,58 +81,6 @@ function threadIdDe(data?: Record<string, unknown>): string | undefined {
   }
   if (servicoId) return `servico:${servicoId}`;
   return tipo ? `tipo:${tipo}` : undefined;
-}
-
-const ROTULO_TIPO: Record<string, string> = {
-  FAXINA: "Faxina",
-  FAXINEIRA: "Faxina",
-  BABA: "Babá",
-  COZINHEIRA: "Cozinheira",
-  PASSA_ROUPA: "Passar roupa",
-  LAVADEIRA: "Lavar roupa",
-  CUIDADORA: "Cuidadora",
-  MONTADOR: "Montagem",
-};
-
-/**
- * Segunda linha do aviso (iOS mostra em negrito entre título e corpo).
- *
- * Diz DE QUAL serviço o aviso fala. Sem ela, quem tem três serviços em
- * andamento lê "Sua solicitação foi aceita" e não sabe qual foi — precisa
- * abrir o app para descobrir. Com ela: "Faxina · 12 de set, Centro".
- *
- * Fica aqui, e não em cada endpoint, porque são mais de dez lugares criando
- * notificação: uma consulta central serve todos e não deixa nenhum de fora.
- * Best-effort como o resto do envio — se falhar, o push vai sem a linha.
- */
-async function subtituloDoServico(servicoId: string): Promise<string | undefined> {
-  try {
-    const servico = await prisma.servico.findUnique({
-      where: { id: servicoId },
-      select: { tipo: true, data: true, bairro: true },
-    });
-    if (!servico) return undefined;
-
-    const partes: string[] = [];
-    const rotulo = ROTULO_TIPO[servico.tipo];
-    if (rotulo) partes.push(rotulo);
-
-    if (servico.data) {
-      // `data` é data-pura gravada à meia-noite UTC; formatar em UTC evita
-      // que o fuso do servidor mostre o dia anterior.
-      partes.push(
-        new Intl.DateTimeFormat("pt-BR", { day: "numeric", month: "short", timeZone: "UTC" })
-          .format(servico.data)
-          .replace(".", ""),
-      );
-    }
-    if (servico.bairro) partes.push(servico.bairro);
-
-    return partes.length > 0 ? partes.join(" · ") : undefined;
-  } catch (err) {
-    console.error("[push] falha ao montar o subtítulo:", err);
-    return undefined;
-  }
 }
 
 /**
@@ -179,11 +126,17 @@ async function badgeDoUsuario(userId: string): Promise<number | undefined> {
  * Envia push remoto via Expo. Best-effort: nunca lança — erros são logados
  * e o fluxo principal segue normalmente. Em desenvolvimento (Expo Go) o
  * token pode não estar disponível: nesse caso a função simplesmente retorna.
+ *
+ * PRIVACIDADE: `_titulo` e `_corpo` NÃO vão para o push. O que o sistema
+ * exibe vem de `lib/pushPublico` pelo `type` em `data` (texto fixo por tipo),
+ * e `data` passa por uma lista de chaves de identificador. Os parâmetros
+ * ficam na assinatura por compatibilidade com os call-sites; o conteúdo
+ * completo é o que `criarNotificacao` grava no banco.
  */
 export async function sendPushNotification(
   userId: string,
-  title: string,
-  body: string,
+  _titulo: string,
+  _corpo: string,
   data?: Record<string, unknown>
 ): Promise<void> {
   try {
@@ -195,22 +148,21 @@ export async function sendPushNotification(
     const token = user?.pushToken;
     if (!token || !token.startsWith("ExponentPushToken[")) return;
 
-    const threadId = threadIdDe(data);
-    const servicoId = typeof data?.servicoId === "string" ? data.servicoId : null;
+    const publicos = dadosPublicos(data?.type, data);
+    const { title, body } = conteudoPublico(publicos.type);
+    // Derivado só de identificadores já filtrados.
+    const threadId = threadIdDe(publicos);
+    const badge = await badgeDoUsuario(userId);
 
-    const [subtitle, badge] = await Promise.all([
-      servicoId ? subtituloDoServico(servicoId) : Promise.resolve(undefined),
-      badgeDoUsuario(userId),
-    ]);
-
+    // Sem `subtitle`: ele levava tipo, data e bairro do serviço para a tela
+    // de bloqueio do iPhone.
     const message: PushMessage = {
       to: token,
       title,
       body,
       sound: "default",
-      ...(data ? { data } : {}),
+      data: publicos,
       ...(threadId ? { threadId } : {}),
-      ...(subtitle ? { subtitle } : {}),
       ...(badge !== undefined ? { badge } : {}),
     };
 
@@ -248,9 +200,10 @@ export type CriarNotificacaoParams = {
   servicoId?: string | null;
   chatRoomId?: string | null;
   /**
-   * Quando definido, sobrescreve o `data` do push remoto. Por padrão
-   * incluímos `{ type, servicoId, chatRoomId }` para o mobile rotear a
-   * notificação para a tela correta.
+   * Quando definido, substitui o `data` padrão do push remoto
+   * (`{ servicoId, chatRoomId, notificationId }`). O `type` é sempre o da
+   * notificação, e só chaves de identificador chegam ao aparelho
+   * (lib/pushPublico) — chave extra é descartada.
    */
   pushData?: Record<string, unknown>;
   /**
@@ -298,11 +251,15 @@ export async function criarNotificacao(params: CriarNotificacaoParams) {
   }
 
   if (sendPush) {
-    const data: Record<string, unknown> = pushData ?? {
+    // `type` é SEMPRE o da notificação: é ele que escolhe o texto público, e
+    // um `pushData` com outro tipo não pode trocar o que aparece na tela.
+    const data: Record<string, unknown> = {
+      ...(pushData ?? {
+        ...(servicoId ? { servicoId } : {}),
+        ...(chatRoomId ? { chatRoomId } : {}),
+        ...(notification?.id ? { notificationId: notification.id } : {}),
+      }),
       type,
-      ...(servicoId ? { servicoId } : {}),
-      ...(chatRoomId ? { chatRoomId } : {}),
-      ...(notification?.id ? { notificationId: notification.id } : {}),
     };
     // sendPushNotification já trata erros internamente; este await é seguro.
     await sendPushNotification(userId, title, body, data);

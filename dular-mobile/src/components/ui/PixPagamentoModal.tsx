@@ -107,7 +107,7 @@ export function PixPagamentoModal({
   }, [servicoId, onPagamentoInformado]);
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+    <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
       <View style={s.overlay}>
         <SafeAreaView style={s.sheet} edges={["bottom"]}>
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.content}>

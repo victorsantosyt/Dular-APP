@@ -90,7 +90,7 @@ export default function AvaliacaoModal({
   };
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+    <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
       {/* KeyboardAvoidingView sobe a folha junto com o teclado; o ScrollView
           (keyboardShouldPersistTaps) mantém estrelas e "Enviar" acessíveis com
           o teclado aberto, sem precisar fechá-lo antes. */}

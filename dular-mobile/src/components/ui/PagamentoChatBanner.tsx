@@ -174,7 +174,7 @@ export function PagamentoChatBanner({
 
       <Modal
         visible={contestarVisible}
-        animationType="slide"
+        animationType="fade"
         transparent
         onRequestClose={() => setContestarVisible(false)}
       >

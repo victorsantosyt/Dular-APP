@@ -1700,7 +1700,7 @@ export default function DiaristaPerfil({ onLogout }: Props) {
           ──────────────────────────────────────────────────────────────────── */}
 
       {/* Modal Dados profissionais (B) */}
-      <Modal visible={modal === "dados"} animationType="slide" transparent onRequestClose={closeModal}>
+      <Modal visible={modal === "dados"} animationType="fade" transparent onRequestClose={closeModal}>
         <KeyboardAvoidingView
           style={[
             s.modalOverlay,
@@ -1889,7 +1889,7 @@ export default function DiaristaPerfil({ onLogout }: Props) {
       </Modal>
 
       {/* Modal Área de atendimento (D) */}
-      <Modal visible={modal === "area"} animationType="slide" transparent onRequestClose={closeModal}>
+      <Modal visible={modal === "area"} animationType="fade" transparent onRequestClose={closeModal}>
         <KeyboardAvoidingView
           style={[
             s.modalOverlay,
@@ -2043,7 +2043,7 @@ export default function DiaristaPerfil({ onLogout }: Props) {
       </Modal>
 
       {/* Modal Preços (E) */}
-      <Modal visible={modal === "precos"} animationType="slide" transparent onRequestClose={closeModal}>
+      <Modal visible={modal === "precos"} animationType="fade" transparent onRequestClose={closeModal}>
         <KeyboardAvoidingView
           style={[
             s.modalOverlay,

@@ -767,7 +767,7 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
         </ScrollView>
       </View>
 
-      <Modal visible={modalVisible} animationType="slide" transparent onRequestClose={() => setModalVisible(false)}>
+      <Modal visible={modalVisible} animationType="fade" transparent onRequestClose={() => setModalVisible(false)}>
         <KeyboardAvoidingView
           style={s.modalOverlay}
           behavior={platformSelect({ ios: "padding", android: undefined })}

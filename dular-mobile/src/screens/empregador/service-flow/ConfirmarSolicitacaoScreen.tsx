@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { Alert, SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { DCard } from "@/components/ui/DCard";
@@ -9,7 +9,7 @@ import { criarServico, prepararPayload } from "@/api/empregadorApi";
 import { motivoLabel } from "@/api/perfilApi";
 import { useAuth } from "@/stores/authStore";
 import { SERVICE_LABELS, useServiceFlow } from "./ServiceFlowContext";
-import { FlowFooter, FlowPrimaryButton, flowStyles, StepHeader, SummaryCard } from "./components";
+import { FlowFooter, FlowPrimaryButton, FlowScreen, flowStyles, StepHeader, SummaryCard } from "./components";
 import { getServiceFlowTheme } from "@/theme/serviceFlowTheme";
 
 type Navigation = NativeStackNavigationProp<EmpregadorServiceFlowStackParamList, "ConfirmarSolicitacao">;
@@ -171,7 +171,7 @@ export function ConfirmarSolicitacaoScreen() {
   }, [address, draft, isMontador, precoLabel]);
 
   return (
-    <SafeAreaView style={flowStyles.screen}>
+    <FlowScreen>
       <ScrollView contentContainerStyle={flowStyles.scrollContent} showsVerticalScrollIndicator={false}>
         <StepHeader
           title="Confirmar solicitação"
@@ -202,7 +202,7 @@ export function ConfirmarSolicitacaoScreen() {
         />
         <Text style={s.editLink} onPress={() => navigation.navigate("EscolherServico")}>Editar informações</Text>
       </FlowFooter>
-    </SafeAreaView>
+    </FlowScreen>
   );
 }
 

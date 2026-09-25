@@ -1,11 +1,11 @@
 import React, { useMemo } from "react";
-import { SafeAreaView, ScrollView, StyleSheet, View } from "react-native";
+import { ScrollView, StyleSheet, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { AppIconName } from "@/components/ui";
 import type { EmpregadorServiceFlowStackParamList } from "@/navigation/EmpregadorServiceFlowNavigator";
 import { ServiceCategory, useServiceFlow } from "./ServiceFlowContext";
-import { FlowFooter, FlowPrimaryButton, flowStyles, ServiceOptionCard, StepHeader } from "./components";
+import { FlowFooter, FlowPrimaryButton, FlowScreen, flowStyles, ServiceOptionCard, StepHeader } from "./components";
 import { getServiceFlowTheme } from "@/theme/serviceFlowTheme";
 
 type Navigation = NativeStackNavigationProp<EmpregadorServiceFlowStackParamList, "EscolherIntensidade">;
@@ -98,7 +98,7 @@ export function EscolherIntensidadeScreen() {
   const canContinue = Boolean(draft.categoriaBackend);
 
   return (
-    <SafeAreaView style={flowStyles.screen}>
+    <FlowScreen>
       <ScrollView contentContainerStyle={flowStyles.scrollContent} showsVerticalScrollIndicator={false}>
         <StepHeader
           title="Escolha a intensidade"
@@ -140,7 +140,7 @@ export function EscolherIntensidadeScreen() {
           onPress={() => navigation.navigate("EscolherData")}
         />
       </FlowFooter>
-    </SafeAreaView>
+    </FlowScreen>
   );
 }
 

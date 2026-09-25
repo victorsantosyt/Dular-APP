@@ -181,11 +181,18 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
           const limpo = {
             reagendamentoData: null,
             reagendamentoTurno: null,
+            reagendamentoHora: null,
             reagendamentoPor: null,
             reagendamentoEm: null,
           };
           return aceitar
-            ? { ...cur, data: cur.reagendamentoData ?? cur.data, turno: (cur.reagendamentoTurno ?? cur.turno) as any, ...limpo }
+            ? {
+                ...cur,
+                data: cur.reagendamentoData ?? cur.data,
+                turno: (cur.reagendamentoTurno ?? cur.turno) as any,
+                hora: cur.reagendamentoHora ?? cur.hora,
+                ...limpo,
+              }
             : { ...cur, ...limpo };
         });
         setToast(aceitar ? "Reagendamento confirmado." : "Reagendamento recusado.");
@@ -377,10 +384,14 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
           <View style={s.card}>
             <View style={s.infoRow}>
               <Ionicons name="calendar-outline" size={16} color={colors.warning} />
-              <Text style={[s.infoText, { fontWeight: "700", color: colors.ink }]}>Proposta de reagendamento</Text>
+              <Text style={[s.infoText, { fontWeight: "700", color: colors.ink }]}>
+                {statusRaw === "SOLICITADO" ? "Sugestão de novo horário" : "Proposta de reagendamento"}
+              </Text>
             </View>
             <Text style={[s.infoText, { marginTop: 4 }]}>
-              O profissional propôs uma nova data: {fmtReagendamento(svc)}
+              {statusRaw === "SOLICITADO"
+                ? `O profissional pode atender em: ${fmtReagendamento(svc)}. Se recusar, o pedido segue no horário original.`
+                : `O profissional propôs uma nova data: ${fmtReagendamento(svc)}`}
             </Text>
             <View style={{ flexDirection: "row", gap: 10, marginTop: 12 }}>
               <View style={{ flex: 1 }}>

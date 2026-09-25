@@ -1,5 +1,5 @@
 import React, { useMemo } from "react";
-import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -8,7 +8,7 @@ import type { EmpregadorServiceFlowStackParamList } from "@/navigation/Empregado
 import { goToTab } from "@/navigation/navHelpers";
 import { ServiceCategory, useServiceFlow, type PrecoInfo } from "./ServiceFlowContext";
 import { categoriaTemIntensidade } from "./EscolherIntensidadeScreen";
-import { FlowFooter, FlowPrimaryButton, flowStyles, ServiceOptionCard, StepHeader } from "./components";
+import { FlowFooter, FlowPrimaryButton, FlowScreen, flowStyles, ServiceOptionCard, StepHeader } from "./components";
 import { MONTADOR_ESPECIALIDADES } from "./montadorEspecialidades";
 import { AppIcon } from "@/components/ui";
 import { getServiceFlowTheme } from "@/theme/serviceFlowTheme";
@@ -153,7 +153,7 @@ export function SolicitarServicoScreen() {
 
   if (missingMontador) {
     return (
-      <SafeAreaView style={flowStyles.screen}>
+      <FlowScreen>
         <ScrollView contentContainerStyle={flowStyles.scrollContent} showsVerticalScrollIndicator={false}>
           <StepHeader
             title="Escolha um montador"
@@ -182,12 +182,12 @@ export function SolicitarServicoScreen() {
             onPress={goToMontadores}
           />
         </FlowFooter>
-      </SafeAreaView>
+      </FlowScreen>
     );
   }
 
   return (
-    <SafeAreaView style={flowStyles.screen}>
+    <FlowScreen>
       <ScrollView contentContainerStyle={flowStyles.scrollContent} showsVerticalScrollIndicator={false}>
         <StepHeader
           title={isMontador ? "Escolha a especialidade" : "Escolha o serviço"}
@@ -316,7 +316,7 @@ export function SolicitarServicoScreen() {
           }
         />
       </FlowFooter>
-    </SafeAreaView>
+    </FlowScreen>
   );
 }
 

@@ -1,5 +1,5 @@
 import React from "react";
-import { SafeAreaView, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -10,7 +10,7 @@ import type { EmpregadorServiceFlowStackParamList } from "@/navigation/Empregado
 import { goToTab } from "@/navigation/navHelpers";
 import { colors, radius, spacing } from "@/theme";
 import { useServiceFlow } from "./ServiceFlowContext";
-import { FlowFooter, FlowPrimaryButton, flowStyles, SuccessBadge } from "./components";
+import { FlowFooter, FlowPrimaryButton, FlowScreen, flowStyles, SuccessBadge } from "./components";
 import { getServiceFlowTheme } from "@/theme/serviceFlowTheme";
 import { protocoloServico as derivarProtocolo } from "@/utils/formatters";
 
@@ -40,7 +40,7 @@ export function SolicitacaoSucessoScreen() {
   };
 
   return (
-    <SafeAreaView style={flowStyles.screen}>
+    <FlowScreen>
       <View style={s.content}>
         <SuccessBadge theme={flowTheme} />
         <View style={s.copy}>
@@ -65,7 +65,7 @@ export function SolicitacaoSucessoScreen() {
         <FlowPrimaryButton label="Acompanhar solicitações" theme={flowTheme} onPress={acompanharSolicitacoes} />
         <DButton label="Voltar ao início" variant="ghost" onPress={goHome} style={s.secondaryButton} />
       </FlowFooter>
-    </SafeAreaView>
+    </FlowScreen>
   );
 }
 

@@ -2,7 +2,14 @@ import React, { useState } from "react";
 import { Alert, Image, Pressable, StyleSheet, Text, View } from "react-native";
 import type { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
 import { AppIcon, BackCircleButton, DEmptyState, DErrorState, DLoadingState, DScreen } from "@/components/ui";
-import { aceitarSolicitacaoMontador, recusarSolicitacaoMontador } from "@/api/montadorApi";
+import {
+  aceitarSolicitacaoMontador,
+  proporReagendamento,
+  recusarSolicitacaoMontador,
+  type MontadorServico,
+} from "@/api/montadorApi";
+import { PropostaHorarioModal } from "@/components/PropostaHorarioModal";
+import { conflitosDoPedido, type ServicoAgenda } from "@/lib/conflitoAgenda";
 import { useLimiteDePlano } from "@/hooks/useLimiteDePlano";
 import { MotivoModal } from "@/components/MotivoModal";
 import { useMontadorServicos } from "@/hooks/useMontadorServicos";
@@ -21,6 +28,19 @@ import {
 
 type Props = BottomTabScreenProps<MontadorTabParamList, "MontadorDetalheSolicitacao">;
 
+function paraAgenda(s: MontadorServico): ServicoAgenda | null {
+  if (!s.data) return null;
+  return {
+    id: s.id,
+    status: String(s.status),
+    data: s.data,
+    hora: (s as { hora?: string | null }).hora ?? null,
+    turno: s.turno ?? null,
+    tipo: "MONTADOR",
+    categoria: s.categoria ?? null,
+  };
+}
+
 export default function MontadorDetalheSolicitacao({ route, navigation }: Props) {
   const profileTheme = useProfileTheme("MONTADOR");
   const { servicos, scoreByUser, loading, error, reload } = useMontadorServicos();
@@ -33,6 +53,29 @@ export default function MontadorDetalheSolicitacao({ route, navigation }: Props)
   // Sem essa checagem o botão "Aceitar" continua visível após o aceite enquanto
   // a tela ainda não navegou, permitindo um segundo clique que volta 409.
   const podeResponder = !!servico && isSolicitacaoPendente(servico);
+  const [propostaOpen, setPropostaOpen] = useState(false);
+  const [propostaEnviando, setPropostaEnviando] = useState(false);
+  const pedido = servico ? paraAgenda(servico) : null;
+  const conflitos =
+    podeResponder && pedido
+      ? conflitosDoPedido(pedido, servicos.map(paraAgenda).filter((x): x is ServicoAgenda => x !== null))
+      : [];
+  const propostaPendente = Boolean(servico?.reagendamentoData);
+
+  const enviarProposta = async (p: { data: string; turno: "MANHA" | "TARDE"; hora: string }) => {
+    if (!servico) return;
+    try {
+      setPropostaEnviando(true);
+      await proporReagendamento(servico.id, p.data, p.turno, p.hora);
+      setPropostaOpen(false);
+      await reload();
+      Alert.alert("Proposta enviada", "O cliente vai confirmar ou recusar o novo horário. Depois é só aceitar o pedido.");
+    } catch (e: any) {
+      Alert.alert("Erro", e?.response?.data?.error ?? "Não foi possível enviar a proposta.");
+    } finally {
+      setPropostaEnviando(false);
+    }
+  };
 
   const { tratar: tratarLimite } = useLimiteDePlano();
 
@@ -136,6 +179,32 @@ export default function MontadorDetalheSolicitacao({ route, navigation }: Props)
             )}
           </View>
 
+          {conflitos.length > 0 ? (
+            <View style={styles.conflitoCard}>
+              <AppIcon name="Clock" size={18} color={colors.warning} />
+              <View style={{ flex: 1, gap: 4 }}>
+                <Text style={styles.conflitoTitulo}>
+                  {conflitos.some((c) => c.tipo === "sobreposto")
+                    ? "Você já tem serviço nesse horário"
+                    : "Você termina outro serviço perto desse horário"}
+                </Text>
+                {conflitos.map((c) => (
+                  <Text key={c.id} style={styles.bodyText}>
+                    Serviço das {c.inicio}
+                    {c.fimEstimado ? ` até ~${c.fimEstimado} (estimado)` : ""}.
+                  </Text>
+                ))}
+                <Text style={styles.bodyText}>Você pode aceitar assim mesmo ou sugerir outro horário ao cliente.</Text>
+              </View>
+            </View>
+          ) : null}
+
+          {podeResponder && propostaPendente ? (
+            <View style={styles.card}>
+              <Text style={styles.bodyText}>Você sugeriu outro horário. Aguardando o cliente confirmar.</Text>
+            </View>
+          ) : null}
+
           {podeResponder ? (
             <View style={styles.actions}>
               <Pressable disabled={actionLoading} onPress={aceitar} style={[styles.primaryButton, { backgroundColor: profileTheme.primary }]}>
@@ -146,8 +215,28 @@ export default function MontadorDetalheSolicitacao({ route, navigation }: Props)
               </Pressable>
             </View>
           ) : null}
+
+          {podeResponder && !propostaPendente ? (
+            <Pressable
+              disabled={actionLoading}
+              onPress={() => setPropostaOpen(true)}
+              style={[styles.rejectButton, { flex: 0, borderColor: profileTheme.primary }]}
+            >
+              <Text style={[styles.rejectText, { color: profileTheme.primary }]}>Sugerir outro horário</Text>
+            </Pressable>
+          ) : null}
         </>
       )}
+      <PropostaHorarioModal
+        visible={propostaOpen}
+        titulo="Sugerir outro horário"
+        subtitulo="O cliente confirma ou recusa. Se recusar, o pedido continua aberto no horário original."
+        accent={profileTheme.primary}
+        border={profileTheme.border}
+        enviando={propostaEnviando}
+        onClose={() => setPropostaOpen(false)}
+        onConfirm={(p) => { void enviarProposta(p); }}
+      />
       <MotivoModal
         visible={recusarOpen}
         title="Recusar serviço"
@@ -169,6 +258,20 @@ function Info({ label, value }: { label: string; value: string }) {
 }
 
 const styles = StyleSheet.create({
+  conflitoCard: {
+    flexDirection: "row",
+    gap: 10,
+    padding: 14,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.warning,
+    backgroundColor: colors.surface,
+  },
+  conflitoTitulo: {
+    ...typography.bodySmMedium,
+    color: colors.textPrimary,
+    fontWeight: "700",
+  },
   scroll: {
     gap: 14,
     paddingBottom: 28,

@@ -1,7 +1,7 @@
 import React, { ReactNode } from "react";
 import { LinearGradient } from "expo-linear-gradient";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View, ViewStyle } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { BackCircleButton } from "@/components/ui";
 import { AppIcon, type AppIconName } from "@/components/ui/AppIcon";
 import { DCard } from "@/components/ui/DCard";
@@ -97,15 +97,19 @@ type TimeSlotButtonProps = {
   selected: boolean;
   onPress: () => void;
   theme?: ServiceFlowTheme;
+  disabled?: boolean;
 };
 
-export function TimeSlotButton({ label, selected, onPress, theme }: TimeSlotButtonProps) {
+export function TimeSlotButton({ label, selected, onPress, theme, disabled }: TimeSlotButtonProps) {
   const flowTheme = theme ?? getServiceFlowTheme("DIARISTA");
   return (
     <Pressable
       onPress={onPress}
+      disabled={disabled}
+      accessibilityState={{ disabled: !!disabled, selected }}
       style={({ pressed }) => [
         s.timeSlot,
+        disabled && s.timeSlotDisabled,
         selected && {
           backgroundColor: flowTheme.primary,
           borderColor: flowTheme.primary,
@@ -208,6 +212,17 @@ export function FlowPrimaryButton({
         </LinearGradient>
       </Pressable>
     </View>
+  );
+}
+
+/** Raiz de toda etapa do fluxo. O `SafeAreaView` do react-native só age no
+ *  iOS: no Android edge-to-edge o cabeçalho ficava sob a barra de status e o
+ *  recorte da câmera. A base fica de fora porque o `FlowFooter` já a reserva. */
+export function FlowScreen({ children }: { children: ReactNode }) {
+  return (
+    <SafeAreaView style={flowStyles.screen} edges={["top", "left", "right"]}>
+      {children}
+    </SafeAreaView>
   );
 }
 
@@ -350,6 +365,11 @@ const s = StyleSheet.create({
     borderColor: colors.border,
     backgroundColor: colors.surface,
     ...shadows.soft,
+  },
+  timeSlotDisabled: {
+    opacity: 0.35,
+    elevation: 0,
+    shadowOpacity: 0,
   },
   timeSlotText: {
     color: colors.textPrimary,

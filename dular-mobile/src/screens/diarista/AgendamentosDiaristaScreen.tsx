@@ -38,6 +38,7 @@ type Agendamento = {
   preco: string;
   status: StatusAgendamento;
   avatarUrl?: string;
+  conflito?: "sobreposto" | "proximo" | null;
 };
 
 // Intensidade/subtipo legível para o card (FAXINA_PESADA → "Limpeza pesada").
@@ -200,6 +201,17 @@ function AgendamentoDiaristaCard({
         </View>
       </View>
 
+      {status === "pendente" && agendamento.conflito ? (
+        <View style={styles.conflitoLinha}>
+          <AppIcon name="Clock" size={13} color={colors.warning} />
+          <Text style={styles.conflitoTexto} numberOfLines={2}>
+            {agendamento.conflito === "sobreposto"
+              ? "Cruza com outro serviço seu nesse dia"
+              : "Perto do fim de outro serviço seu"}
+          </Text>
+        </View>
+      ) : null}
+
       {/* Rodapé: preço + ações */}
       <View style={styles.cardFooter}>
         <Text style={[styles.footerPrice, { color: accentColor }]}>{precoLabel}</Text>
@@ -328,6 +340,18 @@ export function AgendamentosDiaristaScreen() {
 export default AgendamentosDiaristaScreen;
 
 const styles = StyleSheet.create({
+  conflitoLinha: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 8,
+  },
+  conflitoTexto: {
+    flex: 1,
+    color: colors.warning,
+    fontSize: 12,
+    fontWeight: "700",
+  },
   safe: {
     flex: 1,
     backgroundColor: colors.background,

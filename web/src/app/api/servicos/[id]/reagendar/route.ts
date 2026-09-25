@@ -12,7 +12,15 @@ export const dynamic = "force-dynamic";
 type Params = { params: Promise<{ id: string }> };
 
 // Estados em que faz sentido remarcar (serviço ativo, ainda não encerrado).
-const REAGENDAVEL = new Set(["ACEITO", "CONFIRMADO", "EM_ANDAMENTO"]);
+// SOLICITADO entra para o profissional sugerir outro horário ANTES de aceitar
+// (ex.: termina outro serviço perto do horário pedido). A proposta não aceita
+// o pedido: confirmada pelo empregador, só move a data e o pedido continua
+// esperando o aceite normal — que passa pelos gates de /aceitar.
+const REAGENDAVEL = new Set(["SOLICITADO", "ACEITO", "CONFIRMADO", "EM_ANDAMENTO"]);
+
+// Folga de um dia: a data chega como meia-noite UTC do dia escolhido, que no
+// Brasil ainda é "ontem" à noite.
+const UM_DIA_MS = 24 * 60 * 60 * 1000;
 
 const proporSchema = z.object({
   data: z.string().datetime({ offset: true }),
@@ -45,6 +53,10 @@ export async function POST(req: Request, { params }: Params) {
       return NextResponse.json({ ok: false, error: "Data inválida." }, { status: 400 });
     }
 
+    if (novaData.getTime() < Date.now() - UM_DIA_MS) {
+      return NextResponse.json({ ok: false, error: "Escolha uma data a partir de hoje." }, { status: 400 });
+    }
+
     const servico = await prisma.servico.findUnique({ where: { id } });
     if (!servico) return NextResponse.json({ ok: false, error: "Serviço não encontrado." }, { status: 404 });
 
@@ -73,8 +85,11 @@ export async function POST(req: Request, { params }: Params) {
     await criarNotificacao({
       userId: servico.clientId,
       type: "SERVICO_REAGENDAMENTO_PROPOSTO",
-      title: "Proposta de reagendamento",
-      body: "O profissional propôs uma nova data para o serviço. Confirme ou recuse.",
+      title: servico.status === "SOLICITADO" ? "Sugestão de novo horário" : "Proposta de reagendamento",
+      body:
+        servico.status === "SOLICITADO"
+          ? "O profissional pode atender sua solicitação em outro horário. Confirme ou recuse."
+          : "O profissional propôs uma nova data para o serviço. Confirme ou recuse.",
       servicoId: servico.id,
     });
 
@@ -140,7 +155,9 @@ export async function PATCH(req: Request, { params }: Params) {
         type: parsed.data.aceitar ? "SERVICO_REAGENDAMENTO_CONFIRMADO" : "SERVICO_REAGENDAMENTO_RECUSADO",
         title: parsed.data.aceitar ? "Reagendamento confirmado" : "Reagendamento recusado",
         body: parsed.data.aceitar
-          ? "O empregador confirmou a nova data do serviço."
+          ? servico.status === "SOLICITADO"
+            ? "O empregador confirmou o novo horário. Aceite a solicitação para garantir o serviço."
+            : "O empregador confirmou a nova data do serviço."
           : "O empregador recusou a nova data proposta.",
         servicoId: servico.id,
       });

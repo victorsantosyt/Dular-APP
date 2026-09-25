@@ -252,8 +252,9 @@ export async function proporReagendamento(
   servicoId: string,
   data: string,
   turno: "MANHA" | "TARDE",
+  hora?: string,
 ) {
-  const res = await api.post(`/api/servicos/${servicoId}/reagendar`, { data, turno });
+  const res = await api.post(`/api/servicos/${servicoId}/reagendar`, { data, turno, ...(hora ? { hora } : {}) });
   return res.data;
 }
 

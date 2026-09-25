@@ -15,7 +15,7 @@ import {
   resumoAgenda,
   type SlotAgenda,
 } from "./agendaDisponivel";
-import { duracaoEstimada } from "./duracaoServico";
+import { duracaoEstimada } from "@/lib/duracaoServico";
 import { useServiceFlow } from "./ServiceFlowContext";
 import { FlowFooter, FlowPrimaryButton, FlowScreen, flowStyles, StepHeader, TimeSlotButton } from "./components";
 import { getServiceFlowTheme } from "@/theme/serviceFlowTheme";

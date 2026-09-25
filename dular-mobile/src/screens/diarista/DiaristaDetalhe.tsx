@@ -17,8 +17,11 @@ import type { ServicoListItem as Servico } from "../../../../shared/types/servic
 import {
   cancelarServicoDiarista,
   confirmarFinalizacaoDiarista,
+  proporReagendamento,
   recusarServicoDiarista,
 } from "@/api/diaristaApi";
+import { PropostaHorarioModal } from "@/components/PropostaHorarioModal";
+import { conflitosDoPedido } from "@/lib/conflitoAgenda";
 import { DButton } from "@/components/DButton";
 import { DularBadge } from "@/components/DularBadge";
 import { MotivoModal } from "@/components/MotivoModal";
@@ -130,6 +133,10 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
   const [recusarOpen, setRecusarOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [avaliarOpen, setAvaliarOpen] = useState(false);
+  const [propostaOpen, setPropostaOpen] = useState(false);
+  const [propostaEnviando, setPropostaEnviando] = useState(false);
+  // Os outros serviços dela, para avisar de conflito no pedido novo.
+  const [agenda, setAgenda] = useState<Servico[]>([]);
   // Flag local otimista: cobre a janela entre enviar a avaliação e o refetch
   // da lista trazer `avaliacaoEmpregador`.
   const [avaliouLocal, setAvaliouLocal] = useState(false);
@@ -155,6 +162,7 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
   async function reloadFromList() {
     try {
       const data = await fetchServicosMinhas();
+      setAgenda(data?.servicos ?? []);
       const found = data?.servicos?.find((s: Servico) => s.id === servicoId);
       if (found) setSvc(found);
     } catch { /* silencioso */ }
@@ -164,6 +172,8 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
     if (!params.servico && servicoId) {
       setLoadingInit(true);
       reloadFromList().finally(() => setLoadingInit(false));
+    } else {
+      void reloadFromList();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -226,6 +236,26 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
       Alert.alert("Erro", e?.response?.data?.error ?? e?.message ?? "Falha ao cancelar.");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function enviarProposta(p: { data: string; turno: "MANHA" | "TARDE"; hora: string }) {
+    if (!svc) return;
+    try {
+      setPropostaEnviando(true);
+      await proporReagendamento(svc.id, p.data, p.turno, p.hora);
+      setPropostaOpen(false);
+      await reloadFromList();
+      Alert.alert(
+        "Proposta enviada",
+        svc.status === "SOLICITADO"
+          ? "O cliente vai confirmar ou recusar o novo horário. Depois é só aceitar o pedido."
+          : "O cliente vai confirmar ou recusar a nova data.",
+      );
+    } catch (e: any) {
+      Alert.alert("Erro", e?.response?.data?.error ?? "Não foi possível enviar a proposta.");
+    } finally {
+      setPropostaEnviando(false);
     }
   }
 
@@ -335,6 +365,10 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
   // avalia o empregador. `avaliacaoEmpregador` vem de /api/servicos/minhas.
   const jaAvaliouEmpregador = avaliouLocal || Boolean((svc as any)?.avaliacaoEmpregador);
   const encerrado = isStatusEncerrado(svc.status);
+  const statusUp = svc.status.toUpperCase();
+  const propostaPendente = Boolean(svc.reagendamentoData) && !encerrado;
+  const conflitos = statusUp === "SOLICITADO" ? conflitosDoPedido(svc as never, agenda as never) : [];
+  const podePropor = !propostaPendente && ["SOLICITADO", "ACEITO"].includes(statusUp);
 
   return (
     <SafeAreaView style={s.safe} edges={["top", "left", "right", "bottom"]}>
@@ -467,6 +501,37 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
 
           </>
         )}
+        {conflitos.length > 0 ? (
+          <View style={s.conflitoCard}>
+            <Ionicons name="time-outline" size={20} color={colors.warning} />
+            <View style={{ flex: 1, gap: 4 }}>
+              <Text style={s.conflitoTitulo}>
+                {conflitos.some((c) => c.tipo === "sobreposto")
+                  ? "Você já tem serviço nesse horário"
+                  : "Você termina outro serviço perto desse horário"}
+              </Text>
+              {conflitos.map((c) => (
+                <Text key={c.id} style={s.conflitoTexto}>
+                  Serviço das {c.inicio}
+                  {c.fimEstimado ? ` até ~${c.fimEstimado} (estimado)` : ""}.
+                </Text>
+              ))}
+              <Text style={s.conflitoTexto}>
+                Você pode aceitar assim mesmo ou sugerir outro horário ao cliente.
+              </Text>
+            </View>
+          </View>
+        ) : null}
+
+        {propostaPendente ? (
+          <View style={s.waitingCard}>
+            <Ionicons name="swap-horizontal-outline" size={20} color={colors.warning} />
+            <Text style={s.waitingText}>
+              Você sugeriu {formatDate(svc.reagendamentoData as any)} · {formatHorario(svc.reagendamentoHora, svc.reagendamentoTurno)}. Aguardando o cliente.
+            </Text>
+          </View>
+        ) : null}
+
         {/* ── CTAs ── */}
         <View style={s.ctaBlock}>
           {svc.status === "SOLICITADO" && (
@@ -476,6 +541,13 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
                 loading={loading}
                 onPress={aceitarServico}
               />
+              {podePropor ? (
+                <DButton tint={theme.primary}
+                  title="Sugerir outro horário"
+                  variant="outline"
+                  onPress={() => setPropostaOpen(true)}
+                />
+              ) : null}
               <DButton tint={theme.primary}
                 title="Recusar serviço"
                 variant="outline"
@@ -527,6 +599,13 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
                 loading={loading}
                 onPress={() => { void action("iniciar"); }}
               />
+              {podePropor ? (
+                <DButton tint={theme.primary}
+                  title="Reagendar"
+                  variant="outline"
+                  onPress={() => setPropostaOpen(true)}
+                />
+              ) : null}
               <DButton tint={colors.danger}
                 title="Cancelar serviço"
                 variant="outline"
@@ -618,6 +697,21 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
         onConfirm={confirmarCancelamento}
       />
 
+      <PropostaHorarioModal
+        visible={propostaOpen}
+        titulo={statusUp === "SOLICITADO" ? "Sugerir outro horário" : "Reagendar serviço"}
+        subtitulo={
+          statusUp === "SOLICITADO"
+            ? "O cliente confirma ou recusa. Se recusar, o pedido continua aberto no horário original."
+            : "O cliente precisa confirmar a nova data."
+        }
+        accent={theme.primary}
+        border={theme.border}
+        enviando={propostaEnviando}
+        onClose={() => setPropostaOpen(false)}
+        onConfirm={(p) => { void enviarProposta(p); }}
+      />
+
       <AvaliacaoModal
         visible={avaliarOpen}
         servicoId={svc.id}
@@ -680,6 +774,25 @@ const ir = StyleSheet.create({
 // ── Styles ────────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
+  conflitoCard: {
+    flexDirection: "row",
+    gap: 10,
+    padding: 14,
+    marginTop: 12,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.warning,
+    backgroundColor: colors.surface,
+  },
+  conflitoTitulo: {
+    ...typography.bodySmMedium,
+    color: colors.ink,
+    fontWeight: "700",
+  },
+  conflitoTexto: {
+    ...typography.sub,
+    color: colors.sub,
+  },
   safe:  { flex: 1, backgroundColor: colors.bg },
   scroll: {
     padding: spacing.screenPadding,

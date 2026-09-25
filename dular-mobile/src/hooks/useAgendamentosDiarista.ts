@@ -3,6 +3,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import { apiService } from "@/services/api";
 import { useAuth } from "@/stores/authStore";
 import { formatDate, formatHorario, mapStatus } from "@/utils/formatters";
+import { conflitosDoPedido } from "@/lib/conflitoAgenda";
 
 export type StatusDiarista =
   | "pendente"
@@ -34,6 +35,8 @@ export interface AgendamentoDiarista {
   tipo: string;
   /** Categoria/subtipo bruto (ex.: FAXINA_LEVE, BABA_NOTURNA) ou null. */
   categoria: string | null;
+  /** Pedido pendente que cruza ou encosta em outro serviço aceito do dia. */
+  conflito?: "sobreposto" | "proximo" | null;
 }
 
 interface ServicosResponse {
@@ -109,7 +112,20 @@ export function useAgendamentosDiarista() {
     setError(null);
     try {
       const res = await apiService.get<ServicosResponse>("/api/servicos/minhas", token);
-      const mapped = (res.data?.servicos ?? []).map(mapServico);
+      const brutos = res.data?.servicos ?? [];
+      const mapped = brutos.map((raw: any) => {
+        const item = mapServico(raw);
+        if (String(raw.status).toUpperCase() !== "SOLICITADO") return item;
+        const achados = conflitosDoPedido(raw, brutos);
+        return {
+          ...item,
+          conflito: achados.some((c) => c.tipo === "sobreposto")
+            ? ("sobreposto" as const)
+            : achados.length
+              ? ("proximo" as const)
+              : null,
+        };
+      });
       setAgendamentos(mapped);
     } catch {
       setError("Erro ao carregar agendamentos");

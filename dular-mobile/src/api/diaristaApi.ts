@@ -343,3 +343,7 @@ export function formatDecimalBRL(
   if (n == null) return null;
   return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
+
+// Mesma rota do montador: o profissional propõe dia/horário (antes do aceite
+// ou para remarcar) e o empregador confirma ou recusa.
+export { proporReagendamento } from "./montadorApi";

@@ -10,7 +10,7 @@ import {
   resumoAgenda,
   turnoDoHorario,
 } from "../src/screens/empregador/service-flow/agendaDisponivel";
-import { duracaoEstimada } from "../src/screens/empregador/service-flow/duracaoServico";
+import { duracaoEstimada } from "../src/lib/duracaoServico";
 
 // Sexta, 25/09/2026, 09:30. 0=domingo … 6=sábado, como o backend (getDay()).
 const AGORA = new Date(2026, 8, 25, 9, 30);

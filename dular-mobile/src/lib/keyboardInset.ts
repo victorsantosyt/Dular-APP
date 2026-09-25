@@ -37,3 +37,61 @@ export function calcularImeInsetAndroid(
 
   return screenHeight - keyboardScreenY;
 }
+
+/**
+ * Deslocamento externo de um modal ancorado no rodapé.
+ *
+ * Fechado, o modal sai da região protegida pelo sistema. Com o IME aberto, a
+ * oclusão medida já inclui essa região, portanto os valores nunca são somados.
+ * O respiro visual pertence ao conteúdo do modal e deve ser aplicado uma única
+ * vez dentro dele.
+ */
+export function calcularDeslocamentoInferiorModal(
+  safeAreaInset: number,
+  imeInset: number,
+): number {
+  const safe = Number.isFinite(safeAreaInset) ? Math.max(safeAreaInset, 0) : 0;
+  const ime = Number.isFinite(imeInset) ? Math.max(imeInset, 0) : 0;
+  return ime > 0 ? ime : safe;
+}
+
+/**
+ * Respiro visual entre o último elemento do modal e a borda inferior dele.
+ *
+ * É o `spacing.xl` das telas que passaram em QA físico (`PerfilPublicoLayout`,
+ * `FlowFooter`). Antes valia `spacing.md`, e o APK v24 mediu o resultado: 12,19
+ * a 13,33 dp de folga visível entre o CTA e a barra do sistema, nos três sheets
+ * e nos dois modos de navegação.
+ */
+export const RESPIRO_INTERNO_MODAL = 24;
+
+/**
+ * Padding inferior de um modal ancorado no rodapé.
+ *
+ * Quem já reservou a região do sistema decide a conta, e é por isso que o
+ * parâmetro existe:
+ *
+ *  - `insetJaReservadoFora: true` — o overlay aplicou o deslocamento (é o caso
+ *    do Android depois de `calcularDeslocamentoInferiorModal`). O sheet só
+ *    carrega o respiro, e ele aparece inteiro na tela.
+ *  - `insetJaReservadoFora: false` — ninguém reservou nada fora (iOS, onde o
+ *    overlay fica em zero e o `behavior="padding"` cuida do teclado). O sheet
+ *    cobre a região do sistema e ainda soma o respiro.
+ *
+ * O erro que isto substitui era `Math.max(inset, respiro) + respiro`: o `max`
+ * engolia o inset sempre que ele passava do piso — 48 dp em três botões, 14,9
+ * em gestos, ambos maiores que 12 — e o que sobrava de folga visível era só o
+ * segundo termo. A folga não pode depender do inset; ela é do design.
+ */
+export function calcularPaddingInternoModal(params: {
+  safeAreaInset: number;
+  insetJaReservadoFora: boolean;
+  respiro?: number;
+}): number {
+  const respiro = Number.isFinite(params.respiro ?? NaN)
+    ? Math.max(params.respiro as number, 0)
+    : RESPIRO_INTERNO_MODAL;
+  if (params.insetJaReservadoFora) return respiro;
+  const inset = Number.isFinite(params.safeAreaInset) ? Math.max(params.safeAreaInset, 0) : 0;
+  return inset + respiro;
+}

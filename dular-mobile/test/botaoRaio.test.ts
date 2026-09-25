@@ -13,7 +13,12 @@ import { radius, raioDoBotao } from "../src/theme/radius";
  *
  * Foi medido no APK v25: "Salvar área", 115 px de altura, preenchimento com
  * raio ~47 px (radius.lg = 18dp × 2,625) contra sombra com ~57 px (pill, metade
- * da altura). Dez pixels de quina descoberta em cada canto.
+ * da altura).
+ *
+ * Os ~10 px de diferença são entre os RAIOS. O defeito visível é bem menor:
+ * dois arcos tangentes às mesmas arestas se afastam no máximo ~2,9 px na
+ * diagonal. Na tela isso apareceu como halo de ~1 px no canto contra ~2-3 px
+ * no meio da aresta — a quina sem sombra atrás. No v26 o canto foi para ~4 px.
  */
 
 test("flat usa o raio de card, não a pílula", () => {

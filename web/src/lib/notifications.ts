@@ -66,6 +66,46 @@ const CODIGOS_ERRO_EXPO = new Set([
   "InvalidCredentials",
 ]);
 
+/**
+ * Erros do Prisma que podem aparecer no log, como identificação estática.
+ *
+ * O `message` de um `PrismaClientValidationError` repete os dados da chamada
+ * — em `notification.create`, título e corpo: nome de quem mandou, texto da
+ * mensagem, bairro. Nunca registramos o erro nem a mensagem: só um código da
+ * lista abaixo, a classe do erro traduzida para um nome fixo, ou
+ * "erro_desconhecido".
+ */
+const CODIGOS_ERRO_PRISMA = new Set([
+  "P1001", // banco inacessível
+  "P1002", // tempo esgotado ao conectar
+  "P1008", // operação expirou
+  "P1017", // conexão encerrada pelo servidor
+  "P2002", // violação de unicidade
+  "P2003", // violação de chave estrangeira
+  "P2024", // tempo esgotado no pool
+  "P2025", // registro não encontrado
+  "P2034", // conflito de transação
+]);
+
+const CLASSES_ERRO_PRISMA: Record<string, string> = {
+  PrismaClientValidationError: "validacao",
+  PrismaClientInitializationError: "inicializacao",
+  PrismaClientUnknownRequestError: "requisicao_desconhecida",
+  PrismaClientRustPanicError: "panico",
+};
+
+export function codigoDeErroPrisma(erro: unknown): string {
+  if (erro && typeof erro === "object") {
+    const codigo = (erro as { code?: unknown }).code;
+    if (typeof codigo === "string" && CODIGOS_ERRO_PRISMA.has(codigo)) return codigo;
+    const nome = (erro as { name?: unknown }).name;
+    if (typeof nome === "string" && Object.prototype.hasOwnProperty.call(CLASSES_ERRO_PRISMA, nome)) {
+      return CLASSES_ERRO_PRISMA[nome];
+    }
+  }
+  return "erro_desconhecido";
+}
+
 export function codigoDeErroExpo(details: unknown): string {
   const codigo = details && typeof details === "object" ? (details as { error?: unknown }).error : undefined;
   return typeof codigo === "string" && CODIGOS_ERRO_EXPO.has(codigo) ? codigo : "erro_desconhecido";
@@ -137,7 +177,7 @@ async function badgeDoUsuario(userId: string): Promise<number | undefined> {
     ]);
     return avisos + mensagens;
   } catch (err) {
-    console.error("[push] falha ao contar o badge:", err);
+    console.error("[push] falha ao contar o badge:", codigoDeErroPrisma(err));
     return undefined;
   }
 }
@@ -275,7 +315,8 @@ export async function criarNotificacao(params: CriarNotificacaoParams) {
       select: { id: true },
     });
   } catch (e) {
-    console.error("[notifications] erro criando notification in-app:", e);
+    // Nunca o erro inteiro: a mensagem do Prisma repete título e corpo.
+    console.error("[notifications] erro criando notification in-app:", codigoDeErroPrisma(e));
   }
 
   if (sendPush) {

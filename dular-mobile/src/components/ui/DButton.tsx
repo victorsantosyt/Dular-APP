@@ -127,7 +127,8 @@ export function DButton({
   }
 
   const flatVariantStyle = flatStyle(variant, colors, tint);
-  // flat + primary/accent ganham a sombra de botão (igual ao gradiente).
+  // flat + primary/accent ganham elevação discreta (`shadows.soft`), não a
+  // sombra do gradiente — ver `gradientShadow`.
   const flatShadow =
     flat && (variant === "primary" || variant === "accent")
       ? gradientShadow(variant, colors, tint, flat)
@@ -193,7 +194,18 @@ function flatStyle(v: Variant, colors: ThemeColors, tint?: string): ViewStyle {
 function gradientShadow(v: Variant, colors: ThemeColors, tint?: string, flat?: boolean): ViewStyle {
   const color = v === "primary" ? tint ?? colors.primary : colors.accent;
   return {
-    ...shadows.primaryButton,
+    // O botão "chapado" não carrega a sombra do gradiente. Com
+    // `shadows.primaryButton` (elevation 8) ela projetava um halo colorido
+    // logo abaixo do CTA: medido no APK v26, sheet "Dados profissionais",
+    // 54 px de altura com escurecimento de 24/255 junto à borda, sobre o
+    // branco do sheet. Antes isso não aparecia porque o fim do ScrollView
+    // recortava a sombra; quando o respiro saiu do container a sombra passou
+    // a caber inteira e ficou visível.
+    //
+    // `shadows.soft` é o token que o design system já usa para elevação
+    // discreta, e é o que combina com um botão sem gradiente. O caminho do
+    // gradiente continua em `primaryButton`: a sombra forte é parte do efeito.
+    ...(flat ? shadows.soft : shadows.primaryButton),
     shadowColor: color,
     // MESMO raio do `containerStyle`. A elevation do Android é recortada pelo
     // borderRadius deste View; se ele for maior que o do preenchimento, as

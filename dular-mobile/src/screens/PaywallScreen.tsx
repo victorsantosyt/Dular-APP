@@ -551,8 +551,8 @@ export default function PaywallScreen({ onClose }: Props) {
 
       <View style={s.cartao}>
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.conteudo} bounces={false}>
-          {/* Sem "X": a saída fica no rodapé ("Agora não"), e no passo 2 o
-              rodapé vira "Ver outros planos". Dois fechos na mesma tela
+          {/* Sem "X": a saída é o último item ("Agora não"), e no passo 2 ela
+              vira "Ver outros planos". Dois fechos na mesma tela
               disputavam atenção com a ação principal.
 
               A pílula "PLANOS" saiu: com o ícone acima do título ela virava
@@ -708,18 +708,16 @@ export default function PaywallScreen({ onClose }: Props) {
             </>
           )}
 
-        </ScrollView>
-
-        {/* Ação de saída ANCORADA, fora da rolagem. Dentro do ScrollView ela
-            era empurrada para baixo quando o conteúdo crescia — bastava a
-            mensagem de aviso aparecer (o caso de limite atingido) para o
-            "Agora não" ficar meio escondido na borda do cartão. Agora o
-            conteúdo rola por dentro e a saída continua sempre inteira. */}
-        <View style={s.rodape}>
+          {/* A saída é o último item da lista, não um rodapé fixo. Fixa, ela
+              ficava num bloco separado e a rolagem cortava o último plano numa
+              linha seca logo acima — medido no v27: o card "Pro Anual" perdia a
+              borda de baixo e encostava no rodapé. Com o cartão em 92% a lista
+              inteira cabe no caso comum; quando não cabe (aviso de limite), a
+              saída chega rolando, e o "voltar" do Android continua fechando. */}
           {planoEscolhido ? (
             <Pressable
               onPress={() => setEscolhido(null)}
-              style={s.secundario}
+              style={({ pressed }) => [s.secundario, pressed && s.secundarioPressionado]}
               accessibilityRole="button"
               accessibilityLabel="Ver outros planos"
             >
@@ -727,41 +725,40 @@ export default function PaywallScreen({ onClose }: Props) {
               <Text style={s.secundarioTexto}>Ver outros planos</Text>
             </Pressable>
           ) : (
-            <Pressable onPress={fechar} style={s.secundario} accessibilityRole="button">
+            <Pressable
+              onPress={fechar}
+              style={({ pressed }) => [s.secundario, pressed && s.secundarioPressionado]}
+              accessibilityRole="button"
+            >
               <Text style={s.secundarioTexto}>Agora não</Text>
             </Pressable>
           )}
-        </View>
+        </ScrollView>
       </View>
     </View>
   );
 }
 
 const s = StyleSheet.create({
-  root: { flex: 1, justifyContent: "center", paddingHorizontal: spacing.lg },
+  root: { flex: 1, justifyContent: "center", paddingHorizontal: spacing.md },
   cartao: {
     backgroundColor: colors.surface,
     borderRadius: 28,
     overflow: "hidden",
     // Teto em vez de margens: com marginTop/marginBottom brigando contra o
     // justifyContent:"center" o cartão saía descentralizado, e a altura pulava
-    // entre a lista e o detalhe. Agora ele cresce com o conteúdo até 84% e
-    // rola por dentro.
-    maxHeight: "84%",
+    // entre a lista e o detalhe. Agora ele cresce com o conteúdo até 92% e
+    // rola por dentro. Era 84%: com a saída dentro da lista, 84% cortava o
+    // último plano mesmo sem aviso. O `root` já desconta os insets, então 92%
+    // ainda não encosta nas barras do sistema.
+    maxHeight: "92%",
     shadowColor: "#1B1235",
     shadowOpacity: 0.28,
     shadowRadius: 32,
     shadowOffset: { width: 0, height: 18 },
     elevation: 16,
   },
-  conteudo: { padding: spacing.lg, paddingBottom: spacing.sm, gap: spacing.md },
-  /** Rodapé fixo do cartão: a ação de saída nunca entra na rolagem. */
-  rodape: {
-    paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.lg,
-    paddingTop: spacing.sm,
-    backgroundColor: colors.surface,
-  },
+  conteudo: { padding: spacing.lg, gap: spacing.md },
 
 
   /** Bloco de cabeçalho centralizado: ícone → título → apoio. */
@@ -897,16 +894,22 @@ const s = StyleSheet.create({
   legal: { ...typography.caption, color: colors.textMuted, textAlign: "center" },
   /** Ação secundária com corpo próprio: como link de texto solto ela não
    *  parecia clicável e competia mal com o CTA. */
+  /**
+   * Saída com cara de card, sem borda: mesmo raio e mesmo respiro dos cards
+   * de plano, e o fundo do card "Gratuito" — o único preenchido da lista. O
+   * fundo branco dos outros cards não serve aqui: eles só se distinguem do
+   * cartão pela borda, e sem ela o botão sumiria.
+   */
   secundario: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 6,
-    minHeight: 46,
+    minHeight: 56,
     borderRadius: radius.lg,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
+    paddingHorizontal: spacing.md,
+    backgroundColor: colors.background,
   },
+  secundarioPressionado: { opacity: 0.7 },
   secundarioTexto: { ...typography.bodySm, color: colors.textSecondary, fontWeight: "700" },
 });

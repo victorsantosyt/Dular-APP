@@ -52,6 +52,26 @@ type PushTicket = {
 };
 
 /**
+ * Códigos de erro de push documentados pela Expo. Só eles vão para o log.
+ *
+ * `ticket.message` e `ticket.details` são texto livre da Expo e podem trazer o
+ * token do aparelho (ex.: DeviceNotRegistered). Nada disso é registrado: o
+ * log recebe apenas um destes códigos, ou "erro_desconhecido".
+ */
+const CODIGOS_ERRO_EXPO = new Set([
+  "DeviceNotRegistered",
+  "MessageTooBig",
+  "MessageRateExceeded",
+  "MismatchSenderId",
+  "InvalidCredentials",
+]);
+
+export function codigoDeErroExpo(details: unknown): string {
+  const codigo = details && typeof details === "object" ? (details as { error?: unknown }).error : undefined;
+  return typeof codigo === "string" && CODIGOS_ERRO_EXPO.has(codigo) ? codigo : "erro_desconhecido";
+}
+
+/**
  * Em que pilha o aviso entra na tela de bloqueio do iPhone.
  *
  * Sem isto, TUDO cai num monte só: um pedido novo, três recados da mesma
@@ -156,12 +176,18 @@ export async function sendPushNotification(
 
     // Sem `subtitle`: ele levava tipo, data e bairro do serviço para a tela
     // de bloqueio do iPhone.
+    //
+    // `destinatarioId` em TODO push, definido AQUI pelo servidor e acrescentado
+    // DEPOIS do filtro: `dadosPublicos` não o aceita do chamador, então ninguém
+    // o forja nem o sobrescreve. Com o app aberto, o aparelho descarta aviso
+    // que não é da conta autenticada. Não impede o sistema de mostrar o aviso
+    // (neutro) com o app fechado.
     const message: PushMessage = {
       to: token,
       title,
       body,
       sound: "default",
-      data: publicos,
+      data: { ...publicos, destinatarioId: userId },
       ...(threadId ? { threadId } : {}),
       ...(badge !== undefined ? { badge } : {}),
     };
@@ -185,10 +211,12 @@ export async function sendPushNotification(
     const json = (await res.json()) as { data?: PushTicket };
     const ticket = json.data;
     if (ticket?.status === "error") {
-      console.error("[push] erro ao enviar notificação:", ticket.message, ticket.details);
+      console.error("[push] erro ao enviar notificação:", codigoDeErroExpo(ticket.details));
     }
-  } catch (err) {
-    console.error("[push] falha na chamada à Expo Push API:", err);
+  } catch {
+    // Mensagem fixa: o texto de uma exceção aqui (rede, JSON da Expo, banco)
+    // pode carregar o token ou o payload.
+    console.error("[push] falha na chamada à Expo Push API.");
   }
 }
 

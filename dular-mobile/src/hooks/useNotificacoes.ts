@@ -6,6 +6,8 @@ import {
   marcarTodasComoLidas as apiMarcarTodasComoLidas,
   type Notificacao,
 } from "@/api/notificacoesApi";
+import { criarCacheCompartilhado } from "@/lib/cacheCompartilhado";
+import { sessaoAtual } from "@/lib/sessaoAtual";
 
 export interface UseNotificacoesReturn {
   notificacoes: Notificacao[];
@@ -28,77 +30,51 @@ export interface UseNotificacoesReturn {
  */
 
 const STALE_MS = 15000;
-let cachedList: Notificacao[] | null = null;
-let cachedAt = 0;
-let cachedError: string | null = null;
-let pendingPromise: Promise<{ list: Notificacao[]; error: string | null }> | null = null;
-const subscribers = new Set<() => void>();
 
-function notifyAll() {
-  subscribers.forEach((cb) => {
-    try { cb(); } catch {}
-  });
+const cacheNotificacoes = criarCacheCompartilhado<Notificacao[]>({
+  staleMs: STALE_MS,
+  vazio: () => [],
+  mensagemDeErro: (err) => (err instanceof Error ? err.message : "Falha ao carregar notificações."),
+  chaveSessao: sessaoAtual,
+  buscar: (signal) => listarNotificacoes(signal),
+});
+
+/** Chegou aviso com o app aberto: o sino atualiza sem esperar os 15 s. */
+export function invalidarNotificacoes(): void {
+  cacheNotificacoes.invalidar();
 }
 
-async function fetchSharedNotificacoes(force = false): Promise<{ list: Notificacao[]; error: string | null }> {
-  if (pendingPromise) return pendingPromise;
-  if (!force && cachedList && Date.now() - cachedAt < STALE_MS) {
-    return { list: cachedList, error: cachedError };
-  }
-
-  pendingPromise = (async () => {
-    try {
-      const list = await listarNotificacoes();
-      cachedList = list;
-      cachedError = null;
-      cachedAt = Date.now();
-      return { list, error: null };
-    } catch (err) {
-      cachedList = cachedList ?? [];
-      cachedError = err instanceof Error ? err.message : "Falha ao carregar notificações.";
-      cachedAt = Date.now();
-      return { list: cachedList, error: cachedError };
-    } finally {
-      pendingPromise = null;
-      notifyAll();
-    }
-  })();
-
-  return pendingPromise;
-}
-
-/** Atualiza cache local sem refazer fetch (usado em mutações otimistas) */
-function patchCache(updater: (list: Notificacao[]) => Notificacao[]) {
-  cachedList = updater(cachedList ?? []);
-  notifyAll();
+/** Troca de conta: os avisos da conta anterior não podem aparecer na próxima. */
+export function limparCacheNotificacoes(): void {
+  cacheNotificacoes.limpar();
 }
 
 export function useNotificacoes(): UseNotificacoesReturn {
-  const [notificacoes, setNotificacoes] = useState<Notificacao[]>(cachedList ?? []);
+  const [notificacoes, setNotificacoes] = useState<Notificacao[]>(cacheNotificacoes.atual().valor ?? []);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(cachedError);
+  const [error, setError] = useState<string | null>(cacheNotificacoes.atual().erro);
   const mountedRef = useRef(true);
 
   useEffect(() => {
     mountedRef.current = true;
-    const sync = () => {
+    const cancelar = cacheNotificacoes.assinar(() => {
       if (!mountedRef.current) return;
-      setNotificacoes(cachedList ?? []);
-      setError(cachedError);
-    };
-    subscribers.add(sync);
+      const { valor, erro } = cacheNotificacoes.atual();
+      setNotificacoes(valor ?? []);
+      setError(erro);
+    });
     return () => {
       mountedRef.current = false;
-      subscribers.delete(sync);
+      cancelar();
     };
   }, []);
 
   const triggerFetch = useCallback(async (force = false) => {
     if (mountedRef.current) setLoading(true);
-    const result = await fetchSharedNotificacoes(force);
+    const result = await cacheNotificacoes.obter(force);
     if (!mountedRef.current) return;
-    setNotificacoes(result.list);
-    setError(result.error);
+    setNotificacoes(result.valor);
+    setError(result.erro);
     setLoading(false);
   }, []);
 
@@ -115,7 +91,7 @@ export function useNotificacoes(): UseNotificacoesReturn {
   const marcarComoLida = useCallback(async (id: string) => {
     const nowIso = new Date().toISOString();
     // optimistic: atualiza cache compartilhado → notifica todos os consumidores
-    patchCache((list) =>
+    cacheNotificacoes.alterar((list) =>
       list.map((item) => (item.id === id && !item.readAt ? { ...item, readAt: nowIso } : item)),
     );
     try {
@@ -127,7 +103,7 @@ export function useNotificacoes(): UseNotificacoesReturn {
 
   const marcarTodasComoLidas = useCallback(async () => {
     const nowIso = new Date().toISOString();
-    patchCache((list) =>
+    cacheNotificacoes.alterar((list) =>
       list.map((item) => (item.readAt ? item : { ...item, readAt: nowIso })),
     );
     try {

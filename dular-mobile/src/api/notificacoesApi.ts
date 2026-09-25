@@ -42,8 +42,8 @@ type ListResponse = {
  */
 const CHAT_NOTIFICACAO_TYPES = new Set<string>(["CHAT_NOVA_MENSAGEM", "MENSAGEM_RECEBIDA"]);
 
-export async function listarNotificacoes(): Promise<Notificacao[]> {
-  const res = await api.get<ListResponse>("/api/notificacoes");
+export async function listarNotificacoes(signal?: AbortSignal): Promise<Notificacao[]> {
+  const res = await api.get<ListResponse>("/api/notificacoes", signal ? { signal } : undefined);
   const list =
     res.data?.notifications ??
     res.data?.notificacoes ??

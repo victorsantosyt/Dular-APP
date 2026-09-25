@@ -90,7 +90,7 @@ describe("push: conteúdo exibido pelo sistema", () => {
     const { sendPushNotification } = await notificacoes();
     await sendPushNotification("u", "Josafa", "Setor Rodoviário");
     assert.deepEqual({ title: enviados[0].title, body: enviados[0].body }, CONTEUDO_GENERICO);
-    assert.deepEqual(enviados[0].data, {});
+    assert.deepEqual(enviados[0].data, { destinatarioId: "u" });
   });
 
   it("pushData não sobrescreve título, corpo nem tipo, e não carrega chave extra", async () => {
@@ -114,7 +114,7 @@ describe("push: conteúdo exibido pelo sistema", () => {
     });
     const p = enviados[0];
     assert.deepEqual({ title: p.title, body: p.body }, CONTEUDO_PUBLICO.SERVICO_CANCELADO);
-    assert.deepEqual(p.data, { type: "SERVICO_CANCELADO", servicoId: "svc1" });
+    assert.deepEqual(p.data, { type: "SERVICO_CANCELADO", servicoId: "svc1", destinatarioId: "u" });
     semDadoPrivado(p);
   });
 
@@ -126,9 +126,29 @@ describe("push: conteúdo exibido pelo sistema", () => {
       chatRoomId: "Setor Rodoviário",
     });
     const p = enviados[0];
-    assert.deepEqual(p.data, { type: "CHAT_NOVA_MENSAGEM" });
+    assert.deepEqual(p.data, { type: "CHAT_NOVA_MENSAGEM", destinatarioId: "u" });
     assert.equal(p.threadId, undefined);
     semDadoPrivado(p);
+  });
+
+  it("destinatarioId é do servidor: o chamador não forja nem sobrescreve", async () => {
+    const { criarNotificacao, sendPushNotification } = await notificacoes();
+    await criarNotificacao({
+      userId: "u-real",
+      type: "CHAT_NOVA_MENSAGEM",
+      title: "t",
+      body: "b",
+      servicoId: "svc1",
+      pushData: { servicoId: "svc1", destinatarioId: "u-forjado" },
+    });
+    await sendPushNotification("u-real", "t", "b", { type: "SERVICO_ACEITO", destinatarioId: "u-forjado" });
+    for (const p of enviados) {
+      assert.equal(p.data.destinatarioId, "u-real");
+      // Payload final: só as chaves autorizadas.
+      for (const chave of Object.keys(p.data)) {
+        assert.ok(["type", "servicoId", "chatRoomId", "notificationId", "destinatarioId"].includes(chave), chave);
+      }
+    }
   });
 
   it("threadId só com identificador", async () => {
@@ -187,7 +207,13 @@ describe("push: rota real de chat", () => {
     assert.deepEqual({ title: p.title, body: p.body }, CONTEUDO_PUBLICO.CHAT_NOVA_MENSAGEM);
     assert.equal("subtitle" in p, false);
     semDadoPrivado(p);
-    assert.deepEqual(p.data, { type: "CHAT_NOVA_MENSAGEM", servicoId: "svc1", chatRoomId: "room1", notificationId: "notif1" });
+    assert.deepEqual(p.data, {
+      type: "CHAT_NOVA_MENSAGEM",
+      servicoId: "svc1",
+      chatRoomId: "room1",
+      notificationId: "notif1",
+      destinatarioId: "u-dia",
+    });
     assert.equal(gravadas[0].title, "Victor santos lima");
     assert.equal(gravadas[0].body, "Meu portão é o azul, código 4521");
   });

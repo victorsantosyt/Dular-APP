@@ -52,6 +52,66 @@ type PushTicket = {
 };
 
 /**
+ * Códigos de erro de push documentados pela Expo. Só eles vão para o log.
+ *
+ * `ticket.message` e `ticket.details` são texto livre da Expo e podem trazer o
+ * token do aparelho (ex.: DeviceNotRegistered). Nada disso é registrado: o
+ * log recebe apenas um destes códigos, ou "erro_desconhecido".
+ */
+const CODIGOS_ERRO_EXPO = new Set([
+  "DeviceNotRegistered",
+  "MessageTooBig",
+  "MessageRateExceeded",
+  "MismatchSenderId",
+  "InvalidCredentials",
+]);
+
+/**
+ * Erros do Prisma que podem aparecer no log, como identificação estática.
+ *
+ * O `message` de um `PrismaClientValidationError` repete os dados da chamada
+ * — em `notification.create`, título e corpo: nome de quem mandou, texto da
+ * mensagem, bairro. Nunca registramos o erro nem a mensagem: só um código da
+ * lista abaixo, a classe do erro traduzida para um nome fixo, ou
+ * "erro_desconhecido".
+ */
+const CODIGOS_ERRO_PRISMA = new Set([
+  "P1001", // banco inacessível
+  "P1002", // tempo esgotado ao conectar
+  "P1008", // operação expirou
+  "P1017", // conexão encerrada pelo servidor
+  "P2002", // violação de unicidade
+  "P2003", // violação de chave estrangeira
+  "P2024", // tempo esgotado no pool
+  "P2025", // registro não encontrado
+  "P2034", // conflito de transação
+]);
+
+const CLASSES_ERRO_PRISMA: Record<string, string> = {
+  PrismaClientValidationError: "validacao",
+  PrismaClientInitializationError: "inicializacao",
+  PrismaClientUnknownRequestError: "requisicao_desconhecida",
+  PrismaClientRustPanicError: "panico",
+};
+
+export function codigoDeErroPrisma(erro: unknown): string {
+  if (erro && typeof erro === "object") {
+    const codigo = (erro as { code?: unknown }).code;
+    if (typeof codigo === "string" && CODIGOS_ERRO_PRISMA.has(codigo)) return codigo;
+    const nome = (erro as { name?: unknown }).name;
+    if (typeof nome === "string" && Object.prototype.hasOwnProperty.call(CLASSES_ERRO_PRISMA, nome)) {
+      return CLASSES_ERRO_PRISMA[nome];
+    }
+  }
+  return "erro_desconhecido";
+}
+
+export function codigoDeErroExpo(details: unknown): string {
+  const codigo = details && typeof details === "object" ? (details as { error?: unknown }).error : undefined;
+  return typeof codigo === "string" && CODIGOS_ERRO_EXPO.has(codigo) ? codigo : "erro_desconhecido";
+}
+
+/**
  * Em que pilha o aviso entra na tela de bloqueio do iPhone.
  *
  * Sem isto, TUDO cai num monte só: um pedido novo, três recados da mesma
@@ -117,7 +177,7 @@ async function badgeDoUsuario(userId: string): Promise<number | undefined> {
     ]);
     return avisos + mensagens;
   } catch (err) {
-    console.error("[push] falha ao contar o badge:", err);
+    console.error("[push] falha ao contar o badge:", codigoDeErroPrisma(err));
     return undefined;
   }
 }
@@ -156,12 +216,18 @@ export async function sendPushNotification(
 
     // Sem `subtitle`: ele levava tipo, data e bairro do serviço para a tela
     // de bloqueio do iPhone.
+    //
+    // `destinatarioId` em TODO push, definido AQUI pelo servidor e acrescentado
+    // DEPOIS do filtro: `dadosPublicos` não o aceita do chamador, então ninguém
+    // o forja nem o sobrescreve. Com o app aberto, o aparelho descarta aviso
+    // que não é da conta autenticada. Não impede o sistema de mostrar o aviso
+    // (neutro) com o app fechado.
     const message: PushMessage = {
       to: token,
       title,
       body,
       sound: "default",
-      data: publicos,
+      data: { ...publicos, destinatarioId: userId },
       ...(threadId ? { threadId } : {}),
       ...(badge !== undefined ? { badge } : {}),
     };
@@ -185,10 +251,12 @@ export async function sendPushNotification(
     const json = (await res.json()) as { data?: PushTicket };
     const ticket = json.data;
     if (ticket?.status === "error") {
-      console.error("[push] erro ao enviar notificação:", ticket.message, ticket.details);
+      console.error("[push] erro ao enviar notificação:", codigoDeErroExpo(ticket.details));
     }
-  } catch (err) {
-    console.error("[push] falha na chamada à Expo Push API:", err);
+  } catch {
+    // Mensagem fixa: o texto de uma exceção aqui (rede, JSON da Expo, banco)
+    // pode carregar o token ou o payload.
+    console.error("[push] falha na chamada à Expo Push API.");
   }
 }
 
@@ -247,7 +315,8 @@ export async function criarNotificacao(params: CriarNotificacaoParams) {
       select: { id: true },
     });
   } catch (e) {
-    console.error("[notifications] erro criando notification in-app:", e);
+    // Nunca o erro inteiro: a mensagem do Prisma repete título e corpo.
+    console.error("[notifications] erro criando notification in-app:", codigoDeErroPrisma(e));
   }
 
   if (sendPush) {

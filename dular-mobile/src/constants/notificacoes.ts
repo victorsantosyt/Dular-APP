@@ -57,4 +57,4 @@ export function tonePalette(tone: NotificationTone, theme: ProfileTheme) {
 }
 
 /** Notificações de chat: só sinalizadas em Mensagens, nunca na lista de Notificações. */
-export const CHAT_TYPES = new Set<string>(["CHAT_NOVA_MENSAGEM", "MENSAGEM_RECEBIDA"]);
+export { CHAT_TYPES } from "@/lib/destinoNotificacao";

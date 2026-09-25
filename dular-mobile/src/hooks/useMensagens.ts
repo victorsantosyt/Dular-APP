@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useFocusEffect } from "@react-navigation/native";
 import { api } from "@/lib/api";
+import { criarCacheCompartilhado } from "@/lib/cacheCompartilhado";
+import { sessaoAtual } from "@/lib/sessaoAtual";
 
 export interface ChatRoom {
   id: string;
@@ -130,47 +132,42 @@ function normalizeRoom(raw: RawRoom): ChatRoom {
  */
 
 const STALE_MS = 15000; // 15s — janela em que cache é considerado fresco
-let cachedRooms: ChatRoom[] | null = null;
-let cachedAt = 0;
-let cachedError: string | null = null;
-let pendingPromise: Promise<{ rooms: ChatRoom[]; error: string | null }> | null = null;
-const subscribers = new Set<() => void>();
 
-function notifySubscribers() {
-  subscribers.forEach((cb) => {
-    try { cb(); } catch {}
-  });
+const cacheSalas = criarCacheCompartilhado<ChatRoom[]>({
+  staleMs: STALE_MS,
+  vazio: () => [],
+  mensagemDeErro: (err) => (err instanceof Error ? err.message : "Falha ao carregar conversas."),
+  chaveSessao: sessaoAtual,
+  buscar: async (signal) => {
+    const res = await api.get<{ ok?: boolean; rooms?: RawRoom[] }>("/api/chat", { signal });
+    const rawList = Array.isArray(res.data?.rooms) ? res.data.rooms : [];
+    return rawList.map(normalizeRoom);
+  },
+});
+
+/**
+ * Sabe-se que a lista mudou (push de mensagem com o app aberto): busca de
+ * novo agora, sem esperar os 15 s nem uma troca de tela. Todas as telas e o
+ * contador da barra atualizam juntos.
+ */
+export function invalidarMensagens(): void {
+  cacheSalas.invalidar();
 }
 
-async function fetchRoomsShared(force = false): Promise<{ rooms: ChatRoom[]; error: string | null }> {
-  // Dedupe: se já há request em voo, todos esperam a mesma
-  if (pendingPromise) return pendingPromise;
-  // Cache fresco e não forçado: retorna imediato
-  if (!force && cachedRooms && Date.now() - cachedAt < STALE_MS) {
-    return { rooms: cachedRooms, error: cachedError };
-  }
+/**
+ * Lista buscada agora, da sessão atual (popup de mensagem com o app aberto).
+ * `null` se falhar ou se a sessão mudar no meio — nunca dado velho ou de outra
+ * conta. Também atualiza a lista e o contador de todas as telas.
+ */
+export async function atualizarMensagensAgora(): Promise<ChatRoom[] | null> {
+  const r = await cacheSalas.obterAtualizado();
+  if (!r || r.erro) return null;
+  return r.valor;
+}
 
-  pendingPromise = (async () => {
-    try {
-      const res = await api.get<{ ok?: boolean; rooms?: RawRoom[] }>("/api/chat");
-      const rawList = Array.isArray(res.data?.rooms) ? res.data.rooms : [];
-      const normalized = rawList.map(normalizeRoom);
-      cachedRooms = normalized;
-      cachedError = null;
-      cachedAt = Date.now();
-      return { rooms: normalized, error: null };
-    } catch (err) {
-      cachedRooms = cachedRooms ?? [];
-      cachedError = err instanceof Error ? err.message : "Falha ao carregar conversas.";
-      cachedAt = Date.now();
-      return { rooms: cachedRooms, error: cachedError };
-    } finally {
-      pendingPromise = null;
-      notifySubscribers();
-    }
-  })();
-
-  return pendingPromise;
+/** Troca de conta: a lista da conta anterior não pode aparecer na próxima. */
+export function limparCacheMensagens(): void {
+  cacheSalas.limpar();
 }
 
 /** Soma de mensagens não-lidas de todas as salas (badge da aba Mensagens). */
@@ -179,32 +176,32 @@ export function totalNaoLidas(rooms: ChatRoom[]): number {
 }
 
 export function useMensagens(): UseMensagensReturn {
-  const [rooms, setRooms] = useState<ChatRoom[]>(cachedRooms ?? []);
+  const [rooms, setRooms] = useState<ChatRoom[]>(cacheSalas.atual().valor ?? []);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(cachedError);
+  const [error, setError] = useState<string | null>(cacheSalas.atual().erro);
   const mountedRef = useRef(true);
 
   useEffect(() => {
     mountedRef.current = true;
     // Inscreve-se em atualizações do cache (qualquer instance fetcha → todas atualizam)
-    const sync = () => {
+    const cancelar = cacheSalas.assinar(() => {
       if (!mountedRef.current) return;
-      setRooms(cachedRooms ?? []);
-      setError(cachedError);
-    };
-    subscribers.add(sync);
+      const { valor, erro } = cacheSalas.atual();
+      setRooms(valor ?? []);
+      setError(erro);
+    });
     return () => {
       mountedRef.current = false;
-      subscribers.delete(sync);
+      cancelar();
     };
   }, []);
 
   const triggerFetch = useCallback(async (force = false) => {
     if (mountedRef.current) setLoading(true);
-    const result = await fetchRoomsShared(force);
+    const result = await cacheSalas.obter(force);
     if (!mountedRef.current) return;
-    setRooms(result.rooms);
-    setError(result.error);
+    setRooms(result.valor);
+    setError(result.erro);
     setLoading(false);
   }, []);
 

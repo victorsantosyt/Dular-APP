@@ -110,8 +110,8 @@ const Tab = createBottomTabNavigator<EmpregadorTabParamList>();
 const RootStack = createNativeStackNavigator<EmpregadorTabParamList>();
 
 function PerfilScreen() {
-  const clearSession = useAuth((state) => state.clearSession);
-  return <EmpregadorPerfil onLogout={() => { void clearSession(); }} />;
+  const sair = useAuth((state) => state.sair);
+  return <EmpregadorPerfil onLogout={() => { void sair(); }} />;
 }
 
 function DetalheServicoScreen(props: any) {

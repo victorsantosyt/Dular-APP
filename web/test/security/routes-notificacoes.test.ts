@@ -146,6 +146,8 @@ describe("POST /api/me/push-token", () => {
 
   it("salva o token apenas no próprio usuário", async () => {
     let whereUsado: any = null;
+    mockPrisma.$transaction = async (ops: unknown) => Promise.all(ops as Promise<unknown>[]);
+    mockPrisma.user.updateMany = async () => ({ count: 0 });
     mockPrisma.user.update = async (args: any) => {
       whereUsado = args.where;
       return { id: DONO };

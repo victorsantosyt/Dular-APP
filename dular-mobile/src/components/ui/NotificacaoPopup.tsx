@@ -3,53 +3,16 @@ import { AccessibilityInfo, Animated, PanResponder, Pressable, StyleSheet, Text,
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AppIcon } from "@/components/ui/AppIcon";
-import { CHAT_TYPES, metaDoTipo, tonePalette } from "@/constants/notificacoes";
+import { metaDoTipo, tonePalette } from "@/constants/notificacoes";
+import { destinoDaNotificacao } from "@/lib/destinoNotificacao";
 import { navRef } from "@/navigation/nav";
 import { useAuth } from "@/stores/authStore";
-import { useNotificacaoPopup, type PopupNotificacao } from "@/stores/notificacaoPopupStore";
+import { useNotificacaoPopup } from "@/stores/notificacaoPopupStore";
 import { getProfileTheme } from "@/theme/profileTheme";
 import { colors, radius, spacing, typography } from "@/theme/tokens";
 
 /** Quanto tempo o aviso fica na tela antes de sair sozinho. */
 const DURACAO_MS = 4600;
-
-/**
- * Para onde o toque leva, conforme o papel de quem está logado.
- *
- * Cada perfil tem o seu próprio navegador, com nomes de rota diferentes para a
- * MESMA tela — o montador usa `MontadorChat`/`MontadorDetalheSolicitacao`,
- * os outros dois usam `ChatAberto`/`<Perfil>Detalhe`. Os parâmetros também
- * têm que bater: a tela de detalhe espera `servicoId` (não `id`) e a de chat
- * espera `roomId` + `nomeUsuario` além do serviço.
- */
-function destinoDe(n: PopupNotificacao, papel: string | null | undefined): [string, object?] | null {
-  const tipo = String(n.tipo);
-  const montador = papel === "MONTADOR";
-
-  // Mensagem abre a conversa; o resto que tiver serviço abre o serviço —
-  // os mesmos destinos do toque na lista de Notificações.
-  if (CHAT_TYPES.has(tipo)) {
-    const servicoId = n.servicoId ?? n.chatRoomId;
-    if (!servicoId) return null;
-    return [
-      montador ? "MontadorChat" : "ChatAberto",
-      {
-        roomId: n.chatRoomId ?? servicoId,
-        servicoId,
-        // O título de uma notificação de chat é o nome de quem mandou —
-        // melhor cabeçalho do que o "Conversa" genérico.
-        nomeUsuario: n.titulo || "Conversa",
-      },
-    ];
-  }
-
-  if (n.servicoId) {
-    if (montador) return ["MontadorDetalheSolicitacao", { servicoId: n.servicoId }];
-    if (papel === "DIARISTA") return ["DiaristaDetalhe", { servicoId: n.servicoId }];
-    return ["EmpregadorDetalhe", { servicoId: n.servicoId }];
-  }
-  return null;
-}
 
 /**
  * Aviso in-app de notificação.
@@ -132,7 +95,10 @@ export function NotificacaoPopup() {
 
   const meta = metaDoTipo(String(atual.tipo));
   const { accent: cor, soft: fundo } = tonePalette(meta.tone, tema);
-  const destino = destinoDe(atual, papel);
+  const destino = destinoDaNotificacao(
+    { tipo: String(atual.tipo), titulo: atual.titulo, servicoId: atual.servicoId },
+    papel,
+  );
 
   const abrir = () => {
     if (!destino) return sair();

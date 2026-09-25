@@ -3,6 +3,12 @@ import { create } from "zustand";
 import { api, setAuthToken, registerClearSession } from "@/lib/api";
 import { SecureStorage } from "@/services/secureStorage";
 import { useThemeStore } from "@/stores/useThemeStore";
+import { limparCacheMensagens } from "@/hooks/useMensagens";
+import { limparCacheNotificacoes } from "@/hooks/useNotificacoes";
+import { encerrarPushDaSessao } from "@/lib/pushCicloDeVida";
+import { definirSessaoAtual } from "@/lib/sessaoAtual";
+import { limparAgrupamentoDePopups } from "@/lib/pushPrimeiroPlano";
+import { useNotificacaoPopup } from "@/stores/notificacaoPopupStore";
 import type { ServicoOferecido } from "@/types/diarista";
 import {
   classifyBootstrapFailure,
@@ -75,6 +81,8 @@ type AuthState = {
   setServicosOferecidos: (servicos: ServicoOferecido[]) => Promise<void>;
   setSession: (data: { token: string; role: Role; user?: User | null }) => Promise<void>;
   clearSession: () => Promise<void>;
+  /** Logout pedido pela pessoa: desassocia o push deste aparelho e limpa a sessão. */
+  sair: () => Promise<void>;
   hydrate: () => Promise<void>;
   setUser: (next: User | null | ((prev: User | null) => User | null)) => void;
 };
@@ -214,7 +222,22 @@ export const useAuth = create<AuthState>((set, get) => ({
     }
   },
 
+  async sair() {
+    // Antes de apagar o JWT: a rota exige a sessão que está saindo. O
+    // coordenador espera um registro em voo (até 2,5 s), manda o DELETE e
+    // respeita um prazo — o logout local nunca fica preso na rede. Limites
+    // em lib/registroPush.
+    if (get().token) await encerrarPushDaSessao();
+    await get().clearSession();
+  },
+
   async clearSession() {
+    // A lista de conversas e os avisos ficam em cache de módulo: sem limpar, a
+    // próxima conta veria os da anterior (e o contador dela) até o 1º fetch.
+    limparCacheMensagens();
+    limparCacheNotificacoes();
+    useNotificacaoPopup.getState().limpar();
+    limparAgrupamentoDePopups();
     await setAuthToken(null);
     await SecureStorage.clearAll();
     await AsyncStorage.multiRemove(ASYNC_KEYS as unknown as string[]);
@@ -324,3 +347,11 @@ export const useAuthStore = useAuth;
 
 // Registra clearSession no cliente HTTP para limpeza automática em 401/jwt-expired
 registerClearSession(() => useAuth.getState().clearSession());
+
+// Conta autenticada para caches e listeners conferirem (lib/sessaoAtual). Só
+// com a sessão canônica carregada: durante o bootstrap não há dono.
+function sincronizarSessaoAtual(s: AuthState) {
+  definirSessaoAtual(s.isAuthenticated ? s.user?.id ?? null : null);
+}
+sincronizarSessaoAtual(useAuth.getState());
+useAuth.subscribe(sincronizarSessaoAtual);

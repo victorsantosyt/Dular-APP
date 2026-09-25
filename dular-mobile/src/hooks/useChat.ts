@@ -3,6 +3,9 @@ import { useFocusEffect } from "@react-navigation/native";
 import { api } from "@/lib/api";
 import { getAblyRealtime, Ably } from "@/lib/ably";
 import { sendHeartbeat } from "@/api/heartbeatApi";
+import { definirChatAberto, limparChatAberto } from "@/lib/chatAberto";
+import { canalOperacional, criarFallback, type EstadoRealtime } from "@/lib/fallbackChat";
+import { confirmarEnvio, criarSincronizador, mesclarMensagens } from "@/lib/sincronizadorChat";
 import { useAuth } from "@/stores/authStore";
 
 export type MensagemTipo = "TEXT" | "IMAGE" | "LOCATION" | "SYSTEM";
@@ -103,9 +106,11 @@ function extractMessages(data: unknown): RawMessage[] {
  * preservar compat com `MensagemBubble` e demais consumidores.
  *
  * Proteções:
- * - `inFlight` evita reentrância em polling lento
+ * - pedidos durante uma busca viram UMA busca extra, sem perder evento (lib/sincronizadorChat)
  * - `mountedRef` evita setState após unmount
- * - `useFocusEffect` controla o polling: só polla com tela focada, para no blur/unmount
+ * - `useFocusEffect` controla o fallback: só consulta com tela focada, para no blur/unmount
+ * - o fallback depende do CANAL da sala (conexão + canal attached + assinatura),
+ *   não só da conexão Ably — ver lib/fallbackChat
  */
 export function useChat(roomId: string): UseChatReturn {
   const userId = useAuth((state) => state.user?.id) ?? "";
@@ -118,16 +123,17 @@ export function useChat(roomId: string): UseChatReturn {
   const [profissionalTemPix, setProfissionalTemPix] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  // realtimeConnected: interno — só gera o gate do polling (connected = online).
-  const [realtimeConnected, setRealtimeConnected] = useState(false);
   const [isPeerOnline, setIsPeerOnline] = useState(false);
   const isFirstFetch = useRef(true);
-  const inFlight = useRef(false);
   const mountedRef = useRef(true);
-  // Espelho SÍNCRONO de realtimeConnected. O tick do polling o consulta para
-  // nunca buscar no exato instante do connect — antes do React re-renderizar e
-  // derrubar o interval. Garante um único mecanismo ativo (realtime XOR polling).
-  const realtimeConnectedRef = useRef(false);
+  // Estado do realtime da SALA, lido de forma síncrona pelo fallback. Mora num
+  // ref (não em state) para trocar de estado sem re-render nem re-criar
+  // intervalos: um único controlador decide se consulta ou não.
+  const realtimeRef = useRef<EstadoRealtime>({ conexao: "initialized", canal: "initialized", assinado: false });
+  const fallbackRef = useRef<ReturnType<typeof criarFallback> | null>(null);
+  const avaliarFallback = useCallback(() => {
+    fallbackRef.current?.atualizar(canalOperacional(realtimeRef.current));
+  }, []);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -146,33 +152,28 @@ export function useChat(roomId: string): UseChatReturn {
     return () => clearInterval(interval);
   }, [roomId]);
 
-  const fetchMensagens = useCallback(async () => {
-    if (!roomId) {
-      if (mountedRef.current) setLoading(false);
-      return;
-    }
-    if (inFlight.current) return;
-    inFlight.current = true;
-    const isInitial = isFirstFetch.current;
-    try {
-      const res = await api.get(`/api/chat/${roomId}`);
-      const rawList = extractMessages(res.data);
-      const sorted = rawList
-        .map(normalize)
-        .sort((a, b) => new Date(a.criadaEm).getTime() - new Date(b.criadaEm).getTime());
-      // Backend retorna `{ room: { servico: { status, tipo, precoFinal,
-      // paymentStatus }, pagamento: { profissionalTemPix }, other }, messages }`
-      const status: string | null = res.data?.room?.servico?.status ?? null;
-      const tipo: string | null = res.data?.room?.servico?.tipo ?? null;
-      const payStatus: string | null = res.data?.room?.servico?.paymentStatus ?? null;
-      const preco: number | null =
-        typeof res.data?.room?.servico?.precoFinal === "number"
-          ? res.data.room.servico.precoFinal
-          : null;
-      const temPix: boolean = res.data?.room?.pagamento?.profissionalTemPix === true;
-      const other = res.data?.room?.other ?? null;
-      if (mountedRef.current) {
-        setMensagens(sorted);
+  // Uma busca da sala. Só aplica o resultado se a sincronização ainda vale
+  // (tela montada, mesma conversa): `signal` é abortado no cleanup/troca.
+  const buscarSala = useCallback(
+    async (signal: AbortSignal) => {
+      const isInitial = isFirstFetch.current;
+      try {
+        const res = await api.get(`/api/chat/${roomId}`, { signal });
+        if (signal.aborted || !mountedRef.current) return;
+        const servidor = extractMessages(res.data).map(normalize);
+        // Backend retorna `{ room: { servico: { status, tipo, precoFinal,
+        // paymentStatus }, pagamento: { profissionalTemPix }, other }, messages }`
+        const status: string | null = res.data?.room?.servico?.status ?? null;
+        const tipo: string | null = res.data?.room?.servico?.tipo ?? null;
+        const payStatus: string | null = res.data?.room?.servico?.paymentStatus ?? null;
+        const preco: number | null =
+          typeof res.data?.room?.servico?.precoFinal === "number"
+            ? res.data.room.servico.precoFinal
+            : null;
+        const temPix: boolean = res.data?.room?.pagamento?.profissionalTemPix === true;
+        const other = res.data?.room?.other ?? null;
+        // Mescla com o que só existe no aparelho (mensagem ainda enviando).
+        setMensagens((locais) => mesclarMensagens(servidor, locais));
         setServicoStatus(status);
         setServicoTipo(tipo);
         setPaymentStatus(payStatus);
@@ -189,18 +190,41 @@ export function useChat(roomId: string): UseChatReturn {
             : null,
         );
         setError(null);
+      } catch (err) {
+        if (isInitial && !signal.aborted && mountedRef.current) {
+          setError(err instanceof Error ? err.message : "Erro ao carregar mensagens");
+        }
+      } finally {
+        if (isInitial && !signal.aborted) {
+          isFirstFetch.current = false;
+          if (mountedRef.current) setLoading(false);
+        }
       }
-    } catch (err) {
-      if (isInitial && mountedRef.current) {
-        setError(err instanceof Error ? err.message : "Erro ao carregar mensagens");
-      }
-    } finally {
-      inFlight.current = false;
-      if (isInitial) {
-        isFirstFetch.current = false;
-        if (mountedRef.current) setLoading(false);
-      }
+    },
+    [roomId],
+  );
+
+  // Um sincronizador por conversa: pedidos durante uma busca viram UMA busca
+  // extra (lib/sincronizadorChat). Troca de conversa ou desmontagem para o
+  // antigo — nada dele é aplicado depois.
+  const sincRef = useRef<ReturnType<typeof criarSincronizador> | null>(null);
+  useEffect(() => {
+    if (!roomId) return;
+    isFirstFetch.current = true;
+    const sinc = criarSincronizador(buscarSala);
+    sincRef.current = sinc;
+    return () => {
+      sinc.parar();
+      if (sincRef.current === sinc) sincRef.current = null;
+    };
+  }, [roomId, buscarSala]);
+
+  const fetchMensagens = useCallback(async () => {
+    if (!roomId) {
+      if (mountedRef.current) setLoading(false);
+      return;
     }
+    await sincRef.current?.sincronizar();
   }, [roomId]);
 
   const refetch = useCallback(() => {
@@ -222,20 +246,19 @@ export function useChat(roomId: string): UseChatReturn {
     const client = getAblyRealtime();
     const channel = client.channels.get(`chat:${roomId}`);
     let cancelled = false;
+    realtimeRef.current = { conexao: client.connection.state, canal: channel.state, assinado: false };
 
     const onNewMessage = () => {
       void fetchRef.current();
     };
 
-    // Estado da conexão → gate do polling. Só `connected` é ONLINE; qualquer
-    // outro (connecting/disconnected/suspended/failed/closing/closed) é OFFLINE
-    // e reativa o polling. A reconexão é 100% do SDK (sem timer/backoff nosso).
+    // Conexão: só `connected` conta. Qualquer outro estado reativa o fallback.
+    // A reconexão é 100% do SDK (sem timer/backoff nosso).
     const onConnState = (stateChange: Ably.ConnectionStateChange) => {
       if (cancelled) return;
-      const connected = stateChange.current === "connected";
-      realtimeConnectedRef.current = connected;
-      setRealtimeConnected(connected);
-      if (connected) {
+      realtimeRef.current = { ...realtimeRef.current, conexao: stateChange.current };
+      avaliarFallback();
+      if (stateChange.current === "connected") {
         // (Re)sincroniza a presença do outro ao (re)conectar.
         channel.presence
           .get()
@@ -247,6 +270,20 @@ export function useChat(roomId: string): UseChatReturn {
       }
     };
 
+    // Canal: conexão viva não prova que a SALA funciona. Se o canal falhar
+    // (ex.: token sem permissão para uma sala criada depois dele) ou for
+    // suspenso/desanexado, o fallback volta a consultar a API.
+    const onChannelState = (stateChange: Ably.ChannelStateChange) => {
+      if (cancelled) return;
+      const canal = stateChange.current;
+      realtimeRef.current = {
+        ...realtimeRef.current,
+        canal,
+        assinado: canal === "attached" ? realtimeRef.current.assinado : false,
+      };
+      avaliarFallback();
+    };
+
     // Presence do OUTRO participante via eventos enter/leave (ignora o próprio).
     const onPeerPresence = (member: Ably.PresenceMessage) => {
       if (cancelled || !member.clientId || member.clientId === userId) return;
@@ -254,10 +291,23 @@ export function useChat(roomId: string): UseChatReturn {
     };
 
     client.connection.on(onConnState);
+    channel.on(onChannelState);
     client.connect();
-    void channel.subscribe("new_message", onNewMessage);
-    void channel.presence.subscribe("enter", onPeerPresence);
-    void channel.presence.subscribe("leave", onPeerPresence);
+    // A assinatura só conta como ativa quando o SDK confirma (anexou o canal).
+    channel
+      .subscribe("new_message", onNewMessage)
+      .then(() => {
+        if (cancelled) return;
+        realtimeRef.current = { ...realtimeRef.current, canal: channel.state, assinado: true };
+        avaliarFallback();
+      })
+      .catch(() => {
+        if (cancelled) return;
+        realtimeRef.current = { ...realtimeRef.current, canal: channel.state, assinado: false };
+        avaliarFallback();
+      });
+    void channel.presence.subscribe("enter", onPeerPresence).catch(() => {});
+    void channel.presence.subscribe("leave", onPeerPresence).catch(() => {});
     // Após conectar, entra na presença (o SDK enfileira até o connected e
     // re-entra sozinho em reconexões).
     channel.presence.enter().catch(() => {});
@@ -268,13 +318,14 @@ export function useChat(roomId: string): UseChatReturn {
       channel.unsubscribe("new_message", onNewMessage);
       channel.presence.unsubscribe();
       channel.presence.leave().catch(() => {});
+      channel.off(onChannelState);
       client.connection.off(onConnState);
       client.close();
-      realtimeConnectedRef.current = false;
-      setRealtimeConnected(false);
+      realtimeRef.current = { conexao: "closed", canal: "detached", assinado: false };
+      avaliarFallback();
       setIsPeerOnline(false);
     };
-  }, [roomId, userId]);
+  }, [roomId, userId, avaliarFallback]);
 
   useFocusEffect(
     useCallback(() => {
@@ -282,23 +333,21 @@ export function useChat(roomId: string): UseChatReturn {
         setLoading(false);
         return;
       }
-      // Sync único a cada (re)conexão/foco: uma chamada, não múltiplas. No
-      // reconnect (false→true) este effect re-roda e faz exatamente 1 fetch.
+      // Sync ao focar. Depois, UM controlador decide entre realtime e consulta
+      // periódica pelo estado real do canal — nunca dois intervalos, nunca
+      // realtime + polling juntos.
       void fetchMensagens();
-      // Realtime é o caminho PRINCIPAL: conectado → NÃO cria interval (o canal
-      // acorda o fetch). Ao reconectar, o cleanup abaixo derruba o interval
-      // ativo imediatamente e o early-return impede criar outro.
-      // Offline (fallback) → mantém exatamente o polling de 8s de antes.
-      if (realtimeConnected) return;
-      const interval = setInterval(() => {
-        // Trava anti-coexistência: se o realtime assumiu no meio do ciclo (antes
-        // do re-render derrubar este interval), o tick não busca. Nunca há
-        // realtime + polling simultâneos.
-        if (realtimeConnectedRef.current) return;
-        void fetchMensagens();
-      }, POLL_INTERVAL);
-      return () => clearInterval(interval);
-    }, [fetchMensagens, roomId, realtimeConnected]),
+      const fallback = criarFallback({ intervaloMs: POLL_INTERVAL, buscar: () => void fetchRef.current() });
+      fallbackRef.current = fallback;
+      avaliarFallback();
+      // Conversa na tela: o push dela não vira popup (lib/pushPrimeiroPlano).
+      definirChatAberto(roomId, () => fetchRef.current());
+      return () => {
+        fallback.parar();
+        if (fallbackRef.current === fallback) fallbackRef.current = null;
+        limparChatAberto(roomId);
+      };
+    }, [fetchMensagens, roomId, avaliarFallback]),
   );
 
   const enviar = useCallback(
@@ -326,7 +375,7 @@ export function useChat(roomId: string): UseChatReturn {
 
         if (msgPayload?.id) {
           const normalized = { ...normalize(msgPayload), status: "enviado" as const };
-          setMensagens((prev) => prev.map((m) => (m.id === tempId ? normalized : m)));
+          setMensagens((prev) => confirmarEnvio(prev, tempId, normalized));
         } else {
           setMensagens((prev) =>
             prev.map((m) => (m.id === tempId ? { ...m, status: "enviado" } : m)),
@@ -367,7 +416,7 @@ export function useChat(roomId: string): UseChatReturn {
 
         if (msgPayload?.id) {
           const normalized = { ...normalize(msgPayload), status: "enviado" as const };
-          setMensagens((prev) => prev.map((m) => (m.id === tempId ? normalized : m)));
+          setMensagens((prev) => confirmarEnvio(prev, tempId, normalized));
         } else {
           setMensagens((prev) =>
             prev.map((m) => (m.id === tempId ? { ...m, status: "enviado" } : m)),

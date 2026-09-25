@@ -23,6 +23,13 @@ export type PopupNotificacao = {
   /** Para onde levar ao tocar. Sem isto, o popup só informa. */
   servicoId?: string | null;
   chatRoomId?: string | null;
+  /**
+   * Agrupamento (ex.: `chat:<servicoId>`). Um aviso com a mesma chave de outro
+   * que ainda ESPERA na fila substitui o conteúdo dele no mesmo lugar — a fila
+   * nunca tem dois da mesma conversa, e fica a prévia mais nova. Se o da mesma
+   * chave já está NA TELA, o novo entra na fila (não é descartado).
+   */
+  chave?: string | null;
 };
 
 type Estado = {
@@ -32,6 +39,8 @@ type Estado = {
   mostrar: (n: Omit<PopupNotificacao, "id"> & { id?: string }) => void;
   /** Descarta a atual e puxa a próxima da fila, se houver. */
   proxima: () => void;
+  /** Logout: nenhum aviso da conta que saiu aparece para a próxima. */
+  limpar: () => void;
 };
 
 export const useNotificacaoPopup = create<Estado>((set, get) => ({
@@ -43,13 +52,27 @@ export const useNotificacaoPopup = create<Estado>((set, get) => ({
       ...n,
       id: n.id ?? `popup-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     };
+    const { atual, fila } = get();
+    if (item.chave) {
+      const i = fila.findIndex((f) => f.chave === item.chave);
+      if (i >= 0) {
+        const nova = [...fila];
+        nova[i] = { ...item, id: fila[i].id };
+        set({ fila: nova });
+        return;
+      }
+    }
     // Sem nada na tela, entra direto; senão espera a vez.
-    if (!get().atual) set({ atual: item });
-    else set((s) => ({ fila: [...s.fila, item] }));
+    if (!atual) set({ atual: item });
+    else set({ fila: [...fila, item] });
   },
 
   proxima() {
     const [proxima, ...resto] = get().fila;
     set({ atual: proxima ?? null, fila: resto });
+  },
+
+  limpar() {
+    set({ atual: null, fila: [] });
   },
 }));

@@ -413,7 +413,7 @@ export default function MontadorPerfil() {
   const navigation = useNavigation<MontadorNavigation>();
   const authUser = useAuth((state) => state.user);
   const setUser = useAuth((state) => state.setUser);
-  const clearSession = useAuth((state) => state.clearSession);
+  const sair = useAuth((state) => state.sair);
   const { agenda } = useMontadorServicos();
   const currentRegion = useCurrentRegion();
 
@@ -937,7 +937,7 @@ export default function MontadorPerfil() {
   const sairDaConta = () => {
     Alert.alert("Sair", "Encerrar sessão da conta?", [
       { text: "Voltar", style: "cancel" },
-      { text: "Sair", style: "destructive", onPress: () => { void clearSession(); } },
+      { text: "Sair", style: "destructive", onPress: () => { void sair(); } },
     ]);
   };
 

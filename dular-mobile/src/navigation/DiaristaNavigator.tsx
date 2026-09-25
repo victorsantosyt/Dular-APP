@@ -66,13 +66,13 @@ const Tab = createBottomTabNavigator<DiaristaTabParamList>();
 const RootStack = createNativeStackNavigator<DiaristaTabParamList>();
 
 function PerfilScreen() {
-  const clearSession = useAuth((state) => state.clearSession);
-  return <DiaristaPerfil onLogout={() => { void clearSession(); }} />;
+  const sair = useAuth((state) => state.sair);
+  return <DiaristaPerfil onLogout={() => { void sair(); }} />;
 }
 
 function ProfissionalPerfilScreen() {
-  const clearSession = useAuth((state) => state.clearSession);
-  return <DiaristaPerfil onLogout={() => { void clearSession(); }} />;
+  const sair = useAuth((state) => state.sair);
+  return <DiaristaPerfil onLogout={() => { void sair(); }} />;
 }
 
 function DetalheServicoScreen(props: any) {

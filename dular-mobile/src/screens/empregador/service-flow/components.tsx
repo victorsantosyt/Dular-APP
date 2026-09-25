@@ -97,15 +97,19 @@ type TimeSlotButtonProps = {
   selected: boolean;
   onPress: () => void;
   theme?: ServiceFlowTheme;
+  disabled?: boolean;
 };
 
-export function TimeSlotButton({ label, selected, onPress, theme }: TimeSlotButtonProps) {
+export function TimeSlotButton({ label, selected, onPress, theme, disabled }: TimeSlotButtonProps) {
   const flowTheme = theme ?? getServiceFlowTheme("DIARISTA");
   return (
     <Pressable
       onPress={onPress}
+      disabled={disabled}
+      accessibilityState={{ disabled: !!disabled, selected }}
       style={({ pressed }) => [
         s.timeSlot,
+        disabled && s.timeSlotDisabled,
         selected && {
           backgroundColor: flowTheme.primary,
           borderColor: flowTheme.primary,
@@ -361,6 +365,11 @@ const s = StyleSheet.create({
     borderColor: colors.border,
     backgroundColor: colors.surface,
     ...shadows.soft,
+  },
+  timeSlotDisabled: {
+    opacity: 0.35,
+    elevation: 0,
+    shadowOpacity: 0,
   },
   timeSlotText: {
     color: colors.textPrimary,

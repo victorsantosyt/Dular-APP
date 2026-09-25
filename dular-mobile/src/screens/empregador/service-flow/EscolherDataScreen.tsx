@@ -1,11 +1,21 @@
-import React, { useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import React, { useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { AppIcon } from "@/components/ui/AppIcon";
 import { DCard } from "@/components/ui/DCard";
 import type { EmpregadorServiceFlowStackParamList } from "@/navigation/EmpregadorServiceFlowNavigator";
 import { colors, radius, shadows, spacing } from "@/theme";
+import { api } from "@/lib/api";
+import {
+  diaDisponivel,
+  HORARIOS,
+  horarioDisponivel,
+  primeiroDiaDisponivel,
+  resumoAgenda,
+  type SlotAgenda,
+} from "./agendaDisponivel";
+import { duracaoEstimada } from "./duracaoServico";
 import { useServiceFlow } from "./ServiceFlowContext";
 import { FlowFooter, FlowPrimaryButton, FlowScreen, flowStyles, StepHeader, TimeSlotButton } from "./components";
 import { getServiceFlowTheme } from "@/theme/serviceFlowTheme";
@@ -28,7 +38,6 @@ const MONTHS = [
 ];
 
 const WEEKDAYS = ["D", "S", "T", "Q", "Q", "S", "S"];
-const TIME_SLOTS = ["08:00", "10:00", "12:00", "14:00", "16:00", "18:00"];
 
 function toISODate(date: Date) {
   const year = date.getFullYear();
@@ -44,21 +53,60 @@ function fromISODate(value: string) {
   return new Date(year, month - 1, day);
 }
 
-function getInitialDate(value: string) {
-  const parsed = fromISODate(value);
-  if (parsed) return parsed;
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  return tomorrow;
-}
+type AgendaResponse = { diarista?: { agenda?: SlotAgenda[] } };
 
 export function EscolherDataScreen() {
   const navigation = useNavigation<Navigation>();
   const { draft, updateDraft } = useServiceFlow();
   const flowTheme = getServiceFlowTheme(draft.tipo);
-  const [selectedDate, setSelectedDate] = useState(() => getInitialDate(draft.dataISO));
-  const [visibleMonth, setVisibleMonth] = useState(() => new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1));
-  const [selectedTime, setSelectedTime] = useState(draft.horario || "10:00");
+  const agora = useMemo(() => new Date(), []);
+
+  // A agenda só restringe diarista/babá/cozinheira (o backend confere
+  // Disponibilidade só nesse ramo). Montador: qualquer dia a partir de hoje.
+  const usaAgenda = draft.tipo !== "MONTADOR" && Boolean(draft.profissionalId);
+  const [agenda, setAgenda] = useState<SlotAgenda[] | null>(usaAgenda ? null : []);
+  const [agendaFalhou, setAgendaFalhou] = useState(false);
+  const [tentativa, setTentativa] = useState(0);
+
+  useEffect(() => {
+    if (!usaAgenda) return;
+    let vivo = true;
+    setAgendaFalhou(false);
+    api
+      .get<AgendaResponse>(`/api/diaristas/${draft.profissionalId}`)
+      .then((res) => {
+        if (vivo) setAgenda(res.data?.diarista?.agenda ?? []);
+      })
+      .catch(() => {
+        if (vivo) setAgendaFalhou(true);
+      });
+    return () => {
+      vivo = false;
+    };
+  }, [usaAgenda, draft.profissionalId, tentativa]);
+
+  const [selectedDate, setSelectedDate] = useState<Date | null>(() => fromISODate(draft.dataISO));
+  const [visibleMonth, setVisibleMonth] = useState(() => {
+    const base = fromISODate(draft.dataISO) ?? agora;
+    return new Date(base.getFullYear(), base.getMonth(), 1);
+  });
+  const [selectedTime, setSelectedTime] = useState<string | null>(draft.horario || null);
+
+  // Com a agenda em mãos, corrige a escolha: dia/horário que ela não atende
+  // é trocado pelo primeiro livre, em vez de só falhar no envio.
+  useEffect(() => {
+    if (!agenda) return;
+    let dia = selectedDate;
+    if (!dia || !diaDisponivel(dia, agenda, agora)) {
+      dia = primeiroDiaDisponivel(agenda, agora);
+      setSelectedDate(dia);
+      if (dia) setVisibleMonth(new Date(dia.getFullYear(), dia.getMonth(), 1));
+    }
+    if (dia && (!selectedTime || !horarioDisponivel(dia, selectedTime, agenda, agora))) {
+      setSelectedTime(HORARIOS.find((h) => horarioDisponivel(dia!, h, agenda, agora)) ?? null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agenda]);
 
   const days = useMemo(() => {
     const year = visibleMonth.getFullYear();
@@ -71,11 +119,29 @@ export function EscolherDataScreen() {
     ];
   }, [visibleMonth]);
 
+  const podeVoltarMes =
+    visibleMonth.getFullYear() * 12 + visibleMonth.getMonth() > agora.getFullYear() * 12 + agora.getMonth();
+
   const changeMonth = (direction: -1 | 1) => {
+    if (direction === -1 && !podeVoltarMes) return;
     setVisibleMonth((current) => new Date(current.getFullYear(), current.getMonth() + direction, 1));
   };
 
+  const escolherDia = (dia: Date) => {
+    setSelectedDate(dia);
+    if (agenda && selectedTime && !horarioDisponivel(dia, selectedTime, agenda, agora)) {
+      setSelectedTime(HORARIOS.find((h) => horarioDisponivel(dia, h, agenda, agora)) ?? null);
+    }
+  };
+
+  const duracao = duracaoEstimada(draft.categoria, draft.categoriaBackend);
+  const resumo = agenda ? resumoAgenda(agenda) : null;
+  const nome = draft.profissionalNome?.split(" ")[0] ?? "A profissional";
+  const pronto = Boolean(agenda && selectedDate && selectedTime);
+
   const continueFlow = () => {
+    if (!agenda || !selectedDate || !selectedTime) return;
+    if (!horarioDisponivel(selectedDate, selectedTime, agenda, agora)) return;
     updateDraft({ dataISO: toISODate(selectedDate), horario: selectedTime });
     navigation.navigate("EnderecoServico");
   };
@@ -92,77 +158,131 @@ export function EscolherDataScreen() {
           theme={flowTheme}
         />
 
-        <DCard style={s.calendarCard}>
-          <View style={s.monthHeader}>
-            <Pressable onPress={() => changeMonth(-1)} style={[s.monthButton, { backgroundColor: flowTheme.primarySoft }]} hitSlop={8}>
-              <AppIcon name="ArrowLeft" size={18} color={flowTheme.primary} />
+        {agendaFalhou ? (
+          <DCard style={s.avisoCard}>
+            <Text style={s.avisoTitulo}>Não foi possível carregar a agenda</Text>
+            <Text style={s.avisoTexto}>Sem ela não dá para saber em quais dias {nome} atende.</Text>
+            <Pressable onPress={() => setTentativa((n) => n + 1)} hitSlop={8}>
+              <Text style={[s.avisoAcao, { color: flowTheme.primary }]}>Tentar de novo</Text>
             </Pressable>
-            <Text style={s.monthTitle}>
-              {MONTHS[visibleMonth.getMonth()]} {visibleMonth.getFullYear()}
-            </Text>
-            <Pressable onPress={() => changeMonth(1)} style={[s.monthButton, { backgroundColor: flowTheme.primarySoft }]} hitSlop={8}>
-              <AppIcon name="ChevronRight" size={18} color={flowTheme.primary} />
-            </Pressable>
-          </View>
+          </DCard>
+        ) : !agenda ? (
+          <DCard style={s.calendarCard}>
+            <View style={s.carregando}>
+              <ActivityIndicator color={flowTheme.primary} />
+            </View>
+          </DCard>
+        ) : (
+          <>
+            {resumo ? (
+              <View style={[s.agendaResumo, { backgroundColor: flowTheme.primarySoft }]}>
+                <AppIcon name="CalendarCheck" size={16} color={flowTheme.primary} />
+                <Text style={s.agendaResumoTexto}>
+                  {nome} atende: {resumo}
+                </Text>
+              </View>
+            ) : null}
 
-          <View style={s.weekRow}>
-            {WEEKDAYS.map((day, index) => (
-              <Text key={`${day}-${index}`} style={s.weekday}>
-                {day}
-              </Text>
-            ))}
-          </View>
-
-          <View style={s.daysGrid}>
-            {days.map((day, index) => {
-              const selected = day ? toISODate(day) === toISODate(selectedDate) : false;
-              return (
+            <DCard style={s.calendarCard}>
+              <View style={s.monthHeader}>
                 <Pressable
-                  key={day ? toISODate(day) : `blank-${index}`}
-                  disabled={!day}
-                  onPress={() => day && setSelectedDate(day)}
-                  style={[
-                    s.dayCell,
-                    selected && {
-                      backgroundColor: flowTheme.primary,
-                      borderRadius: 21,
-                      shadowColor: flowTheme.primary,
-                      shadowOpacity: 0.24,
-                      shadowRadius: 12,
-                      shadowOffset: { width: 0, height: 8 },
-                      elevation: 5,
-                    },
-                  ]}
+                  onPress={() => changeMonth(-1)}
+                  disabled={!podeVoltarMes}
+                  style={[s.monthButton, { backgroundColor: flowTheme.primarySoft }, !podeVoltarMes && s.monthButtonOff]}
+                  hitSlop={8}
                 >
-                  <Text style={[s.dayText, selected && s.dayTextSelected]}>{day ? day.getDate() : ""}</Text>
+                  <AppIcon name="ArrowLeft" size={18} color={flowTheme.primary} />
                 </Pressable>
-              );
-            })}
-          </View>
-        </DCard>
+                <Text style={s.monthTitle}>
+                  {MONTHS[visibleMonth.getMonth()]} {visibleMonth.getFullYear()}
+                </Text>
+                <Pressable onPress={() => changeMonth(1)} style={[s.monthButton, { backgroundColor: flowTheme.primarySoft }]} hitSlop={8}>
+                  <AppIcon name="ChevronRight" size={18} color={flowTheme.primary} />
+                </Pressable>
+              </View>
 
-        <View style={s.section}>
-          <Text style={s.sectionTitle}>Horários disponíveis</Text>
-          <View style={s.timeGrid}>
-            {TIME_SLOTS.map((slot) => (
-              <TimeSlotButton key={slot} label={slot} selected={selectedTime === slot} theme={flowTheme} onPress={() => setSelectedTime(slot)} />
-            ))}
-          </View>
-        </View>
+              <View style={s.weekRow}>
+                {WEEKDAYS.map((day, index) => (
+                  <Text key={`${day}-${index}`} style={s.weekday}>
+                    {day}
+                  </Text>
+                ))}
+              </View>
 
-        <DCard style={s.durationCard} variant="soft">
-          <View style={[s.durationIcon, { backgroundColor: flowTheme.primarySoft }]}>
-            <AppIcon name="Clock" size={20} color={flowTheme.primary} />
-          </View>
-          <View style={s.durationText}>
-            <Text style={s.durationTitle}>Duração estimada</Text>
-            <Text style={s.durationSubtitle}>De 1h a 2h, 30 min (máx)</Text>
-          </View>
-        </DCard>
+              <View style={s.daysGrid}>
+                {days.map((day, index) => {
+                  const livre = day ? diaDisponivel(day, agenda, agora) : false;
+                  const selected = day && selectedDate ? toISODate(day) === toISODate(selectedDate) : false;
+                  return (
+                    <Pressable
+                      key={day ? toISODate(day) : `blank-${index}`}
+                      disabled={!day || !livre}
+                      onPress={() => day && escolherDia(day)}
+                      accessibilityState={{ disabled: !livre, selected }}
+                      style={[
+                        s.dayCell,
+                        selected && {
+                          backgroundColor: flowTheme.primary,
+                          borderRadius: 21,
+                          shadowColor: flowTheme.primary,
+                          shadowOpacity: 0.24,
+                          shadowRadius: 12,
+                          shadowOffset: { width: 0, height: 8 },
+                          elevation: 5,
+                        },
+                      ]}
+                    >
+                      <Text style={[s.dayText, day && !livre && s.dayTextOff, selected && s.dayTextSelected]}>
+                        {day ? day.getDate() : ""}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </DCard>
+
+            <View style={s.section}>
+              <Text style={s.sectionTitle}>Horários disponíveis</Text>
+              {selectedDate ? (
+                <View style={s.timeGrid}>
+                  {HORARIOS.map((slot) => (
+                    <TimeSlotButton
+                      key={slot}
+                      label={slot}
+                      selected={selectedTime === slot}
+                      disabled={!horarioDisponivel(selectedDate, slot, agenda, agora)}
+                      theme={flowTheme}
+                      onPress={() => setSelectedTime(slot)}
+                    />
+                  ))}
+                </View>
+              ) : (
+                <Text style={s.avisoTexto}>{nome} não tem horário livre nos próximos 60 dias.</Text>
+              )}
+            </View>
+          </>
+        )}
+
+        {duracao ? (
+          <DCard style={s.durationCard} variant="soft">
+            <View style={[s.durationIcon, { backgroundColor: flowTheme.primarySoft }]}>
+              <AppIcon name="Clock" size={20} color={flowTheme.primary} />
+            </View>
+            <View style={s.durationText}>
+              <Text style={s.durationTitle}>Duração estimada</Text>
+              <Text style={s.durationSubtitle}>
+                {duracao}
+                {draft.intensidadeLabel ?? draft.especialidadeLabel
+                  ? ` · ${draft.intensidadeLabel ?? draft.especialidadeLabel}`
+                  : ""}
+              </Text>
+            </View>
+          </DCard>
+        ) : null}
       </ScrollView>
 
       <FlowFooter>
-        <FlowPrimaryButton label="Continuar" theme={flowTheme} onPress={continueFlow} />
+        <FlowPrimaryButton label="Continuar" theme={flowTheme} onPress={continueFlow} disabled={!pronto} />
       </FlowFooter>
     </FlowScreen>
   );
@@ -222,6 +342,52 @@ const s = StyleSheet.create({
   },
   dayTextSelected: {
     color: colors.white,
+  },
+  dayTextOff: {
+    color: colors.textMuted,
+    opacity: 0.45,
+    fontWeight: "500",
+  },
+  monthButtonOff: {
+    opacity: 0.35,
+  },
+  carregando: {
+    paddingVertical: spacing.xl,
+    alignItems: "center",
+  },
+  agendaResumo: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    padding: spacing.md,
+    borderRadius: radius.lg,
+    marginBottom: spacing.md,
+  },
+  agendaResumoTexto: {
+    flex: 1,
+    color: colors.textPrimary,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: "600",
+  },
+  avisoCard: {
+    borderRadius: 24,
+    gap: 6,
+  },
+  avisoTitulo: {
+    color: colors.textPrimary,
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  avisoTexto: {
+    color: colors.textSecondary,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  avisoAcao: {
+    marginTop: 4,
+    fontSize: 14,
+    fontWeight: "700",
   },
   section: {
     marginTop: spacing.lg,

@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { conteudoPublico, dadosPublicos } from "@/lib/pushPublico";
+import { pushRemotoPermitido } from "@/lib/ambientePreview";
 
 // ──────────────────────────────────────────────────────────────────────────
 // Notificações in-app + push remoto (best-effort)
@@ -199,6 +200,10 @@ export async function sendPushNotification(
   _corpo: string,
   data?: Record<string, unknown>
 ): Promise<void> {
+  if (!pushRemotoPermitido()) {
+    console.log("[push] preview: envio remoto desligado");
+    return;
+  }
   try {
     const user = await prisma.user.findUnique({
       where: { id: userId },

@@ -4,6 +4,7 @@ import { requireAuth } from "@/lib/requireAuth";
 import { requireAuthAtivo, respostaDeSessao } from "@/lib/contaAtiva";
 import { criarNotificacao } from "@/lib/notifications";
 import { publishChatEvent, isUserPresentInRoom } from "@/lib/ably";
+import { profissionalTemPixNoServico, resumoPagamento } from "@/lib/pagamentoPix";
 import {
   conversaExcluidaPor,
   MAIS_RECENTES_PRIMEIRO,
@@ -103,23 +104,11 @@ export async function GET(req: Request, { params }: Params) {
         })
       : null;
 
-    // Pagamento PIX: o banner/botão do chat depende de haver dados de
-    // recebimento — o snapshot congelado do serviço (fonte canônica após a
-    // contratação) ou, na falta dele, o PaymentInfo atual do profissional.
-    // Consultas leves (só id), re-buscadas a cada poll de 8s.
-    const temSnapshot =
-      (await prisma.pixSnapshot.findUnique({
-        where: { servicoId },
-        select: { id: true },
-      })) !== null;
-    const profissionalTemPix =
-      temSnapshot ||
-      (profissionalUserId
-        ? (await prisma.paymentInfo.findUnique({
-            where: { userId: profissionalUserId },
-            select: { id: true },
-          })) !== null
-        : false);
+    // Pagamento PIX: o banner do chat depende de haver dados de recebimento —
+    // o snapshot congelado do serviço ou, na falta dele, o PaymentInfo atual
+    // do profissional (lib/pagamentoPix). Consultas leves (só id), re-buscadas
+    // a cada poll de 8s. O detalhe do serviço usa a mesma regra.
+    const profissionalTemPix = await profissionalTemPixNoServico(servicoId, profissionalUserId);
 
     // Entrega (deliveredAt) ANTES de leitura (readAt): ao abrir/atualizar a sala,
     // as mensagens do outro são consideradas entregues; só as visíveis aqui
@@ -174,7 +163,9 @@ export async function GET(req: Request, { params }: Params) {
           precoFinal: servico.precoFinal,
           paymentStatus: servico.paymentStatus,
         },
-        pagamento: { profissionalTemPix },
+        // `profissionalTemPix` é o contrato que os apps já leem; o resto é o
+        // mesmo resumo do detalhe do serviço (ações por participante).
+        pagamento: resumoPagamento(servico, auth.userId, profissionalTemPix),
         // A conversa aberta usa a MESMA regra da lista e do DELETE.
         arquivada: STATUS_ARQUIVADO.has(servico.status),
         podeExcluir: podeExcluirConversa(servico),

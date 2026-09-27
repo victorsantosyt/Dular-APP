@@ -42,6 +42,89 @@ export function profissionalIdDoServico(servico: {
   return servico.montadorId ?? servico.diaristaId;
 }
 
+export type PapelNoPagamento = "EMPREGADOR" | "PROFISSIONAL" | "OUTRO";
+
+/**
+ * O que cada participante vê e pode fazer no pagamento — a MESMA regra das
+ * rotas de PIX, num lugar só. O chat e o detalhe do serviço mostram o que
+ * vem daqui; as rotas continuam sendo a autoridade (checam tudo de novo).
+ *
+ * - pagarComPix (empregador): gerar o PIX e informar o pagamento — serviço
+ *   contratado, pagamento aguardando ou contestado e chave PIX disponível
+ *   (snapshot congelado ou PaymentInfo do profissional);
+ * - confirmarRecebimento / contestarRecebimento (profissional): pagamento
+ *   informado pelo empregador.
+ *
+ * Não depende do chat: vale igual com a conversa excluída por qualquer lado.
+ */
+export type ResumoPagamento = {
+  paymentStatus: PaymentStatus;
+  precoFinal: number | null;
+  profissionalTemPix: boolean;
+  papel: PapelNoPagamento;
+  acoes: {
+    pagarComPix: boolean;
+    confirmarRecebimento: boolean;
+    contestarRecebimento: boolean;
+  };
+};
+
+export function resumoPagamento(
+  servico: {
+    status: ServicoStatus;
+    paymentStatus: PaymentStatus;
+    precoFinal: number | null;
+    clientId: string;
+    diaristaId: string | null;
+    montadorId: string | null;
+  },
+  usuarioId: string,
+  profissionalTemPix: boolean,
+): ResumoPagamento {
+  const papel: PapelNoPagamento =
+    usuarioId === servico.clientId
+      ? "EMPREGADOR"
+      : usuarioId === profissionalIdDoServico(servico)
+        ? "PROFISSIONAL"
+        : "OUTRO";
+  const contratado = PIX_STATUSES_ELEGIVEIS.includes(servico.status);
+  const informado = servico.paymentStatus === "PAYMENT_REPORTED";
+  return {
+    paymentStatus: servico.paymentStatus,
+    precoFinal: servico.precoFinal,
+    profissionalTemPix,
+    papel,
+    acoes: {
+      pagarComPix:
+        papel === "EMPREGADOR" &&
+        contratado &&
+        PIX_PAGAVEL.includes(servico.paymentStatus) &&
+        profissionalTemPix &&
+        profissionalIdDoServico(servico) !== null,
+      confirmarRecebimento: papel === "PROFISSIONAL" && informado,
+      contestarRecebimento: papel === "PROFISSIONAL" && informado,
+    },
+  };
+}
+
+/**
+ * Há dados de recebimento para o PIX deste serviço? O snapshot congelado é a
+ * fonte canônica depois da contratação; na falta dele, o PaymentInfo atual do
+ * profissional (o PIX congela o snapshot no primeiro uso).
+ */
+export async function profissionalTemPixNoServico(
+  servicoId: string,
+  profissionalId: string | null,
+  temSnapshot?: boolean,
+): Promise<boolean> {
+  const snapshot =
+    temSnapshot ??
+    (await prisma.pixSnapshot.findUnique({ where: { servicoId }, select: { id: true } })) !== null;
+  if (snapshot) return true;
+  if (!profissionalId) return false;
+  return (await prisma.paymentInfo.findUnique({ where: { userId: profissionalId }, select: { id: true } })) !== null;
+}
+
 export type DadosRecebimento = {
   pixType: PixKeyType;
   pixKey: string;

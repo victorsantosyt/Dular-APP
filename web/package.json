@@ -41,7 +41,7 @@
     "react-qr-code": "^2.2.0",
     "recharts": "^3.9.0",
     "stripe": "^22.3.0",
-    "zod": "^4.4.3"
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.3",

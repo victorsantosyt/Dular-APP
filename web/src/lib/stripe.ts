@@ -12,6 +12,9 @@ function getStripe(): Stripe {
       throw new Error("STRIPE_SECRET_KEY is not set");
     }
     stripeSingleton = new Stripe(key, {
+      // Preserva o contrato atual; o SDK tipa apenas a versão mais recente da API.
+      // https://github.com/stripe/stripe-node#using-old-api-versions-with-typescript
+      // @ts-expect-error stripe-version-2026-06-24.dahlia — remover ao migrar a API.
       apiVersion: "2026-06-24.dahlia",
     });
   }

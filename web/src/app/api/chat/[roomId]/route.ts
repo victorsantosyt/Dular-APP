@@ -4,7 +4,17 @@ import { requireAuth } from "@/lib/requireAuth";
 import { requireAuthAtivo, respostaDeSessao } from "@/lib/contaAtiva";
 import { criarNotificacao } from "@/lib/notifications";
 import { publishChatEvent, isUserPresentInRoom } from "@/lib/ably";
-import { MAIS_RECENTES_PRIMEIRO, marcarDevolvidasComoLidas, PAGINA_MENSAGENS, STATUS_COM_CHAT } from "@/lib/chatSala";
+import {
+  conversaExcluidaPor,
+  MAIS_RECENTES_PRIMEIRO,
+  marcarDevolvidasComoLidas,
+  motivoParaNaoExcluir,
+  PAGINA_MENSAGENS,
+  podeExcluirConversa,
+  RESPOSTA_CONVERSA_EXCLUIDA,
+  STATUS_ARQUIVADO,
+  STATUS_COM_CHAT,
+} from "@/lib/chatSala";
 import type { UserRole } from "@prisma/client";
 import { z } from "zod";
 
@@ -64,6 +74,10 @@ export async function GET(req: Request, { params }: Params) {
         { ok: false, error: "Chat disponível apenas após aceite do serviço." },
         { status: 403 },
       );
+    }
+
+    if (await conversaExcluidaPor(servicoId, auth.userId)) {
+      return NextResponse.json(RESPOSTA_CONVERSA_EXCLUIDA, { status: 404 });
     }
 
     const room = await prisma.chatRoom.upsert({
@@ -161,6 +175,9 @@ export async function GET(req: Request, { params }: Params) {
           paymentStatus: servico.paymentStatus,
         },
         pagamento: { profissionalTemPix },
+        // A conversa aberta usa a MESMA regra da lista e do DELETE.
+        arquivada: STATUS_ARQUIVADO.has(servico.status),
+        podeExcluir: podeExcluirConversa(servico),
         other: otherUser,
         myRole: auth.role as UserRole,
       },
@@ -208,6 +225,10 @@ export async function POST(req: Request, { params }: Params) {
       );
     }
 
+    if (await conversaExcluidaPor(servicoId, auth.userId)) {
+      return NextResponse.json(RESPOSTA_CONVERSA_EXCLUIDA, { status: 404 });
+    }
+
     const body = await req.json().catch(() => null);
     const parsed = postSchema.safeParse(body);
     if (!parsed.success) {
@@ -251,7 +272,9 @@ export async function POST(req: Request, { params }: Params) {
       const profissionalUserId = servico.montadorId ?? servico.diaristaId;
       const outroUsuarioId =
         auth.userId === servico.clientId ? profissionalUserId : servico.clientId;
-      if (outroUsuarioId) {
+      // Quem excluiu a conversa arquivada não é avisado de mensagem tardia
+      // nela: o aviso apontaria para uma conversa que a pessoa tirou da lista.
+      if (outroUsuarioId && !(await conversaExcluidaPor(servicoId, outroUsuarioId))) {
         const preview = parsed.data.content.length > 80
           ? `${parsed.data.content.slice(0, 77)}...`
           : parsed.data.content;
@@ -274,6 +297,90 @@ export async function POST(req: Request, { params }: Params) {
     }
 
     return NextResponse.json({ ok: true, message }, { status: 201 });
+  } catch (error: unknown) {
+    const sessao = respostaDeSessao(error);
+    if (sessao) return sessao;
+    return NextResponse.json({ ok: false, error: "Erro interno." }, { status: 500 });
+  }
+}
+
+// DELETE /api/chat/[roomId] — tira a conversa ARQUIVADA da lista de quem pede.
+//
+// Só para essa pessoa: o outro participante continua vendo a conversa, e
+// mensagens, sala, serviço e avaliações ficam intactos — nada é apagado,
+// grava-se apenas a exclusão (ChatRoomExclusao). Idempotente: repetir o
+// pedido devolve o mesmo 200 sem criar outra linha.
+//
+// Quem pode: lib/chatSala `motivoParaNaoExcluir` — serviço encerrado e
+// pagamento confirmado. A mesma função gera o `podeExcluir` da lista e da
+// sala; nada do que vem na requisição entra nessa decisão.
+export async function DELETE(req: Request, { params }: Params) {
+  try {
+    const auth = await requireAuthAtivo(req);
+    const { roomId: servicoId } = await params;
+
+    // Status REAL do serviço, lido aqui — o app não decide o que é arquivado.
+    const servico = await prisma.servico.findUnique({
+      where: { id: servicoId },
+      select: { status: true, paymentStatus: true, clientId: true, diaristaId: true, montadorId: true },
+    });
+
+    if (!servico) {
+      return NextResponse.json({ ok: false, error: "Serviço não encontrado." }, { status: 404 });
+    }
+
+    const isParticipant =
+      servico.clientId === auth.userId ||
+      servico.diaristaId === auth.userId ||
+      servico.montadorId === auth.userId;
+
+    if (!isParticipant) {
+      return NextResponse.json({ ok: false, error: "Acesso negado." }, { status: 403 });
+    }
+
+    const motivo = motivoParaNaoExcluir(servico);
+    if (motivo) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            motivo === "PAGAMENTO_PENDENTE"
+              ? "Esta conversa não pode ser excluída enquanto o pagamento não for confirmado."
+              : "Só conversas arquivadas podem ser excluídas.",
+          code: motivo,
+        },
+        { status: 409 },
+      );
+    }
+
+    // Sem criar a sala: se ela não existe, não há conversa a excluir.
+    const room = await prisma.chatRoom.findUnique({ where: { servicoId }, select: { id: true } });
+    if (!room) {
+      return NextResponse.json({ ok: false, error: "Conversa não encontrada." }, { status: 404 });
+    }
+
+    await prisma.$transaction(async (tx) => {
+      // ON CONFLICT DO NOTHING (único em roomId+userId): dois toques ou duas
+      // requisições simultâneas resultam na mesma linha, sem erro.
+      await tx.chatRoomExclusao.createMany({
+        data: [{ roomId: room.id, userId: auth.userId }],
+        skipDuplicates: true,
+      });
+      // Avisos de mensagem desta conversa, SÓ de quem excluiu, passam a lidos:
+      // o contador de notificações não fica apontando para uma conversa que
+      // saiu da lista. Os avisos continuam no histórico.
+      await tx.notification.updateMany({
+        where: {
+          userId: auth.userId,
+          type: "CHAT_NOVA_MENSAGEM",
+          readAt: null,
+          OR: [{ chatRoomId: room.id }, { servicoId }],
+        },
+        data: { readAt: new Date() },
+      });
+    });
+
+    return NextResponse.json({ ok: true, roomId: servicoId });
   } catch (error: unknown) {
     const sessao = respostaDeSessao(error);
     if (sessao) return sessao;

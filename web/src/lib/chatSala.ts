@@ -18,6 +18,81 @@ export const STATUS_COM_CHAT: ReadonlySet<string> = new Set([
   "FINALIZADO",
 ]);
 
+/**
+ * Status do serviço em que a conversa está ARQUIVADA (somente leitura).
+ *
+ * Os três só existem DEPOIS da execução: CONCLUIDO = as duas partes
+ * confirmaram a finalização (confirmar-finalizacao); CONFIRMADO = o empregador
+ * aprovou (POST /confirmar, único escritor, e só a partir de CONCLUIDO);
+ * FINALIZADO = avaliado. Nenhuma rota tira um serviço desses estados.
+ * AGUARDANDO_FINALIZACAO NÃO entra: só uma parte confirmou, o serviço ainda
+ * pode ser concluído ou cancelado e o chat continua aberto para escrita.
+ */
+export const STATUS_ARQUIVADO: ReadonlySet<string> = new Set(["CONCLUIDO", "CONFIRMADO", "FINALIZADO"]);
+
+/**
+ * Regra PROVISÓRIA de pagamento: só PAYMENT_CONFIRMED libera a exclusão.
+ *
+ * As rotas de PIX aceitam serviço arquivado, e hoje o app só oferece as ações
+ * de pagamento no banner DENTRO da conversa (pagar/informar, do empregador;
+ * confirmar/contestar, do profissional). Com a conversa excluída, quem
+ * excluiu perderia o único lugar para concluir ou contestar um pagamento:
+ *  - PAYMENT_REPORTED: o profissional ainda precisa confirmar ou contestar;
+ *  - PAYMENT_DISPUTED: o empregador precisa corrigir ou pagar de novo;
+ *  - WAITING_PAYMENT: é o default de todo serviço. Não prova pagamento (pode
+ *    ter sido pago fora do app ou não ter sido pago) e o PIX ainda pode ser
+ *    informado depois — o que exigiria a confirmação do profissional.
+ * Quando as ações de pagamento existirem também no detalhe do serviço, esta
+ * condição deixa de ser necessária (a exclusão passa a depender só do status).
+ */
+const PAGAMENTO_LIBERA_EXCLUSAO = "PAYMENT_CONFIRMED";
+
+export type MotivoSemExclusao = "CONVERSA_ATIVA" | "PAGAMENTO_PENDENTE";
+
+/**
+ * Regra ÚNICA de exclusão. Autoriza o DELETE e é a mesma que devolve
+ * `podeExcluir` na lista e na sala — o app não decide sozinho. `null` = pode.
+ */
+export function motivoParaNaoExcluir(servico: { status: string; paymentStatus: string | null }): MotivoSemExclusao | null {
+  if (!STATUS_ARQUIVADO.has(servico.status)) return "CONVERSA_ATIVA";
+  if (servico.paymentStatus !== PAGAMENTO_LIBERA_EXCLUSAO) return "PAGAMENTO_PENDENTE";
+  return null;
+}
+
+export function podeExcluirConversa(servico: { status: string; paymentStatus: string | null }): boolean {
+  return motivoParaNaoExcluir(servico) === null;
+}
+
+/**
+ * Resposta das rotas da sala para quem excluiu a conversa. 404, e não 403: para
+ * essa pessoa a conversa não existe mais. O `code` deixa o app explicar o
+ * motivo em vez de mostrar um erro genérico.
+ */
+export const RESPOSTA_CONVERSA_EXCLUIDA = {
+  ok: false,
+  error: "Esta conversa foi excluída.",
+  code: "CONVERSA_EXCLUIDA",
+} as const;
+
+/**
+ * A pessoa tirou esta conversa dos próprios Arquivados (ChatRoomExclusao)?
+ * As rotas da sala consultam isto ANTES de devolver qualquer coisa: uma
+ * notificação antiga, um link ou o cache do aparelho não reabrem a conversa.
+ * Vale só para `userId` — o outro participante continua com acesso.
+ */
+export async function conversaExcluidaPor(servicoId: string, userId: string): Promise<boolean> {
+  const exclusao = await prisma.chatRoomExclusao.findFirst({
+    where: { userId, room: { servicoId } },
+    select: { id: true },
+  });
+  return exclusao !== null;
+}
+
+/** Filtro de ChatRoom: só as salas que `userId` NÃO excluiu. */
+export function salasNaoExcluidasPor(userId: string) {
+  return { exclusoes: { none: { userId } } };
+}
+
 /** Tamanho da página de mensagens. */
 export const PAGINA_MENSAGENS = 50;
 

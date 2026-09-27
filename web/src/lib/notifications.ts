@@ -169,6 +169,8 @@ async function badgeDoUsuario(userId: string): Promise<number | undefined> {
           readAt: null,
           senderId: { not: userId },
           room: {
+            // Conversa excluída pela pessoa não conta no ícone do app.
+            exclusoes: { none: { userId } },
             servico: {
               OR: [{ clientId: userId }, { diaristaId: userId }, { montadorId: userId }],
             },

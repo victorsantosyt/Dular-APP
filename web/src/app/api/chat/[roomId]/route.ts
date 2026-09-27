@@ -4,6 +4,7 @@ import { requireAuth } from "@/lib/requireAuth";
 import { requireAuthAtivo, respostaDeSessao } from "@/lib/contaAtiva";
 import { criarNotificacao } from "@/lib/notifications";
 import { publishChatEvent, isUserPresentInRoom } from "@/lib/ably";
+import { MAIS_RECENTES_PRIMEIRO, marcarDevolvidasComoLidas, PAGINA_MENSAGENS, STATUS_COM_CHAT } from "@/lib/chatSala";
 import type { UserRole } from "@prisma/client";
 import { z } from "zod";
 
@@ -11,17 +12,8 @@ export const dynamic = "force-dynamic";
 
 // roomId = servicoId
 // A sala é criada lazily na primeira visita, desde que o serviço esteja ACEITO ou posterior.
-
-const ALLOWED_STATUSES = new Set([
-  "ACEITO",
-  "EM_ANDAMENTO",
-  // Sem este status, ao empregador confirmar a finalização primeiro o chat caía
-  // em 403 para ambas as partes justamente na etapa de fechar o serviço.
-  "AGUARDANDO_FINALIZACAO",
-  "CONCLUIDO",
-  "CONFIRMADO",
-  "FINALIZADO",
-]);
+// Status permitidos: lib/chatSala (os mesmos da rota /messages).
+const ALLOWED_STATUSES = STATUS_COM_CHAT;
 
 type Params = { params: Promise<{ roomId: string }> };
 
@@ -126,10 +118,14 @@ export async function GET(req: Request, { params }: Params) {
       });
     }
 
-    const messages = await prisma.chatMessage.findMany({
+    // As 50 MAIS RECENTES (antes: as 50 mais antigas — com mais de 50
+    // mensagens, as novas nunca chegavam ao app e continuavam não lidas).
+    // Buscadas da mais nova para a mais antiga e devolvidas em ordem
+    // cronológica, como o app já espera.
+    const recentes = await prisma.chatMessage.findMany({
       where: { roomId: room.id },
-      orderBy: { createdAt: "asc" },
-      take: 50,
+      orderBy: MAIS_RECENTES_PRIMEIRO,
+      take: PAGINA_MENSAGENS,
       select: {
         id: true,
         roomId: true,
@@ -142,22 +138,10 @@ export async function GET(req: Request, { params }: Params) {
         sender: { select: { id: true, nome: true, avatarUrl: true } },
       },
     });
+    const messages = recentes.reverse();
 
-    const unreadIds = messages
-      .filter((m) => m.senderId === otherUserId && m.readAt === null)
-      .map((m) => m.id);
-
-    if (unreadIds.length > 0) {
-      const now = new Date();
-      await prisma.chatMessage.updateMany({
-        where: { id: { in: unreadIds } },
-        data: { readAt: now },
-      });
-      // Reflete nas mensagens já carregadas (sem nova query).
-      for (const m of messages) {
-        if (unreadIds.includes(m.id)) m.readAt = now;
-      }
-    }
+    // Lidas = as do outro participante devolvidas aqui (lib/chatSala).
+    await marcarDevolvidasComoLidas(room.id, otherUserId, messages);
 
     return NextResponse.json({
       ok: true,

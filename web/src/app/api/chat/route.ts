@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/requireAuth";
 import { requireAuthAtivo, respostaDeSessao } from "@/lib/contaAtiva";
+import { MAIS_RECENTES_PRIMEIRO } from "@/lib/chatSala";
 
 export const dynamic = "force-dynamic";
 
@@ -93,7 +94,9 @@ export async function GET(req: Request) {
           prisma.chatMessage.findMany({
             where: { roomId: { in: roomIds } },
             distinct: ["roomId"],
-            orderBy: { createdAt: "desc" },
+            // Mesma ordem do histórico da sala (lib/chatSala): a prévia é
+            // sempre a última mensagem que a conversa aberta também mostra.
+            orderBy: MAIS_RECENTES_PRIMEIRO,
             select: {
               roomId: true,
               content: true,

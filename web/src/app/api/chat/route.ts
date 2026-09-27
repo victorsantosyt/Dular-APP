@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/requireAuth";
 import { requireAuthAtivo, respostaDeSessao } from "@/lib/contaAtiva";
-import { MAIS_RECENTES_PRIMEIRO } from "@/lib/chatSala";
+import { MAIS_RECENTES_PRIMEIRO, podeExcluirConversa, salasNaoExcluidasPor, STATUS_ARQUIVADO } from "@/lib/chatSala";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +21,9 @@ export async function GET(req: Request) {
 
     const rooms = await prisma.chatRoom.findMany({
       where: {
+        // Conversa arquivada que a pessoa excluiu não volta à lista — nem com
+        // mensagem nova, notificação antiga ou atualização do app.
+        ...salasNaoExcluidasPor(auth.userId),
         servico: {
           OR: [
             { clientId: auth.userId },
@@ -52,6 +55,7 @@ export async function GET(req: Request) {
           select: {
             id: true,
             status: true,
+            paymentStatus: true,
             tipo: true,
             data: true,
             bairro: true,
@@ -70,8 +74,8 @@ export async function GET(req: Request) {
 
     // Status terminais = chat arquivado (somente leitura). Quando ambos os
     // lados confirmam a finalização, o status vai para CONCLUIDO e o chat
-    // some da aba "Conversas" e aparece em "Arquivadas".
-    const ARQUIVADOS = new Set(["CONCLUIDO", "CONFIRMADO", "FINALIZADO"]);
+    // some da aba "Conversas" e aparece em "Arquivadas" (lib/chatSala).
+    const ARQUIVADOS = STATUS_ARQUIVADO;
 
     // Agregados de chat (evitam N+1):
     //  - naoLidasPorSala: 1 groupBy sobre ChatMessage filtrando readAt=null
@@ -135,6 +139,9 @@ export async function GET(req: Request) {
         createdAt: r.createdAt,
         atualizadaEm,
         arquivada: ARQUIVADOS.has(servico.status),
+        // Mesma regra que autoriza o DELETE (lib/chatSala): o app só oferece
+        // "Excluir" quando o servidor aceitaria.
+        podeExcluir: podeExcluirConversa(servico),
         outroUsuario: outroUsuario
           ? {
               id: outroUsuario.id,

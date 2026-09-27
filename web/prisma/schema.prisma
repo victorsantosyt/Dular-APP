@@ -294,6 +294,7 @@ model User {
   habilidades           DiaristaHabilidade[]
   oauthAccounts         OAuthAccount[]
   chatMessages          ChatMessage[]
+  chatRoomExclusoes     ChatRoomExclusao[]
   subscription          Subscription?
   creditWallet          CreditWallet?
   notifications         Notification[]
@@ -843,7 +844,23 @@ model ChatRoom {
   servico   Servico  @relation(fields: [servicoId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
 
-  messages ChatMessage[]
+  messages  ChatMessage[]
+  exclusoes ChatRoomExclusao[]
+}
+
+/// Conversa ARQUIVADA que um participante tirou da própria lista. Só vale
+/// para quem excluiu: o outro participante, as mensagens, o serviço e as
+/// avaliações não mudam. Uma linha por (sala, participante).
+model ChatRoomExclusao {
+  id        String   @id @default(cuid())
+  roomId    String
+  room      ChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([roomId, userId])
+  @@index([userId])
 }
 
 model ChatMessage {

@@ -8,9 +8,11 @@ import { cleanupRateLimit, rateLimit, rateLimitRetryAfterMs } from "@/lib/rateLi
 import { getRequestIp } from "@/lib/requestIp";
 import {
   anterioresAo,
+  conversaExcluidaPor,
   MAIS_RECENTES_PRIMEIRO,
   marcarDevolvidasComoLidas,
   PAGINA_MENSAGENS,
+  RESPOSTA_CONVERSA_EXCLUIDA,
   STATUS_COM_CHAT,
 } from "@/lib/chatSala";
 import { z } from "zod";
@@ -80,6 +82,10 @@ async function resolveRoom(servicoId: string, userId: string) {
     } as const;
   }
 
+  if (await conversaExcluidaPor(servicoId, userId)) {
+    return { error: RESPOSTA_CONVERSA_EXCLUIDA.error, code: RESPOSTA_CONVERSA_EXCLUIDA.code, status: 404 } as const;
+  }
+
   const room = await prisma.chatRoom.upsert({
     where: { servicoId },
     update: {},
@@ -99,7 +105,10 @@ export async function GET(req: Request, { params }: Params) {
 
     const resolved = await resolveRoom(servicoId, auth.userId);
     if ("error" in resolved) {
-      return NextResponse.json({ ok: false, error: resolved.error }, { status: resolved.status });
+      return NextResponse.json(
+        { ok: false, error: resolved.error, ...("code" in resolved ? { code: resolved.code } : {}) },
+        { status: resolved.status },
+      );
     }
 
     const { room, servico } = resolved;
@@ -187,7 +196,10 @@ export async function POST(req: Request, { params }: Params) {
 
     const resolved = await resolveRoom(servicoId, auth.userId);
     if ("error" in resolved) {
-      return NextResponse.json({ ok: false, error: resolved.error }, { status: resolved.status });
+      return NextResponse.json(
+        { ok: false, error: resolved.error, ...("code" in resolved ? { code: resolved.code } : {}) },
+        { status: resolved.status },
+      );
     }
 
     const { room, servico } = resolved;
@@ -250,7 +262,8 @@ export async function POST(req: Request, { params }: Params) {
       const profissionalUserId = servico.montadorId ?? servico.diaristaId;
       const outroUsuarioId =
         auth.userId === servico.clientId ? profissionalUserId : servico.clientId;
-      if (outroUsuarioId) {
+      // Quem excluiu a conversa arquivada não é avisado de mensagem tardia nela.
+      if (outroUsuarioId && !(await conversaExcluidaPor(servicoId, outroUsuarioId))) {
         const preview =
           parsed.data.type === "TEXT"
             ? parsed.data.content.length > 80

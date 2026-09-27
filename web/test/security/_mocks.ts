@@ -25,7 +25,8 @@ export type MockPrisma = {
   avaliacaoEmpregador: { findUnique: AnyFn; create: AnyFn };
   incidentReport: { create: AnyFn };
   incidentAttachment: { create: AnyFn };
-  chatRoom: { upsert: AnyFn };
+  chatRoom: { upsert: AnyFn; findUnique: AnyFn };
+  chatRoomExclusao: { findFirst: AnyFn; createMany: AnyFn };
   chatMessage: { findMany: AnyFn; updateMany: AnyFn; create: AnyFn };
   notification: { findMany: AnyFn; count: AnyFn; findUnique: AnyFn; update: AnyFn; updateMany: AnyFn };
   diaristaProfile: { findUnique: AnyFn; upsert: AnyFn; findMany: AnyFn };
@@ -100,7 +101,17 @@ export function createMockPrisma(): MockPrisma {
     },
     incidentReport: { create: notMocked("incidentReport.create") },
     incidentAttachment: { create: notMocked("incidentAttachment.create") },
-    chatRoom: { upsert: notMocked("chatRoom.upsert") },
+    chatRoom: { upsert: notMocked("chatRoom.upsert"), findUnique: notMocked("chatRoom.findUnique") },
+    chatRoomExclusao: {
+      /**
+       * Padrão = conversa NÃO excluída (null), pelo mesmo motivo do
+       * `user.findUnique` acima: toda rota da sala de chat consulta a exclusão
+       * antes de responder, e sem padrão cada teste de chat teria de mockar
+       * isso só para não explodir. Teste de exclusão sobrescreve.
+       */
+      findFirst: (async () => null) as AnyFn,
+      createMany: notMocked("chatRoomExclusao.createMany"),
+    },
     chatMessage: {
       findMany: notMocked("chatMessage.findMany"),
       updateMany: notMocked("chatMessage.updateMany"),

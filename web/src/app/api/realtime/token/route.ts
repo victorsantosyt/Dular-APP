@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/requireAuth";
 import { requireAuthAtivo, respostaDeSessao } from "@/lib/contaAtiva";
 import { createChatTokenRequest } from "@/lib/ably";
+import { salasNaoExcluidasPor } from "@/lib/chatSala";
 
 export const dynamic = "force-dynamic";
 
@@ -14,9 +15,11 @@ export async function GET(req: Request) {
     const auth = await requireAuthAtivo(req);
 
     // Salas (ChatRoom) do usuário: cliente, diarista ou montador do serviço.
-    // Capability é gerada exclusivamente para essas salas — sem wildcard.
+    // Capability é gerada exclusivamente para essas salas — sem wildcard. As
+    // que a pessoa excluiu ficam de fora: nenhum evento delas chega ao app.
     const rooms = await prisma.chatRoom.findMany({
       where: {
+        ...salasNaoExcluidasPor(auth.userId),
         servico: {
           OR: [
             { clientId: auth.userId },

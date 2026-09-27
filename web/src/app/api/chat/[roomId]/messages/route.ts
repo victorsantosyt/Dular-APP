@@ -6,19 +6,22 @@ import { criarNotificacao } from "@/lib/notifications";
 import { publishChatEvent, isUserPresentInRoom } from "@/lib/ably";
 import { cleanupRateLimit, rateLimit, rateLimitRetryAfterMs } from "@/lib/rateLimit";
 import { getRequestIp } from "@/lib/requestIp";
+import {
+  anterioresAo,
+  MAIS_RECENTES_PRIMEIRO,
+  marcarDevolvidasComoLidas,
+  PAGINA_MENSAGENS,
+  STATUS_COM_CHAT,
+} from "@/lib/chatSala";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
 
-const ALLOWED_STATUSES = new Set([
-  "ACEITO",
-  "EM_ANDAMENTO",
-  "CONCLUIDO",
-  "CONFIRMADO",
-  "FINALIZADO",
-]);
+// Mesmos status da rota principal da sala (lib/chatSala) — antes esta lista
+// não tinha AGUARDANDO_FINALIZACAO e divergia da outra.
+const ALLOWED_STATUSES = STATUS_COM_CHAT;
 
-const PAGE_SIZE = 50;
+const PAGE_SIZE = PAGINA_MENSAGENS;
 
 const postSchema = z.discriminatedUnion("type", [
   z.object({
@@ -119,13 +122,26 @@ export async function GET(req: Request, { params }: Params) {
       });
     }
 
-    const messages = await prisma.chatMessage.findMany({
-      where: {
-        roomId: room.id,
-        ...(before ? { id: { lt: before } } : {}),
-      },
-      orderBy: { createdAt: "desc" },
-      take: PAGE_SIZE,
+    // Cursor = id da mensagem mais antiga já exibida. A página seguinte são as
+    // estritamente anteriores a ela na ordem (createdAt, id) — antes era
+    // `id < before`, que compara ids (cuid) e não a data, e aceitava cursor de
+    // outra sala. Cursor que não é desta sala → 400.
+    let cursor: { id: string; createdAt: Date } | null = null;
+    if (before) {
+      cursor = await prisma.chatMessage.findFirst({
+        where: { id: before, roomId: room.id },
+        select: { id: true, createdAt: true },
+      });
+      if (!cursor) {
+        return NextResponse.json({ ok: false, error: "Cursor inválido." }, { status: 400 });
+      }
+    }
+
+    // Uma a mais que a página: diz, sem outra consulta, se ainda há anteriores.
+    const lidas = await prisma.chatMessage.findMany({
+      where: { roomId: room.id, ...(cursor ? anterioresAo(cursor) : {}) },
+      orderBy: MAIS_RECENTES_PRIMEIRO,
+      take: PAGE_SIZE + 1,
       select: {
         id: true,
         type: true,
@@ -137,31 +153,20 @@ export async function GET(req: Request, { params }: Params) {
         sender: { select: { id: true, nome: true, avatarUrl: true } },
       },
     });
+    const hasMore = lidas.length > PAGE_SIZE;
+    const messages = lidas.slice(0, PAGE_SIZE);
 
-    // Marca como lidas as mensagens do outro participante que ainda não foram lidas
-    const unreadIds = messages
-      .filter((m) => m.senderId === otherUserId && m.readAt === null)
-      .map((m) => m.id);
+    // Lidas = as do outro participante devolvidas nesta página (lib/chatSala).
+    await marcarDevolvidasComoLidas(room.id, otherUserId, messages);
 
-    if (unreadIds.length > 0) {
-      const now = new Date();
-      await prisma.chatMessage.updateMany({
-        where: { id: { in: unreadIds } },
-        data: { readAt: now },
-      });
-
-      // Reflete o readAt nas mensagens já carregadas (sem nova query)
-      for (const m of messages) {
-        if (unreadIds.includes(m.id)) m.readAt = now;
-      }
-    }
-
+    const cronologica = messages.reverse(); // mais antiga primeiro
     return NextResponse.json({
       ok: true,
-      messages: messages.reverse(), // cronológico (mais antigo primeiro)
+      messages: cronologica,
       pagination: {
-        hasMore: messages.length === PAGE_SIZE,
-        nextCursor: messages.length > 0 ? messages[0].id : null,
+        hasMore,
+        // A mais antiga desta página: próximo `?before=`.
+        nextCursor: hasMore && cronologica.length > 0 ? cronologica[0].id : null,
       },
     });
   } catch (error: unknown) {

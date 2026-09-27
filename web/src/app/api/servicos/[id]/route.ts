@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/requireAuth";
 import { requireAuthAtivo, respostaDeSessao } from "@/lib/contaAtiva";
 import { maskPixKey } from "@/lib/pix";
+import { profissionalTemPixNoServico, resumoPagamento } from "@/lib/pagamentoPix";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -80,6 +81,12 @@ export async function GET(req: Request, { params }: Params) {
         }
       : null;
 
+    // Pagamento no detalhe: o que quem está vendo pode fazer (pagar,
+    // confirmar, contestar), pela mesma regra do chat — sem depender da
+    // conversa existir ou de ela ter sido excluída.
+    const profissionalTemPix = await profissionalTemPixNoServico(servico.id, profissionalUserId, pixSnapshot !== null);
+    const pagamento = resumoPagamento(servico, auth.userId, profissionalTemPix);
+
     return NextResponse.json({
       ok: true,
       servico: {
@@ -89,6 +96,7 @@ export async function GET(req: Request, { params }: Params) {
         recebimento,
       },
       otherUserId,
+      pagamento,
     });
   } catch (error: unknown) {
     const sessao = respostaDeSessao(error);

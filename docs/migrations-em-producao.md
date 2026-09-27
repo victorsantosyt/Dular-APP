@@ -22,9 +22,22 @@ Que tipo de deploy migra:
 | Instant Rollback | não | não, e também não desfaz nada |
 | Deploy de produção com domínio não atribuído automaticamente (staged) | sim, como production | **sim, já no build**, antes da promoção |
 
-## Atenção: preview usa o banco de produção
+## Preview e Development usam o banco de staging
 
-`DATABASE_URL`, `DATABASE_URL_UNPOOLED` e as demais variáveis do Neon são **uma variável só para Production, Preview e Development**. O script garante que um preview não migra, mas o código de qualquer branch em preview lê e grava no banco de produção. Separar isso (branch do Neon por preview, ou variáveis próprias de Preview) é uma mudança de configuração pendente.
+Desde 27/09/2026 são dois bancos Neon, dois projetos independentes, ligados pela integração da Vercel:
+
+| Recurso | Ambientes | Conteúdo |
+|---|---|---|
+| `neon-coquelicot-elephant` | Production | dados reais |
+| `dular-staging` | Preview e Development | só dados sintéticos (`@exemplo.test`) |
+
+Travas (`web/src/lib/ambientePreview.ts` e `web/scripts/staging/`):
+
+- **Build de preview**: antes de compilar, `scripts/staging/confirmar-banco.mjs` exige três evidências de que o banco é o de staging — `DULAR_DB_AMBIENTE=staging`, host igual a `DULAR_STAGING_DB_HOST` e a marca `COMMENT ON DATABASE ... IS 'dular-staging'` gravada no próprio banco. Qualquer desvio falha o build. O preview continua sem migrar.
+- **Runtime de preview**: sem `DULAR_DB_AMBIENTE=staging` o Prisma não abre conexão; push remoto e tempo real (Ably) ficam desligados, salvo `DULAR_PUSH_PREVIEW=ligado` / `DULAR_ABLY_PREVIEW=ligado`.
+- **Migração e seed do staging** (de `web/`, com as variáveis do ambiente Preview): `node scripts/staging/migrar.mjs` e `STAGING_SENHA=... npx tsx prisma/seed-staging.ts`. Os dois recusam qualquer banco sem as três evidências; o seed recusa banco que já tenha usuários. Nunca use `seed.ts` ou `copiar-contas-para-prod.ts` no staging.
+
+**Previews criados antes de 27/09/2026 guardam as credenciais de produção** do momento do build (variáveis de um deployment não mudam depois). Não os use para testes.
 
 ## Regra 1: toda migration em `main` precisa ser aditiva
 

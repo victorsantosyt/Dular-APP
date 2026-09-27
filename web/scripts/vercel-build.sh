@@ -34,6 +34,13 @@ if [ "$ambiente" = "production" ]; then
   echo "[vercel-build] VERCEL_ENV=production: prisma migrate deploy em ${host}"
   DATABASE_URL="$DATABASE_URL_UNPOOLED" npx prisma migrate deploy
   echo "[vercel-build] migrations aplicadas"
+elif [ "$ambiente" = "preview" ]; then
+  # Preview só builda contra o banco de STAGING, provado por três evidências
+  # (variável, host anotado e marca no banco). Qualquer desvio falha o build:
+  # um preview nunca sobe apontando para produção. Não migra.
+  echo "[vercel-build] VERCEL_ENV=preview: conferindo o banco de staging"
+  node scripts/staging/confirmar-banco.mjs
+  echo "[vercel-build] migrations não rodam fora de produção"
 else
   echo "[vercel-build] VERCEL_ENV=${ambiente:-<vazio>}: migrations não rodam fora de produção"
 fi

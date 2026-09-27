@@ -1,5 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { conferirBancoDoAmbiente } from "@/lib/ambientePreview";
 
 // Singleton pattern para evitar vazamento de conexões em dev (HMR do Next.js).
 // Em produção serverless, garante que o pool seja reutilizado entre invocações
@@ -13,6 +14,8 @@ function createPrisma() {
   if (!datasourceUrl) {
     throw new Error("DATABASE_URL is not set");
   }
+  // Preview só abre conexão com o banco de staging (lib/ambientePreview).
+  conferirBancoDoAmbiente();
 
   // O PrismaPg adapter cria/gerencia seu próprio pool de pg internamente
   // quando recebe { connectionString }. Não devemos criar pg.Pool fora deste

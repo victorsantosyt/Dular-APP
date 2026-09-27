@@ -1,4 +1,5 @@
 import * as Ably from "ably";
+import { tempoRealPermitido } from "@/lib/ambientePreview";
 
 // Inicialização LAZY do client REST do Ably — criado no PRIMEIRO uso (runtime),
 // nunca no import. Mesmo padrão de prisma/stripe/s3 (getter singleton, SEM
@@ -10,6 +11,12 @@ import * as Ably from "ably";
 let restSingleton: Ably.Rest | null = null;
 
 export function getAblyRest(): Ably.Rest {
+  // Antes do singleton: nem um cliente já criado escapa da trava do preview.
+  // Todos os usos (publicar, presença, token) passam por aqui e já tratam a
+  // falha — o chat segue pelo polling.
+  if (!tempoRealPermitido()) {
+    throw new Error("Tempo real (Ably) desligado neste preview.");
+  }
   if (!restSingleton) {
     const apiKey = process.env.ABLY_API_KEY;
     if (!apiKey) {

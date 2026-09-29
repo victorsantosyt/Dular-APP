@@ -156,15 +156,44 @@ async function handleInvoiceFailed(invoice: Stripe.Invoice) {
   await encerrarAssinatura("STRIPE", assinaturaId, "nao_paga");
 }
 
-/** A assinatura vem em campos diferentes conforme a versão da API. */
+// Formato bruto da fatura: cada versão da API põe a assinatura num lugar, e o
+// evento chega na versão configurada no endpoint, não na do client acima.
+type FaturaBruta = {
+  parent?: { type?: unknown; subscription_details?: { subscription?: unknown } | null } | null;
+  subscription?: unknown;
+  lines?: { data?: Array<{ subscription?: unknown } | null> };
+};
+
+/**
+ * A assinatura da fatura, procurada nesta ordem:
+ *  1. `parent.subscription_details.subscription` — desde 2025-03-31.basil, e
+ *     só quando `parent.type` é `subscription_details`;
+ *  2. `subscription` — versões anteriores;
+ *  3. `lines.data[0].subscription` — a linha da fatura.
+ * Cada uma pode vir como id ou como objeto expandido. Se as presentes
+ * apontarem para assinaturas DIFERENTES, nada é alterado: melhor não mexer do
+ * que renovar ou encerrar a assinatura de outra pessoa.
+ */
 function idDaAssinatura(invoice: Stripe.Invoice): string | null {
-  const bruto = (invoice as unknown as { subscription?: string | { id?: string } }).subscription;
-  if (typeof bruto === "string") return bruto;
-  if (bruto?.id) return bruto.id;
-  const linha = invoice.lines?.data?.[0] as unknown as {
-    subscription?: string | { id?: string };
-  } | undefined;
-  const daLinha = linha?.subscription;
-  if (typeof daLinha === "string") return daLinha;
-  return daLinha?.id ?? null;
+  const fatura = invoice as unknown as FaturaBruta;
+  const doParent =
+    fatura.parent?.type === "subscription_details"
+      ? fatura.parent.subscription_details?.subscription
+      : undefined;
+  const ids = [doParent, fatura.subscription, fatura.lines?.data?.[0]?.subscription]
+    .map(idDeAssinatura)
+    .filter((id): id is string => id !== null);
+
+  const distintos = [...new Set(ids)];
+  if (distintos.length > 1) {
+    console.error("[stripe-webhook] fatura com assinaturas divergentes; nada foi alterado:", invoice.id);
+    return null;
+  }
+  return distintos[0] ?? null;
+}
+
+/** Id de assinatura (`sub_…`) em string ou no objeto expandido; o resto é ignorado. */
+function idDeAssinatura(valor: unknown): string | null {
+  const id = typeof valor === "object" && valor !== null ? (valor as { id?: unknown }).id : valor;
+  return typeof id === "string" && /^sub_\w+$/.test(id) ? id : null;
 }

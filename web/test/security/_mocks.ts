@@ -33,7 +33,7 @@ export type MockPrisma = {
   empregadorFavorito: { findMany: AnyFn; upsert: AnyFn; delete: AnyFn };
   montadorPerfil: { findUnique: AnyFn; findMany: AnyFn };
   documentVerification: { findFirst: AnyFn; create: AnyFn };
-  subscription: { upsert: AnyFn; updateMany: AnyFn; findUnique: AnyFn };
+  subscription: { upsert: AnyFn; updateMany: AnyFn; findUnique: AnyFn; findFirst: AnyFn };
   creditWallet: { upsert: AnyFn };
   creditTransaction: { create: AnyFn };
   auditLog: { create: AnyFn };
@@ -146,6 +146,7 @@ export function createMockPrisma(): MockPrisma {
       upsert: notMocked("subscription.upsert"),
       updateMany: notMocked("subscription.updateMany"),
       findUnique: notMocked("subscription.findUnique"),
+      findFirst: notMocked("subscription.findFirst"),
     },
     creditWallet: { upsert: notMocked("creditWallet.upsert") },
     creditTransaction: { create: notMocked("creditTransaction.create") },

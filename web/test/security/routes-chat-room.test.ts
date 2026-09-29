@@ -117,6 +117,84 @@ describe("GET /api/chat/[roomId] — ler mensagens", () => {
     assert.ok(Array.isArray(body.messages));
     assert.equal(body.room.pagamento.profissionalTemPix, false);
   });
+
+  it("histórico não repete o avatar do remetente e mantém o que o app lê", async () => {
+    const AVATAR_CLIENTE = "data:image/jpeg;base64,Q0xJRU5URQ==";
+    const AVATAR_DIARISTA = "data:image/jpeg;base64,RElBUklTVEE=";
+    const pessoas: Record<string, { id: string; nome: string; avatarUrl: string }> = {
+      [CLIENTE]: { id: CLIENTE, nome: "Empregador", avatarUrl: AVATAR_CLIENTE },
+      [DIARISTA]: { id: DIARISTA, nome: "Diarista", avatarUrl: AVATAR_DIARISTA },
+    };
+    // Histórico como está no banco: cada mensagem ligada a um remetente COM avatar.
+    const lida = new Date(Date.UTC(2026, 0, 2));
+    const historico = Array.from({ length: 50 }, (_, i) => ({
+      id: `msg-${i}`,
+      roomId: "room-1",
+      type: "TEXT",
+      content: `mensagem ${i}`,
+      senderId: i % 2 ? DIARISTA : CLIENTE,
+      deliveredAt: lida,
+      readAt: lida,
+      createdAt: new Date(Date.UTC(2026, 0, 1, 0, 50 - i)),
+    }));
+    // Projeção do Prisma: devolve só o que o select pede, inclusive no remetente.
+    const projetar = (obj: any, select: any): any =>
+      Object.fromEntries(
+        Object.entries(select)
+          .filter(([, v]) => v)
+          .map(([k, v]) => [k, v === true ? obj[k] : projetar(obj[k], (v as any).select)]),
+      );
+
+    mockPrisma.servico.findUnique = async () => ({ ...SVC_ACEITO, precoFinal: 15000, paymentStatus: "WAITING_PAYMENT" });
+    mockPrisma.chatRoom.upsert = async () => ({
+      id: "room-1",
+      servicoId: "svc-1",
+      createdAt: new Date(),
+      _count: { messages: historico.length },
+    });
+    mockPrisma.user.findUnique = async (args: any) =>
+      args?.where?.id === DIARISTA
+        ? { ...pessoas[DIARISTA], role: "DIARISTA", lastSeenAt: null }
+        : { status: "ATIVO" };
+    mockPrisma.chatMessage.updateMany = async () => ({ count: 0 });
+    mockPrisma.chatMessage.findMany = async (args: any) =>
+      historico.map((m) => projetar({ ...m, sender: pessoas[m.senderId] }, args.select));
+    mockPrisma.pixSnapshot.findUnique = async () => null;
+    mockPrisma.paymentInfo.findUnique = async () => null;
+
+    const { GET } = await getHandlers();
+    const res = await GET(
+      jsonRequest("http://test/api/chat/svc-1", null, makeAuthHeaders(CLIENTE, "EMPREGADOR")),
+      ctx("svc-1"),
+    );
+    assert.equal(res.status, 200);
+    const texto = await res.text();
+    const body = JSON.parse(texto);
+
+    // Avatar é data URL (até ~1 MB): antes ia uma cópia por mensagem.
+    const ocorrencias = (agulha: string) => texto.split(agulha).length - 1;
+    assert.equal(ocorrencias(AVATAR_CLIENTE), 0);
+    assert.equal(ocorrencias(AVATAR_DIARISTA), 1);
+    assert.equal(body.room.other.avatarUrl, AVATAR_DIARISTA);
+
+    // Campos que o app lê (useChat): mensagens e cabeçalho.
+    assert.equal(body.messages.length, 50);
+    for (const m of body.messages) {
+      for (const campo of ["id", "content", "type", "senderId", "createdAt", "deliveredAt", "readAt"]) {
+        assert.ok(campo in m, `mensagem sem ${campo}`);
+      }
+      assert.deepEqual(m.sender, { id: m.senderId, nome: pessoas[m.senderId].nome });
+    }
+    for (const campo of ["nome", "avatarUrl", "role", "lastSeenAt"]) {
+      assert.ok(campo in body.room.other, `other sem ${campo}`);
+    }
+    for (const campo of ["status", "tipo", "paymentStatus", "precoFinal"]) {
+      assert.ok(campo in body.room.servico, `servico sem ${campo}`);
+    }
+    assert.equal(typeof body.room.pagamento.profissionalTemPix, "boolean");
+    assert.equal(typeof body.room.arquivada, "boolean");
+    assert.equal(typeof body.room.podeExcluir, "boolean");
+  });
 });
 
 describe("POST /api/chat/[roomId] — enviar mensagem", () => {

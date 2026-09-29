@@ -138,7 +138,10 @@ export async function GET(req: Request, { params }: Params) {
         deliveredAt: true,
         readAt: true,
         createdAt: true,
-        sender: { select: { id: true, nome: true, avatarUrl: true } },
+        // Sem avatarUrl: o avatar é data URL (até ~1 MB) e ia repetido em cada
+        // uma das 50 mensagens. Nenhuma versão do app lê `sender` — o avatar do
+        // cabeçalho vem de `room.other.avatarUrl`, que continua na resposta.
+        sender: { select: { id: true, nome: true } },
       },
     });
     const messages = recentes.reverse();

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/requireAuth";
 import { requireAuthAtivo, respostaDeSessao } from "@/lib/contaAtiva";
-import { MAIS_RECENTES_PRIMEIRO, podeExcluirConversa, salasNaoExcluidasPor, STATUS_ARQUIVADO } from "@/lib/chatSala";
+import { podeExcluirConversa, salasNaoExcluidasPor, STATUS_ARQUIVADO, ultimaMensagemPorSala } from "@/lib/chatSala";
 
 export const dynamic = "force-dynamic";
 
@@ -80,8 +80,9 @@ export async function GET(req: Request) {
     // Agregados de chat (evitam N+1):
     //  - naoLidasPorSala: 1 groupBy sobre ChatMessage filtrando readAt=null
     //    e senderId != userId. Usado pelo badge da aba Mensagens / card.
-    //  - ultimaMsgPorSala: 1 findMany com distinct:['roomId'] + orderBy desc
-    //    devolve a última mensagem de cada sala (prévia + atualizadaEm).
+    //  - ultimaMensagemPorSala: 1 consulta, uma linha por sala, na ordem do
+    //    histórico (prévia + atualizadaEm). Não é `distinct` do Prisma: esse
+    //    trazia todas as mensagens das salas para filtrar em memória.
     const roomIds = rooms.map((r) => r.id);
     const [naoLidasGroups, ultimasMsgs] = roomIds.length === 0
       ? ([[], []] as const)
@@ -95,20 +96,7 @@ export async function GET(req: Request) {
             },
             _count: { _all: true },
           }),
-          prisma.chatMessage.findMany({
-            where: { roomId: { in: roomIds } },
-            distinct: ["roomId"],
-            // Mesma ordem do histórico da sala (lib/chatSala): a prévia é
-            // sempre a última mensagem que a conversa aberta também mostra.
-            orderBy: MAIS_RECENTES_PRIMEIRO,
-            select: {
-              roomId: true,
-              content: true,
-              createdAt: true,
-              senderId: true,
-              type: true,
-            },
-          }),
+          ultimaMensagemPorSala(roomIds),
         ]);
 
     const naoLidasMap = new Map<string, number>(

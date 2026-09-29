@@ -103,6 +103,37 @@ export const PAGINA_MENSAGENS = 50;
  */
 export const MAIS_RECENTES_PRIMEIRO = [{ createdAt: "desc" as const }, { id: "desc" as const }];
 
+export type UltimaMensagem = {
+  roomId: string;
+  content: string;
+  createdAt: Date;
+  senderId: string;
+  type: string;
+};
+
+/**
+ * Última mensagem de cada sala (prévia da lista), UMA linha por sala.
+ *
+ * O `distinct` e o `take` por relação do Prisma 7 não viram SQL: ele busca
+ * TODAS as mensagens das salas e filtra em memória — medido localmente, 20.000
+ * linhas para 50 salas × 400 mensagens, e cresce com o histórico. Aqui o banco
+ * devolve uma linha por sala pelo índice (roomId, createdAt), na mesma ordem
+ * do histórico (MAIS_RECENTES_PRIMEIRO: createdAt desc, id desc).
+ */
+export async function ultimaMensagemPorSala(roomIds: string[]): Promise<UltimaMensagem[]> {
+  if (roomIds.length === 0) return [];
+  return prisma.$queryRaw<UltimaMensagem[]>`
+    SELECT m."roomId", m."content", m."createdAt", m."senderId", m."type"::text AS "type"
+    FROM unnest(${roomIds}::text[]) AS sala(id)
+    CROSS JOIN LATERAL (
+      SELECT c."roomId", c."content", c."createdAt", c."senderId", c."type"
+      FROM "ChatMessage" c
+      WHERE c."roomId" = sala.id
+      ORDER BY c."createdAt" DESC, c."id" DESC
+      LIMIT 1
+    ) m`;
+}
+
 /** Condição "estritamente anterior ao cursor" na mesma ordem (createdAt, id). */
 export function anterioresAo(cursor: { createdAt: Date; id: string }) {
   return {

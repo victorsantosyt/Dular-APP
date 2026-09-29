@@ -173,6 +173,13 @@ function instalarBanco() {
     if (args.take) lista = lista.slice(0, args.take);
     return lista.map(comRemetente);
   };
+  // lib/chatSala ultimaMensagemPorSala: uma linha por sala (a mais recente, desempate
+  // por id), só salas com mensagem — a semântica do SQL com LATERAL ... LIMIT 1.
+  (mockPrisma as any).$queryRaw = async (_sql: unknown, roomIds: string[]) =>
+    roomIds.flatMap((id) => {
+      const [m] = ordenar(msgs.filter((x) => x.roomId === id), [{ createdAt: "desc" }, { id: "desc" }]);
+      return m ? [{ roomId: m.roomId, content: m.content, createdAt: m.createdAt, senderId: m.senderId, type: m.type ?? "TEXT" }] : [];
+    });
   (mockPrisma.chatMessage as any).findFirst = async (args: any) => {
     const m = msgs.find((x) => casa(x, args.where));
     return m ? { id: m.id, createdAt: m.createdAt } : null;

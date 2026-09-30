@@ -1009,6 +1009,10 @@ model CreditTransaction {
   amount      Int
   description String?
   servicoId   String?
+  /// Sessão de checkout do Stripe que originou o crédito (`cs_…`). Única: é o
+  /// que impede creditar duas vezes a mesma compra quando o webhook repete a
+  /// entrega. Nula nos lançamentos que não vêm do Stripe.
+  stripeCheckoutSessionId String? @unique
   createdAt   DateTime        @default(now())
 
   @@index([walletId])

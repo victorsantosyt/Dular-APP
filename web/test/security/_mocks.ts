@@ -35,7 +35,7 @@ export type MockPrisma = {
   documentVerification: { findFirst: AnyFn; create: AnyFn };
   subscription: { upsert: AnyFn; updateMany: AnyFn; findUnique: AnyFn; findFirst: AnyFn };
   creditWallet: { upsert: AnyFn };
-  creditTransaction: { create: AnyFn };
+  creditTransaction: { create: AnyFn; findUnique: AnyFn };
   auditLog: { create: AnyFn };
   featureLimit: { findUnique: AnyFn };
   userRestriction: { findMany: AnyFn };
@@ -149,7 +149,10 @@ export function createMockPrisma(): MockPrisma {
       findFirst: notMocked("subscription.findFirst"),
     },
     creditWallet: { upsert: notMocked("creditWallet.upsert") },
-    creditTransaction: { create: notMocked("creditTransaction.create") },
+    creditTransaction: {
+      create: notMocked("creditTransaction.create"),
+      findUnique: notMocked("creditTransaction.findUnique"),
+    },
     auditLog: { create: notMocked("auditLog.create") },
     featureLimit: { findUnique: notMocked("featureLimit.findUnique") },
     userRestriction: { findMany: notMocked("userRestriction.findMany") },

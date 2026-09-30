@@ -172,7 +172,9 @@ describe("POST /api/webhooks/stripe — fluxo positivo (constructEvent mockado)"
       type: "checkout.session.completed",
       data: {
         object: {
+          id: "cs_test_credito_1",
           mode: "payment",
+          payment_status: "paid",
           client_reference_id: "u-1",
           metadata: { credits: "5" },
         },

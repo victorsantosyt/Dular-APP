@@ -45,6 +45,16 @@ export async function POST(request: Request) {
         await handleCheckoutCompleted(event.data.object as Stripe.Checkout.Session);
         break;
 
+      // Pagamento que se confirma depois (boleto, Pix): o `completed` chega com
+      // `payment_status: "unpaid"` e o dinheiro só está garantido aqui.
+      case "checkout.session.async_payment_succeeded":
+        await handleCompraAssincrona(event.data.object as Stripe.Checkout.Session);
+        break;
+
+      case "checkout.session.async_payment_failed":
+        handleCompraAssincronaRecusada(event.data.object as Stripe.Checkout.Session);
+        break;
+
       case "customer.subscription.deleted":
         await handleSubscriptionDeleted(event.data.object as Stripe.Subscription);
         break;
@@ -95,23 +105,93 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   }
 
   if (session.mode === "payment") {
-    const credits = parseInt(metadata.credits || "0", 10);
-    if (credits <= 0) return;
+    await creditarSessaoPaga(session);
+  }
+}
 
-    const wallet = await prisma.creditWallet.upsert({
-      where: { userId },
-      update: { balance: { increment: credits } },
-      create: { userId, balance: credits },
-    });
+/** Boleto/Pix confirmado: credita a compra que o `completed` deixou pendente. */
+async function handleCompraAssincrona(session: Stripe.Checkout.Session) {
+  // Assinatura com pagamento assíncrono segue o fluxo atual (invoice.*).
+  if (session.mode !== "payment") return;
+  await creditarSessaoPaga(session);
+}
 
-    await prisma.creditTransaction.create({
-      data: {
-        walletId: wallet.id,
-        type: "CREDIT",
-        amount: credits,
-        description: `Compra de ${credits} crédito${credits > 1 ? "s" : ""}`,
-      },
+/** Boleto/Pix recusado: nada foi creditado (o `completed` chegou "unpaid"). */
+function handleCompraAssincronaRecusada(session: Stripe.Checkout.Session) {
+  if (session.mode !== "payment") return;
+  console.warn("[stripe-webhook] pagamento assíncrono recusado; nada foi creditado:", session.id);
+}
+
+/**
+ * Compra de créditos: só credita com o pagamento confirmado (`paid`). O
+ * `completed` de boleto/Pix chega "unpaid" e fica esperando o
+ * `async_payment_succeeded`; `no_payment_required` (total zero) não credita.
+ * Os dois eventos da mesma compra caem em `creditarCompra`, que credita uma
+ * vez só por sessão, em qualquer ordem de chegada.
+ */
+async function creditarSessaoPaga(session: Stripe.Checkout.Session) {
+  const userId = session.client_reference_id;
+  if (!userId) return;
+  const credits = quantidadeDeCreditos(session.metadata?.credits);
+  if (credits === null) {
+    console.error("[stripe-webhook] quantidade de créditos inválida; nada foi creditado:", session.id);
+    return;
+  }
+  if (typeof session.id !== "string" || !session.id.startsWith("cs_")) {
+    console.error("[stripe-webhook] compra de créditos sem id de sessão; nada foi creditado.");
+    return;
+  }
+  if (session.payment_status !== "paid") {
+    console.info("[stripe-webhook] compra sem pagamento confirmado; nada creditado por ora:", session.id, session.payment_status);
+    return;
+  }
+  await creditarCompra(userId, credits, session.id);
+}
+
+/** Não há pacote de créditos à venda hoje: acima disso é erro de configuração. */
+const MAX_CREDITOS_POR_COMPRA = 1000;
+
+/** Inteiro positivo escrito só com dígitos (`"5"`), até o máximo; o resto é recusado. */
+function quantidadeDeCreditos(valor: unknown): number | null {
+  if (typeof valor !== "string" || !/^[1-9][0-9]*$/.test(valor)) return null;
+  const credits = Number(valor);
+  return credits <= MAX_CREDITOS_POR_COMPRA ? credits : null;
+}
+
+/**
+ * Credita uma compra UMA vez. Saldo e lançamento vão na mesma transação, e o
+ * lançamento leva o id da sessão com índice único: uma segunda entrega da
+ * mesma compra — repetida, simultânea ou reenviada depois de uma falha —
+ * esbarra no índice e desfaz a transação inteira, sem saldo somado à toa.
+ */
+async function creditarCompra(userId: string, credits: number, sessaoId: string) {
+  try {
+    await prisma.$transaction(async (tx) => {
+      const wallet = await tx.creditWallet.upsert({
+        where: { userId },
+        update: { balance: { increment: credits } },
+        create: { userId, balance: credits },
+      });
+
+      await tx.creditTransaction.create({
+        data: {
+          walletId: wallet.id,
+          type: "CREDIT",
+          amount: credits,
+          description: `Compra de ${credits} crédito${credits > 1 ? "s" : ""}`,
+          stripeCheckoutSessionId: sessaoId,
+        },
+      });
     });
+  } catch (err) {
+    // Se o lançamento desta sessão existe, outra entrega já creditou: é
+    // repetição, não falha. Sem ele, o erro é real — vira 500 e o Stripe reenvia.
+    const jaCreditada = await prisma.creditTransaction.findUnique({
+      where: { stripeCheckoutSessionId: sessaoId },
+      select: { id: true },
+    });
+    if (!jaCreditada) throw err;
+    console.warn("[stripe-webhook] compra já creditada; entrega repetida ignorada:", sessaoId);
   }
 }
 

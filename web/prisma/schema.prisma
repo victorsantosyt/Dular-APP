@@ -984,10 +984,33 @@ model Subscription {
   /** id do produto na loja (ex.: `br.com.dular.pro.mensal`). Nulo no Stripe,
    *  onde o preço vai inline na sessão de checkout. */
   storeProductId String?
+  /** estado do vínculo ANTES de qualquer evento de ciclo de vida da Stripe:
+   *  `{ status, expiresAt, canceledAt }`. Base da qual o estado é recalculado. */
+  stripeBase Json?
   createdAt  DateTime           @default(now())
   updatedAt  DateTime           @updatedAt
 
   @@index([status])
+}
+
+/** Eventos de ciclo de vida da Stripe já recebidos: deduplicação persistente
+ *  por id do evento e histórico. Sem FK para Subscription de propósito: o
+ *  evento pode chegar antes de existir a linha (legado). */
+model StripeEventoAssinatura {
+  /** id do evento (`evt_…`): a mesma entrega duas vezes não grava nada. */
+  eventId    String    @id
+  /** `sub_…` a que o evento se refere. */
+  externalId String
+  /** invoice.paid | invoice.payment_failed | customer.subscription.deleted */
+  tipo       String
+  /** `created` do evento. */
+  criadoEm   DateTime
+  /** id da fatura (`in_…`) dos eventos de fatura; null na exclusão. */
+  faturaId   String?
+  /** fim do período da fatura (invoice.paid e invoice.payment_failed); null na exclusão. */
+  fimPeriodo DateTime?
+  recebidoEm DateTime  @default(now())
+  @@index([externalId])
 }
 
 model CreditWallet {

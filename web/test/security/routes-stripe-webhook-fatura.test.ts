@@ -347,11 +347,14 @@ describe("POST /api/webhooks/stripe — faturas (HMAC real, banco simulado)", ()
         assert.equal(alvo.status, "ACTIVE");
         assert.equal(alvo.canceledAt, null);
         assert.deepEqual(alvo.expiresAt, new Date(FIM_DO_PERIODO * 1000));
-        // Linha anterior à mudança: a base é o estado que ela tinha.
+        // Linha anterior à mudança: a base é o estado que ela tinha, marcada como
+        // legado até o expiresAt dela (o período desta fatura vem depois: aplica).
         assert.deepEqual(alvo.stripeBase, {
           status: "EXPIRED",
           expiresAt: "2026-09-01T00:00:00.000Z",
           canceledAt: "2026-09-01T00:00:00.000Z",
+          origem: "legado",
+          periodoReconhecido: "2026-09-01T00:00:00.000Z",
         });
         assert.deepEqual(copia("sub_outra_342"), outraAntes);
       });
@@ -470,8 +473,9 @@ describe("POST /api/webhooks/stripe — eventos de assinatura até o banco (HMAC
   let outraInicial: Linha;
   let validadeAnual: (s: number) => string;
 
-  const fatura = (sub: string, fimSeg: number, metadata: Record<string, string> = {}, faturaId = "in_test_342") => ({
+  const fatura = (sub: string, fimSeg: number, metadata: Record<string, string> = {}, faturaId = "in_test_342", motivo?: string) => ({
     id: faturaId,
+    billing_reason: motivo,
     parent: parentAssinatura(sub, metadata),
     lines: { object: "list", data: [{ ...linhaSemAssinatura, period: { start: fimSeg - 30 * DIA, end: fimSeg } }] },
   });
@@ -485,8 +489,18 @@ describe("POST /api/webhooks/stripe — eventos de assinatura até o banco (HMAC
     metadata: { userId, planId: "pro_anual", subscriptionPlan: "PREMIUM" },
   });
   // Cada evento de fatura leva a SUA fatura (`in_<evento>` por padrão) e o período dela.
-  const pago = (id: string, criado: number, fimSeg: number, metadata: Record<string, string> = META, sub = ALVO, faturaId = `in_${id}`) =>
-    enviar("invoice.paid", fatura(sub, fimSeg, metadata, faturaId), { id, criado });
+  // Renovação por padrão: só a primeira fatura (`subscription_create`) cria vínculo.
+  const pago = (
+    id: string,
+    criado: number,
+    fimSeg: number,
+    metadata: Record<string, string> = META,
+    sub = ALVO,
+    faturaId = `in_${id}`,
+    motivo = "subscription_cycle",
+  ) => enviar("invoice.paid", fatura(sub, fimSeg, metadata, faturaId, motivo), { id, criado });
+  const primeira = (id: string, criado: number, fimSeg: number, metadata: Record<string, string> = META, sub = ALVO) =>
+    pago(id, criado, fimSeg, metadata, sub, `in_${id}`, "subscription_create");
   const falhou = (id: string, criado: number, fimSeg: number, sub = ALVO, faturaId = `in_${id}`) =>
     enviar("invoice.payment_failed", fatura(sub, fimSeg, {}, faturaId), { id, criado });
   const concluido = (id: string, criado: number, sub = ALVO) =>
@@ -507,7 +521,7 @@ describe("POST /api/webhooks/stripe — eventos de assinatura até o banco (HMAC
 
   it("invoice.paid ANTES do completed: o pagamento cria a linha com o período; o completed depois não escreve", async () => {
     instalar(null);
-    assert.equal((await pago("evt_p1", CRIADO, fim(365))).status, 200);
+    assert.equal((await primeira("evt_p1", CRIADO, fim(365))).status, 200);
     const criada = doUsuario("u-alvo")!;
     assert.equal(criada.plan, "PREMIUM");
     assert.equal(criada.status, "ACTIVE");
@@ -532,7 +546,7 @@ describe("POST /api/webhooks/stripe — eventos de assinatura até o banco (HMAC
     assert.deepEqual(provisoria.expiresAt, new Date(validadeAnual(CRIADO + 1)));
     assert.deepEqual(provisoria.stripeBase, { status: "ACTIVE", expiresAt: validadeAnual(CRIADO + 1), canceledAt: null });
 
-    assert.equal((await pago("evt_p1", CRIADO, fim(365))).status, 200);
+    assert.equal((await primeira("evt_p1", CRIADO, fim(365))).status, 200);
     const paga = doUsuario("u-alvo")!;
     assert.deepEqual(paga.expiresAt, quando(fim(365)));
     assert.deepEqual(paga.startedAt, quando(CRIADO + 1), "o vínculo é do completed");
@@ -555,10 +569,10 @@ describe("POST /api/webhooks/stripe — eventos de assinatura até o banco (HMAC
   it("reentrega de cada evento não escreve nada (foto inclui updatedAt) e o evento fica guardado uma vez", async () => {
     instalar(null);
     await concluido("evt_c1", CRIADO + 1);
-    await pago("evt_p1", CRIADO, fim(30));
+    await primeira("evt_p1", CRIADO, fim(30));
     let foto = doUsuario("u-alvo");
     assert.equal((await concluido("evt_c1", CRIADO + 1)).status, 200);
-    assert.equal((await pago("evt_p1", CRIADO, fim(30))).status, 200);
+    assert.equal((await primeira("evt_p1", CRIADO, fim(30))).status, 200);
     assert.deepEqual(doUsuario("u-alvo"), foto, "completed e invoice.paid repetidos");
 
     assert.equal((await falhou("evt_f1", fim(30), fim(60), ALVO, "in_2")).status, 200);
@@ -647,7 +661,7 @@ describe("POST /api/webhooks/stripe — eventos de assinatura até o banco (HMAC
   it("ciclo: renovação, falha, nova tentativa paga, cancelamento; completed atrasado não reativa", async () => {
     instalar(null);
     await concluido("evt_c1", CRIADO + 1);
-    await pago("evt_p1", CRIADO, fim(30));
+    await primeira("evt_p1", CRIADO, fim(30));
     await pago("evt_p2", fim(30), fim(60));
     assert.deepEqual(doUsuario("u-alvo")!.expiresAt, quando(fim(60)), "renovação");
     await falhou("evt_f3", fim(60), fim(90), ALVO, "in_3");
@@ -684,7 +698,7 @@ describe("POST /api/webhooks/stripe — eventos de assinatura até o banco (HMAC
     instalar(null);
     await concluido("evt_c_nova", CRIADO + 100, "sub_nova_342");
     const foto = doUsuario("u-alvo");
-    assert.equal((await pago("evt_p_velha", CRIADO, fim(30), META, "sub_velha_342")).status, 200);
+    assert.equal((await primeira("evt_p_velha", CRIADO, fim(30), META, "sub_velha_342")).status, 200);
     assert.deepEqual(doUsuario("u-alvo"), foto);
   });
 
@@ -692,7 +706,7 @@ describe("POST /api/webhooks/stripe — eventos de assinatura até o banco (HMAC
     it(`invoice.paid e completed SIMULTÂNEOS, sem linha (${ordem.join(", ")}): período da fatura`, async () => {
       instalar(null);
       const status = await Promise.all(
-        ordem.map((e) => (e === "pago" ? pago("evt_p1", CRIADO, fim(365)) : concluido("evt_c1", CRIADO + 1)).then((r) => r.status)),
+        ordem.map((e) => (e === "pago" ? primeira("evt_p1", CRIADO, fim(365)) : concluido("evt_c1", CRIADO + 1)).then((r) => r.status)),
       );
       assert.deepEqual(status, ordem.map(() => 200));
       const l = doUsuario("u-alvo")!;
@@ -703,10 +717,67 @@ describe("POST /api/webhooks/stripe — eventos de assinatura até o banco (HMAC
     });
   }
 
+  // ── B1: renovação nunca cria nem troca vínculo ──────────────────────────
+  it("renovação (subscription_cycle) com metadados, sem linha nenhuma: não cria vínculo, só guarda o evento", async () => {
+    instalar(null);
+    assert.equal((await pago("evt_r1", fim(30), fim(60))).status, 200);
+    assert.equal(doUsuario("u-alvo"), null);
+    assert.ok(!chamadas.includes("subscription.createMany"), "nenhuma tentativa de vínculo");
+    assert.ok(!chamadas.includes("user.findUnique"));
+    assert.deepEqual(eventos.map((e) => e.eventId), ["evt_r1"]);
+  });
+
+  it("fatura sem billing_reason: também não cria vínculo", async () => {
+    instalar(null);
+    const semMotivo = fatura(ALVO, fim(30), META, "in_evt_p1");
+    assert.equal("billing_reason" in JSON.parse(JSON.stringify(semMotivo)), false);
+    assert.equal((await enviar("invoice.paid", semMotivo, { id: "evt_p1", criado: CRIADO })).status, 200);
+    assert.equal(doUsuario("u-alvo"), null);
+    assert.equal(eventos.length, 1);
+  });
+
+  it("renovação da assinatura SUBSTITUÍDA depois da troca: plano, vínculo e validade não mudam; reentrega idem", async () => {
+    instalar(null);
+    await concluido("evt_c_antiga", CRIADO + 1, "sub_antiga_342");
+    await concluido("evt_c_nova", CRIADO + 10 * DIA, "sub_nova_342");
+    const foto = doUsuario("u-alvo");
+    assert.equal(foto!.externalId, "sub_nova_342");
+    for (let i = 0; i < 2; i++) {
+      assert.equal((await pago("evt_r_antiga", fim(30), fim(60), META, "sub_antiga_342")).status, 200);
+      assert.deepEqual(doUsuario("u-alvo"), foto);
+    }
+    assert.equal(eventos.filter((e) => e.eventId === "evt_r_antiga").length, 1);
+  });
+
+  // ── B2: base legada ─────────────────────────────────────────────────────
+  it("linha legada + paga histórica: validade mantida, base legada gravada em UMA escrita; reentrega e outra histórica não escrevem", async () => {
+    instalar({ status: "ACTIVE" }); // stripeBase nulo, expiresAt 2026-10-15
+    const antes = copia(ALVO);
+    assert.equal((await pago("evt_hist", CRIADO, fim(10))).status, 200);
+    const depois = copia(ALVO);
+    assert.deepEqual(
+      { status: depois.status, expiresAt: depois.expiresAt, canceledAt: depois.canceledAt },
+      { status: antes.status, expiresAt: antes.expiresAt, canceledAt: antes.canceledAt },
+      "a fatura histórica não reduz a validade legada",
+    );
+    assert.notDeepEqual(depois.updatedAt, antes.updatedAt, "a inicialização da base é uma escrita");
+    assert.deepEqual(depois.stripeBase, {
+      status: "ACTIVE",
+      expiresAt: "2026-10-15T00:00:00.000Z",
+      canceledAt: null,
+      origem: "legado",
+      periodoReconhecido: "2026-10-15T00:00:00.000Z",
+    });
+    assert.equal((await pago("evt_hist", CRIADO, fim(10))).status, 200);
+    assert.deepEqual(copia(ALVO), depois, "reentrega: nenhuma escrita");
+    assert.equal((await falhou("evt_hist_f", CRIADO + 3600, fim(10))).status, 200);
+    assert.deepEqual(copia(ALVO), depois, "outra fatura histórica: nenhuma escrita");
+  });
+
   it("invoice.paid sem linha com usuário dos metadados inexistente: só o evento fica guardado", async () => {
     instalar(null, { semUsuario: true });
     const antes = structuredClone(banco);
-    assert.equal((await pago("evt_p1", CRIADO, fim(30))).status, 200);
+    assert.equal((await primeira("evt_p1", CRIADO, fim(30))).status, 200);
     assert.deepEqual(banco, antes);
     assert.ok(!chamadas.includes("subscription.createMany"));
     assert.equal(eventos.length, 1);
@@ -721,7 +792,7 @@ describe("POST /api/webhooks/stripe — eventos de assinatura até o banco (HMAC
     it(`invoice.paid sem linha e metadados ${nome}: só o evento fica guardado`, async () => {
       instalar(null);
       const antes = structuredClone(banco);
-      assert.equal((await pago("evt_p1", CRIADO, fim(30), metadata)).status, 200);
+      assert.equal((await primeira("evt_p1", CRIADO, fim(30), metadata)).status, 200);
       assert.deepEqual(banco, antes);
       assert.ok(!chamadas.includes("user.findUnique"));
       assert.equal(eventos.length, 1);

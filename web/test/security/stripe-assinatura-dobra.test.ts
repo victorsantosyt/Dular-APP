@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { dobrarEventosStripe, type EstadoStripe, type EventoCicloStripe } from "../../src/lib/assinatura";
+import { dobrarEventosStripe, type BaseStripe, type EstadoStripe, type EventoCicloStripe } from "../../src/lib/assinatura";
 
 /**
  * A dobra que decide o estado da assinatura Stripe: base + CONJUNTO de eventos
@@ -43,7 +43,7 @@ function permutacoes<T>(itens: readonly T[]): T[][] {
 }
 const fatorial = (n: number): number => (n <= 1 ? 1 : n * fatorial(n - 1));
 
-type Caso = { nome: string; base?: EstadoStripe; eventos: EventoCicloStripe[]; esperado: EstadoStripe };
+type Caso = { nome: string; base?: BaseStripe; eventos: EventoCicloStripe[]; esperado: EstadoStripe };
 
 // Conjuntos da v2, agora com a fatura e o período de cada evento.
 const casosV2: Caso[] = [
@@ -170,8 +170,106 @@ const casosV3: Caso[] = [
   },
 ];
 
+// Base LEGADA (linha anterior à mudança): o estado já reflete as faturas até o
+// expiresAt que ela tinha. Fatura com período até ali é ignorada; depois dele, a
+// regra normal; exclusão sempre.
+const L = "2026-11-10T00:00:00Z"; // expiresAt legado = período reconhecido
+const HISTORICO = "2026-10-10T00:00:00Z"; // período já pago antes da mudança
+const NOVO = "2026-12-10T00:00:00Z"; // período seguinte ao legado
+const C = "2026-10-20T00:00:00Z"; // corte de um legado EXPIRED
+const LEGADA: BaseStripe = { status: "ACTIVE", expiresAt: d(L), canceledAt: null, legado: { periodoReconhecido: d(L) } };
+const LEGADA_EXPIRADA: BaseStripe = { status: "EXPIRED", expiresAt: d(C), canceledAt: d(C), legado: { periodoReconhecido: d(C) } };
+const ESTADO_LEGADO: EstadoStripe = { status: "ACTIVE", expiresAt: d(L), canceledAt: null };
+
+const casosLegado: Caso[] = [
+  {
+    nome: "paga histórica não reduz a validade legada",
+    base: LEGADA,
+    eventos: [pago("in_hist", "2026-09-10T00:00:00Z", HISTORICO)],
+    esperado: ESTADO_LEGADO,
+  },
+  {
+    nome: "paga sem período: já refletida no legado",
+    base: LEGADA,
+    eventos: [pago("in_sem", T, null)],
+    esperado: ESTADO_LEGADO,
+  },
+  {
+    nome: "fatura com período IGUAL ao reconhecido: já refletida",
+    base: LEGADA,
+    eventos: [falhou("in_igual", "2026-10-11T00:00:00Z", L)],
+    esperado: ESTADO_LEGADO,
+  },
+  {
+    nome: "falha histórica: nada",
+    base: LEGADA,
+    eventos: [falhou("in_hist", "2026-10-10T01:00:00Z", HISTORICO)],
+    esperado: ESTADO_LEGADO,
+  },
+  {
+    nome: "paga de período novo: estende",
+    base: LEGADA,
+    eventos: [pago("in_novo", L, NOVO)],
+    esperado: { status: "ACTIVE", expiresAt: d(NOVO), canceledAt: null },
+  },
+  {
+    nome: "falha de período novo: corta",
+    base: LEGADA,
+    eventos: [falhou("in_novo", "2026-11-10T01:00:00Z", NOVO)],
+    esperado: { status: "EXPIRED", expiresAt: d("2026-11-10T01:00:00Z"), canceledAt: d("2026-11-10T01:00:00Z") },
+  },
+  {
+    nome: "exclusão: CANCELED com a validade legada mantida",
+    base: LEGADA,
+    eventos: [excluida("2026-10-20T00:00:00Z")],
+    esperado: { status: "CANCELED", expiresAt: d(L), canceledAt: d("2026-10-20T00:00:00Z") },
+  },
+  {
+    nome: "histórica paga × nova paga: estende",
+    base: LEGADA,
+    eventos: [pago("in_hist", "2026-09-10T00:00:00Z", HISTORICO), pago("in_novo", L, NOVO)],
+    esperado: { status: "ACTIVE", expiresAt: d(NOVO), canceledAt: null },
+  },
+  {
+    nome: "histórica paga × falha do período novo: corta",
+    base: LEGADA,
+    eventos: [pago("in_hist", "2026-09-10T00:00:00Z", HISTORICO), falhou("in_novo", "2026-11-10T01:00:00Z", NOVO)],
+    esperado: { status: "EXPIRED", expiresAt: d("2026-11-10T01:00:00Z"), canceledAt: d("2026-11-10T01:00:00Z") },
+  },
+  {
+    nome: "tudo junto: histórica paga e falhada, nova falhou e foi paga, exclusão",
+    base: LEGADA,
+    eventos: [
+      pago("in_hist", "2026-09-10T00:00:00Z", HISTORICO),
+      falhou("in_hist2", "2026-10-01T00:00:00Z", HISTORICO),
+      falhou("in_novo", "2026-11-10T01:00:00Z", NOVO),
+      pago("in_novo", "2026-11-12T00:00:00Z", NOVO),
+      excluida("2026-11-20T00:00:00Z"),
+    ],
+    esperado: { status: "CANCELED", expiresAt: d(NOVO), canceledAt: d("2026-11-20T00:00:00Z") },
+  },
+  {
+    nome: "legado EXPIRED + paga de período posterior ao corte: reativa",
+    base: LEGADA_EXPIRADA,
+    eventos: [pago("in_novo", "2026-10-21T00:00:00Z", NOVO)],
+    esperado: { status: "ACTIVE", expiresAt: d(NOVO), canceledAt: null },
+  },
+  {
+    nome: "legado EXPIRED + paga histórica: nada",
+    base: LEGADA_EXPIRADA,
+    eventos: [pago("in_hist", "2026-10-21T00:00:00Z", HISTORICO)],
+    esperado: { status: "EXPIRED", expiresAt: d(C), canceledAt: d(C) },
+  },
+  {
+    nome: "legado sem validade (periodoReconhecido nulo): regra normal",
+    base: { status: "ACTIVE", expiresAt: null, canceledAt: null, legado: { periodoReconhecido: null } },
+    eventos: [pago("in_hist", "2026-09-10T00:00:00Z", HISTORICO)],
+    esperado: { status: "ACTIVE", expiresAt: d(HISTORICO), canceledAt: null },
+  },
+];
+
 describe("dobra dos eventos de assinatura Stripe — função pura", () => {
-  for (const [grupo, casos] of [["v2", casosV2], ["v3", casosV3]] as const) {
+  for (const [grupo, casos] of [["v2", casosV2], ["v3", casosV3], ["legado", casosLegado]] as const) {
     for (const { nome, base = BASE, eventos, esperado } of casos) {
       it(`${grupo} — ${nome}: todas as ${fatorial(eventos.length)} permutações dão o estado esperado`, () => {
         const todas = permutacoes(eventos);
@@ -189,6 +287,19 @@ describe("dobra dos eventos de assinatura Stripe — função pura", () => {
 
   it("sem eventos, o estado é a base", () => {
     assert.deepEqual(dobrarEventosStripe(BASE, []), BASE);
+  });
+
+  it("devolve só o estado: a marca de legado não vaza para a linha", () => {
+    assert.deepEqual(dobrarEventosStripe(LEGADA, []), ESTADO_LEGADO);
+  });
+
+  it("a fronteira do legado vale só para base legada: a mesma paga histórica reduz uma base comum", () => {
+    const comum: BaseStripe = { status: "ACTIVE", expiresAt: d(L), canceledAt: null };
+    assert.deepEqual(dobrarEventosStripe(comum, [pago("in_hist", "2026-09-10T00:00:00Z", HISTORICO)]), {
+      status: "ACTIVE",
+      expiresAt: d(HISTORICO),
+      canceledAt: null,
+    });
   });
 
   it("não altera a base nem a lista recebida", () => {

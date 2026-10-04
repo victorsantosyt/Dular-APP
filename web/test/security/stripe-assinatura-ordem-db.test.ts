@@ -82,9 +82,10 @@ describe("ordem dos eventos de assinatura Stripe contra Postgres real", { skip: 
     return res.status;
   }
 
-  const metadados = (userId: string) => ({ userId, planId: "pro_mensal", subscriptionPlan: "PREMIUM" });
+  const NIVEL: Record<string, string> = { pro_mensal: "PREMIUM", basico_mensal: "BASIC" };
+  const metadados = (userId: string, planId = "pro_mensal") => ({ userId, planId, subscriptionPlan: NIVEL[planId] });
 
-  function concluido(userId: string, assinatura: string, id: string, created: number) {
+  function concluido(userId: string, assinatura: string, id: string, created: number, planId = "pro_mensal") {
     return enviar(
       "checkout.session.completed",
       {
@@ -94,7 +95,7 @@ describe("ordem dos eventos de assinatura Stripe contra Postgres real", { skip: 
         payment_status: "paid",
         client_reference_id: userId,
         subscription: assinatura,
-        metadata: metadados(userId),
+        metadata: metadados(userId, planId),
       },
       evt(id),
       created,
@@ -110,11 +111,13 @@ describe("ordem dos eventos de assinatura Stripe contra Postgres real", { skip: 
     fimSeg: number,
     meta: Record<string, string> = {},
     faturaId = `in_${RUN}_${id}`,
+    motivo?: string,
   ) {
     return enviar(
       tipo,
       {
         id: faturaId,
+        billing_reason: motivo,
         object: "invoice",
         metadata: {},
         parent: { type: "subscription_details", quote_details: null, subscription_details: { metadata: meta, subscription: assinatura } },
@@ -127,8 +130,19 @@ describe("ordem dos eventos de assinatura Stripe contra Postgres real", { skip: 
       created,
     );
   }
-  const pago = (assinatura: string, id: string, created: number, fimSeg: number, meta: Record<string, string> = {}, faturaId?: string) =>
-    fatura("invoice.paid", assinatura, id, created, fimSeg, meta, faturaId);
+  /** Fatura paga; renovação (`subscription_cycle`) por padrão. */
+  const pago = (
+    assinatura: string,
+    id: string,
+    created: number,
+    fimSeg: number,
+    meta: Record<string, string> = {},
+    faturaId?: string,
+    motivo = "subscription_cycle",
+  ) => fatura("invoice.paid", assinatura, id, created, fimSeg, meta, faturaId, motivo);
+  /** PRIMEIRA fatura da assinatura (`subscription_create`): a única que cria vínculo. */
+  const primeira = (assinatura: string, id: string, created: number, fimSeg: number, meta: Record<string, string> = {}, faturaId?: string) =>
+    pago(assinatura, id, created, fimSeg, meta, faturaId, "subscription_create");
   /** Falha da fatura `faturaId`, com o fim do período REAL dela. */
   const falhou = (assinatura: string, id: string, created: number, fimSeg: number, faturaId?: string) =>
     fatura("invoice.payment_failed", assinatura, id, created, fimSeg, {}, faturaId);
@@ -216,7 +230,7 @@ describe("ordem dos eventos de assinatura Stripe contra Postgres real", { skip: 
   it("invoice.paid ANTES do completed: a linha nasce com o fim do período; o completed depois não escreve", async () => {
     const u = await usuario("paid_antes");
     const s = sub("paid_antes");
-    assert.equal(await pago(s, "pa_p1", T0, fim(30), metadados(u)), 200);
+    assert.equal(await primeira(s, "pa_p1", T0, fim(30), metadados(u)), 200);
     const criada = await foto(u);
     assert.ok(criada, "o invoice.paid cria a linha pelos metadados da assinatura");
     assert.equal(criada.plan, "PREMIUM");
@@ -241,7 +255,7 @@ describe("ordem dos eventos de assinatura Stripe contra Postgres real", { skip: 
     assert.deepEqual(provisoria.expiresAt, validadeProvisoria(T0 + 1), "validade provisória do completed");
     assert.deepEqual(provisoria.stripeBase, baseJson(validadeProvisoria(T0 + 1)));
 
-    assert.equal(await pago(s, "ca_p1", T0, fim(30), metadados(u)), 200);
+    assert.equal(await primeira(s, "ca_p1", T0, fim(30), metadados(u)), 200);
     const paga = await foto(u);
     assert.equal(paga.status, "ACTIVE");
     assert.deepEqual(paga.expiresAt, em(fim(30)));
@@ -253,11 +267,11 @@ describe("ordem dos eventos de assinatura Stripe contra Postgres real", { skip: 
     const u = await usuario("reentrega");
     const s = sub("reentrega");
     await concluido(u, s, "re_c1", T0 + 1);
-    await pago(s, "re_p1", T0, fim(30), metadados(u));
+    await primeira(s, "re_p1", T0, fim(30), metadados(u));
     let antes = await foto(u);
     assert.equal(await concluido(u, s, "re_c1", T0 + 1), 200);
     assert.deepEqual(await foto(u), antes, "completed reentregue");
-    assert.equal(await pago(s, "re_p1", T0, fim(30), metadados(u)), 200);
+    assert.equal(await primeira(s, "re_p1", T0, fim(30), metadados(u)), 200);
     assert.deepEqual(await foto(u), antes, "invoice.paid reentregue");
 
     assert.equal(await falhou(s, "re_f1", fim(30), fim(60)), 200);
@@ -276,7 +290,7 @@ describe("ordem dos eventos de assinatura Stripe contra Postgres real", { skip: 
     assert.deepEqual(await foto(u), antes, "customer.subscription.deleted reentregue");
 
     // Duplicata de um evento ANTIGO, entregue lá no fim: também não escreve.
-    assert.equal(await pago(s, "re_p1", T0, fim(30), metadados(u)), 200);
+    assert.equal(await primeira(s, "re_p1", T0, fim(30), metadados(u)), 200);
     assert.deepEqual(await foto(u), antes, "duplicata de evento antigo");
     for (const id of ["re_p1", "re_f1", "re_d1"]) assert.equal(await guardados(evt(id)), 1, `${id} guardado uma vez`);
   });
@@ -285,7 +299,7 @@ describe("ordem dos eventos de assinatura Stripe contra Postgres real", { skip: 
     const u = await usuario("falha_antiga");
     const s = sub("falha_antiga");
     await concluido(u, s, "fa_c1", T0 + 1);
-    await pago(s, "fa_p1", T0, fim(30), metadados(u));
+    await primeira(s, "fa_p1", T0, fim(30), metadados(u));
     // A renovação (período até fim(60)) falhou em fim(30) e foi paga na nova
     // tentativa em fim(32); a notificação da falha chega por último.
     const renovacao = `in_${RUN}_fa_renovacao`;
@@ -302,7 +316,7 @@ describe("ordem dos eventos de assinatura Stripe contra Postgres real", { skip: 
     const u = await usuario("falha_depois_exclusao");
     const s = sub("falha_depois_exclusao");
     await concluido(u, s, "fe_c1", T0 + 1);
-    await pago(s, "fe_p1", T0, fim(60), metadados(u));
+    await primeira(s, "fe_p1", T0, fim(60), metadados(u));
     assert.equal(await cancelado(s, "fe_d1", fim(40)), 200);
     assert.deepEqual((await foto(u)).expiresAt, em(fim(60)), "cancelada: vale até o fim pago");
     // Fatura avulsa do MESMO período, nunca paga: o período fica em aberto.
@@ -317,7 +331,7 @@ describe("ordem dos eventos de assinatura Stripe contra Postgres real", { skip: 
     const u = await usuario("falha_distinta");
     const s = sub("falha_distinta");
     await concluido(u, s, "fd_c1", T0 + 1);
-    await pago(s, "fd_p1", T0, fim(30), metadados(u));
+    await primeira(s, "fd_p1", T0, fim(30), metadados(u));
     const renovacao = `in_${RUN}_fd_renovacao`;
     await falhou(s, "fd_f1", fim(30), fim(60), renovacao);
     const antes = await foto(u);
@@ -330,7 +344,7 @@ describe("ordem dos eventos de assinatura Stripe contra Postgres real", { skip: 
     const u = await usuario("ciclo");
     const s = sub("ciclo");
     await concluido(u, s, "ci_c1", T0 + 1);
-    await pago(s, "ci_p1", T0, fim(30), metadados(u));
+    await primeira(s, "ci_p1", T0, fim(30), metadados(u));
 
     assert.equal(await pago(s, "ci_p2", fim(30), fim(60)), 200);
     assert.deepEqual((await foto(u)).expiresAt, em(fim(60)), "renovação paga: novo período");
@@ -362,7 +376,7 @@ describe("ordem dos eventos de assinatura Stripe contra Postgres real", { skip: 
   it("completed de compra ANTIGA (outra sub, created anterior) depois de uma compra nova: ignorado", async () => {
     const u = await usuario("compra_antiga");
     await concluido(u, sub("compra_nova"), "an_c_nova", T0 + 100);
-    await pago(sub("compra_nova"), "an_p_nova", T0 + 99, fim(30), metadados(u));
+    await primeira(sub("compra_nova"), "an_p_nova", T0 + 99, fim(30), metadados(u));
     const antes = await foto(u);
     assert.equal(await concluido(u, sub("compra_velha"), "an_c_velha", T0 + 50), 200);
     assert.deepEqual(await foto(u), antes, "compra antiga não toma o lugar da nova");
@@ -384,9 +398,9 @@ describe("ordem dos eventos de assinatura Stripe contra Postgres real", { skip: 
       const u = await usuario(`simultaneo_${rodada}`);
       const s = sub(`simultaneo_${rodada}`);
       const envios = embaralhar([
-        () => pago(s, `si_${rodada}_p1`, T0, fim(30), metadados(u)),
+        () => primeira(s, `si_${rodada}_p1`, T0, fim(30), metadados(u)),
         () => concluido(u, s, `si_${rodada}_c1`, T0 + 1),
-        () => pago(s, `si_${rodada}_p1`, T0, fim(30), metadados(u)),
+        () => primeira(s, `si_${rodada}_p1`, T0, fim(30), metadados(u)),
         () => concluido(u, s, `si_${rodada}_c1`, T0 + 1),
       ]);
       const status = await Promise.all(envios.map((f) => f()));
@@ -416,7 +430,7 @@ describe("ordem dos eventos de assinatura Stripe contra Postgres real", { skip: 
 
   it("invoice.paid com usuário dos metadados inexistente: nenhuma assinatura, evento guardado, 200", async () => {
     const fantasma = `${RUN}_nao_existe`;
-    assert.equal(await pago(sub("fantasma"), "fa_p_fantasma", T0, fim(30), metadados(fantasma)), 200);
+    assert.equal(await primeira(sub("fantasma"), "fa_p_fantasma", T0, fim(30), metadados(fantasma)), 200);
     assert.equal(await prisma.subscription.count({ where: { externalId: sub("fantasma") } }), 0);
     assert.equal(await guardados(evt("fa_p_fantasma")), 1);
   });
@@ -495,46 +509,272 @@ describe("ordem dos eventos de assinatura Stripe contra Postgres real", { skip: 
     const u = await usuario(sufixo);
     const s = sub(sufixo);
     assert.equal(await concluido(u, s, `${sufixo}_c`, T0 + 1), 200);
-    assert.equal(await pago(s, `${sufixo}_p0`, T0, fim(30), metadados(u)), 200);
+    assert.equal(await primeira(s, `${sufixo}_p0`, T0, fim(30), metadados(u)), 200);
     return { u, s };
   }
 
-  // O id de cada evento do par leva a sub (`evt_<RUN>_sub_<RUN>_…_P`): cai na limpeza do RUN.
+  /**
+   * A→B→A→B, B→A→B→A e 5 rodadas concorrentes (embaralhadas e repetidas):
+   * estado final igual ao esperado em todas; reentrega não escreve (foto com
+   * updatedAt); cada evento guardado 1×. O id de cada evento leva a sub
+   * (`evt_<RUN>_sub_<RUN>_…`): cai na limpeza do RUN.
+   */
+  async function verificarPar(
+    prefixo: string,
+    prepararPar: (sufixo: string) => Promise<{ u: string; s: string }>,
+    a: Lado,
+    b: Lado,
+    esperado: Record<string, unknown>,
+    conferirFoto: (f: any) => void = () => {},
+  ) {
+    const finais: Record<string, unknown>[] = [];
+
+    for (const [rotulo, ordem] of [["ABAB", [a, b, a, b]], ["BABA", [b, a, b, a]]] as const) {
+      const { u, s } = await prepararPar(`${prefixo}_${rotulo}`);
+      const fotos = [];
+      for (const [, envio] of ordem) {
+        assert.equal(await envio(s), 200, rotulo);
+        fotos.push(await foto(u));
+      }
+      assert.deepEqual(fotos[2], fotos[1], `${rotulo}: 3ª entrega (reentrega) não escreve`);
+      assert.deepEqual(fotos[3], fotos[1], `${rotulo}: 4ª entrega (reentrega) não escreve`);
+      assert.deepEqual(estado(fotos[3]), esperado, `${rotulo}: estado esperado`);
+      conferirFoto(fotos[3]);
+      finais.push(estado(fotos[3]));
+    }
+
+    for (let rodada = 0; rodada < 5; rodada++) {
+      const { u, s } = await prepararPar(`${prefixo}_conc${rodada}`);
+      const entregas = embaralhar([a, b, a, b, a, b]);
+      const ordem = entregas.map(([r]) => r).join(",");
+      const status = await Promise.all(entregas.map(([, envio]) => envio(s)));
+      assert.deepEqual(status, [200, 200, 200, 200, 200, 200], `rodada ${rodada} (${ordem}): ${JSON.stringify(status)}`);
+      const depois = await foto(u);
+      assert.deepEqual(estado(depois), esperado, `rodada ${rodada} (${ordem}): estado esperado`);
+      conferirFoto(depois);
+      finais.push(estado(depois));
+
+      // Com os dois já guardados, novas reentregas não escrevem.
+      assert.equal(await a[1](s), 200);
+      assert.equal(await b[1](s), 200);
+      assert.deepEqual(await foto(u), depois, `rodada ${rodada}: reentrega depois da concorrência`);
+      for (const [r] of [a, b]) assert.equal(await guardados(evt(`${s}_${r}`)), 1, `rodada ${rodada}: ${r} guardado uma vez`);
+    }
+
+    for (const f of finais) assert.deepEqual(f, finais[0], "o mesmo estado em todas as ordens");
+  }
+
   for (const [indice, { nome, a, b, esperado }] of pares.entries()) {
     it(`par (${nome}): A→B→A→B, B→A→B→A e concorrente terminam iguais; reentrega não escreve`, async () => {
-      const finais: Record<string, unknown>[] = [];
+      await verificarPar(`par${indice}`, preparar, a, b, esperado);
+    });
+  }
 
-      for (const [rotulo, ordem] of [["ABAB", [a, b, a, b]], ["BABA", [b, a, b, a]]] as const) {
-        const { u, s } = await preparar(`par${indice}_${rotulo}`);
-        const fotos = [];
-        for (const [, envio] of ordem) {
-          assert.equal(await envio(s), 200, rotulo);
-          fotos.push(await foto(u));
-        }
-        assert.deepEqual(fotos[2], fotos[1], `${rotulo}: 3ª entrega (reentrega) não escreve`);
-        assert.deepEqual(fotos[3], fotos[1], `${rotulo}: 4ª entrega (reentrega) não escreve`);
-        assert.deepEqual(estado(fotos[3]), esperado, `${rotulo}: estado esperado`);
-        finais.push(estado(fotos[3]));
-      }
+  // ── B1: renovação de assinatura substituída não recupera o vínculo ──────
+  //
+  // Só a PRIMEIRA fatura (`subscription_create`) cria ou troca vínculo; a
+  // renovação de uma assinatura substituída continua chegando (com os mesmos
+  // metadados) e o `created` dela é posterior ao início da assinatura nova.
 
-      for (let rodada = 0; rodada < 5; rodada++) {
-        const { u, s } = await preparar(`par${indice}_conc${rodada}`);
-        const entregas = embaralhar([a, b, a, b, a, b]);
-        const ordem = entregas.map(([r]) => r).join(",");
-        const status = await Promise.all(entregas.map(([, envio]) => envio(s)));
-        assert.deepEqual(status, [200, 200, 200, 200, 200, 200], `rodada ${rodada} (${ordem}): ${JSON.stringify(status)}`);
-        const depois = await foto(u);
-        assert.deepEqual(estado(depois), esperado, `rodada ${rodada} (${ordem}): estado esperado`);
-        finais.push(estado(depois));
+  const TN = T0 + 10 * DIA; // início da assinatura nova
+  const PLANO_NOVO = { plan: "PREMIUM", status: "ACTIVE", expiresAt: em(fim(40)), canceledAt: null, startedAt: em(TN) };
+  const vinculoDe = (l: any) => ({ plan: l.plan, status: l.status, expiresAt: l.expiresAt, canceledAt: l.canceledAt, startedAt: l.startedAt });
 
-        // Com os dois já guardados, novas reentregas não escrevem.
-        assert.equal(await a[1](s), 200);
-        assert.equal(await b[1](s), 200);
-        assert.deepEqual(await foto(u), depois, `rodada ${rodada}: reentrega depois da concorrência`);
-        for (const [r] of [a, b]) assert.equal(await guardados(evt(`${s}_${r}`)), 1, `rodada ${rodada}: ${r} guardado uma vez`);
-      }
+  /** Comprou a antiga (BASIC): completed + primeira fatura. */
+  async function compraAntiga(sufixo: string) {
+    const u = await usuario(sufixo);
+    const antiga = sub(`${sufixo}_antiga`);
+    const nova = sub(`${sufixo}_nova`);
+    assert.equal(await concluido(u, antiga, `${sufixo}_ca`, T0 + 1, "basico_mensal"), 200);
+    assert.equal(await primeira(antiga, `${sufixo}_pa`, T0, fim(30), metadados(u, "basico_mensal")), 200);
+    return { u, antiga, nova };
+  }
+  // Completed e primeira fatura da nova no MESMO segundo: o startedAt não depende de quem chega antes.
+  const completedNova = (u: string, nova: string, sufixo: string) => concluido(u, nova, `${sufixo}_cn`, TN);
+  const primeiraNova = (u: string, nova: string, sufixo: string) => primeira(nova, `${sufixo}_pn`, TN, fim(40), metadados(u));
+  // Renovação da antiga, com os metadados dela e created POSTERIOR ao início da nova.
+  const renovacaoAntiga = (u: string, antiga: string, sufixo: string) =>
+    pago(antiga, `${sufixo}_ra`, fim(30), fim(60), metadados(u, "basico_mensal"));
+  const segundaRenovacaoAntiga = (u: string, antiga: string, sufixo: string) =>
+    pago(antiga, `${sufixo}_ra2`, fim(60), fim(90), metadados(u, "basico_mensal"));
 
-      for (const f of finais) assert.deepEqual(f, finais[0], "o mesmo estado em todas as ordens");
+  it("B1: renovação paga da assinatura substituída (created depois da troca): nada muda; reentrega idem", async () => {
+    const { u, antiga, nova } = await compraAntiga("b1");
+    assert.equal(await completedNova(u, nova, "b1"), 200);
+    assert.equal(await primeiraNova(u, nova, "b1"), 200);
+    const antes = await foto(u);
+    assert.equal(antes.externalId, nova);
+    assert.deepEqual(vinculoDe(antes), PLANO_NOVO);
+    for (let i = 0; i < 2; i++) {
+      assert.equal(await renovacaoAntiga(u, antiga, "b1"), 200);
+      assert.deepEqual(await foto(u), antes, `entrega ${i + 1}: plano, vínculo, validade e updatedAt intactos`);
+    }
+    assert.equal(await guardados(evt("b1_ra")), 1, "o evento fica guardado (histórico)");
+  });
+
+  it("B1: ordem inversa — renovação da antiga ANTES do completed da nova: termina na nova PREMIUM", async () => {
+    const { u, antiga, nova } = await compraAntiga("b1inv");
+    assert.equal(await renovacaoAntiga(u, antiga, "b1inv"), 200);
+    const naAntiga = await foto(u);
+    assert.equal(naAntiga.externalId, antiga);
+    assert.deepEqual(naAntiga.expiresAt, em(fim(60)), "antes da troca, a renovação vale para a antiga");
+    assert.equal(await completedNova(u, nova, "b1inv"), 200);
+    assert.equal(await primeiraNova(u, nova, "b1inv"), 200);
+    const final = await foto(u);
+    assert.equal(final.externalId, nova);
+    assert.deepEqual(vinculoDe(final), PLANO_NOVO);
+    assert.equal(await renovacaoAntiga(u, antiga, "b1inv"), 200);
+    assert.deepEqual(await foto(u), final, "reentrega da renovação depois da troca: nada");
+  });
+
+  it("B1: concorrente — duas renovações da antiga × completed e 1ª fatura da nova (6 rodadas): sempre a nova PREMIUM", async () => {
+    for (let rodada = 0; rodada < 6; rodada++) {
+      const sufixo = `b1c${rodada}`;
+      const { u, antiga, nova } = await compraAntiga(sufixo);
+      // A antiga e a nova têm locks diferentes: as renovações correm em paralelo à troca.
+      const lados: Array<[string, () => Promise<number>]> = [
+        ["R1", () => renovacaoAntiga(u, antiga, sufixo)],
+        ["R2", () => segundaRenovacaoAntiga(u, antiga, sufixo)],
+        ["C", () => completedNova(u, nova, sufixo)],
+        ["P", () => primeiraNova(u, nova, sufixo)],
+      ];
+      const entregas = embaralhar([...lados, ...lados]);
+      const ordem = entregas.map(([r]) => r).join(",");
+      const status = await Promise.all(entregas.map(([, envio]) => envio()));
+      assert.deepEqual(status, entregas.map(() => 200), `rodada ${rodada} (${ordem})`);
+      const final = await foto(u);
+      assert.equal(final.externalId, nova, `rodada ${rodada} (${ordem})`);
+      assert.deepEqual(vinculoDe(final), PLANO_NOVO, `rodada ${rodada} (${ordem})`);
+      for (const [, envio] of lados) assert.equal(await envio(), 200);
+      assert.deepEqual(await foto(u), final, `rodada ${rodada}: reentrega de tudo não escreve`);
+    }
+  });
+
+  it("B1: a primeira fatura (subscription_create) ANTES do checkout continua criando o vínculo; renovação, não", async () => {
+    const u = await usuario("b1_primeira");
+    const s = sub("b1_primeira");
+    assert.equal(await pago(s, "b1p_r", T0, fim(30), metadados(u)), 200, "fatura marcada como renovação");
+    assert.equal(await foto(u), null, "renovação não cria vínculo");
+    assert.equal(await primeira(s, "b1p_p", T0, fim(30), metadados(u)), 200);
+    const l = await foto(u);
+    assert.equal(l.externalId, s);
+    assert.deepEqual(vinculoDe(l), { plan: "PREMIUM", status: "ACTIVE", expiresAt: em(fim(30)), canceledAt: null, startedAt: em(T0) });
+  });
+
+  it("B1: renovação de assinatura SEM linha e sem vínculo nenhum do usuário: não cria", async () => {
+    const u = await usuario("b1_sem_linha");
+    const s = sub("b1_sem_linha");
+    for (let i = 0; i < 2; i++) assert.equal(await pago(s, "b1s_r", fim(30), fim(60), metadados(u)), 200);
+    assert.equal(await foto(u), null);
+    assert.equal(await prisma.subscription.count({ where: { externalId: s } }), 0);
+    assert.equal(await guardados(evt("b1s_r")), 1);
+  });
+
+  // ── B2: linha legada (stripeBase nulo, anterior à mudança) ─────────────
+  //
+  // O estado legado já reflete as faturas até o expiresAt dele. O primeiro
+  // evento grava a base (origem legado) numa escrita só; fatura até a fronteira
+  // é ignorada; depois dela, regra normal; exclusão sempre.
+
+  const LEG = fim(50); // validade legada = período reconhecido
+  type EstadoLegado = { status: string; expiresAt: Date | null; canceledAt: Date | null };
+  const ESTADO_LEGADO: EstadoLegado = { status: "ACTIVE", expiresAt: em(LEG), canceledAt: null };
+  const CORTE = fim(40);
+  const LEGADO_EXPIRADO: EstadoLegado = { status: "EXPIRED", expiresAt: em(CORTE), canceledAt: em(CORTE) };
+
+  async function linhaLegada(sufixo: string, estadoLegado: EstadoLegado = ESTADO_LEGADO) {
+    const u = await usuario(sufixo);
+    const s = sub(sufixo);
+    await prisma.subscription.create({
+      data: { userId: u, plan: "BASIC", provider: "STRIPE", externalId: s, startedAt: em(T0), ...estadoLegado },
+    });
+    return { u, s };
+  }
+  const baseLegada = (l: EstadoLegado) => ({
+    status: l.status,
+    expiresAt: l.expiresAt?.toISOString() ?? null,
+    canceledAt: l.canceledAt?.toISOString() ?? null,
+    origem: "legado",
+    periodoReconhecido: l.expiresAt?.toISOString() ?? null,
+  });
+
+  /** Primeiro evento numa linha legada: estado esperado, base legada em UMA escrita; reentrega sem escrita. */
+  async function primeiroEventoLegado(u: string, envio: () => Promise<number>, esperado: Record<string, unknown>) {
+    const f0 = await foto(u);
+    assert.equal(f0.stripeBase, null);
+    assert.equal(await envio(), 200);
+    const f1 = await foto(u);
+    assert.deepEqual(estado(f1), esperado);
+    assert.deepEqual(f1.stripeBase, baseLegada(f0), "base legada: o estado anterior, com a fronteira");
+    assert.notDeepEqual(f1.updatedAt, f0.updatedAt, "a inicialização da base é UMA escrita");
+    assert.deepEqual([f1.plan, f1.externalId, f1.startedAt], [f0.plan, f0.externalId, f0.startedAt], "vínculo intacto");
+    assert.equal(await envio(), 200);
+    assert.deepEqual(await foto(u), f1, "reentrega: nenhuma escrita");
+    return f1;
+  }
+
+  it("B2: legado + paga histórica: validade mantida, base legada em uma escrita; reentrega e outra histórica sem escrita", async () => {
+    const { u, s } = await linhaLegada("b2_hist");
+    const f1 = await primeiroEventoLegado(u, () => pago(s, "b2h_p", T0 - 20 * DIA, fim(20)), estado(ESTADO_LEGADO));
+    assert.equal(await falhou(s, "b2h_f", fim(15), fim(20)), 200);
+    assert.deepEqual(await foto(u), f1, "outra fatura histórica: sem escrita");
+  });
+
+  it("B2: legado + falha de período NOVO: corta", async () => {
+    const { u, s } = await linhaLegada("b2_falha_nova");
+    await primeiroEventoLegado(u, () => falhou(s, "b2fn_f", LEG, fim(80)), { status: "EXPIRED", expiresAt: em(LEG), canceledAt: em(LEG) });
+  });
+
+  it("B2: legado + falha histórica: nada além da base", async () => {
+    const { u, s } = await linhaLegada("b2_falha_hist");
+    await primeiroEventoLegado(u, () => falhou(s, "b2fh_f", fim(20), fim(20)), estado(ESTADO_LEGADO));
+  });
+
+  it("B2: legado + exclusão: CANCELED com a validade legada mantida", async () => {
+    const { u, s } = await linhaLegada("b2_exclusao");
+    await primeiroEventoLegado(u, () => cancelado(s, "b2e_d", fim(45)), { status: "CANCELED", expiresAt: em(LEG), canceledAt: em(fim(45)) });
+  });
+
+  it("B2: legado + paga de período novo: estende", async () => {
+    const { u, s } = await linhaLegada("b2_paga_nova");
+    await primeiroEventoLegado(u, () => pago(s, "b2pn_p", LEG, fim(80)), { status: "ACTIVE", expiresAt: em(fim(80)), canceledAt: null });
+  });
+
+  it("B2: legado EXPIRED + paga de período posterior ao corte: reativa", async () => {
+    const { u, s } = await linhaLegada("b2_reativa", LEGADO_EXPIRADO);
+    await primeiroEventoLegado(u, () => pago(s, "b2r_p", fim(42), fim(70)), { status: "ACTIVE", expiresAt: em(fim(70)), canceledAt: null });
+  });
+
+  it("B2: legado EXPIRED + paga histórica: nada além da base", async () => {
+    const { u, s } = await linhaLegada("b2_expirado_hist", LEGADO_EXPIRADO);
+    await primeiroEventoLegado(u, () => pago(s, "b2eh_p", fim(42), fim(30)), estado(LEGADO_EXPIRADO));
+  });
+
+  const paresLegado: Array<{ nome: string; a: Lado; b: Lado; esperado: Record<string, unknown> }> = [
+    {
+      nome: "paga histórica × paga nova",
+      a: ["H", (s) => pago(s, `${s}_H`, T0, fim(20), {}, f(s, "historica"))],
+      b: ["N", (s) => pago(s, `${s}_N`, LEG, fim(80), {}, f(s, "nova"))],
+      esperado: { status: "ACTIVE", expiresAt: em(fim(80)), canceledAt: null },
+    },
+    {
+      nome: "paga histórica × falha do período novo",
+      a: ["H", (s) => pago(s, `${s}_H`, T0, fim(20), {}, f(s, "historica"))],
+      b: ["F", (s) => falhou(s, `${s}_F`, LEG, fim(80), f(s, "nova"))],
+      esperado: { status: "EXPIRED", expiresAt: em(LEG), canceledAt: em(LEG) },
+    },
+    {
+      nome: "falha histórica × paga nova",
+      a: ["H", (s) => falhou(s, `${s}_H`, fim(20), fim(20), f(s, "historica"))],
+      b: ["N", (s) => pago(s, `${s}_N`, LEG, fim(80), {}, f(s, "nova"))],
+      esperado: { status: "ACTIVE", expiresAt: em(fim(80)), canceledAt: null },
+    },
+  ];
+  for (const [indice, { nome, a, b, esperado }] of paresLegado.entries()) {
+    it(`B2 par legado (${nome}): A→B→A→B, B→A→B→A e concorrente terminam iguais; reentrega não escreve`, async () => {
+      await verificarPar(`leg${indice}`, (sufixo) => linhaLegada(sufixo), a, b, esperado, (l) =>
+        assert.deepEqual(l.stripeBase, baseLegada(ESTADO_LEGADO), "base legada gravada uma vez, com o estado ANTERIOR"),
+      );
     });
   }
 
@@ -690,7 +930,7 @@ describe("ordem dos eventos de assinatura Stripe contra Postgres real", { skip: 
     const velha = sub("atom_d2_velha");
     const nova = sub("atom_d2_nova");
     await concluido(u, velha, "atom_d2_cv", T0 + 1);
-    await pago(velha, "atom_d2_pv", T0, fim(30), metadados(u));
+    await primeira(velha, "atom_d2_pv", T0, fim(30), metadados(u));
     assert.equal(await pago(nova, "atom_d2_pn", T0 + 99, fim(400)), 200, "sem metadados: fica guardado");
     const antes = await foto(u);
     const remover = await falharUpdate(u, true);

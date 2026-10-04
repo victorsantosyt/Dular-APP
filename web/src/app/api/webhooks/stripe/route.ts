@@ -245,11 +245,14 @@ async function handleInvoicePaid(invoice: Stripe.Invoice, evento: EventoStripe |
 
   // Sem linha desta assinatura (na compra, o `invoice.paid` chega ANTES do
   // `completed`), o vínculo nasce pelos metadados da ASSINATURA que o
-  // /billing/checkout grava (`subscription_data.metadata`).
+  // /billing/checkout grava (`subscription_data.metadata`) — mas só na PRIMEIRA
+  // fatura. Renovação nunca cria nem troca vínculo: uma assinatura substituída
+  // continua renovando, e o `created` da renovação não prova que ela é a mais nova.
   const metadados = metadadosDaAssinatura(invoice);
   const userId = metadados?.userId;
   const plano = planoDosMetadados(metadados);
-  const vinculo = typeof userId === "string" && userId !== "" && plano ? { userId, plano } : null;
+  const primeiraFatura = invoice.billing_reason === "subscription_create";
+  const vinculo = primeiraFatura && typeof userId === "string" && userId !== "" && plano ? { userId, plano } : null;
 
   await registrarEvento("invoice.paid", assinaturaId, evento, { fimPeriodo, faturaId: idDaFatura(invoice) }, vinculo);
 }

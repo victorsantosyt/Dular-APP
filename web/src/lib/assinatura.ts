@@ -135,6 +135,13 @@ export type EventoStripe = { quando: Date; eventId: string };
 
 export type EstadoStripe = { status: SubscriptionStatus; expiresAt: Date | null; canceledAt: Date | null };
 
+/**
+ * Base do recálculo. A de linha anterior a esta mudança (`stripeBase` nulo) é
+ * LEGADA: o estado dela já reflete as faturas até `periodoReconhecido` — o
+ * `expiresAt` que ela tinha —, e a dobra não as aplica de novo.
+ */
+export type BaseStripe = EstadoStripe & { legado?: { periodoReconhecido: Date | null } };
+
 export type TipoCicloStripe = "invoice.paid" | "invoice.payment_failed" | "customer.subscription.deleted";
 
 /** Evento de ciclo de vida como fica guardado. Sem o id do evento: a ordem nunca depende dele. */
@@ -174,6 +181,10 @@ function periodoQuitado(grupo: readonly EventoCicloStripe[]): boolean {
  * Estado da assinatura = base + CONJUNTO de eventos. Função pura: qualquer
  * ordem de chegada (ou de leitura) dos mesmos eventos dá o mesmo resultado, e o
  * id do evento nunca entra na ordem.
+ *  0. Base legada com `periodoReconhecido`: evento de fatura sem período, ou com
+ *     período até ali, já está no estado legado e é ignorado. Não é "maior
+ *     validade sempre": depois da fronteira vale a regra normal, e a exclusão
+ *     vale sempre.
  *  1. Eventos de fatura agrupados por período (`fimPeriodo`): null primeiro,
  *     depois crescente. A cronologia só desempata DENTRO do período.
  *  2. Período quitado: falhas e DEPOIS pagas (a paga venceu as tentativas que
@@ -183,18 +194,20 @@ function periodoQuitado(grupo: readonly EventoCicloStripe[]): boolean {
  * Dentro de cada tipo, `criadoEm` crescente; eventos que empatam no que a regra
  * olha têm efeito idêntico, então a ordem entre eles não muda o resultado.
  */
-export function dobrarEventosStripe(base: EstadoStripe, eventos: readonly EventoCicloStripe[]): EstadoStripe {
+export function dobrarEventosStripe(base: BaseStripe, eventos: readonly EventoCicloStripe[]): EstadoStripe {
+  const reconhecido = base.legado?.periodoReconhecido?.getTime() ?? null;
   const periodos = new Map<number | null, EventoCicloStripe[]>();
   const exclusoes: EventoCicloStripe[] = [];
   for (const e of eventos) {
     if (e.tipo === "customer.subscription.deleted") exclusoes.push(e);
     if (e.tipo !== "invoice.paid" && e.tipo !== "invoice.payment_failed") continue;
     const chave = e.fimPeriodo?.getTime() ?? null;
+    if (reconhecido !== null && (chave === null || chave <= reconhecido)) continue;
     periodos.set(chave, [...(periodos.get(chave) ?? []), e]);
   }
 
   const ordemDosPeriodos = [...periodos.keys()].sort((a, b) => (a === null ? -1 : b === null ? 1 : a - b));
-  let estado = base;
+  let estado: EstadoStripe = { status: base.status, expiresAt: base.expiresAt, canceledAt: base.canceledAt };
   for (const chave of ordemDosPeriodos) {
     const grupo = periodos.get(chave)!;
     const pagas = grupo.filter((e) => e.tipo === "invoice.paid").sort(porCriacao);
@@ -206,24 +219,30 @@ export function dobrarEventosStripe(base: EstadoStripe, eventos: readonly Evento
 
 const STATUS_VALIDOS: readonly string[] = Object.values(SubscriptionStatus);
 
-function baseParaJson(base: EstadoStripe): Prisma.InputJsonObject {
+function baseParaJson(base: BaseStripe): Prisma.InputJsonObject {
   return {
     status: base.status,
     expiresAt: base.expiresAt?.toISOString() ?? null,
     canceledAt: base.canceledAt?.toISOString() ?? null,
+    ...(base.legado
+      ? { origem: "legado", periodoReconhecido: base.legado.periodoReconhecido?.toISOString() ?? null }
+      : {}),
   };
 }
 
 /** `stripeBase` gravado; null quando ausente ou malformado. */
-function baseDoJson(valor: Prisma.JsonValue | null): EstadoStripe | null {
+function baseDoJson(valor: Prisma.JsonValue | null): BaseStripe | null {
   if (typeof valor !== "object" || valor === null || Array.isArray(valor)) return null;
-  const { status, expiresAt, canceledAt } = valor as Record<string, unknown>;
+  const { status, expiresAt, canceledAt, origem, periodoReconhecido } = valor as Record<string, unknown>;
   if (typeof status !== "string" || !STATUS_VALIDOS.includes(status)) return null;
   const data = (v: unknown) => (v === null ? null : typeof v === "string" && !Number.isNaN(Date.parse(v)) ? new Date(v) : undefined);
   const fim = data(expiresAt);
   const cancelada = data(canceledAt);
   if (fim === undefined || cancelada === undefined) return null;
-  return { status: status as SubscriptionStatus, expiresAt: fim, canceledAt: cancelada };
+  const estado: EstadoStripe = { status: status as SubscriptionStatus, expiresAt: fim, canceledAt: cancelada };
+  if (origem !== "legado") return estado;
+  const reconhecido = data(periodoReconhecido);
+  return reconhecido === undefined ? null : { ...estado, legado: { periodoReconhecido: reconhecido } };
 }
 
 const mesmaData = (a: Date | null, b: Date | null) => (a === null || b === null ? a === b : a.getTime() === b.getTime());
@@ -282,9 +301,15 @@ async function recalcularAssinaturaStripe(
     where: { externalId },
     select: { tipo: true, criadoEm: true, fimPeriodo: true, faturaId: true },
   });
-  // Linha anterior a esta mudança: a base é o estado atual, gravado agora.
+  // Linha anterior a esta mudança: a base é o estado atual — que já reflete as
+  // faturas até o expiresAt dela —, gravada agora numa escrita só.
   const baseGravada = baseDoJson(linha.stripeBase);
-  const base = baseGravada ?? { status: linha.status, expiresAt: linha.expiresAt, canceledAt: linha.canceledAt };
+  const base: BaseStripe = baseGravada ?? {
+    status: linha.status,
+    expiresAt: linha.expiresAt,
+    canceledAt: linha.canceledAt,
+    legado: { periodoReconhecido: linha.expiresAt },
+  };
   const novo = dobrarEventosStripe(base, eventos);
 
   const igual =
@@ -381,8 +406,9 @@ export type ResultadoEventoStripe = "aplicado" | "sem_mudanca" | "repetido" | "g
 /**
  * Evento de ciclo de vida, atômico: lock da `sub_`, deduplicação persistente
  * (mesma entrega → nada mais é escrito) e recálculo. Sem linha da `sub_`, só o
- * `invoice.paid` com metadados da assinatura (`vinculo`) cria o vínculo; senão
- * o evento fica guardado e o completed o aplica ao criar o vínculo.
+ * `vinculo` cria ou troca o vínculo — a rota o passa apenas na PRIMEIRA fatura
+ * da assinatura; senão o evento fica guardado e o completed o aplica ao criar
+ * o vínculo.
  */
 export async function processarEventoStripe(
   evento: EventoRecebidoStripe,

@@ -259,15 +259,18 @@ async function handleCheckoutExpirado(session: Stripe.Checkout.Session) {
 async function handleRetratoDaAssinatura(subscription: Stripe.Subscription) {
   const assinaturaId = idDeAssinatura(subscription.id);
   if (!assinaturaId) return;
-  const metadata = (subscription.metadata ?? {}) as Record<string, string>;
+  await sincronizarPelosMetadados(assinaturaId, (subscription.metadata ?? {}) as Record<string, string>);
+  await retomarOperacoes({ externalId: assinaturaId });
+}
+
+/** Plano pelos metadados da assinatura (retrato ou fatura), sempre por versão. */
+async function sincronizarPelosMetadados(assinaturaId: string, metadata: Record<string, string>) {
   const planId = metadata.planId;
   // Legado sem `planId`: nada a sincronizar; o plano do vínculo segue.
-  if (planId && planId in PLANS) {
-    const versao = versaoDoPlanoStripe(metadata);
-    await sincronizarPlanoStripe(assinaturaId, PLANS[planId as keyof typeof PLANS], versao);
-    await marcarTrocasAplicadas(assinaturaId, planId, versao);
-  }
-  await retomarOperacoes({ externalId: assinaturaId });
+  if (!planId || !(planId in PLANS)) return;
+  const versao = versaoDoPlanoStripe(metadata);
+  await sincronizarPlanoStripe(assinaturaId, PLANS[planId as keyof typeof PLANS], versao);
+  await marcarTrocasAplicadas(assinaturaId, planId, versao);
 }
 
 async function handleTrocaExpirada(subscription: Stripe.Subscription) {
@@ -305,6 +308,10 @@ async function handleInvoicePaid(invoice: Stripe.Invoice, evento: EventoStripe |
   const vinculo = primeiraFatura && typeof userId === "string" && userId !== "" && plano ? { userId, plano } : null;
 
   await registrarEvento("invoice.paid", assinaturaId, evento, { fimPeriodo, faturaId: idDaFatura(invoice) }, vinculo);
+  // A fatura guarda os metadados da assinatura de quando foi emitida: a da
+  // renovação que entra no downgrade agendado já traz o plano menor. Segundo
+  // caminho, além do `customer.subscription.updated`, sempre por versão.
+  if (metadados) await sincronizarPelosMetadados(assinaturaId, metadados);
   // Assinatura nova paga: libera o cancelamento pendente da que ela substituiu.
   await retomarOperacoes({ externalId: assinaturaId });
 }

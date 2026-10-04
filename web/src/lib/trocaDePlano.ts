@@ -224,30 +224,35 @@ async function iniciarCheckout(pedido: PedidoDePlano, vinculada: string | null):
     orderBy: { createdAt: "asc" },
   });
   for (const op of abertas) {
-    const sessao = await stripe.checkout.sessions.retrieve(op.referencia!);
-    if (sessao.status === "complete") {
-      const sub = idDe(sessao.subscription);
-      await prisma.stripeOperacao.update({ where: { id: op.id }, data: { status: "concluida", externalId: sub } });
-      if (sub && sub !== vinculada) {
-        return recusado(409, "ASSINATURA_EM_CONFIRMACAO", "Seu pagamento está sendo confirmado. Tente novamente em instantes.");
-      }
-      continue;
-    }
+    let sessao = await stripe.checkout.sessions.retrieve(op.referencia!);
     if (sessao.status === "open") {
       if (op.planId === plano.id && op.url) return { tipo: "checkout", url: op.url };
       try {
-        await stripe.checkout.sessions.expire(sessao.id, {}, { idempotencyKey: `${op.chave}:expirar` });
+        sessao = await stripe.checkout.sessions.expire(sessao.id, {}, { idempotencyKey: `${op.chave}:expirar` });
       } catch (err) {
         // Pagou entre a leitura e a expiração: a sessão não está mais aberta.
-        const relida = await stripe.checkout.sessions.retrieve(sessao.id);
-        if (relida.status === "complete") {
-          await prisma.stripeOperacao.update({ where: { id: op.id }, data: { status: "concluida", externalId: idDe(relida.subscription) } });
-          return recusado(409, "ASSINATURA_EM_CONFIRMACAO", "Seu pagamento está sendo confirmado. Tente novamente em instantes.");
-        }
-        if (relida.status !== "expired") throw err;
+        sessao = await stripe.checkout.sessions.retrieve(sessao.id);
+        if (sessao.status !== "complete" && sessao.status !== "expired") throw err;
       }
     }
-    await prisma.stripeOperacao.update({ where: { id: op.id }, data: { status: "descartada" } });
+    await prisma.stripeOperacao.update({
+      where: { id: op.id },
+      data: sessao.status === "complete" ? { status: "concluida", externalId: idDe(sessao.subscription) } : { status: "descartada" },
+    });
+  }
+
+  // Sessão paga cuja assinatura ainda não virou vínculo (webhook atrasado):
+  // todo pedido espera — abrir outra sessão criaria a segunda assinatura.
+  const pagas = await prisma.stripeOperacao.findMany({
+    where: { userId, tipo: "checkout", status: "concluida", externalId: { not: null }, createdAt: { gte: new Date(Date.now() - 3 * 86_400_000) } },
+    select: { externalId: true },
+  });
+  for (const { externalId } of pagas) {
+    if (!externalId || externalId === vinculada) continue;
+    const sub = await buscarAssinatura(externalId);
+    if (sub && (VIVAS.has(sub.status) || COM_PENDENCIA.has(sub.status))) {
+      return recusado(409, "ASSINATURA_EM_CONFIRMACAO", "Seu pagamento está sendo confirmado. Tente novamente em instantes.");
+    }
   }
 
   const op = await prisma.stripeOperacao.create({

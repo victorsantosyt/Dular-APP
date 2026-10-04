@@ -299,6 +299,26 @@ describe("troca de plano Stripe contra Postgres real", { skip: EXIGIDO ? false :
     assert.equal(falso.estado.assinaturas.size, 1, "uma assinatura no fim");
   });
 
+  it("checkout pago e webhook atrasado: TODOS os pedidos seguintes esperam, nenhuma sessão nova; com o vínculo, a troca segue na mesma assinatura", async () => {
+    const userId = await usuario("ck_atrasado");
+    assert.equal((await pedir(userId, "basico_mensal")).status, 200);
+    const [sessao] = [...falso.estado.sessoes.values()];
+    const sub = falso.completarCheckout(sessao.id);
+    for (let i = 0; i < 2; i++) {
+      const r = await pedir(userId, "pro_mensal");
+      assert.equal(r.status, 409, `pedido ${i + 1}`);
+      assert.equal(r.corpo.error.code, "ASSINATURA_EM_CONFIRMACAO");
+    }
+    assert.equal(falso.estado.sessoes.size, 1, "nenhuma sessão nova enquanto o vínculo não chega");
+
+    assert.equal((await entregar("checkout.session.completed", falso.sessaoObj(sessao.id))).status, 200);
+    const troca = await pedir(userId, "pro_mensal");
+    assert.equal(troca.status, 200);
+    assert.equal(troca.corpo.troca.situacao, "aplicada");
+    assert.equal(falso.estado.assinaturas.size, 1);
+    assert.equal((await linha(userId)).externalId, sub);
+  });
+
   it("dois pedidos simultâneos de upgrade: uma troca e UMA cobrança", async () => {
     const { userId, sub } = await assinante("up_simultaneo", "basico_mensal");
     const respostas = await Promise.all([pedir(userId, "pro_mensal"), pedir(userId, "pro_mensal"), pedir(userId, "pro_mensal")]);
@@ -434,13 +454,16 @@ describe("troca de plano Stripe contra Postgres real", { skip: EXIGIDO ? false :
     assert.equal(escritas("subscriptionSchedules.update"), 1);
 
     const renovacao = falso.renovar(sub);
+    // Só a fatura da renovação (sem o retrato): ela já carrega os metadados do plano menor.
     assert.equal((await entregar("invoice.paid", falso.faturaObj(renovacao))).status, 200);
-    assert.equal((await entregar("customer.subscription.updated", falso.retrato(sub))).status, 200);
     assert.deepEqual(cobrancasDe(sub).map((c) => [c.motivo, c.valor]), [["subscription_create", 3990], ["subscription_cycle", 1990]]);
     const l = await linha(userId);
     assert.equal(l.plan, "BASIC");
     assert.equal(l.status, "ACTIVE");
     assert.equal(await acessoEfetivo(userId), "BASIC");
+    // O retrato chega depois: mesma versão, nada a escrever.
+    assert.equal((await entregar("customer.subscription.updated", falso.retrato(sub))).status, 200);
+    assert.deepEqual(await linha(userId), l);
   });
 
   it("downgrade agendado e depois o plano atual de novo: a agenda é desfeita e a renovação segue no Pro", async () => {

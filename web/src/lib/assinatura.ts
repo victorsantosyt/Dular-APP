@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { PLANS, validadeDoPlano, type PlanDef } from "@/lib/stripe";
 import { SubscriptionStatus, type Prisma, type SubscriptionProvider } from "@prisma/client";
@@ -338,11 +339,21 @@ export type VinculoStripe = {
   quando: Date;
 };
 
+/** Prefixo único das chaves de idempotência de uma operação Stripe. */
+export function novaChaveDeOperacao(tipo: string): string {
+  return `dular-${tipo}-${randomUUID()}`;
+}
+
 /**
  * Cria o vínculo da pessoa com a assinatura Stripe, ou troca o que ela tem —
  * só se ele aponta para OUTRA coisa e começou até este evento — e recalcula
  * com os eventos já guardados da `sub_`. Se já aponta para esta mesma `sub_`,
  * nada é escrito. Devolve se criou ou trocou.
+ *
+ * Trocar o vínculo NÃO encerra a `sub_` anterior na Stripe: ela continuaria
+ * renovando e cobrando. Por isso a troca grava, na MESMA transação, a operação
+ * `cancelar_substituida` — executada fora daqui, só depois de confirmar na
+ * Stripe que a nova está paga e é do mesmo usuário (lib/trocaDePlano).
  */
 async function vincularNaTransacao(tx: Prisma.TransactionClient, vinculo: VinculoStripe): Promise<boolean> {
   const { userId, plano, externalId, quando } = vinculo;
@@ -361,8 +372,15 @@ async function vincularNaTransacao(tx: Prisma.TransactionClient, vinculo: Vincul
 
   // INSERT … ON CONFLICT DO NOTHING: duas criações simultâneas não colidem.
   const criada = await tx.subscription.createMany({ data: [{ userId, ...dados }], skipDuplicates: true });
-  const vinculou =
-    criada.count > 0 ||
+
+  // Já havia linha: trava e lê o vínculo anterior — é ele que pode ser trocado.
+  let anterior: { provider: string; externalId: string | null } | null = null;
+  if (criada.count === 0) {
+    await tx.$executeRaw`SELECT 1 FROM "Subscription" WHERE "userId" = ${userId} FOR UPDATE`;
+    anterior = await tx.subscription.findFirst({ where: { userId }, select: { provider: true, externalId: true } });
+  }
+  const trocou =
+    criada.count === 0 &&
     (
       await tx.subscription.updateMany({
         where: {
@@ -373,10 +391,26 @@ async function vincularNaTransacao(tx: Prisma.TransactionClient, vinculo: Vincul
             { startedAt: { lte: quando } },
           ],
         },
-        data: dados,
+        // Outra `sub_`: a versão do plano recomeça com ela.
+        data: { ...dados, stripePlanoVersao: null },
       })
     ).count > 0;
 
+  const substituida = anterior?.provider === "STRIPE" ? anterior.externalId : null;
+  if (trocou && substituida && substituida !== externalId) {
+    await tx.stripeOperacao.create({
+      data: {
+        userId,
+        tipo: "cancelar_substituida",
+        status: "pendente",
+        externalId,
+        substituida,
+        chave: novaChaveDeOperacao("cancelar_substituida"),
+      },
+    });
+  }
+
+  const vinculou = criada.count > 0 || trocou;
   // O `invoice.paid` costuma chegar ANTES do completed: entra aqui, sem reenvio.
   if (vinculou) await recalcularAssinaturaStripe(tx, externalId);
   return vinculou;
@@ -385,6 +419,37 @@ async function vincularNaTransacao(tx: Prisma.TransactionClient, vinculo: Vincul
 /** `checkout.session.completed`: cria ou troca o vínculo, sob o lock da `sub_`. */
 export async function vincularAssinaturaStripe(vinculo: VinculoStripe): Promise<boolean> {
   return naTransacaoDaAssinatura(vinculo.externalId, (tx) => vincularNaTransacao(tx, vinculo));
+}
+
+/** `metadata.planoVersao` da assinatura; ausente ou inválido = 0 (o plano do checkout). */
+export function versaoDoPlanoStripe(metadata: Record<string, string> | null | undefined): number {
+  const v = metadata?.planoVersao;
+  return typeof v === "string" && /^(0|[1-9][0-9]{0,8})$/.test(v) ? Number(v) : 0;
+}
+
+/**
+ * Plano da linha a partir de um RETRATO da assinatura na Stripe (o objeto do
+ * evento ou a resposta da troca). A troca só é aplicada pela Stripe com o
+ * pagamento confirmado, e os metadados (`planId`, `planoVersao`) mudam junto
+ * com o item. Só versão MAIOR que a gravada escreve: retrato antigo ou
+ * reentregue não desfaz troca mais nova, e a mesma versão não reescreve nada.
+ * Versão 0 é o plano do próprio checkout, que o vínculo já tem: nada a escrever.
+ * Linha de outra `sub_` (vínculo substituído) não é tocada.
+ */
+export async function sincronizarPlanoStripe(externalId: string, plano: PlanDef, versao: number): Promise<boolean> {
+  if (versao <= 0) return false;
+  return naTransacaoDaAssinatura(externalId, async (tx) => {
+    const { count } = await tx.subscription.updateMany({
+      where: {
+        provider: "STRIPE",
+        externalId,
+        // `lt` deixa NULL de fora: a linha sem versão entra pelo ramo explícito.
+        OR: [{ stripePlanoVersao: null }, { stripePlanoVersao: { lt: versao } }],
+      },
+      data: { plan: plano.plan, stripePlanoVersao: versao },
+    });
+    return count > 0;
+  });
 }
 
 export type EventoRecebidoStripe = {

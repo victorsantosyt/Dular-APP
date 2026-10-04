@@ -42,6 +42,8 @@ type EventoGuardado = {
 
 let banco: Linha[] = [];
 let eventos: EventoGuardado[] = [];
+/** StripeOperacao gravadas (a troca de vínculo grava o cancelamento da `sub_` anterior). */
+let operacoes: Array<Record<string, unknown>> = [];
 /** `externalId` de cada lock consultivo pedido, na ordem. */
 let travas: string[] = [];
 /** Comandos de `$executeRaw` na ordem: "limites" (SET LOCAL) ou "lock". */
@@ -111,6 +113,7 @@ function instalarBanco(estadoAlvo: Partial<Linha> | null, opcoes: { semUsuario?:
   banco = [linha("sub_outra_342", "u-outra", { status: "ACTIVE", expiresAt: new Date("2026-11-20T00:00:00Z") })];
   if (estadoAlvo) banco.unshift(linha("sub_alvo_342", "u-alvo", estadoAlvo));
   eventos = [];
+  operacoes = [];
   travas = [];
   brutos = [];
   chamadas = [];
@@ -181,11 +184,23 @@ function instalarBanco(estadoAlvo: Partial<Linha> | null, opcoes: { semUsuario?:
     },
   };
 
+  // Gravadas para conferência; nenhuma é retomada aqui (a retomada chama a Stripe).
+  const stripeOperacao = {
+    create: async (args: { data: Record<string, unknown> }) => {
+      chamadas.push("operacao.create");
+      operacoes.push(structuredClone(args.data));
+      return args.data;
+    },
+    findMany: async () => [],
+    updateMany: async () => ({ count: 0 }),
+  };
+
   // Lock consultivo emulado: uma fila por chave, solta no fim da transação.
   const filas = new Map<string, Promise<void>>();
   const raiz = mockPrisma as unknown as Record<string, unknown>;
   raiz.subscription = subscription;
   raiz.stripeEventoAssinatura = stripeEventoAssinatura;
+  raiz.stripeOperacao = stripeOperacao;
   raiz.user = user;
   raiz.$transaction = async (fn: (tx: unknown) => Promise<unknown>) => {
     chamadas.push("$transaction");
@@ -193,6 +208,7 @@ function instalarBanco(estadoAlvo: Partial<Linha> | null, opcoes: { semUsuario?:
     const tx = {
       subscription,
       stripeEventoAssinatura,
+      stripeOperacao,
       user,
       $executeRaw: async (sql: TemplateStringsArray, ...valores: unknown[]) => {
         if (!sql.join("?").includes("pg_advisory_xact_lock")) {
@@ -692,6 +708,11 @@ describe("POST /api/webhooks/stripe — eventos de assinatura até o banco (HMAC
     assert.equal(trocada.externalId, "sub_mais_nova_342");
     assert.deepEqual(trocada.startedAt, quando(CRIADO + 200));
     assert.deepEqual(trocada.stripeBase, { status: "ACTIVE", expiresAt: validadeAnual(CRIADO + 200), canceledAt: null });
+    // Trocar o vínculo não encerra a anterior na Stripe: o cancelamento fica gravado na mesma transação.
+    assert.deepEqual(
+      operacoes.map(({ userId, tipo, status, externalId, substituida }) => ({ userId, tipo, status, externalId, substituida })),
+      [{ userId: "u-alvo", tipo: "cancelar_substituida", status: "pendente", externalId: "sub_mais_nova_342", substituida: "sub_nova_342" }],
+    );
   });
 
   it("invoice.paid de outra assinatura com vínculo mais recente na pessoa: nada escrito na linha", async () => {

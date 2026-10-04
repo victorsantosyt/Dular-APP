@@ -1,6 +1,7 @@
 import { describe, it, before, after } from "node:test";
 import assert from "node:assert/strict";
 import pg from "pg";
+import { criarStripeFalso, type StripeFalso } from "./_stripeFalso";
 
 /**
  * Ordem e repetição dos eventos de assinatura Stripe contra Postgres REAL.
@@ -50,6 +51,11 @@ describe("ordem dos eventos de assinatura Stripe contra Postgres real", { skip: 
   let validadeProvisoria: (s: number) => Date;
   let limites: { lockTimeoutMs: number; statementTimeoutMs: number; maxWaitMs: number; timeoutMs: number };
   const gatilhos: string[] = [];
+  // Trocar o vínculo de `sub_` agenda o cancelamento da anterior na Stripe: a
+  // Stripe é SIMULADA (nenhuma rede), com o dono de cada `sub_` tirado dos
+  // eventos que o próprio teste envia.
+  let falso: StripeFalso;
+  const donos = new Map<string, string>();
 
   const RUN = `t_ass_${Date.now().toString(36)}`;
   let testemunha = "";
@@ -86,6 +92,7 @@ describe("ordem dos eventos de assinatura Stripe contra Postgres real", { skip: 
   const metadados = (userId: string, planId = "pro_mensal") => ({ userId, planId, subscriptionPlan: NIVEL[planId] });
 
   function concluido(userId: string, assinatura: string, id: string, created: number, planId = "pro_mensal") {
+    donos.set(assinatura, userId);
     return enviar(
       "checkout.session.completed",
       {
@@ -113,6 +120,7 @@ describe("ordem dos eventos de assinatura Stripe contra Postgres real", { skip: 
     faturaId = `in_${RUN}_${id}`,
     motivo?: string,
   ) {
+    if (meta.userId) donos.set(assinatura, meta.userId);
     return enviar(
       tipo,
       {
@@ -186,6 +194,9 @@ describe("ordem dos eventos de assinatura Stripe contra Postgres real", { skip: 
     validadeProvisoria = (s) => validadeDoPlano(PLANS.pro_mensal, em(s));
     post = (await import("../../src/app/api/webhooks/stripe/route")).POST;
     ({ limitesTransacaoStripe: limites } = await import("../../src/lib/assinatura"));
+    falso = criarStripeFalso();
+    falso.estado.externas = (id) => (donos.has(id) ? { userId: donos.get(id)!, paga: true } : null);
+    falso.instalar(stripe);
 
     // Assinatura Stripe de outro usuário, com base e um evento próprio, gravada
     // antes de tudo: não pode mudar.
@@ -216,8 +227,10 @@ describe("ordem dos eventos de assinatura Stripe contra Postgres real", { skip: 
   }
 
   after(async () => {
+    falso?.restaurar();
     if (!prisma) return;
     for (const nome of gatilhos) await removerGatilho(nome);
+    await prisma.stripeOperacao.deleteMany({ where: { userId: { in: usuarios } } });
     // Só as linhas deste RUN: todo evento enviado aqui tem id `evt_<RUN>_…`.
     await prisma.stripeEventoAssinatura.deleteMany({ where: { eventId: { startsWith: `evt_${RUN}_` } } });
     await prisma.subscription.deleteMany({ where: { userId: { in: usuarios } } });
@@ -610,6 +623,11 @@ describe("ordem dos eventos de assinatura Stripe contra Postgres real", { skip: 
       assert.deepEqual(await foto(u), antes, `entrega ${i + 1}: plano, vínculo, validade e updatedAt intactos`);
     }
     assert.equal(await guardados(evt("b1_ra")), 1, "o evento fica guardado (histórico)");
+    // Trocar o vínculo não basta: a substituída deixa de renovar na Stripe (fim do período, sem estorno).
+    assert.equal(falso.retrato(antiga).cancel_at_period_end, true);
+    assert.equal(falso.retrato(nova).cancel_at_period_end, false);
+    const ops = await prisma.stripeOperacao.findMany({ where: { userId: u }, select: { tipo: true, status: true, externalId: true, substituida: true } });
+    assert.deepEqual(ops, [{ tipo: "cancelar_substituida", status: "concluida", externalId: nova, substituida: antiga }]);
   });
 
   it("B1: ordem inversa — renovação da antiga ANTES do completed da nova: termina na nova PREMIUM", async () => {

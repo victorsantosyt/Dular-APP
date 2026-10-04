@@ -987,10 +987,53 @@ model Subscription {
   /** estado do vínculo ANTES de qualquer evento de ciclo de vida da Stripe:
    *  `{ status, expiresAt, canceledAt }`. Base da qual o estado é recalculado. */
   stripeBase Json?
+  /** versão do plano na Stripe (`metadata.planoVersao` da assinatura) que o
+   *  `plan` reflete. Só uma versão MAIOR troca o plano: evento antigo ou
+   *  reentregue não desfaz uma troca mais nova. Nulo até o primeiro retrato. */
+  stripePlanoVersao Int?
   createdAt  DateTime           @default(now())
   updatedAt  DateTime           @updatedAt
 
   @@index([status])
+}
+
+/** Operação de cobrança iniciada pelo Dular na Stripe (checkout novo, troca de
+ *  plano, cancelamento de assinatura substituída). Gravada ANTES de chamar a
+ *  Stripe e com chave de idempotência própria: se a Stripe aceitar e o banco
+ *  falhar em seguida, a operação continua `pendente` e é retomada — no próximo
+ *  pedido do usuário, nos eventos da assinatura ou pela rota de operações —
+ *  relendo o estado na Stripe, sem cobrar de novo. */
+model StripeOperacao {
+  id          String   @id @default(cuid())
+  userId      String
+  /** checkout | upgrade | downgrade | manter | cancelar_substituida */
+  tipo        String
+  /** pendente | aguardando | concluida | descartada | falhou */
+  status      String
+  /** plano alvo (id do catálogo). */
+  planId      String?
+  /** `sub_…` em que a operação age (no checkout, a criada pela sessão). */
+  externalId  String?
+  /** `sub_…` substituída, a cancelar no fim do período (cancelar_substituida). */
+  substituida String?
+  /** `metadata.planoVersao` que a troca grava na Stripe. */
+  versao      Int?
+  /** prefixo das chaves de idempotência das chamadas desta operação. */
+  chave       String   @unique
+  /** objeto resultante na Stripe: `cs_…`, `in_…` (troca aguardando pagamento) ou `sub_sched_…`. */
+  referencia  String?
+  /** link de pagamento devolvido ao app (sessão de checkout ou fatura). */
+  url         String?
+  tentativas  Int      @default(0)
+  /** último erro, sem segredo (código e mensagem curta). */
+  erro        String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId, status])
+  @@index([externalId])
+  @@index([substituida])
+  @@index([status, updatedAt])
 }
 
 /** Eventos de ciclo de vida da Stripe já recebidos: deduplicação persistente

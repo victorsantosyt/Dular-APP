@@ -18,6 +18,13 @@ describe("POST /api/billing/checkout — metadados da assinatura", () => {
   beforeEach(async () => {
     resetMockPrisma();
     mockPrisma.user.findUnique = async () => ({ status: "ATIVO", email: "profissional@teste.invalid" });
+    // Sem assinatura: o pedido vai ao Checkout (lib/trocaDePlano), sob a trava
+    // da pessoa e com a operação gravada antes da chamada à Stripe.
+    const raiz = mockPrisma as unknown as Record<string, unknown>;
+    raiz.$transaction = async (fn: (tx: unknown) => Promise<unknown>) => fn({ $executeRaw: async () => 1 });
+    mockPrisma.subscription.findUnique = async () => null;
+    mockPrisma.stripeOperacao.create = async (args: { data: Record<string, unknown> }) => ({ id: "op-1", ...args.data });
+    mockPrisma.stripeOperacao.update = async () => ({});
     const { stripe } = await import("../../src/lib/stripe");
     criarOriginal ??= stripe.checkout.sessions.create;
     criadas = [];

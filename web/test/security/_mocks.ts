@@ -34,6 +34,7 @@ export type MockPrisma = {
   montadorPerfil: { findUnique: AnyFn; findMany: AnyFn };
   documentVerification: { findFirst: AnyFn; create: AnyFn };
   subscription: { upsert: AnyFn; updateMany: AnyFn; findUnique: AnyFn; findFirst: AnyFn };
+  stripeOperacao: { findMany: AnyFn; findUnique: AnyFn; updateMany: AnyFn; create: AnyFn; update: AnyFn };
   creditWallet: { upsert: AnyFn };
   creditTransaction: { create: AnyFn; findUnique: AnyFn };
   auditLog: { create: AnyFn };
@@ -147,6 +148,19 @@ export function createMockPrisma(): MockPrisma {
       updateMany: notMocked("subscription.updateMany"),
       findUnique: notMocked("subscription.findUnique"),
       findFirst: notMocked("subscription.findFirst"),
+    },
+    stripeOperacao: {
+      /**
+       * Padrão = nenhuma operação Stripe em andamento, pelo mesmo motivo do
+       * `user.findUnique` acima: todo evento de assinatura no webhook procura
+       * operações pendentes para retomar e anota as que terminaram. Teste de
+       * troca de plano sobrescreve; gravar uma operação nova continua exigindo mock.
+       */
+      findMany: (async () => []) as AnyFn,
+      findUnique: (async () => null) as AnyFn,
+      updateMany: (async () => ({ count: 0 })) as AnyFn,
+      create: notMocked("stripeOperacao.create"),
+      update: notMocked("stripeOperacao.update"),
     },
     creditWallet: { upsert: notMocked("creditWallet.upsert") },
     creditTransaction: {

@@ -1,5 +1,14 @@
 import { stripe } from "@/lib/stripe";
-import { concederAssinatura, encerrarAssinatura, planoDosMetadados } from "@/lib/assinatura";
+import {
+  planoDosMetadados,
+  processarEventoStripe,
+  vincularAssinaturaStripe,
+  type EventoRecebidoStripe,
+  type EventoStripe,
+  type ResultadoEventoStripe,
+  type TipoCicloStripe,
+  type VinculoStripe,
+} from "@/lib/assinatura";
 import { validadeDoPlano } from "@/lib/stripe";
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
@@ -39,10 +48,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Webhook not configured" }, { status: 400 });
   }
 
+  // A Stripe não garante ordem nem entrega única. Os eventos de assinatura
+  // se ordenam pelo `created` e pelo id do PRÓPRIO evento (lib/assinatura).
+  const evento = eventoDaStripe(event);
+
   try {
     switch (event.type) {
       case "checkout.session.completed":
-        await handleCheckoutCompleted(event.data.object as Stripe.Checkout.Session);
+        await handleCheckoutCompleted(event.data.object as Stripe.Checkout.Session, evento);
         break;
 
       // Pagamento que se confirma depois (boleto, Pix): o `completed` chega com
@@ -56,21 +69,21 @@ export async function POST(request: Request) {
         break;
 
       case "customer.subscription.deleted":
-        await handleSubscriptionDeleted(event.data.object as Stripe.Subscription);
+        await handleSubscriptionDeleted(event.data.object as Stripe.Subscription, evento);
         break;
 
       // Renovação. Sem tratar isto, a validade parava no primeiro período: o
       // Stripe seguia cobrando e o acesso caía, porque quem decide o acesso é
       // o `expiresAt` gravado aqui.
       case "invoice.paid":
-        await handleInvoicePaid(event.data.object as Stripe.Invoice);
+        await handleInvoicePaid(event.data.object as Stripe.Invoice, evento);
         break;
 
       // Pagamento falhou. Antes, quem parava de pagar mantinha o plano até o
       // Stripe desistir das tentativas e mandar o `deleted` — dias ou semanas
       // de acesso pago por ninguém.
       case "invoice.payment_failed":
-        await handleInvoiceFailed(event.data.object as Stripe.Invoice);
+        await handleInvoiceFailed(event.data.object as Stripe.Invoice, evento);
         break;
     }
   } catch (err) {
@@ -81,7 +94,20 @@ export async function POST(request: Request) {
   return NextResponse.json({ received: true });
 }
 
-async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
+/** `created` (segundos) e id do evento. Eventos reais sempre têm os dois. */
+function eventoDaStripe(event: Stripe.Event): EventoStripe | null {
+  const { created, id } = event as { created?: unknown; id?: unknown };
+  if (typeof created !== "number" || !Number.isInteger(created) || created <= 0) return null;
+  if (typeof id !== "string" || id === "") return null;
+  return { quando: new Date(created * 1000), eventId: id };
+}
+
+/** Sem `created`/id não há como ordenar: o evento de assinatura não escreve. */
+function semEvento(tipo: string, objeto: unknown) {
+  console.error("[stripe-webhook] evento de assinatura sem id ou created; nada foi alterado:", tipo, objeto);
+}
+
+async function handleCheckoutCompleted(session: Stripe.Checkout.Session, evento: EventoStripe | null) {
   const userId = session.client_reference_id;
   if (!userId) return;
 
@@ -95,13 +121,17 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
       console.error("[stripe-webhook] sessão sem planId nos metadados:", session.id);
       return;
     }
+    const assinaturaId = idDeAssinatura(session.subscription);
+    if (!assinaturaId) {
+      console.error("[stripe-webhook] sessão de assinatura sem id sub_ válido; nada foi alterado:", session.id);
+      return;
+    }
+    if (!evento) return semEvento("checkout.session.completed", session.id);
 
-    await concederAssinatura({
-      userId,
-      plano,
-      provider: "STRIPE",
-      externalId: session.subscription as string,
-    });
+    // Só cria ou troca o VÍNCULO usuário↔assinatura (mesma `sub_` → nada
+    // escrito). O período efetivo vem dos eventos de ciclo de vida: o
+    // `invoice.paid` costuma chegar ANTES deste evento e já está guardado.
+    await vincularAssinaturaStripe({ userId, plano, externalId: assinaturaId, quando: evento.quando });
   }
 
   if (session.mode === "payment") {
@@ -195,51 +225,78 @@ async function creditarCompra(userId: string, credits: number, sessaoId: string)
   }
 }
 
-async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
-  await encerrarAssinatura("STRIPE", subscription.id, "cancelada");
+async function handleSubscriptionDeleted(subscription: Stripe.Subscription, evento: EventoStripe | null) {
+  const assinaturaId = idDeAssinatura(subscription.id);
+  if (!assinaturaId) return;
+  if (!evento) return semEvento("customer.subscription.deleted", assinaturaId);
+  await registrarEvento("customer.subscription.deleted", assinaturaId, evento, { fimPeriodo: null, faturaId: null }, null);
 }
 
-/** Renovação paga: estende a validade até o fim do novo período. */
-async function handleInvoicePaid(invoice: Stripe.Invoice) {
+/** Pagamento confirmado (compra ou renovação): validade até o fim do período cobrado. */
+async function handleInvoicePaid(invoice: Stripe.Invoice, evento: EventoStripe | null) {
   const assinaturaId = idDaAssinatura(invoice);
   if (!assinaturaId) return;
-
-  const atual = await prisma.subscription.findFirst({
-    where: { provider: "STRIPE", externalId: assinaturaId },
-    select: { userId: true },
-  });
-  if (!atual) return;
+  if (!evento) return semEvento("invoice.paid", invoice.id);
 
   // Fim do período que o Stripe acabou de cobrar. É a fonte certa: seguir o
   // relógio do provedor evita o acesso e a cobrança andarem separados.
-  const fimDoPeriodo = invoice.lines?.data?.[0]?.period?.end;
-  const plano = planoDosMetadados(invoice.metadata as Record<string, string>);
+  const planoDaFatura = planoDosMetadados(invoice.metadata as Record<string, string>);
+  const fimPeriodo = fimDoPeriodoDaFatura(invoice) ?? (planoDaFatura ? validadeDoPlano(planoDaFatura) : null);
 
-  await prisma.subscription.updateMany({
-    where: { provider: "STRIPE", externalId: assinaturaId },
-    data: {
-      status: "ACTIVE",
-      canceledAt: null,
-      expiresAt: fimDoPeriodo
-        ? new Date(fimDoPeriodo * 1000)
-        : plano
-          ? validadeDoPlano(plano)
-          : undefined,
-    },
-  });
+  // Sem linha desta assinatura (na compra, o `invoice.paid` chega ANTES do
+  // `completed`), o vínculo nasce pelos metadados da ASSINATURA que o
+  // /billing/checkout grava (`subscription_data.metadata`) — mas só na PRIMEIRA
+  // fatura. Renovação nunca cria nem troca vínculo: uma assinatura substituída
+  // continua renovando, e o `created` da renovação não prova que ela é a mais nova.
+  const metadados = metadadosDaAssinatura(invoice);
+  const userId = metadados?.userId;
+  const plano = planoDosMetadados(metadados);
+  const primeiraFatura = invoice.billing_reason === "subscription_create";
+  const vinculo = primeiraFatura && typeof userId === "string" && userId !== "" && plano ? { userId, plano } : null;
+
+  await registrarEvento("invoice.paid", assinaturaId, evento, { fimPeriodo, faturaId: idDaFatura(invoice) }, vinculo);
 }
 
-/** Pagamento falhou: encerra na hora — o período seguinte não foi pago. */
-async function handleInvoiceFailed(invoice: Stripe.Invoice) {
+/**
+ * Pagamento falhou: corta na hora da PRIMEIRA falha, a menos que a fatura do
+ * período acabe paga. O período da fatura que falhou entra na ordem (lib/assinatura).
+ */
+async function handleInvoiceFailed(invoice: Stripe.Invoice, evento: EventoStripe | null) {
   const assinaturaId = idDaAssinatura(invoice);
   if (!assinaturaId) return;
-  await encerrarAssinatura("STRIPE", assinaturaId, "nao_paga");
+  if (!evento) return semEvento("invoice.payment_failed", invoice.id);
+  const fatura = { fimPeriodo: fimDoPeriodoDaFatura(invoice), faturaId: idDaFatura(invoice) };
+  await registrarEvento("invoice.payment_failed", assinaturaId, evento, fatura, null);
+}
+
+const SEM_EFEITO: Record<Exclude<ResultadoEventoStripe, "aplicado">, string> = {
+  repetido: "evento já processado; nada alterado",
+  sem_mudanca: "estado já refletia o evento; nada alterado",
+  guardado: "sem vínculo para esta assinatura; evento guardado para o checkout.session.completed",
+  sem_usuario: "usuário dos metadados da assinatura não existe; evento guardado",
+};
+
+/** Guarda o evento e recalcula a assinatura (lib/assinatura). */
+async function registrarEvento(
+  tipo: TipoCicloStripe,
+  externalId: string,
+  evento: EventoStripe,
+  fatura: Pick<EventoRecebidoStripe, "fimPeriodo" | "faturaId">,
+  vinculo: Pick<VinculoStripe, "userId" | "plano"> | null,
+) {
+  const resultado = await processarEventoStripe(
+    { eventId: evento.eventId, externalId, tipo, criadoEm: evento.quando, ...fatura },
+    vinculo,
+  );
+  if (resultado === "aplicado") return;
+  const log = resultado === "sem_usuario" ? console.error : console.info;
+  log(`[stripe-webhook] ${tipo}: ${SEM_EFEITO[resultado]}:`, externalId, evento.eventId);
 }
 
 // Formato bruto da fatura: cada versão da API põe a assinatura num lugar, e o
 // evento chega na versão configurada no endpoint, não na do client acima.
 type FaturaBruta = {
-  parent?: { type?: unknown; subscription_details?: { subscription?: unknown } | null } | null;
+  parent?: { type?: unknown; subscription_details?: { subscription?: unknown; metadata?: unknown } | null } | null;
   subscription?: unknown;
   lines?: { data?: Array<{ subscription?: unknown } | null> };
 };
@@ -270,6 +327,29 @@ function idDaAssinatura(invoice: Stripe.Invoice): string | null {
     return null;
   }
   return distintos[0] ?? null;
+}
+
+/**
+ * Metadados da ASSINATURA que a fatura carrega — só com `parent.type`
+ * `subscription_details`, a mesma regra de `idDaAssinatura`.
+ */
+function metadadosDaAssinatura(invoice: Stripe.Invoice): Record<string, string> | null {
+  const parent = (invoice as unknown as FaturaBruta).parent;
+  if (parent?.type !== "subscription_details") return null;
+  const metadata = parent.subscription_details?.metadata;
+  return typeof metadata === "object" && metadata !== null ? (metadata as Record<string, string>) : null;
+}
+
+/** `in_…` da fatura; null quando não vem. */
+function idDaFatura(invoice: Stripe.Invoice): string | null {
+  const id: unknown = invoice.id;
+  return typeof id === "string" && /^in_\w+$/.test(id) ? id : null;
+}
+
+/** Fim do período cobrado pela fatura (`lines.data[0].period.end`); null quando não vem. */
+function fimDoPeriodoDaFatura(invoice: Stripe.Invoice): Date | null {
+  const fim: unknown = invoice.lines?.data?.[0]?.period?.end;
+  return typeof fim === "number" && fim > 0 ? new Date(fim * 1000) : null;
 }
 
 /** Id de assinatura (`sub_…`) em string ou no objeto expandido; o resto é ignorado. */

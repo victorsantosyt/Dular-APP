@@ -110,6 +110,39 @@ describe("POST /api/webhooks/stripe", () => {
 
 describe("POST /api/webhooks/stripe — fluxo positivo (constructEvent mockado)", () => {
   let originalConstructEvent: unknown;
+  const CRIADO = 1_790_000_000;
+
+  async function postar() {
+    const POST = await getPost();
+    return POST(
+      new Request("http://test/api/webhooks/stripe", {
+        method: "POST",
+        headers: { "stripe-signature": "t=1,v1=dummy" },
+        body: "{}",
+      }),
+    );
+  }
+
+  const raiz = mockPrisma as unknown as Record<string, unknown>;
+
+  /**
+   * Transação interativa cujo `tx` é o próprio mock. Devolve os locks pedidos;
+   * confere que os limites de tempo (SET LOCAL) vêm antes de cada lock.
+   */
+  function instalarTransacao() {
+    const travas: string[] = [];
+    let limites = 0;
+    raiz.$transaction = async (fn: (tx: unknown) => Promise<unknown>) => fn(mockPrisma);
+    raiz.$executeRaw = async (sql: TemplateStringsArray, ...valores: unknown[]) => {
+      const texto = sql.join("?");
+      if (texto.includes("set_config('lock_timeout'")) limites += 1;
+      if (!texto.includes("pg_advisory_xact_lock")) return 1;
+      assert.equal(limites, travas.length + 1, "lock_timeout/statement_timeout antes do lock");
+      travas.push(String(valores[0]));
+      return 1;
+    };
+    return travas;
+  }
 
   beforeEach(async () => {
     resetEnv();
@@ -129,9 +162,11 @@ describe("POST /api/webhooks/stripe — fluxo positivo (constructEvent mockado)"
     resetEnv();
   });
 
-  it("checkout.session.completed em modo subscription faz upsert na Subscription", async () => {
-    const { stripe } = await import("../../src/lib/stripe");
+  it("checkout.session.completed em modo subscription cria o vínculo (createMany skipDuplicates) sob o lock da sub", async () => {
+    const { stripe, PLANS, validadeDoPlano } = await import("../../src/lib/stripe");
     stripe.webhooks.constructEvent = (() => ({
+      id: "evt_test_completed_1",
+      created: CRIADO,
       type: "checkout.session.completed",
       data: {
         object: {
@@ -143,27 +178,101 @@ describe("POST /api/webhooks/stripe — fluxo positivo (constructEvent mockado)"
       },
     })) as never;
 
-    let upsertCalled = false;
-    let upsertedArgs: { where?: unknown; update?: { plan?: string } } | null = null;
-    mockPrisma.subscription.upsert = async (args: { where?: unknown; update?: { plan?: string } }) => {
-      upsertCalled = true;
-      upsertedArgs = args;
-      return { id: "subs-1" };
+    const travas = instalarTransacao();
+    let createArgs: { data?: Array<Record<string, unknown>>; skipDuplicates?: boolean } | null = null;
+    const tocadas: string[] = [];
+    (mockPrisma.subscription as Record<string, unknown>).createMany = async (args: typeof createArgs) => {
+      createArgs = args;
+      return { count: 1 };
     };
+    // Recálculo depois de criar: a linha recém-criada, sem eventos guardados.
+    mockPrisma.subscription.findFirst = async () => ({ id: "row-1", ...createArgs!.data![0] });
+    raiz.stripeEventoAssinatura = { findMany: async () => [] };
+    mockPrisma.subscription.upsert = async () => void tocadas.push("upsert");
+    mockPrisma.subscription.updateMany = async () => void tocadas.push("updateMany");
 
-    const POST = await getPost();
-    const req = new Request("http://test/api/webhooks/stripe", {
-      method: "POST",
-      headers: { "stripe-signature": "t=1,v1=dummy" },
-      body: JSON.stringify({ type: "checkout.session.completed" }),
-    });
-    const res = await POST(req);
+    const res = await postar();
 
     assert.equal(res.status, 200);
     const body = await res.json();
     assert.equal(body.received, true);
-    assert.equal(upsertCalled, true);
-    assert.equal(upsertedArgs!.update!.plan, "PREMIUM");
+    const quando = new Date(CRIADO * 1000);
+    assert.equal(createArgs!.skipDuplicates, true);
+    assert.deepEqual(createArgs!.data, [
+      {
+        userId: "u-1",
+        plan: "PREMIUM",
+        status: "ACTIVE",
+        provider: "STRIPE",
+        externalId: "sub_test_123",
+        storeProductId: null,
+        startedAt: quando,
+        // Provisória: o período efetivo vem dos eventos de ciclo de vida.
+        expiresAt: validadeDoPlano(PLANS.pro_mensal, quando),
+        canceledAt: null,
+        stripeBase: {
+          status: "ACTIVE",
+          expiresAt: validadeDoPlano(PLANS.pro_mensal, quando).toISOString(),
+          canceledAt: null,
+        },
+      },
+    ]);
+    assert.deepEqual(travas, ["sub_test_123"]);
+    assert.deepEqual(tocadas, [], "criou e nada mudou no recálculo: nenhuma outra escrita");
+  });
+
+  it("checkout.session.completed sem id/created do evento: nada gravado, erro no log", async () => {
+    const { stripe } = await import("../../src/lib/stripe");
+    stripe.webhooks.constructEvent = (() => ({
+      type: "checkout.session.completed",
+      data: {
+        object: {
+          mode: "subscription",
+          client_reference_id: "u-1",
+          subscription: "sub_test_123",
+          metadata: { planId: "pro_mensal" },
+        },
+      },
+    })) as never;
+    const tocadas: string[] = [];
+    (mockPrisma.subscription as Record<string, unknown>).createMany = async () => void tocadas.push("createMany");
+    mockPrisma.subscription.updateMany = async () => void tocadas.push("updateMany");
+    raiz.$transaction = async () => void tocadas.push("$transaction");
+    const erros: unknown[][] = [];
+    const errorOriginal = console.error;
+    console.error = (...a: unknown[]) => void erros.push(a);
+    try {
+      const res = await postar();
+      assert.equal(res.status, 200);
+    } finally {
+      console.error = errorOriginal;
+    }
+    assert.deepEqual(tocadas, []);
+    assert.ok(erros.some((e) => String(e[0]).includes("sem id ou created")));
+  });
+
+  it("checkout.session.completed com subscription que não é sub_: nada gravado", async () => {
+    const { stripe } = await import("../../src/lib/stripe");
+    const tocadas: string[] = [];
+    (mockPrisma.subscription as Record<string, unknown>).createMany = async () => void tocadas.push("createMany");
+    mockPrisma.subscription.updateMany = async () => void tocadas.push("updateMany");
+    raiz.$transaction = async () => void tocadas.push("$transaction");
+    const errorOriginal = console.error;
+    console.error = () => {};
+    try {
+      for (const subscription of [null, "", "in_test_123", 123]) {
+        stripe.webhooks.constructEvent = (() => ({
+          id: "evt_test_completed_2",
+          created: CRIADO,
+          type: "checkout.session.completed",
+          data: { object: { mode: "subscription", client_reference_id: "u-1", subscription, metadata: { planId: "pro_mensal" } } },
+        })) as never;
+        assert.equal((await postar()).status, 200);
+      }
+    } finally {
+      console.error = errorOriginal;
+    }
+    assert.deepEqual(tocadas, []);
   });
 
   it("checkout.session.completed em modo payment credita CreditWallet", async () => {
@@ -212,49 +321,92 @@ describe("POST /api/webhooks/stripe — fluxo positivo (constructEvent mockado)"
       data: { object: { mode: "subscription", client_reference_id: null, metadata: {} } },
     })) as never;
 
-    let upsertCalled = false;
-    mockPrisma.subscription.upsert = async () => {
-      upsertCalled = true;
-      return { id: "x" };
-    };
+    const tocadas: string[] = [];
+    mockPrisma.subscription.upsert = async () => void tocadas.push("upsert");
+    mockPrisma.subscription.updateMany = async () => void tocadas.push("updateMany");
+    (mockPrisma.subscription as Record<string, unknown>).createMany = async () => void tocadas.push("createMany");
+    raiz.$transaction = async () => void tocadas.push("$transaction");
 
-    const POST = await getPost();
-    const req = new Request("http://test/api/webhooks/stripe", {
-      method: "POST",
-      headers: { "stripe-signature": "t=1,v1=dummy" },
-      body: JSON.stringify({}),
-    });
-    const res = await POST(req);
+    const res = await postar();
 
     assert.equal(res.status, 200);
-    assert.equal(upsertCalled, false, "sem userId não deve persistir nada");
+    assert.deepEqual(tocadas, [], "sem userId não deve persistir nada");
   });
 
-  it("customer.subscription.deleted marca CANCELED via updateMany", async () => {
-    const { stripe } = await import("../../src/lib/stripe");
-    stripe.webhooks.constructEvent = (() => ({
-      type: "customer.subscription.deleted",
-      data: { object: { id: "sub_to_cancel" } },
-    })) as never;
+  describe("customer.subscription.deleted", () => {
+    const quando = new Date(CRIADO * 1000);
+    const pago = new Date("2026-12-31T00:00:00Z");
 
-    let updateArgs: { where?: { externalId?: string }; data?: { status?: string } } | null = null;
-    mockPrisma.subscription.updateMany = async (
-      args: { where?: { externalId?: string }; data?: { status?: string } },
-    ) => {
-      updateArgs = args;
-      return { count: 1 };
-    };
+    async function excluir(primeiraEntrega: boolean) {
+      const { stripe } = await import("../../src/lib/stripe");
+      stripe.webhooks.constructEvent = (() => ({
+        id: "evt_test_deleted_1",
+        created: CRIADO,
+        type: "customer.subscription.deleted",
+        data: { object: { id: "sub_to_cancel" } },
+      })) as never;
 
-    const POST = await getPost();
-    const req = new Request("http://test/api/webhooks/stripe", {
-      method: "POST",
-      headers: { "stripe-signature": "t=1,v1=dummy" },
-      body: "{}",
+      const travas = instalarTransacao();
+      const guardados: Array<Record<string, unknown>> = [];
+      let createArgs: { data?: Array<Record<string, unknown>>; skipDuplicates?: boolean } | null = null;
+      raiz.stripeEventoAssinatura = {
+        createMany: async (args: typeof createArgs) => {
+          createArgs = args;
+          if (!primeiraEntrega) return { count: 0 };
+          guardados.push(...args!.data!);
+          return { count: 1 };
+        },
+        findMany: async () => guardados,
+      };
+      const tocadas: string[] = [];
+      mockPrisma.subscription.findFirst = async () => {
+        tocadas.push("findFirst");
+        return {
+          id: "row-1",
+          status: "ACTIVE",
+          expiresAt: pago,
+          canceledAt: null,
+          stripeBase: { status: "ACTIVE", expiresAt: pago.toISOString(), canceledAt: null },
+        };
+      };
+      type Atualizacao = { where?: Record<string, unknown>; data?: Record<string, unknown> };
+      let updateArgs: Atualizacao | null = null;
+      mockPrisma.subscription.updateMany = async (args: Atualizacao) => {
+        tocadas.push("updateMany");
+        updateArgs = args;
+        return { count: 1 };
+      };
+
+      const res = await postar();
+      assert.equal(res.status, 200);
+      return { travas, createArgs: createArgs!, tocadas, updateArgs: updateArgs as Atualizacao | null };
+    }
+
+    it("guarda o evento e grava CANCELED recalculado, sob o lock da sub", async () => {
+      const { travas, createArgs, updateArgs } = await excluir(true);
+
+      assert.deepEqual(travas, ["sub_to_cancel"]);
+      assert.equal(createArgs.skipDuplicates, true);
+      assert.deepEqual(createArgs.data, [
+        {
+          eventId: "evt_test_deleted_1",
+          externalId: "sub_to_cancel",
+          tipo: "customer.subscription.deleted",
+          criadoEm: quando,
+          fimPeriodo: null,
+          faturaId: null,
+        },
+      ]);
+      assert.deepEqual(updateArgs!.where, { id: "row-1", provider: "STRIPE", externalId: "sub_to_cancel" });
+      // Cancelou: vale até o fim do que pagou. A base já existe: não é regravada.
+      assert.deepEqual(updateArgs!.data, { status: "CANCELED", expiresAt: pago, canceledAt: quando });
     });
-    const res = await POST(req);
 
-    assert.equal(res.status, 200);
-    assert.equal(updateArgs!.where!.externalId, "sub_to_cancel");
-    assert.equal(updateArgs!.data!.status, "CANCELED");
+    it("evento já guardado (reentrega): nada mais é lido nem escrito", async () => {
+      const { travas, tocadas } = await excluir(false);
+
+      assert.deepEqual(travas, ["sub_to_cancel"]);
+      assert.deepEqual(tocadas, []);
+    });
   });
 });

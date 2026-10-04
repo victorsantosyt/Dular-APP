@@ -399,6 +399,13 @@ describe("checkout.session.completed — compra de créditos idempotente", () =>
       const tocadas: string[] = [];
       mockPrisma.subscription.upsert = async () => void tocadas.push("upsert");
       mockPrisma.subscription.updateMany = async () => void tocadas.push("updateMany");
+      (mockPrisma.subscription as Record<string, unknown>).createMany = async () => void tocadas.push("createMany");
+      mockPrisma.subscription.findFirst = async () => void tocadas.push("findFirst");
+      const transacaoDosCreditos = mockPrisma.$transaction;
+      mockPrisma.$transaction = (fn: unknown) => {
+        tocadas.push("$transaction");
+        return transacaoDosCreditos(fn);
+      };
       const assinatura = compra("5", { mode: "subscription", payment_status: "paid", subscription: "sub_ficticio" });
       assert.equal(await enviar(assinatura, { tipo: SUCESSO }), 200);
       assert.equal(await enviar(assinatura, { tipo: RECUSA }), 200);
@@ -407,20 +414,64 @@ describe("checkout.session.completed — compra de créditos idempotente", () =>
       assert.deepEqual(tocadas, []);
     });
 
-    it("assinatura: o completed segue concedendo como antes, pago ou pendente (fluxo inalterado)", async () => {
-      const concedidas: Array<{ status?: string; externalId?: string }> = [];
-      mockPrisma.subscription.upsert = async (args: { update: { status?: string; externalId?: string } }) => {
-        concedidas.push(args.update);
-        return { id: "sub-row" };
+    it("assinatura: o completed cria o vínculo (createMany), pago ou pendente, e não credita", async () => {
+      const antes = structuredClone(estado);
+      const vinculos: Array<Record<string, unknown>> = [];
+      (mockPrisma.subscription as Record<string, unknown>).createMany = async (args: { data: Array<Record<string, unknown>> }) => {
+        vinculos.push(args.data[0]);
+        return { count: 1 };
       };
+      const tocadas: string[] = [];
+      mockPrisma.subscription.upsert = async () => void tocadas.push("upsert");
+      mockPrisma.subscription.updateMany = async () => void tocadas.push("updateMany");
+      // Assinatura não passa pela transação dos créditos: tem a sua, com o lock da sub.
+      const travas: string[] = [];
+      const txAssinatura = {
+        $executeRaw: async (sql: TemplateStringsArray, ...valores: unknown[]) => {
+          if (sql.join("?").includes("pg_advisory_xact_lock")) travas.push(String(valores[0]));
+          return 1;
+        },
+        subscription: mockPrisma.subscription,
+        stripeEventoAssinatura: { findMany: async () => [] },
+      };
+      mockPrisma.subscription.findFirst = async () => null;
+      mockPrisma.$transaction = async (fn: (tx: unknown) => Promise<unknown>) => fn(txAssinatura);
+
+      // Usuário e assinatura distintos: cada entrega é a primeira daquela compra.
+      const segundos: Array<[number, number]> = [];
       for (const payment_status of ["paid", "unpaid"]) {
         const sessao = compra("5", {
-          mode: "subscription", payment_status, subscription: "sub_ficticio_fluxo", metadata: { planId: "pro_mensal" },
+          mode: "subscription",
+          payment_status,
+          client_reference_id: `u-assinatura-${payment_status}`,
+          subscription: `sub_ficticio_fluxo_${payment_status}`,
+          metadata: { planId: "pro_mensal" },
         });
+        const inicio = Math.floor(Date.now() / 1000);
         assert.equal(await enviar(sessao), 200);
+        segundos.push([inicio, Math.floor(Date.now() / 1000)]);
       }
-      assert.equal(concedidas.length, 2);
-      assert.ok(concedidas.every((c) => c.status === "ACTIVE" && c.externalId === "sub_ficticio_fluxo"));
+
+      assert.equal(vinculos.length, 2);
+      vinculos.forEach((v, i) => {
+        const payment_status = ["paid", "unpaid"][i];
+        assert.equal(v.userId, `u-assinatura-${payment_status}`);
+        assert.equal(v.status, "ACTIVE");
+        assert.equal(v.externalId, `sub_ficticio_fluxo_${payment_status}`);
+        // startedAt = `created` do evento (segundos inteiros), não a hora do servidor.
+        const inicio = (v.startedAt as Date).getTime();
+        assert.ok(v.startedAt instanceof Date && inicio % 1000 === 0, "startedAt vem do created do evento");
+        assert.ok(inicio >= segundos[i][0] * 1000 && inicio <= segundos[i][1] * 1000);
+        // Base do vínculo = validade provisória do plano a partir do created.
+        assert.deepEqual(v.stripeBase, {
+          status: "ACTIVE",
+          expiresAt: (v.expiresAt as Date).toISOString(),
+          canceledAt: null,
+        });
+      });
+      assert.deepEqual(travas, ["sub_ficticio_fluxo_paid", "sub_ficticio_fluxo_unpaid"]);
+      assert.deepEqual(tocadas, [], "primeira entrega: cria, sem upsert nem troca de vínculo");
+      assert.deepEqual(estado, antes);
       assert.deepEqual(chamadas, [], "nenhum crédito");
     });
 

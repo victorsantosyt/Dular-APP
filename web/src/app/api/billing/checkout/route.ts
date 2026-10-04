@@ -112,6 +112,16 @@ export async function POST(request: Request) {
       planId,
       subscriptionPlan: plan.plan,
     },
+    // Os mesmos metadados na ASSINATURA: chegam na fatura em
+    // `parent.subscription_details.metadata`, e o `invoice.paid` da compra —
+    // que chega antes do `checkout.session.completed` — cria o vínculo por eles.
+    subscription_data: {
+      metadata: {
+        userId: payload.userId,
+        planId,
+        subscriptionPlan: plan.plan,
+      },
+    },
     success_url: `${BASE_URL}/billing/success?session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${BASE_URL}/billing/cancel`,
   });

@@ -151,8 +151,18 @@ const recusado = (status: number, codigo: string, mensagem: string): ResultadoPe
 
 // ── Trava por usuário ───────────────────────────────────────────────────────
 
-/** Pedidos da mesma pessoa, um de cada vez. Mutável só para os testes. */
-export const limitesTroca = { lockTimeoutMs: 10_000, maxWaitMs: 5_000, timeoutMs: 45_000 };
+/** Pedidos da mesma pessoa, um de cada vez, e prazos da retomada. Mutável só para os testes. */
+export const limitesTroca = {
+  lockTimeoutMs: 10_000,
+  maxWaitMs: 5_000,
+  timeoutMs: 45_000,
+  /** Pedido que não chegou à Stripe e passou disto é DESCARTADO, nunca executado tarde. */
+  validadePedidoMs: 10 * 60_000,
+  /** `pendente` sem mudança há mais que isto não está em andamento (o pedido dura no máximo `timeoutMs`). */
+  paradaMs: 60_000,
+  /** Intervalo mínimo entre duas conferências de uma `aguardando` na Stripe. */
+  revisaoAguardandoMs: 10 * 60_000,
+};
 
 export class OperacaoEmAndamento extends Error {}
 
@@ -358,6 +368,24 @@ async function concluir(op: StripeOperacao, sub: Stripe.Subscription, plano: Pla
   await marcar(op, "concluida", { erro: null, ...(referencia ? { referencia } : {}) });
 }
 
+/**
+ * Pedido antigo que a releitura mostrou não ter chegado à Stripe: quem pediu
+ * já não está esperando. Executá-lo agora seria cobrar tarde algo que ninguém
+ * confirmou de novo — descarta; a pessoa pede outra vez se ainda quiser.
+ */
+const pedidoVencido = (op: StripeOperacao) => Date.now() - op.createdAt.getTime() > limitesTroca.validadePedidoMs;
+
+async function descartarVencido(op: StripeOperacao): Promise<ResultadoPedido> {
+  await marcar(op, "descartada", { erro: "pedido_vencido_sem_efeito" });
+  return recusado(409, "PEDIDO_EXPIRADO", "Seu pedido expirou sem ser concluído. Abra os planos novamente.");
+}
+
+/** Fase atual (pela própria Stripe, não pelo relógio do servidor) e a seguinte. */
+function fasesDaAgenda(agenda: Stripe.SubscriptionSchedule) {
+  const indice = agenda.phases.findIndex((f) => f.start_date === agenda.current_phase?.start_date);
+  return { faseAtual: agenda.phases[indice], proxima: indice >= 0 ? agenda.phases[indice + 1] : undefined };
+}
+
 function planoDaOperacao(op: StripeOperacao): PlanDef | null {
   return op.planId && op.planId in PLANS ? PLANS[op.planId as keyof typeof PLANS] : null;
 }
@@ -408,6 +436,7 @@ async function executarUpgrade(op: StripeOperacao, urlConcluida: string | null):
     return { tipo: "troca", situacao: "aplicada", url: urlConcluida };
   }
   if (precoPendente(sub) === preco) return aguardarPagamento(op, sub.latest_invoice as Stripe.Invoice | null);
+  if (pedidoVencido(op)) return descartarVencido(op);
 
   await liberarAgenda(sub, op);
   const atualizada = await stripe.subscriptions.update(
@@ -446,20 +475,22 @@ async function executarDowngrade(op: StripeOperacao, urlConcluida: string | null
     await concluir(op, sub, alvo);
     return { tipo: "troca", situacao: "aplicada", url: urlConcluida };
   }
+  let agenda = sub.schedule && typeof sub.schedule === "object" && ["active", "not_started"].includes(sub.schedule.status) ? sub.schedule : null;
+  const jaAgendada = agenda ? fasesDaAgenda(agenda) : null;
+  if (agenda && jaAgendada?.faseAtual && idDe(jaAgendada.proxima?.items?.[0]?.price) === preco) {
+    await marcar(op, "concluida", { referencia: agenda.id, erro: null });
+    return { tipo: "troca", situacao: "agendada", url: urlConcluida, vigenteEm: new Date(jaAgendada.faseAtual.end_date * 1000) };
+  }
+  if (pedidoVencido(op)) return descartarVencido(op);
+
   // Upgrade ainda não pago e agora um downgrade: o último pedido vale.
   await anularTrocaPendente(sub, op);
-
-  let agenda = sub.schedule && typeof sub.schedule === "object" ? sub.schedule : null;
-  if (!agenda || !["active", "not_started"].includes(agenda.status)) {
+  if (!agenda) {
     agenda = await stripe.subscriptionSchedules.create({ from_subscription: sub.id }, { idempotencyKey: `${op.chave}:agendar` });
   }
-  // Fase atual pela própria Stripe (não pelo relógio do servidor: o da
-  // assinatura pode ser outro, como num relógio de teste).
-  const indice = agenda.phases.findIndex((f) => f.start_date === agenda!.current_phase?.start_date);
-  const faseAtual = agenda.phases[indice];
+  const { faseAtual, proxima } = fasesDaAgenda(agenda);
   if (!faseAtual) throw new Error(`agenda ${agenda.id} sem fase atual`);
 
-  const proxima = agenda.phases[indice + 1];
   if (!(proxima && idDe(proxima.items?.[0]?.price) === preco)) {
     agenda = await stripe.subscriptionSchedules.update(
       agenda.id,
@@ -492,6 +523,8 @@ async function executarManter(op: StripeOperacao, urlConcluida: string | null): 
   const achada = await assinaturaDaOperacao(op);
   if (!achada) return recusado(409, "ASSINATURA_ALTERADA", "Sua assinatura mudou. Abra os planos novamente.");
   const { sub, alvo } = achada;
+  // Vencido: desfazer agora poderia apagar o que a pessoa agendou depois.
+  if (pedidoVencido(op)) return descartarVencido(op);
   await anularTrocaPendente(sub, op);
   await liberarAgenda(sub, op);
   await concluir(op, sub, alvo);
@@ -515,7 +548,9 @@ async function executarCancelamentoDaSubstituida(op: StripeOperacao): Promise<vo
   }
   const fatura = nova.latest_invoice as Stripe.Invoice | null;
   if (!VIVAS.has(nova.status) || fatura?.status !== "paid") {
-    await marcar(op, "pendente", { erro: "nova_nao_paga" });
+    // Nova encerrada sem pagamento: não há o que substituir; a antiga segue.
+    const encerrada = nova.status === "canceled" || nova.status === "incomplete_expired";
+    await marcar(op, encerrada ? "descartada" : "pendente", { erro: encerrada ? "nova_encerrada_sem_pagamento" : "nova_nao_paga" });
     return;
   }
   if (!antiga || antiga.status === "canceled" || antiga.status === "incomplete_expired" || antiga.cancel_at_period_end) {
@@ -585,6 +620,69 @@ export async function retomarOperacoes(filtro: FiltroRetomada, limite = 20): Pro
   }
   if (erro) throw erro;
   return { retomadas: ops.length };
+}
+
+/**
+ * Varredura: o que nenhum pedido nem evento vai acordar. Roda no boot de cada
+ * servidor e em intervalo (lib/varreduraDeOperacoes), e pela rota de operações.
+ *  - `pendente` parada (o processo caiu, a Stripe ficou fora): relê a Stripe e
+ *    conclui; pedido vencido sem efeito é descartado, nunca executado tarde;
+ *    cancelamento de substituída é sempre levado até o fim.
+ *  - `aguardando`: confere na Stripe — troca paga depois na fatura vira o plano
+ *    no banco; troca não paga que expirou e checkout pago/expirado terminam —
+ *    sem depender dos eventos.
+ * Cada operação sob a trava do seu usuário; erro numa não para as outras (ela
+ * segue gravada e volta na próxima rodada).
+ */
+export async function varrerOperacoes(opcoes: { imediato?: boolean; limite?: number } = {}): Promise<{ examinadas: number; falhas: number }> {
+  const agora = Date.now();
+  const antesDe = (ms: number) => (opcoes.imediato ? {} : { updatedAt: { lt: new Date(agora - ms) } });
+  const ops = await prisma.stripeOperacao.findMany({
+    where: {
+      OR: [
+        { status: "pendente", ...antesDe(limitesTroca.paradaMs) },
+        { status: "aguardando", ...antesDe(limitesTroca.revisaoAguardandoMs) },
+      ],
+    },
+    orderBy: { updatedAt: "asc" },
+    take: opcoes.limite ?? 20,
+  });
+  let falhas = 0;
+  for (const op of ops) {
+    try {
+      await comTravaDoUsuario(op.userId, async () => {
+        const atual = await prisma.stripeOperacao.findUnique({ where: { id: op.id } });
+        // Mexida por outro caminho entre a lista e a trava: fica para a próxima rodada.
+        if (!atual || atual.updatedAt.getTime() !== op.updatedAt.getTime()) return;
+        if (atual.status === "pendente") await retomarUma(atual);
+        else if (atual.status === "aguardando") await reconciliarAguardando(atual);
+      });
+    } catch (err) {
+      falhas += 1;
+      console.error("[troca-plano] varredura: operação segue gravada para a próxima rodada:", op.id, resumoDoErro(err));
+    }
+  }
+  return { examinadas: ops.length, falhas };
+}
+
+async function reconciliarAguardando(op: StripeOperacao): Promise<void> {
+  const conferida = () => prisma.stripeOperacao.update({ where: { id: op.id }, data: { tentativas: { increment: 1 } } });
+  if (op.tipo === "checkout" && op.referencia) {
+    const sessao = await stripe.checkout.sessions.retrieve(op.referencia);
+    if (sessao.status === "complete") return void (await marcar(op, "concluida", { externalId: idDe(sessao.subscription) }));
+    if (sessao.status === "expired") return void (await marcar(op, "descartada", { erro: "checkout_expirou" }));
+    return void (await conferida());
+  }
+  if (op.tipo === "upgrade") {
+    const alvo = planoDaOperacao(op);
+    const sub = op.externalId ? await buscarAssinatura(op.externalId) : null;
+    if (!alvo || !sub) return void (await marcar(op, "descartada", { erro: "assinatura_nao_encontrada" }));
+    const preco = await precoDoPlano(alvo);
+    if (precoDoItem(sub) === preco && !sub.pending_update) return void (await concluir(op, sub, alvo));
+    if (precoPendente(sub) === preco) return void (await conferida());
+    return void (await marcar(op, "descartada", { erro: "troca_nao_paga_expirou" }));
+  }
+  await conferida();
 }
 
 // ── Anotações vindas dos eventos ────────────────────────────────────────────

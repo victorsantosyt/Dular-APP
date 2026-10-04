@@ -26,6 +26,10 @@ Use este checklist antes do primeiro deploy. Execute os comandos a partir da rai
 - [ ] Output directory: `web/.next`
 - [ ] `npx prisma generate` no build (ja incluido em `web/package.json`, chamado pelo script)
 - [ ] Webhook do Stripe apontando para URL de produção: `https://SEU_DOMINIO/api/webhooks/stripe`
+- [ ] Eventos assinados nesse endpoint — os da compra e do ciclo de vida, mais os da troca de plano:
+  - `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`
+  - `invoice.paid`, `invoice.payment_failed`, `customer.subscription.deleted`
+  - `customer.subscription.updated`, `customer.subscription.pending_update_applied`, `customer.subscription.pending_update_expired`, `checkout.session.expired` — troca de plano (`lib/trocaDePlano`). Sem eles a troca ainda é retomada pela varredura do servidor, mas só no próximo boot ou intervalo
 - [ ] `STRIPE_WEBHOOK_SECRET` copiado do endpoint webhook de produção
 - [ ] Deploy criado e rota `/api/health` validada
 

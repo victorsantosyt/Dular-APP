@@ -1,17 +1,18 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuthAtivo } from "@/lib/contaAtiva";
-import { retomarOperacoes } from "@/lib/trocaDePlano";
+import { varrerOperacoes } from "@/lib/trocaDePlano";
 
 export const dynamic = "force-dynamic";
 
 /**
  * Operações de cobrança Stripe que não terminaram (lib/trocaDePlano). Elas
- * também são retomadas no próximo pedido do usuário e nos eventos da
- * assinatura; esta rota é a retomada que não depende de nenhum dos dois.
+ * também são retomadas no próximo pedido do usuário, nos eventos da
+ * assinatura e pela varredura do servidor (boot e intervalo); esta rota é a
+ * varredura sob demanda, sem esperar os prazos.
  *
  * GET  — pendentes, aguardando pagamento e falhas, mais antigas primeiro.
- * POST — retoma as pendentes (cada uma sob a trava do seu usuário).
+ * POST — varre agora: retoma as pendentes e confere as que aguardam.
  */
 async function exigirAdmin(req: Request) {
   const auth = await requireAuthAtivo(req);
@@ -43,10 +44,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: "Não autenticado" }, { status: 401 });
   }
   try {
-    const { retomadas } = await retomarOperacoes({}, 50);
-    return NextResponse.json({ ok: true, retomadas });
+    const { examinadas, falhas } = await varrerOperacoes({ imediato: true, limite: 50 });
+    return NextResponse.json({ ok: falhas === 0, examinadas, falhas }, { status: falhas === 0 ? 200 : 503 });
   } catch (err) {
-    console.error("[ops/stripe-operacoes] retomada interrompida; as operações seguem pendentes:", err);
-    return NextResponse.json({ ok: false, error: "Retomada interrompida; tente novamente." }, { status: 503 });
+    console.error("[ops/stripe-operacoes] varredura interrompida; as operações seguem gravadas:", err);
+    return NextResponse.json({ ok: false, error: "Varredura interrompida; tente novamente." }, { status: 503 });
   }
 }

@@ -64,6 +64,8 @@ export function criarStripeFalso(inicio = 1_790_000_000) {
     escritas: [] as string[],
     /** Antes de responder uma escrita: permite segurar/derrubar no meio. */
     antesDeResponder: null as null | ((metodo: string) => Promise<void>),
+    /** Recusa a escrita ANTES de aplicar (Stripe fora): verdadeiro = 503 sem efeito. */
+    recusarAntes: null as null | ((metodo: string) => boolean),
     /** Assinatura desconhecida: devolve dono e status para criá-la (testes de evento). */
     externas: null as null | ((subId: string) => { userId: string; paga: boolean } | null),
   };
@@ -72,6 +74,7 @@ export function criarStripeFalso(inicio = 1_790_000_000) {
 
   async function idempotente<T>(metodo: string, params: unknown, opcoes: { idempotencyKey?: string } | undefined, fn: () => T): Promise<T> {
     const chave = opcoes?.idempotencyKey;
+    if (s.recusarAntes?.(metodo)) throw erro("StripeAPIError", 503, "api_indisponivel", "Stripe fora (simulado)");
     s.escritas.push(`${metodo}${chave ? ` ${chave}` : ""}`);
     const texto = JSON.stringify(params ?? {});
     if (chave) {
@@ -302,7 +305,8 @@ export function criarStripeFalso(inicio = 1_790_000_000) {
       }),
   };
   function sessaoObj(cid: string) {
-    const ses = s.sessoes.get(cid)!;
+    const ses = s.sessoes.get(cid);
+    if (!ses) throw erro("StripeInvalidRequestError", 404, "resource_missing", `No such checkout.session: '${cid}'`);
     return {
       id: ses.id, object: "checkout.session", status: ses.status, mode: "subscription",
       payment_status: ses.status === "complete" ? "paid" : "unpaid", url: `https://checkout.stripe.test/${ses.id}`,

@@ -36,6 +36,7 @@ describe("troca de plano Stripe contra Postgres real", { skip: EXIGIDO ? false :
   let postOps: (req: Request) => Promise<Response>;
   let makeAuthHeaders: (userId: string, role: any) => Record<string, string>;
   let limitesTransacao: { lockTimeoutMs: number; statementTimeoutMs: number };
+  let varrer: (opcoes?: { imediato?: boolean; limite?: number }) => Promise<{ examinadas: number; falhas: number }>;
   let falso: StripeFalso;
   const RUN = `t_troca_${Date.now().toString(36)}`;
   const usuarios: string[] = [];
@@ -112,6 +113,7 @@ describe("troca de plano Stripe contra Postgres real", { skip: EXIGIDO ? false :
     postOps = (await import("../../src/app/api/ops/stripe-operacoes/route")).POST;
     ({ makeAuthHeaders } = await import("./_helpers"));
     ({ limitesTransacaoStripe: limitesTransacao } = await import("../../src/lib/assinatura"));
+    ({ varrerOperacoes: varrer } = await import("../../src/lib/trocaDePlano"));
 
     // Assinatura de outro usuário gravada antes de tudo: não pode mudar.
     testemunha = await usuario("testemunha");
@@ -549,7 +551,150 @@ describe("troca de plano Stripe contra Postgres real", { skip: EXIGIDO ? false :
     assert.equal((await operacoes(userId))[0].status, "concluida");
   });
 
-  // ── 8. Recusas que não cobram ─────────────────────────────────────────────
+  // ── 8. Varredura: retomada sem pedido do usuário e sem evento ─────────────
+  //
+  // É o que o servidor roda no boot e em intervalo (lib/varreduraDeOperacoes).
+  // "Envelhecer" põe a operação no passado, como depois de uma queda; a
+  // varredura só pega o que está parado há mais que os prazos de limitesTroca.
+
+  async function envelhecer(userId: string, minutos: number) {
+    await prisma.$executeRawUnsafe(
+      `UPDATE "StripeOperacao" SET "updatedAt" = "updatedAt" - make_interval(mins => $2), "createdAt" = "createdAt" - make_interval(mins => $2) WHERE "userId" = $1`,
+      userId,
+      minutos,
+    );
+  }
+  const varrerTudo = () => varrer({ limite: 500 });
+
+  it("queda depois de a Stripe aplicar a troca: a varredura (boot) conclui — sem pedido, sem evento, sem cobrar de novo", async () => {
+    const { userId, sub } = await assinante("varre_aplicada", "basico_mensal");
+    let derrubar = true;
+    falso.estado.antesDeResponder = async (metodo) => {
+      if (metodo === "subscriptions.update" && derrubar) {
+        derrubar = false;
+        throw Object.assign(new Error("processo caiu"), { type: "StripeConnectionError" });
+      }
+    };
+    assert.equal((await pedir(userId, "pro_mensal")).status, 503);
+    falso.estado.antesDeResponder = null;
+    assert.equal((await operacoes(userId))[0].status, "pendente");
+
+    // Recém-gravada pode estar em andamento: a varredura não mexe.
+    await varrerTudo();
+    assert.equal((await operacoes(userId))[0].status, "pendente");
+    assert.equal((await linha(userId)).plan, "BASIC");
+
+    await envelhecer(userId, 2);
+    await varrerTudo();
+    const l = await linha(userId);
+    assert.equal(l.plan, "PREMIUM");
+    assert.equal(l.stripePlanoVersao, 1);
+    assert.equal((await operacoes(userId))[0].status, "concluida");
+    assert.equal(escritas("subscriptions.update"), 1, "releu a Stripe: nenhuma chamada de troca nova");
+    assert.equal(cobrancasDe(sub).filter((c) => c.motivo === "subscription_update").length, 1);
+  });
+
+  it("pedido parado SEM efeito na Stripe e vencido: descartado — nem a varredura nem o próximo pedido cobram tarde", async () => {
+    const { userId, sub } = await assinante("varre_vencida", "basico_mensal");
+    // Caiu antes da chamada à Stripe: só a operação ficou gravada.
+    let derrubar = true;
+    falso.estado.recusarAntes = (metodo) => {
+      if (metodo !== "subscriptions.update" || !derrubar) return false;
+      derrubar = false;
+      return true;
+    };
+    assert.equal((await pedir(userId, "pro_mensal")).status, 503);
+    falso.estado.recusarAntes = null;
+    assert.equal(escritas("subscriptions.update"), 0);
+
+    // Uma hora depois o usuário pede de novo o plano que já tem: a operação velha não é executada.
+    await envelhecer(userId, 60);
+    const r = await pedir(userId, "basico_mensal");
+    assert.equal(r.status, 200);
+    assert.equal(r.corpo.troca.situacao, "sem_mudanca");
+    assert.equal(escritas("subscriptions.update"), 0, "nenhuma troca executada tarde");
+    assert.deepEqual(cobrancasDe(sub).map((c) => c.motivo), ["subscription_create"]);
+    const [op] = await operacoes(userId);
+    assert.deepEqual([op.status, op.erro], ["descartada", "pedido_vencido_sem_efeito"]);
+    assert.equal((await linha(userId)).plan, "BASIC");
+  });
+
+  it("pedido vencido encontrado pela varredura: descartado, nenhuma chamada à Stripe", async () => {
+    const { userId } = await assinante("varre_vencida2", "basico_mensal");
+    falso.estado.recusarAntes = (metodo) => metodo === "subscriptions.update";
+    assert.equal((await pedir(userId, "pro_mensal")).status, 503);
+    falso.estado.recusarAntes = null;
+    await envelhecer(userId, 30);
+    await varrerTudo();
+    const [op] = await operacoes(userId);
+    assert.deepEqual([op.status, op.erro], ["descartada", "pedido_vencido_sem_efeito"]);
+    assert.equal(escritas("subscriptions.update"), 0);
+  });
+
+  it("cancelamento da substituída com a Stripe fora e SEM reentrega: a varredura cancela depois", async () => {
+    const { userId, sub: antiga } = await assinante("varre_dup", "basico_mensal");
+    const nova = falso.criarAssinatura({ metadata: meta(userId, "pro_mensal"), plano: PLANS.pro_mensal });
+    const sessao = { id: `cs_${RUN}_varre_dup`, object: "checkout.session", mode: "subscription", payment_status: "paid", client_reference_id: userId, subscription: nova, metadata: meta(userId, "pro_mensal") };
+    falso.estado.recusarAntes = (metodo) => metodo === "subscriptions.update";
+    assert.equal((await entregar("checkout.session.completed", sessao, falso.estado.agora + 10)).status, 500);
+    falso.estado.recusarAntes = null;
+    assert.equal(falso.retrato(antiga).cancel_at_period_end, false);
+    assert.equal((await operacoes(userId))[0].status, "pendente");
+
+    // Nenhuma reentrega: a varredura acha a operação gravada.
+    await envelhecer(userId, 2);
+    await varrerTudo();
+    assert.equal(falso.retrato(antiga).cancel_at_period_end, true);
+    assert.equal((await operacoes(userId))[0].status, "concluida");
+  });
+
+  it("nova encerrada sem pagamento: o cancelamento é descartado e a antiga segue", async () => {
+    const { userId, sub: antiga } = await assinante("varre_dup_morta", "basico_mensal");
+    const nova = falso.criarAssinatura({ metadata: meta(userId, "pro_mensal"), plano: PLANS.pro_mensal });
+    falso.estado.faturas.get(falso.retrato(nova).latest_invoice as string)!.status = "open";
+    const sessao = { id: `cs_${RUN}_varre_morta`, object: "checkout.session", mode: "subscription", payment_status: "unpaid", client_reference_id: userId, subscription: nova, metadata: meta(userId, "pro_mensal") };
+    assert.equal((await entregar("checkout.session.completed", sessao, falso.estado.agora + 10)).status, 200);
+    assert.equal((await operacoes(userId))[0].erro, "nova_nao_paga");
+    falso.estado.assinaturas.get(nova)!.status = "incomplete_expired";
+    await envelhecer(userId, 2);
+    await varrerTudo();
+    const [op] = await operacoes(userId);
+    assert.deepEqual([op.status, op.erro], ["descartada", "nova_encerrada_sem_pagamento"]);
+    assert.equal(falso.retrato(antiga).cancel_at_period_end, false);
+  });
+
+  it("troca paga depois na fatura e NENHUM evento entregue: a varredura grava o plano", async () => {
+    const { userId, sub } = await assinante("varre_paga", "basico_mensal");
+    falso.cartao(sub, "falha");
+    assert.equal((await pedir(userId, "pro_mensal")).corpo.troca.situacao, "aguardando_pagamento");
+    falso.pagarFatura(falso.retrato(sub).latest_invoice as string);
+    await varrerTudo();
+    assert.equal((await linha(userId)).plan, "BASIC", "aguardando recém-conferida: só depois do intervalo");
+    await envelhecer(userId, 11);
+    await varrerTudo();
+    const l = await linha(userId);
+    assert.equal(l.plan, "PREMIUM");
+    assert.equal(l.stripePlanoVersao, 1);
+    assert.equal((await operacoes(userId))[0].status, "concluida");
+  });
+
+  it("troca não paga que expirou e checkout expirado, sem eventos: a varredura descarta; nada muda no plano", async () => {
+    const { userId, sub } = await assinante("varre_exp", "basico_mensal");
+    falso.cartao(sub, "3ds");
+    assert.equal((await pedir(userId, "pro_mensal")).corpo.troca.situacao, "aguardando_pagamento");
+    falso.expirarPendencia(sub);
+    const semAssinatura = await usuario("varre_ck_exp");
+    assert.equal((await pedir(semAssinatura, "basico_mensal")).status, 200);
+    for (const ses of falso.estado.sessoes.values()) ses.status = "expired";
+    await envelhecer(userId, 11);
+    await envelhecer(semAssinatura, 11);
+    await varrerTudo();
+    assert.deepEqual((await operacoes(userId)).map((o: any) => [o.status, o.erro]), [["descartada", "troca_nao_paga_expirou"]]);
+    assert.deepEqual((await operacoes(semAssinatura)).map((o: any) => [o.status, o.erro]), [["descartada", "checkout_expirou"]]);
+    assert.equal((await linha(userId)).plan, "BASIC");
+  });
+
+  // ── 9. Recusas que não cobram ─────────────────────────────────────────────
 
   it("assinatura com pagamento pendente (past_due): nem troca nem checkout novo", async () => {
     const { userId, sub } = await assinante("past_due", "basico_mensal");

@@ -10,9 +10,10 @@ import { varrerOperacoes } from "@/lib/trocaDePlano";
  * dinâmico: este módulo puxa o Prisma, que o bundle do Edge não aceita.
  *
  * Em produção serverless o intervalo é melhor esforço (a instância pode ser
- * congelada entre requisições); o boot de cada instância nova, os eventos da
- * Stripe (reenviados por até 3 dias) e a rota de operações completam a
- * cobertura. Agendamento garantido exige um cron na plataforma.
+ * congelada entre requisições). A hora marcada vem do cron da plataforma
+ * (`/api/cron/reconciliar-stripe`, em `vercel.json`); o boot de cada instância
+ * nova, os eventos da Stripe (reenviados por até 3 dias) e a rota de operações
+ * completam a cobertura.
  */
 
 const ATRASO_INICIAL_MS = 5_000;

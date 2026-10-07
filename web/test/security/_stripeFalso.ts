@@ -64,6 +64,8 @@ export function criarStripeFalso(inicio = 1_790_000_000) {
     escritas: [] as string[],
     /** Antes de responder uma escrita: permite segurar/derrubar no meio. */
     antesDeResponder: null as null | ((metodo: string) => Promise<void>),
+    /** Atraso de cada leitura de assinatura (ms): deixa a concorrência observável. */
+    atrasoLeituraMs: 0,
     /** Recusa a escrita ANTES de aplicar (Stripe fora): verdadeiro = 503 sem efeito. */
     recusarAntes: null as null | ((metodo: string) => boolean),
     /** Assinatura desconhecida: devolve dono e status para criá-la (testes de evento). */
@@ -216,7 +218,10 @@ export function criarStripeFalso(inicio = 1_790_000_000) {
 
   // ── métodos instalados no client ──
   const metodos = {
-    "subscriptions.retrieve": async (sid: string, p?: { expand?: string[] }) => retrato(assinatura(sid).id, p?.expand ?? []),
+    "subscriptions.retrieve": async (sid: string, p?: { expand?: string[] }) => {
+      if (s.atrasoLeituraMs) await new Promise((r) => setTimeout(r, s.atrasoLeituraMs));
+      return retrato(assinatura(sid).id, p?.expand ?? []);
+    },
     "subscriptions.update": (sid: string, params: Record<string, any>, o?: { idempotencyKey?: string }) =>
       idempotente("subscriptions.update", { sid, ...params }, o, () => {
         const a = assinatura(sid);

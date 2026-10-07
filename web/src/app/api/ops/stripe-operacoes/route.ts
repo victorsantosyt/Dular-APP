@@ -44,7 +44,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: "Não autenticado" }, { status: 401 });
   }
   try {
-    const { examinadas, falhas } = await varrerOperacoes({ imediato: true, limite: 50 });
+    const { examinadas, falhas, emAndamento } = await varrerOperacoes({ imediato: true, limite: 50 });
+    if (emAndamento) return NextResponse.json({ ok: false, error: "Outra varredura em andamento; tente em instantes." }, { status: 409 });
     return NextResponse.json({ ok: falhas === 0, examinadas, falhas }, { status: falhas === 0 ? 200 : 503 });
   } catch (err) {
     console.error("[ops/stripe-operacoes] varredura interrompida; as operações seguem gravadas:", err);

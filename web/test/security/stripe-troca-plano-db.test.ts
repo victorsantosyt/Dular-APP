@@ -36,7 +36,8 @@ describe("troca de plano Stripe contra Postgres real", { skip: EXIGIDO ? false :
   let postOps: (req: Request) => Promise<Response>;
   let makeAuthHeaders: (userId: string, role: any) => Record<string, string>;
   let limitesTransacao: { lockTimeoutMs: number; statementTimeoutMs: number };
-  let varrer: (opcoes?: { imediato?: boolean; limite?: number }) => Promise<{ examinadas: number; falhas: number }>;
+  let varrer: (opcoes?: { imediato?: boolean; limite?: number }) => Promise<{ examinadas: number; falhas: number; emAndamento?: true }>;
+  let getCron: (req: Request) => Promise<Response>;
   let falso: StripeFalso;
   const RUN = `t_troca_${Date.now().toString(36)}`;
   const usuarios: string[] = [];
@@ -111,6 +112,7 @@ describe("troca de plano Stripe contra Postgres real", { skip: EXIGIDO ? false :
     postCheckout = (await import("../../src/app/api/billing/checkout/route")).POST;
     postWebhook = (await import("../../src/app/api/webhooks/stripe/route")).POST;
     postOps = (await import("../../src/app/api/ops/stripe-operacoes/route")).POST;
+    getCron = (await import("../../src/app/api/cron/reconciliar-stripe/route")).GET;
     ({ makeAuthHeaders } = await import("./_helpers"));
     ({ limitesTransacaoStripe: limitesTransacao } = await import("../../src/lib/assinatura"));
     ({ varrerOperacoes: varrer } = await import("../../src/lib/trocaDePlano"));
@@ -694,7 +696,131 @@ describe("troca de plano Stripe contra Postgres real", { skip: EXIGIDO ? false :
     assert.equal((await linha(userId)).plan, "BASIC");
   });
 
-  // ── 9. Recusas que não cobram ─────────────────────────────────────────────
+  // ── 9. Cron autenticado da plataforma (Vercel Cron) ───────────────────────
+  //
+  // A mesma varredura, com hora marcada. Segredo FICTÍCIO, só de teste.
+
+  const SEGREDO_CRON = "segredo_ficticio_de_teste_do_cron_0123456789";
+  const cron = (authorization?: string) =>
+    getCron(new Request("http://test/api/cron/reconciliar-stripe", { headers: authorization === undefined ? {} : { authorization } }));
+  async function comSegredoDoCron<T>(valor: string | undefined, fn: () => Promise<T>): Promise<T> {
+    const anterior = process.env.CRON_SECRET;
+    if (valor === undefined) delete process.env.CRON_SECRET;
+    else process.env.CRON_SECRET = valor;
+    try {
+      return await fn();
+    } finally {
+      if (anterior === undefined) delete process.env.CRON_SECRET;
+      else process.env.CRON_SECRET = anterior;
+    }
+  }
+  /** Troca aplicada na Stripe com a resposta perdida: operação pendente, banco sem saber, já envelhecida. */
+  async function trocaParada(sufixo: string) {
+    const { userId, sub } = await assinante(sufixo, "basico_mensal");
+    let derrubar = true;
+    falso.estado.antesDeResponder = async (metodo) => {
+      if (metodo === "subscriptions.update" && derrubar) {
+        derrubar = false;
+        throw Object.assign(new Error("resposta perdida"), { type: "StripeConnectionError" });
+      }
+    };
+    assert.equal((await pedir(userId, "pro_mensal")).status, 503);
+    falso.estado.antesDeResponder = null;
+    await envelhecer(userId, 2);
+    return { userId, sub };
+  }
+  const trocasCobradas = (sub: string) => cobrancasDe(sub).filter((c) => c.motivo === "subscription_update").length;
+
+  it("cron sem CRON_SECRET (ou curto): 503 e NADA é varrido — falha fechada", async () => {
+    const { userId } = await trocaParada("cron_sem_segredo");
+    for (const valor of [undefined, "curto_demais"]) {
+      const res = await comSegredoDoCron(valor, () => cron(`Bearer ${valor ?? "qualquer"}`));
+      assert.equal(res.status, 503);
+    }
+    assert.equal((await operacoes(userId))[0].status, "pendente");
+    assert.equal((await linha(userId)).plan, "BASIC");
+  });
+
+  it("cron com autenticação errada: 401 e nada varrido", async () => {
+    const { userId } = await trocaParada("cron_negado");
+    await comSegredoDoCron(SEGREDO_CRON, async () => {
+      for (const header of [undefined, "", "Bearer errado", `bearer ${SEGREDO_CRON}`, SEGREDO_CRON, `Bearer ${SEGREDO_CRON}x`, `Basic ${SEGREDO_CRON}`]) {
+        assert.equal((await cron(header)).status, 401, `cabeçalho ${JSON.stringify(header)}`);
+      }
+    });
+    assert.equal((await operacoes(userId))[0].status, "pendente");
+  });
+
+  it("cron autenticado: conclui a troca parada sem cobrar de novo; repetido não muda nada", async () => {
+    const { userId, sub } = await trocaParada("cron_ok");
+    await comSegredoDoCron(SEGREDO_CRON, async () => {
+      const res = await cron(`Bearer ${SEGREDO_CRON}`);
+      assert.equal(res.status, 200);
+      const corpo = await res.json();
+      assert.equal(corpo.falhas, 0);
+      assert.ok(corpo.examinadas >= 1);
+      const depois = await linha(userId);
+      assert.equal(depois.plan, "PREMIUM");
+      const [op] = await prisma.stripeOperacao.findMany({ where: { userId }, select: { status: true, tentativas: true } });
+      assert.deepEqual(op, { status: "concluida", tentativas: 1 });
+
+      assert.equal((await cron(`Bearer ${SEGREDO_CRON}`)).status, 200, "repetido");
+      assert.deepEqual(await linha(userId), depois, "repetido: nenhuma escrita");
+      assert.deepEqual(await prisma.stripeOperacao.findMany({ where: { userId }, select: { status: true, tentativas: true } }), [op]);
+    });
+    assert.equal(trocasCobradas(sub), 1, "uma cobrança de troca, a original");
+    assert.equal(escritas("subscriptions.update"), 1, "releu a Stripe; nenhuma troca nova");
+  });
+
+  it("cron entregue em dobro, ao mesmo tempo: uma rodada executa, as outras saem com emAndamento; uma tentativa só", async () => {
+    const { userId, sub } = await trocaParada("cron_concorrente");
+    falso.estado.atrasoLeituraMs = 150;
+    try {
+      const corpos = await comSegredoDoCron(SEGREDO_CRON, () =>
+        Promise.all([1, 2, 3].map(async () => {
+          const res = await cron(`Bearer ${SEGREDO_CRON}`);
+          assert.equal(res.status, 200);
+          return res.json();
+        })),
+      );
+      assert.equal(corpos.filter((c: any) => c.emAndamento).length, 2, JSON.stringify(corpos));
+      assert.equal(corpos.filter((c: any) => !c.emAndamento && c.examinadas >= 1 && c.falhas === 0).length, 1);
+    } finally {
+      falso.estado.atrasoLeituraMs = 0;
+    }
+    const [op] = await prisma.stripeOperacao.findMany({ where: { userId }, select: { status: true, tentativas: true } });
+    assert.deepEqual(op, { status: "concluida", tentativas: 1 });
+    assert.equal((await linha(userId)).plan, "PREMIUM");
+    assert.equal(trocasCobradas(sub), 1);
+  });
+
+  it("falha parcial na rodada do cron (Stripe fora): 500, operação segue gravada; a rodada seguinte conclui sem cobrança", async () => {
+    const { userId, sub: antiga } = await assinante("cron_falha", "basico_mensal");
+    const nova = falso.criarAssinatura({ metadata: meta(userId, "pro_mensal"), plano: PLANS.pro_mensal });
+    const sessao = { id: `cs_${RUN}_cron_falha`, object: "checkout.session", mode: "subscription", payment_status: "paid", client_reference_id: userId, subscription: nova, metadata: meta(userId, "pro_mensal") };
+    falso.estado.recusarAntes = (metodo) => metodo === "subscriptions.update";
+    assert.equal((await entregar("checkout.session.completed", sessao, falso.estado.agora + 10)).status, 500);
+    await envelhecer(userId, 2);
+    const cobradasAntes = falso.estado.cobrancas.length;
+    await comSegredoDoCron(SEGREDO_CRON, async () => {
+      const comFalha = await cron(`Bearer ${SEGREDO_CRON}`);
+      assert.equal(comFalha.status, 500);
+      assert.ok((await comFalha.json()).falhas >= 1);
+      const [op] = await operacoes(userId);
+      assert.equal(op.status, "pendente");
+      assert.match(op.erro ?? "", /StripeAPIError/);
+      assert.equal(falso.retrato(antiga).cancel_at_period_end, false);
+
+      falso.estado.recusarAntes = null;
+      await envelhecer(userId, 2);
+      assert.equal((await cron(`Bearer ${SEGREDO_CRON}`)).status, 200);
+    });
+    assert.equal(falso.retrato(antiga).cancel_at_period_end, true);
+    assert.equal((await operacoes(userId))[0].status, "concluida");
+    assert.equal(falso.estado.cobrancas.length, cobradasAntes, "nenhuma cobrança na reconciliação");
+  });
+
+  // ── 10. Recusas que não cobram ────────────────────────────────────────────
 
   it("assinatura com pagamento pendente (past_due): nem troca nem checkout novo", async () => {
     const { userId, sub } = await assinante("past_due", "basico_mensal");

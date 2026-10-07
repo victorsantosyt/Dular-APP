@@ -162,6 +162,8 @@ export const limitesTroca = {
   paradaMs: 60_000,
   /** Intervalo mínimo entre duas conferências de uma `aguardando` na Stripe. */
   revisaoAguardandoMs: 10 * 60_000,
+  /** Duração máxima de uma rodada de varredura (a trava global solta no fim). */
+  timeoutVarreduraMs: 110_000,
 };
 
 export class OperacaoEmAndamento extends Error {}
@@ -633,8 +635,25 @@ export async function retomarOperacoes(filtro: FiltroRetomada, limite = 20): Pro
  *    sem depender dos eventos.
  * Cada operação sob a trava do seu usuário; erro numa não para as outras (ela
  * segue gravada e volta na próxima rodada).
+ *
+ * Uma rodada por vez em TODAS as instâncias (boot, intervalo, cron, admin): a
+ * trava global não espera — quem chega com outra em andamento sai na hora com
+ * `emAndamento`. O cron da plataforma pode entregar a mesma execução duas vezes.
  */
-export async function varrerOperacoes(opcoes: { imediato?: boolean; limite?: number } = {}): Promise<{ examinadas: number; falhas: number }> {
+export type ResultadoVarredura = { examinadas: number; falhas: number; emAndamento?: true };
+
+export async function varrerOperacoes(opcoes: { imediato?: boolean; limite?: number } = {}): Promise<ResultadoVarredura> {
+  return prisma.$transaction(
+    async (tx) => {
+      const [{ livre }] = await tx.$queryRaw<{ livre: boolean }[]>`SELECT pg_try_advisory_xact_lock(7704, 0) AS livre`;
+      if (!livre) return { examinadas: 0, falhas: 0, emAndamento: true as const };
+      return varrerNaTrava(opcoes);
+    },
+    { maxWait: limitesTroca.maxWaitMs, timeout: limitesTroca.timeoutVarreduraMs },
+  );
+}
+
+async function varrerNaTrava(opcoes: { imediato?: boolean; limite?: number }): Promise<ResultadoVarredura> {
   const agora = Date.now();
   const antesDe = (ms: number) => (opcoes.imediato ? {} : { updatedAt: { lt: new Date(agora - ms) } });
   const ops = await prisma.stripeOperacao.findMany({

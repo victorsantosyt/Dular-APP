@@ -31,6 +31,8 @@ Use este checklist antes do primeiro deploy. Execute os comandos a partir da rai
   - `invoice.paid`, `invoice.payment_failed`, `customer.subscription.deleted`
   - `customer.subscription.updated`, `customer.subscription.pending_update_applied`, `customer.subscription.pending_update_expired`, `checkout.session.expired` — troca de plano (`lib/trocaDePlano`). Sem eles a troca ainda é retomada pela varredura do servidor, mas só no próximo boot ou intervalo
 - [ ] `STRIPE_WEBHOOK_SECRET` copiado do endpoint webhook de produção
+- [ ] `CRON_SECRET` no ambiente **Production**: aleatório, com 16 caracteres ou mais (ex.: `openssl rand -hex 32`), exclusivo deste uso. A Vercel o envia como `Authorization: Bearer …` ao chamar o cron. Sem ele, `/api/cron/reconciliar-stripe` recusa com 503 e a reconciliação das operações Stripe com hora marcada não roda
+- [ ] Cron `/api/cron/reconciliar-stripe` listado em Settings → Cron Jobs depois do deploy de produção. Vem do `web/vercel.json`: diário, `17 6 * * *` (06:17 UTC). No plano Hobby o cron só pode rodar uma vez por dia, com folga de até 59 min, e uma expressão mais frequente faz o deploy falhar. No Pro pode ser mais frequente (ex.: `*/10 * * * *`)
 - [ ] Deploy criado e rota `/api/health` validada
 
 ## DEPLOY MOBILE (Expo EAS)
@@ -50,6 +52,7 @@ Use este checklist antes do primeiro deploy. Execute os comandos a partir da rai
 - [ ] Verificar que KYC envia para S3 correto
 - [ ] Verificar recebimento de push notification em dispositivo real
 - [ ] Verificar webhook Stripe com evento real ou modo test
+- [ ] Rodar o cron uma vez pelo botão Run em Settings → Cron Jobs e conferir em View Logs: `200` com `falhas: 0`. `503` significa `CRON_SECRET` ausente ou curto
 - [ ] Monitorar logs nas primeiras 24h
 
 ## ROLLBACK

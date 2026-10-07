@@ -1076,15 +1076,17 @@ model StripeMarco {
 }
 
 /** Janela em que o código ANTERIOR (sem operação no checkout) pode ter criado
- *  sessões. Registrada pelo build de produção que terminou bem, quando quem
- *  estava no ar não era o código com operação (primeira implantação ou volta
- *  depois de rollback): `desde` = última presença do código novo (nula se
- *  nunca houve), `ate` = fim desse build. Sessão sem operação só vale como
- *  legado se criada dentro de uma janela (lib/origemDoCheckout). */
+ *  sessões. Registrada ABERTA pelo build de produção que terminou bem, quando
+ *  a produção respondeu com a saúde do código anterior (primeira implantação
+ *  ou volta depois de rollback): `desde` = última presença verificada do
+ *  código novo em produção (nula se nunca houve). `ate` = a troca real: a
+ *  primeira presença verificada depois dela (nula enquanto não houver). Sessão
+ *  sem operação só vale como legado se criada dentro de uma janela
+ *  (lib/origemDoCheckout). */
 model StripeJanelaLegado {
   id        String    @id @default(cuid())
   desde     DateTime?
-  ate       DateTime
+  ate       DateTime?
   /** anterior | desconhecida (a saúde da produção não respondeu) */
   origem    String
   createdAt DateTime  @default(now())

@@ -37,7 +37,7 @@ CREATE TABLE "StripeMarco" (
 CREATE TABLE "StripeJanelaLegado" (
     "id" TEXT NOT NULL,
     "desde" TIMESTAMP(3),
-    "ate" TIMESTAMP(3) NOT NULL,
+    "ate" TIMESTAMP(3),
     "origem" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 

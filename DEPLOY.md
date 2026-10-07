@@ -8,7 +8,7 @@ Use este checklist antes do primeiro deploy. Execute os comandos a partir da rai
 - **Ordem do build de produção** (`web/scripts/vercel-build.sh`):
   1. `prisma migrate deploy` (só com `VERCEL_ENV=production`), **antes** do build;
   2. `npm run build` (`prisma generate && next build`);
-  3. janela de legado do checkout (`web/scripts/janela-legado-checkout.mjs`), só em produção e só se o build terminou bem: consulta `/api/health` do domínio de produção e, se o código no ar ainda é o anterior (não grava a operação do checkout), registra a janela em que ele pode ter criado sessões. Num deploy comum nada é registrado.
+  3. janela de legado do checkout (`web/scripts/janela-legado-checkout.mjs`), só em produção e só se o build terminou bem: consulta `/api/health` do domínio de produção (`VERCEL_PROJECT_PRODUCTION_URL`). Se a resposta for **exatamente** a do código anterior (`{ ok, status, ts }`, sem `checkoutComOperacao`), registra uma janela **aberta**, desde a última presença verificada do código novo em produção. Ela fecha sozinha na primeira presença verificada do código novo em produção, que é a troca real e pode vir horas depois do build se a promoção atrasar; aberta, vale no máximo 72 h. Se a resposta tiver `checkoutComOperacao: true`, é deploy comum e nada é registrado. **Qualquer outra resposta** (erro, HTML, JSON de outra forma, sem resposta) não identifica quem está no ar: nenhuma janela é aberta e o deploy para.
 - Qualquer passo que falhe derruba o deploy e **a versão que já estava no ar continua servindo**. A migration do passo 1 fica aplicada mesmo se o passo 2 ou 3 falhar: por isso toda migration em `main` precisa ser aditiva.
 
 ## PRÉ-DEPLOY (Backend)
@@ -66,7 +66,7 @@ Cada item abaixo precisa estar feito **antes** do merge, porque o merge publica 
 
 ## PÓS-DEPLOY
 
-- [ ] No log do build de produção: as migrations aplicadas e a linha `[janela-legado]` — na primeira implantação da prova de origem, `código no ar: anterior; janela registrada …`; nos deploys seguintes, `nenhuma janela`. Se aparecer `código no ar: desconhecida`, a saúde de produção não respondeu ao build (ou `VERCEL_PROJECT_PRODUCTION_URL` não está exposta): a janela é registrada mesmo assim, presa à última presença do código atual, e vale conferir `https://SEU_DOMINIO/api/health`
+- [ ] No log do build de produção: as migrations aplicadas e a linha `[janela-legado]` — na primeira implantação da prova de origem, `código no ar: anterior; janela aberta desde …; fecha na primeira presença verificada do código novo em produção`; nos deploys seguintes, `nenhuma janela`. Depois da promoção, `GET https://SEU_DOMINIO/api/health` deve trazer `checkoutComOperacao: true` e a `implantacao` do deploy que está no ar
 - [ ] Cron `/api/cron/reconciliar-stripe` listado em Settings → Cron Jobs
 - [ ] Executar o smoke test oficial do Beta (12 passos + pré/pós-checks): procedimento em `auditoria/14-smoke-test-producao.md` (doc operacional local, fora do git)
 - [ ] Testar fluxo completo: cadastro → busca → contratação → execução → confirmação → avaliação
@@ -83,7 +83,8 @@ Cada item abaixo precisa estar feito **antes** do merge, porque o merge publica 
 
 - A versão que estava no ar **continua servindo**; nada muda para quem usa o app.
 - Se a falha veio **depois** do `prisma migrate deploy`, as migrations ficam aplicadas (são aditivas; a versão no ar segue funcionando contra o schema novo). Corrija e faça um novo merge/push em `main`: o build seguinte não reaplica o que já está aplicado.
-- A janela de legado do checkout só é registrada por um build que **terminou bem**. Um build que falhou não registra nada, e o próximo que der certo consulta de novo quem está no ar: sessões abertas pelo código anterior durante a falha continuam aceitas, sem ajuste manual.
+- A janela de legado do checkout só é registrada por um build que **terminou bem**, e só fecha quando o código novo for verificado em produção. Um build que falhou não registra nada, e o próximo que der certo consulta de novo quem está no ar: sessões abertas pelo código anterior durante a falha continuam aceitas, sem ajuste manual.
+- **`[janela-legado] ERRO: a saúde da produção não identificou o código no ar`**: o build terminou, mas `/api/health` da produção não respondeu com nenhuma das duas formas conhecidas. A versão no ar continua. Confira o domínio de produção e a rota, e publique de novo. Numa emergência, `JANELA_LEGADO_SAUDE_DESCONHECIDA=prosseguir` no ambiente Production publica **sem** janela: sessões abertas pelo código anterior e pagas depois da troca viram caso `checkout_sem_prova`. Remova a variável depois
 - Se a falha foi **no** `prisma migrate deploy`, todo deploy seguinte falha com `P3009` até a migration ser resolvida: procedimento em `docs/migrations-em-producao.md`.
 
 ## ROLLBACK
@@ -111,6 +112,6 @@ Depois do rollback, valide `/api/health`, login, criacao de servico e logs do we
 **Rollback para uma versão anterior à prova de origem do checkout (PR #348)** — a que não grava a operação do checkout (`/api/health` sem `checkoutComOperacao`):
 
 - Enquanto ela estiver no ar, as sessões de checkout nascem sem a operação.
-- **Volta por novo deploy** (merge/push em `main`, ou Redeploy, que reconstrói): o passo 3 do build vê o código anterior no ar e registra a janela, da última presença do código novo até o fim do build. As sessões abertas durante o rollback e pagas depois da volta são aceitas, sem ajuste manual.
+- **Volta por novo deploy** (merge/push em `main`, ou Redeploy, que reconstrói): o passo 3 do build vê o código anterior no ar e registra a janela aberta, desde a última presença verificada do código novo. Depois de um Instant Rollback a Vercel deixa de promover sozinha; a janela fica aberta até a promoção manual, por no máximo 72 h. Se a promoção vier depois disso, publique de novo para registrar outra. As sessões abertas durante o rollback e pagas depois da volta são aceitas, sem ajuste manual.
 - **Volta por "desfazer rollback" ou promoção da mesma implantação** (sem build): nenhuma janela é registrada. As sessões abertas durante o rollback e pagas depois viram caso `checkout_sem_prova` para revisão. Para cobri-las automaticamente, volte por Redeploy em vez de promover de novo.
 - Rollback entre versões que já gravam a operação do checkout não precisa de nada.

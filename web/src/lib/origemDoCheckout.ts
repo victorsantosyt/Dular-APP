@@ -16,12 +16,17 @@ import { stripe } from "@/lib/stripe";
  *
  * Sessão LEGADA (criada pelo código anterior, sem operação), só se criada
  * DENTRO de uma janela em que o código anterior pode ter estado no ar
- * (StripeJanelaLegado: `desde` ≤ criada < `ate` + folga). A janela é registrada
- * pelo build de produção que terminou bem quando quem estava no ar não gravava
- * a operação — primeira implantação, volta depois de rollback —, nunca pela
- * migration (que roda antes do build e não sabe se ele vai terminar) e nunca
- * num deploy comum (scripts/janela-legado-checkout.mjs). `desde` é a última
- * presença deste código: o que foi criado enquanto ele servia não é legado.
+ * (StripeJanelaLegado). A janela é registrada pelo build de produção que
+ * terminou bem quando a produção respondeu com a saúde do código anterior —
+ * primeira implantação, volta depois de rollback —, nunca pela migration (que
+ * roda antes do build) e nunca num deploy comum (scripts/janela-legado-checkout.mjs).
+ *  - começa em `desde`: a última presença VERIFICADA deste código em produção
+ *    (o que foi criado enquanto ele servia não é legado);
+ *  - nasce aberta e termina na primeira presença verificada deste código em
+ *    produção depois dela (`ate`): a troca real, não o fim do build — a
+ *    promoção pode atrasar horas (auto-atribuição desligada depois de um
+ *    rollback) ou nunca acontecer. Aberta, vale no máximo LIMITE_DA_JANELA_ABERTA_MS;
+ *  - vale até `ate` + folga: instâncias antigas terminando o que já atendiam.
  * Além da janela:
  *  - origem: não veio de Payment Link (`payment_link` nulo);
  *  - titularidade: o `customer_email` da sessão — que a rota anterior
@@ -30,8 +35,10 @@ import { stripe } from "@/lib/stripe";
  * Metadados iguais, sozinhos, não provam nada: quem cria a sessão os escreve.
  */
 
-/** Folga depois do fim da janela: o deploy fica pronto e é promovido alguns minutos depois do build. */
+/** Folga depois da troca real: instâncias do código anterior terminando o que já atendiam. */
 export const FOLGA_DA_JANELA_MS = 60 * 60_000;
+/** Janela que nenhuma presença verificada fechou vale no máximo isto a partir do build que a abriu. */
+export const LIMITE_DA_JANELA_ABERTA_MS = 72 * 60 * 60_000;
 /** StripeMarco: última presença deste código servindo (limite inferior da próxima janela). */
 export const MARCO_PRESENCA = "presenca_checkout_com_operacao";
 
@@ -67,9 +74,16 @@ export async function provaDaSessao(session: Stripe.Checkout.Session): Promise<P
   if (!Number.isFinite(criada)) return recusa("sessao_sem_data");
   const janela = await prisma.stripeJanelaLegado.findFirst({
     where: {
-      ate: { gt: new Date(criada - FOLGA_DA_JANELA_MS) },
-      // `lte` deixa NULL de fora: a janela sem limite inferior entra pelo ramo explícito.
-      OR: [{ desde: null }, { desde: { lte: new Date(criada) } }],
+      AND: [
+        // `lte` deixa NULL de fora: a janela sem limite inferior entra pelo ramo explícito.
+        { OR: [{ desde: null }, { desde: { lte: new Date(criada) } }] },
+        {
+          OR: [
+            { ate: { gt: new Date(criada - FOLGA_DA_JANELA_MS) } },
+            { ate: null, createdAt: { gt: new Date(criada - LIMITE_DA_JANELA_ABERTA_MS) } },
+          ],
+        },
+      ],
     },
     select: { id: true },
   });
@@ -103,21 +117,54 @@ export async function provaDaAssinatura(assinaturaId: string, meta: Record<strin
   }
 }
 
-/** Intervalo mínimo entre duas gravações de presença no mesmo processo. Mutável só para os testes. */
-export const limitesPresenca = { intervaloMs: 5 * 60_000, ultimaMs: 0 };
+/** Intervalo mínimo entre duas tentativas de presença no mesmo processo. Mutável só para os testes. */
+export const limitesPresenca = { intervaloMs: 5 * 60_000, ultimaMs: 0, esperaSaudeMs: 3_000 };
 
 /**
- * Este código está servindo (checkout, webhook, varredura): grava a presença,
- * no máximo uma vez por intervalo por processo. É o `desde` da janela que um
- * build registrar depois de um rollback. Falha aqui não derruba quem chamou.
+ * Esta instância é a produção? Na Vercel, uma implantação de produção roda
+ * também sem ser a que está no ar (não promovida, ou a de antes de um
+ * rollback). Por isso ela pergunta à produção quem está no ar (`/api/health`
+ * devolve a `implantacao`) e só se reconhece se for ela mesma. Fora da Vercel
+ * (local, testes) não há essa distinção; preview usa o banco de staging.
+ */
+async function souAProducao(): Promise<boolean> {
+  const env = process.env;
+  if (env.VERCEL_ENV !== "production") return env.VERCEL !== "1";
+  const dominio = env.VERCEL_PROJECT_PRODUCTION_URL?.trim();
+  const eu = env.VERCEL_DEPLOYMENT_ID;
+  if (!dominio || !eu) return false;
+  try {
+    const resposta = await fetch(`https://${dominio}/api/health`, {
+      signal: AbortSignal.timeout(limitesPresenca.esperaSaudeMs),
+      headers: { "cache-control": "no-cache" },
+    });
+    if (!resposta.ok) return false;
+    const corpo = (await resposta.json().catch(() => null)) as { implantacao?: unknown } | null;
+    return corpo?.implantacao === eu;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Este código está servindo a produção (checkout, webhook, varredura): grava a
+ * presença e fecha as janelas de legado abertas — a troca real aconteceu. No
+ * máximo uma tentativa por intervalo por processo; instância que não é a
+ * produção não grava nada (não encurta a janela do código anterior). Falha
+ * aqui não derruba quem chamou.
  */
 export async function registrarPresenca(): Promise<void> {
   const agora = Date.now();
   if (agora - limitesPresenca.ultimaMs < limitesPresenca.intervaloMs) return;
   limitesPresenca.ultimaMs = agora;
   try {
-    const em = new Date(agora);
-    await prisma.stripeMarco.upsert({ where: { chave: MARCO_PRESENCA }, update: { em }, create: { chave: MARCO_PRESENCA, em } });
+    if (!(await souAProducao())) return;
+    const em = new Date();
+    await prisma.$transaction([
+      prisma.stripeMarco.upsert({ where: { chave: MARCO_PRESENCA }, update: { em }, create: { chave: MARCO_PRESENCA, em } }),
+      // Janela que começa no futuro não foi alcançada pela troca (só existe em teste).
+      prisma.stripeJanelaLegado.updateMany({ where: { ate: null, OR: [{ desde: null }, { desde: { lte: em } }] }, data: { ate: em } }),
+    ]);
   } catch (err) {
     limitesPresenca.ultimaMs = 0;
     console.error("[origem-checkout] presença não gravada; segue sem ela:", (err as { message?: unknown })?.message ?? err);

@@ -1,4 +1,4 @@
-import { describe, it, before, after } from "node:test";
+import { describe, it, before, after, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import pg from "pg";
@@ -8,12 +8,17 @@ import pg from "pg";
  * (scripts/janela-legado-checkout.mjs), contra Postgres REAL. A saúde da
  * produção é simulada; nenhuma rede.
  *
+ * O script roda num SCHEMA PRÓPRIO desta suíte (cópia das tabelas): as janelas
+ * que ele abre — abertas até a troca real — não vazam para as outras suítes,
+ * que rodam ao mesmo tempo no mesmo banco.
+ *
  * O que se prova:
  *  - deploy comum (o código no ar já grava a operação do checkout): nenhuma janela;
- *  - código anterior no ar (primeira implantação, volta de rollback): janela de
- *    `desde` = última presença do código atual até agora, em UTC;
- *  - saúde sem resposta: janela também, presa à presença;
- *  - fora de produção: nada; erro de banco: falha (o deploy para);
+ *  - a resposta EXATA do código anterior: janela ABERTA desde a última presença
+ *    verificada do código atual, registrada em UTC;
+ *  - qualquer outra resposta (HTML, JSON de outra forma, erro, rede): nenhuma
+ *    janela e o deploy para; com a liberação explícita, publica sem janela;
+ *  - fora de produção: nada; erro de banco: falha;
  *  - a ordem no vercel-build.sh: migration antes do build, janela só depois
  *    do build que terminou, e só em produção.
  *
@@ -29,18 +34,19 @@ const PULAR = !URL_BANCO
     : false;
 const EXIGIDO = process.env.SAFESCORE_DB_REQUIRED === "1";
 
-describe("janela de legado do checkout (build de produção) contra Postgres real", { skip: EXIGIDO ? false : PULAR }, () => {
-  let registrar: (opcoes: Record<string, unknown>) => Promise<{ acao: string; noAr?: string; desde?: string | null; ate?: string }>;
-  let banco: InstanceType<typeof pg.Client>;
-  const RUN = `t_janela_${Date.now().toString(36)}`;
-  const PRESENCA = `presenca_${RUN}`;
-  const ids: string[] = [];
+type Resultado = { acao: string; noAr?: string; desde?: string | null; aberta?: string };
 
-  const saude = (corpo: unknown, status = 200) => {
+describe("janela de legado do checkout (build de produção) contra Postgres real", { skip: EXIGIDO ? false : PULAR }, () => {
+  let registrar: (opcoes: Record<string, unknown>) => Promise<Resultado>;
+  let banco: InstanceType<typeof pg.Client>;
+  const SCHEMA = `janela_${Date.now().toString(36)}`;
+  const PRESENCA = "presenca_checkout_com_operacao";
+
+  const resposta = (corpo: unknown, status = 200) => {
     const chamadas: string[] = [];
     const buscar = async (url: string) => {
       chamadas.push(url);
-      return new Response(JSON.stringify(corpo), { status, headers: { "content-type": "application/json" } });
+      return new Response(typeof corpo === "string" ? corpo : JSON.stringify(corpo), { status });
     };
     return { buscar, chamadas };
   };
@@ -52,113 +58,134 @@ describe("janela de legado do checkout (build de produção) contra Postgres rea
     };
     return { buscar, chamadas };
   };
+  /** A saúde do código anterior, exatamente como ela sempre foi. */
+  const anterior = () => resposta({ ok: true, status: "ok", ts: new Date().toISOString() });
   const producao = { VERCEL_ENV: "production", VERCEL_PROJECT_PRODUCTION_URL: "dular.exemplo.invalid", DATABASE_URL_UNPOOLED: URL_BANCO };
-  const janelas = async () => (await banco.query(`SELECT count(*)::int AS n FROM "StripeJanelaLegado"`)).rows[0].n as number;
+  const conectar = (url: string) => new pg.Client({ connectionString: url, options: `-c search_path=${SCHEMA}` });
+  const janelas = async () =>
+    (await banco.query(`SELECT desde, ate, origem FROM "${SCHEMA}"."StripeJanelaLegado" ORDER BY "createdAt"`)).rows as Array<{
+      desde: Date | null;
+      ate: Date | null;
+      origem: string;
+    }>;
   const ISO = `'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'`;
   const agoraUtc = async () => new Date((await banco.query(`SELECT to_char(now() AT TIME ZONE 'UTC', ${ISO}) AS t`)).rows[0].t);
 
-  async function executar(opcoes: Record<string, unknown>) {
-    const r = await registrar({ chavePresenca: PRESENCA, ...opcoes });
-    if (r.acao === "janela_registrada") {
-      const { rows } = await banco.query(`SELECT id FROM "StripeJanelaLegado" WHERE to_char(ate, ${ISO}) = $1 AND origem = $2`, [r.ate, r.noAr]);
-      ids.push(...rows.map((x: { id: string }) => x.id));
-    }
-    return r;
-  }
+  const executar = (opcoes: Record<string, unknown>) => registrar({ conectar, ...opcoes });
 
   before(async () => {
     if (PULAR) throw new Error(`SAFESCORE_DB_REQUIRED=1, mas ${PULAR}`);
     ({ registrarJanelaDeLegado: registrar } = await import("../../scripts/janela-legado-checkout.mjs"));
     banco = new pg.Client({ connectionString: URL_BANCO });
     await banco.connect();
+    await banco.query(`CREATE SCHEMA "${SCHEMA}"`);
+    await banco.query(`CREATE TABLE "${SCHEMA}"."StripeJanelaLegado" (LIKE public."StripeJanelaLegado" INCLUDING ALL)`);
+    await banco.query(`CREATE TABLE "${SCHEMA}"."StripeMarco" (LIKE public."StripeMarco" INCLUDING ALL)`);
+  });
+
+  beforeEach(async () => {
+    if (!banco) return;
+    await banco.query(`DELETE FROM "${SCHEMA}"."StripeJanelaLegado"`);
+    await banco.query(`DELETE FROM "${SCHEMA}"."StripeMarco"`);
   });
 
   after(async () => {
     if (!banco) return;
-    if (ids.length) await banco.query(`DELETE FROM "StripeJanelaLegado" WHERE id = ANY($1)`, [ids]);
-    await banco.query(`DELETE FROM "StripeMarco" WHERE chave = $1`, [PRESENCA]);
+    await banco.query(`DROP SCHEMA IF EXISTS "${SCHEMA}" CASCADE`);
     await banco.end();
   });
 
   it("fora de produção: nada é consultado nem gravado", async () => {
-    const { buscar, chamadas } = saude({ ok: true });
-    const antes = await janelas();
+    const { buscar, chamadas } = anterior();
     for (const VERCEL_ENV of ["preview", "development", undefined]) {
       assert.deepEqual(await executar({ env: { ...producao, VERCEL_ENV }, buscar }), { acao: "ignorado" });
     }
     assert.deepEqual(chamadas, []);
-    assert.equal(await janelas(), antes);
+    assert.deepEqual(await janelas(), []);
   });
 
   it("deploy comum: a produção já grava a operação do checkout → nenhuma janela", async () => {
-    const { buscar, chamadas } = saude({ ok: true, status: "ok", checkoutComOperacao: true });
-    const antes = await janelas();
-    const r = await executar({ env: producao, buscar });
-    assert.deepEqual(r, { acao: "nenhuma", noAr: "com_operacao" });
+    const { buscar, chamadas } = resposta({ ok: true, status: "ok", ts: "2026-10-07T00:00:00.000Z", checkoutComOperacao: true, implantacao: "dpl_x" });
+    assert.deepEqual(await executar({ env: producao, buscar }), { acao: "nenhuma", noAr: "com_operacao" });
     assert.deepEqual(chamadas, ["https://dular.exemplo.invalid/api/health"]);
-    assert.equal(await janelas(), antes);
+    assert.deepEqual(await janelas(), []);
   });
 
-  it("primeira implantação (código anterior no ar, nunca houve presença): janela sem limite inferior até agora, em UTC", async () => {
-    await banco.query(`DELETE FROM "StripeMarco" WHERE chave = $1`, [PRESENCA]);
-    const { buscar } = saude({ ok: true, status: "ok", ts: "2026-10-07T00:00:00.000Z" });
+  it("primeira implantação (resposta exata do código anterior, nunca houve presença): janela ABERTA, sem limite inferior, registrada em UTC", async () => {
     const inicio = await agoraUtc();
-    const r = await executar({ env: producao, buscar });
+    const r = await executar({ env: producao, buscar: anterior().buscar });
     const fim = await agoraUtc();
     assert.equal(r.acao, "janela_registrada");
     assert.equal(r.noAr, "anterior");
     assert.equal(r.desde, null);
-    const ate = new Date(r.ate!);
-    assert.ok(ate.getTime() >= inicio.getTime() && ate.getTime() <= fim.getTime(), "ate = agora, pelo relógio do banco em UTC");
-    assert.ok(Math.abs(ate.getTime() - Date.now()) < 60_000, "e é a hora real (UTC), não deslocada pelo fuso");
+    const aberta = new Date(r.aberta!);
+    assert.ok(aberta >= inicio && aberta <= fim, "registrada agora, pelo relógio do banco");
+    assert.ok(Math.abs(aberta.getTime() - Date.now()) < 60_000, "em UTC, não deslocada pelo fuso");
+    const [j] = await janelas();
+    assert.deepEqual([j.desde, j.ate, j.origem], [null, null, "anterior"], "aberta: quem fecha é a troca real");
   });
 
-  it("volta depois de rollback: a janela começa na última presença do código atual", async () => {
+  it("volta depois de rollback: a janela começa na última presença verificada do código atual", async () => {
     const presenca = new Date(Date.now() - 3 * 3600_000);
-    await banco.query(
-      `INSERT INTO "StripeMarco" (chave, em) VALUES ($1, $2) ON CONFLICT (chave) DO UPDATE SET em = EXCLUDED.em`,
-      [PRESENCA, presenca.toISOString().replace("Z", "")],
-    );
-    const { buscar } = saude({ ok: true, status: "ok" });
-    const r = await executar({ env: producao, buscar });
+    await banco.query(`INSERT INTO "${SCHEMA}"."StripeMarco" (chave, em) VALUES ($1, $2)`, [PRESENCA, presenca.toISOString().replace("Z", "")]);
+    const r = await executar({ env: producao, buscar: anterior().buscar });
     assert.equal(r.acao, "janela_registrada");
-    assert.equal(new Date(r.desde!).getTime(), presenca.getTime(), "desde = presença gravada");
-    assert.ok(new Date(r.ate!).getTime() > presenca.getTime());
+    assert.equal(new Date(r.desde!).getTime(), presenca.getTime());
+    assert.equal((await janelas())[0].ate, null);
   });
 
-  for (const [nome, opcoes] of [
-    ["saúde fora do ar (3 tentativas)", { buscar: fora().buscar }],
-    ["saúde com erro 503", { buscar: saude({ erro: true }, 503).buscar }],
-    ["sem o domínio de produção", { env: { ...producao, VERCEL_PROJECT_PRODUCTION_URL: "" } }],
+  for (const [nome, fabrica] of [
+    ["200 com HTML", () => resposta("<html>ok</html>")],
+    ["200 com JSON de outra forma ({})", () => resposta({})],
+    ["200 sem `ts`", () => resposta({ ok: true, status: "ok" })],
+    ["200 com `ts` inválido", () => resposta({ ok: true, status: "ok", ts: "ontem" })],
+    ["200 com campo a mais", () => resposta({ ok: true, status: "ok", ts: new Date().toISOString(), versao: 2 })],
+    ["200 com `checkoutComOperacao: false`", () => resposta({ ok: true, status: "ok", ts: new Date().toISOString(), checkoutComOperacao: false })],
+    ["503", () => resposta({ ok: false }, 503)],
+    ["rede fora", () => fora()],
   ] as const) {
-    it(`não dá para provar quem está no ar (${nome}): registra a janela, presa à última presença`, async () => {
-      const r = await executar({ env: producao, ...opcoes });
-      assert.equal(r.acao, "janela_registrada");
-      assert.equal(r.noAr, "desconhecida");
-      assert.match(String(r.desde), /^\d{4}-\d{2}-\d{2}T/, "limite inferior = presença do código atual");
+    it(`saúde não identifica o código no ar (${nome}): NENHUMA janela e o deploy para`, async () => {
+      await banco.query(`INSERT INTO "${SCHEMA}"."StripeMarco" (chave, em) VALUES ($1, now() AT TIME ZONE 'UTC')`, [PRESENCA]);
+      await assert.rejects(executar({ env: producao, buscar: fabrica().buscar }), /não identificou o código no ar/);
+      assert.deepEqual(await janelas(), []);
     });
   }
 
+  it("sem o domínio de produção: também não identifica — nenhuma janela e o deploy para", async () => {
+    await assert.rejects(executar({ env: { ...producao, VERCEL_PROJECT_PRODUCTION_URL: "" }, buscar: anterior().buscar }), /não identificou/);
+    assert.deepEqual(await janelas(), []);
+  });
+
   it("saúde fora do ar: tenta 3 vezes antes de concluir", async () => {
     const f = fora();
-    await executar({ env: producao, buscar: f.buscar });
+    await assert.rejects(executar({ env: producao, buscar: f.buscar }));
     assert.equal(f.chamadas.length, 3);
   });
 
-  it("sem banco: falha (o deploy para e a versão no ar continua)", async () => {
-    const { buscar } = saude({ ok: true });
-    await assert.rejects(registrar({ env: { ...producao, DATABASE_URL_UNPOOLED: "" }, buscar, chavePresenca: PRESENCA }), /DATABASE_URL_UNPOOLED/);
-    await assert.rejects(
-      registrar({ env: { ...producao, DATABASE_URL_UNPOOLED: "postgresql://ninguem@127.0.0.1:1/nada" }, buscar, chavePresenca: PRESENCA }),
-    );
+  it("liberação explícita de emergência: publica SEM janela", async () => {
+    const r = await executar({ env: { ...producao, JANELA_LEGADO_SAUDE_DESCONHECIDA: "prosseguir" }, buscar: fora().buscar });
+    assert.deepEqual(r, { acao: "sem_janela", noAr: "desconhecida" });
+    assert.deepEqual(await janelas(), []);
   });
 
-  it("a rota de saúde desta versão declara `checkoutComOperacao: true` — é o que o build consulta", async () => {
-    const { GET } = await import("../../src/app/api/health/route");
-    const corpo = await (await GET()).json();
-    assert.equal(corpo.checkoutComOperacao, true);
-    const { buscar } = saude(corpo);
-    assert.equal((await executar({ env: producao, buscar })).acao, "nenhuma");
+  it("sem banco: falha (o deploy para e a versão no ar continua)", async () => {
+    await assert.rejects(executar({ env: { ...producao, DATABASE_URL_UNPOOLED: "" }, buscar: anterior().buscar }), /DATABASE_URL_UNPOOLED/);
+    await assert.rejects(executar({ env: { ...producao, DATABASE_URL_UNPOOLED: "postgresql://ninguem@127.0.0.1:1/nada" }, buscar: anterior().buscar }));
+  });
+
+  it("a rota de saúde desta versão declara `checkoutComOperacao: true` e a implantação no ar — é o que o build e a presença consultam", async () => {
+    const original = process.env.VERCEL_DEPLOYMENT_ID;
+    process.env.VERCEL_DEPLOYMENT_ID = "dpl_saude";
+    try {
+      const { GET } = await import("../../src/app/api/health/route");
+      const corpo = await (await GET()).json();
+      assert.equal(corpo.checkoutComOperacao, true);
+      assert.equal(corpo.implantacao, "dpl_saude");
+      assert.deepEqual(await executar({ env: producao, buscar: resposta(corpo).buscar }), { acao: "nenhuma", noAr: "com_operacao" });
+    } finally {
+      if (original === undefined) delete process.env.VERCEL_DEPLOYMENT_ID;
+      else process.env.VERCEL_DEPLOYMENT_ID = original;
+    }
   });
 
   it("vercel-build.sh: migration ANTES do build; janela só DEPOIS do build e só em produção", () => {

@@ -1228,29 +1228,127 @@ describe("troca de plano Stripe contra Postgres real", { skip: EXIGIDO ? false :
     });
   }
 
-  it("JANELA depois de rollback: sessão sem operação criada enquanto o código atual servia é recusada; criada com o anterior no ar (entre a última presença e o fim do build), vincula; depois do fim + folga, recusada", async () => {
+  /** Sessão como a rota ANTERIOR criava (sem operação), paga; devolve se vinculou e o motivo da recusa. */
+  async function sessaoDoCodigoAnterior(sufixo: string, criada: number) {
+    const userId = await usuario(sufixo);
+    await prisma.user.update({ where: { id: userId }, data: { email: `${userId}@teste.invalid` } });
+    const metadata = { userId, ...metaFixa("basico_mensal") };
+    const ses = falso.sessaoExterna(
+      { mode: "subscription", client_reference_id: userId, customer_email: `${userId}@teste.invalid`, metadata, subscription_data: { metadata } },
+      { created: criada },
+    );
+    const sub = falso.completarCheckout(ses);
+    assert.equal((await entregar("checkout.session.completed", falso.sessaoObj(ses))).status, 200);
+    return { vinculou: (await linha(userId))?.externalId === sub, motivos: (await casosDaSessao(ses)).map((c: any) => c.motivo) };
+  }
+
+  it("JANELA depois de rollback: sessão sem operação criada enquanto o código atual servia é recusada; criada com o anterior no ar (entre a última presença e a troca real), vincula; depois da troca + folga, recusada", async () => {
     // Horários no futuro: nenhuma outra janela deste arquivo cobre esse trecho.
     const presenca = agoraReal() + 10 * 3600;
-    const fimDoBuild = presenca + 2 * 3600;
-    await janela(new Date(presenca * 1000), new Date(fimDoBuild * 1000));
+    const troca = presenca + 2 * 3600; // primeira presença verificada do código atual de volta
+    await janela(new Date(presenca * 1000), new Date(troca * 1000));
     const casos: Array<[string, number, string | null]> = [
       ["g1_rb_antes", presenca - 30 * 60, "sessao_nova_sem_operacao"], // o código atual ainda servia
       ["g1_rb_dentro", presenca + 30 * 60, null], // o código anterior no ar (rollback)
-      ["g1_rb_folga", fimDoBuild + 30 * 60, null], // build pronto, promoção ainda chegando
-      ["g1_rb_depois", fimDoBuild + 2 * 3600, "sessao_nova_sem_operacao"], // o código atual de volta
+      ["g1_rb_folga", troca + 30 * 60, null], // instâncias antigas terminando o que já atendiam
+      ["g1_rb_depois", troca + 2 * 3600, "sessao_nova_sem_operacao"], // o código atual de volta
     ];
     for (const [sufixo, criada, motivo] of casos) {
-      const userId = await usuario(sufixo);
-      await prisma.user.update({ where: { id: userId }, data: { email: `${userId}@teste.invalid` } });
-      const metadata = { userId, ...metaFixa("basico_mensal") };
-      const ses = falso.sessaoExterna(
-        { mode: "subscription", client_reference_id: userId, customer_email: `${userId}@teste.invalid`, metadata, subscription_data: { metadata } },
-        { created: criada },
+      assert.deepEqual(await sessaoDoCodigoAnterior(sufixo, criada), { vinculou: !motivo, motivos: motivo ? [motivo] : [] }, sufixo);
+    }
+  });
+
+  it("PROMOÇÃO ATRASADA (build pronto, promoção horas depois ou nunca): a janela fica aberta até a troca real; teto de 72 h; depois da troca, só a folga", async () => {
+    // A janela que o build registra quando a produção é o código anterior: aberta (`ate` nulo).
+    // `desde` 1 h à frente: nenhuma presença de outra suíte a fecha durante o teste.
+    const desde = agoraReal() + 3600;
+    const aberta = await prisma.stripeJanelaLegado.create({ data: { desde: new Date(desde * 1000), ate: null, origem: `teste_${RUN}` } });
+    const abertaEm = Math.floor(aberta.createdAt.getTime() / 1000);
+    try {
+      // Promoção ainda não veio: o código anterior segue no ar e as sessões dele valem.
+      assert.deepEqual(await sessaoDoCodigoAnterior("g1_atr_30min", desde + 30 * 60), { vinculou: true, motivos: [] });
+      assert.deepEqual(await sessaoDoCodigoAnterior("g1_atr_2h", desde + 2 * 3600), { vinculou: true, motivos: [] }, "mais de 1 h depois do build: ainda vale");
+      assert.deepEqual(
+        await sessaoDoCodigoAnterior("g1_atr_teto", abertaEm + 73 * 3600),
+        { vinculou: false, motivos: ["sessao_nova_sem_operacao"] },
+        "aberta, vale no máximo 72 h desde o build",
       );
-      const sub = falso.completarCheckout(ses);
-      assert.equal((await entregar("checkout.session.completed", falso.sessaoObj(ses))).status, 200);
-      assert.equal((await linha(userId))?.externalId ?? null, motivo ? null : sub, sufixo);
-      assert.deepEqual((await casosDaSessao(ses)).map((c: any) => c.motivo), motivo ? [motivo] : [], sufixo);
+      // A troca real (a primeira presença verificada do código atual) fecha a janela.
+      await prisma.stripeJanelaLegado.update({ where: { id: aberta.id }, data: { ate: new Date((desde + 3 * 3600) * 1000) } });
+      assert.deepEqual(await sessaoDoCodigoAnterior("g1_atr_folga", desde + 3.5 * 3600), { vinculou: true, motivos: [] }, "folga depois da troca");
+      assert.deepEqual(
+        await sessaoDoCodigoAnterior("g1_atr_depois", desde + 5 * 3600),
+        { vinculou: false, motivos: ["sessao_nova_sem_operacao"] },
+        "o código atual no ar: sem operação, não vale",
+      );
+    } finally {
+      await prisma.stripeJanelaLegado.delete({ where: { id: aberta.id } });
+    }
+  });
+
+  it("TROCA REAL: a presença verificada fecha as janelas abertas — inclusive a de um build que nunca foi promovido", async () => {
+    const antes = new Date(Date.now() - 2 * 3600_000);
+    // Dois builds com o código anterior no ar: o primeiro nunca promovido, o segundo promovido agora.
+    const naoPromovido = await prisma.stripeJanelaLegado.create({ data: { desde: antes, ate: null, origem: `teste_${RUN}` } });
+    const promovido = await prisma.stripeJanelaLegado.create({ data: { desde: antes, ate: null, origem: `teste_${RUN}` } });
+    limitesPresenca.ultimaMs = 0;
+    const inicio = Date.now();
+    await entregar("customer.subscription.updated", { id: `sub_${RUN}_troca_real`, object: "subscription", metadata: {} });
+    for (const j of [naoPromovido, promovido]) {
+      const ate = (await prisma.stripeJanelaLegado.findUnique({ where: { id: j.id } }))!.ate;
+      assert.ok(ate && ate.getTime() >= inicio - 1000 && ate.getTime() <= Date.now() + 1000, "fechada na troca real");
+    }
+  });
+
+  it("PRESENÇA só da produção: na Vercel, a instância só grava se /api/health da produção disser que a implantação no ar é ELA", async () => {
+    const envOriginal = { ...process.env };
+    const fetchOriginal = globalThis.fetch;
+    // `prisma` de lib/prisma é um Proxy de leitura: o espião vai no client real.
+    const real = (globalThis as unknown as { prisma: Record<string, unknown> }).prisma;
+    const transacaoOriginal = real.$transaction;
+    const gravacoes: unknown[] = [];
+    const urls: string[] = [];
+    try {
+      Object.assign(process.env, {
+        VERCEL: "1",
+        VERCEL_ENV: "production",
+        VERCEL_DEPLOYMENT_ID: "dpl_esta",
+        VERCEL_PROJECT_PRODUCTION_URL: "dular.exemplo.invalid",
+      });
+      real.$transaction = async (ops: unknown) => void gravacoes.push(ops);
+      const casos: Array<[string, () => Promise<Response>, number]> = [
+        ["produção = código anterior", async () => new Response(JSON.stringify({ ok: true, status: "ok", ts: new Date().toISOString() })), 0],
+        ["produção = outra implantação", async () => new Response(JSON.stringify({ checkoutComOperacao: true, implantacao: "dpl_outra" })), 0],
+        ["saúde 503", async () => new Response("x", { status: 503 }), 0],
+        ["saúde com HTML", async () => new Response("<html>"), 0],
+        ["rede fora", async () => { throw new Error("rede"); }, 0],
+        ["produção = esta implantação", async () => new Response(JSON.stringify({ checkoutComOperacao: true, implantacao: "dpl_esta" })), 1],
+      ];
+      for (const [nome, responder, esperado] of casos) {
+        gravacoes.length = 0;
+        globalThis.fetch = (async (url: string) => {
+          urls.push(url);
+          return responder();
+        }) as never;
+        limitesPresenca.ultimaMs = 0;
+        await entregar("customer.subscription.updated", { id: `sub_${RUN}_presenca_prod`, object: "subscription", metadata: {} });
+        assert.equal(gravacoes.length, esperado, nome);
+      }
+      assert.ok(urls.every((u) => u === "https://dular.exemplo.invalid/api/health"));
+      // Implantação de preview (banco de staging): nunca grava.
+      process.env.VERCEL_ENV = "preview";
+      gravacoes.length = 0;
+      limitesPresenca.ultimaMs = 0;
+      await entregar("customer.subscription.updated", { id: `sub_${RUN}_presenca_prod`, object: "subscription", metadata: {} });
+      assert.equal(gravacoes.length, 0, "preview");
+    } finally {
+      real.$transaction = transacaoOriginal;
+      globalThis.fetch = fetchOriginal;
+      for (const k of ["VERCEL", "VERCEL_ENV", "VERCEL_DEPLOYMENT_ID", "VERCEL_PROJECT_PRODUCTION_URL"]) {
+        if (k in envOriginal) process.env[k] = envOriginal[k];
+        else delete process.env[k];
+      }
+      limitesPresenca.ultimaMs = 0;
     }
   });
 

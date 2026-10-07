@@ -38,6 +38,7 @@ describe("troca de plano Stripe contra Postgres real", { skip: EXIGIDO ? false :
   let limitesTransacao: { lockTimeoutMs: number; statementTimeoutMs: number };
   let varrer: (opcoes?: { imediato?: boolean; limite?: number }) => Promise<{ examinadas: number; falhas: number; emAndamento?: true }>;
   let getCron: (req: Request) => Promise<Response>;
+  let limitesTroca: { ociosoVarreduraMs: number };
   let falso: StripeFalso;
   const RUN = `t_troca_${Date.now().toString(36)}`;
   const usuarios: string[] = [];
@@ -115,7 +116,7 @@ describe("troca de plano Stripe contra Postgres real", { skip: EXIGIDO ? false :
     getCron = (await import("../../src/app/api/cron/reconciliar-stripe/route")).GET;
     ({ makeAuthHeaders } = await import("./_helpers"));
     ({ limitesTransacaoStripe: limitesTransacao } = await import("../../src/lib/assinatura"));
-    ({ varrerOperacoes: varrer } = await import("../../src/lib/trocaDePlano"));
+    ({ varrerOperacoes: varrer, limitesTroca } = await import("../../src/lib/trocaDePlano"));
 
     // Assinatura de outro usuário gravada antes de tudo: não pode mudar.
     testemunha = await usuario("testemunha");
@@ -404,6 +405,10 @@ describe("troca de plano Stripe contra Postgres real", { skip: EXIGIDO ? false :
     const admin = await usuario("admin_ops", "ADMIN");
     const negado = await postOps(new Request("http://test/api/ops/stripe-operacoes", { method: "POST", headers: makeAuthHeaders(userId, "DIARISTA") }));
     assert.equal(negado.status, 403);
+    // Token que DIZ admin, de quem no banco não é: o papel vale pelo banco.
+    const forjado = await postOps(new Request("http://test/api/ops/stripe-operacoes", { method: "POST", headers: makeAuthHeaders(userId, "ADMIN") }));
+    assert.equal(forjado.status, 403);
+    assert.equal((await operacoes(userId))[0].status, "pendente", "nada varrido pelo token forjado");
     const res = await postOps(new Request("http://test/api/ops/stripe-operacoes", { method: "POST", headers: makeAuthHeaders(admin, "ADMIN") }));
     assert.equal(res.status, 200);
     assert.equal((await linha(userId)).plan, "PREMIUM");
@@ -818,6 +823,23 @@ describe("troca de plano Stripe contra Postgres real", { skip: EXIGIDO ? false :
     assert.equal(falso.retrato(antiga).cancel_at_period_end, true);
     assert.equal((await operacoes(userId))[0].status, "concluida");
     assert.equal(falso.estado.cobrancas.length, cobradasAntes, "nenhuma cobrança na reconciliação");
+  });
+
+  it("trava da varredura presa (instância congelada no meio da rodada): o Postgres a solta e a rodada seguinte roda", async () => {
+    const { userId } = await trocaParada("trava_congelada");
+    const original = limitesTroca.ociosoVarreduraMs;
+    limitesTroca.ociosoVarreduraMs = 300;
+    falso.estado.atrasoLeituraMs = 1_200; // a conexão da trava fica ociosa mais que o limite
+    try {
+      await assert.rejects(varrerTudo(), "o Postgres encerrou a sessão que segurava a trava");
+    } finally {
+      limitesTroca.ociosoVarreduraMs = original;
+      falso.estado.atrasoLeituraMs = 0;
+    }
+    const seguinte = await varrerTudo();
+    assert.equal(seguinte.emAndamento, undefined, "a trava global foi solta");
+    assert.equal((await operacoes(userId))[0].status, "concluida");
+    assert.equal((await linha(userId)).plan, "PREMIUM");
   });
 
   // ── 10. Recusas que não cobram ────────────────────────────────────────────

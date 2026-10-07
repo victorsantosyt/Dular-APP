@@ -162,8 +162,18 @@ export const limitesTroca = {
   paradaMs: 60_000,
   /** Intervalo mínimo entre duas conferências de uma `aguardando` na Stripe. */
   revisaoAguardandoMs: 10 * 60_000,
-  /** Duração máxima de uma rodada de varredura (a trava global solta no fim). */
-  timeoutVarreduraMs: 110_000,
+  /** Duração máxima da transação de uma rodada de varredura (a trava global solta no fim). */
+  timeoutVarreduraMs: 50_000,
+  /** Depois disto a rodada não começa operação nova (cabe no `maxDuration` de 60 s do cron). */
+  orcamentoVarreduraMs: 40_000,
+  /**
+   * As travas (do usuário e da varredura) vivem numa transação OCIOSA enquanto
+   * o trabalho roda em outras conexões. Numa instância serverless congelada, o
+   * timeout do Prisma (timer do JS) congela junto; o do Postgres não: passado
+   * isto, ele encerra a sessão e a trava é solta.
+   */
+  ociosoUsuarioMs: 50_000,
+  ociosoVarreduraMs: 55_000,
 };
 
 export class OperacaoEmAndamento extends Error {}
@@ -174,10 +184,10 @@ export class OperacaoEmAndamento extends Error {}
  * gravada antes da chamada à Stripe mesmo que o processo caia no meio.
  */
 async function comTravaDoUsuario<T>(userId: string, fn: () => Promise<T>): Promise<T> {
-  const { lockTimeoutMs, maxWaitMs, timeoutMs } = limitesTroca;
+  const { lockTimeoutMs, maxWaitMs, timeoutMs, ociosoUsuarioMs } = limitesTroca;
   return prisma.$transaction(
     async (tx) => {
-      await tx.$executeRaw`SELECT set_config('lock_timeout', ${String(lockTimeoutMs)}, true)`;
+      await tx.$executeRaw`SELECT set_config('lock_timeout', ${String(lockTimeoutMs)}, true), set_config('idle_in_transaction_session_timeout', ${String(ociosoUsuarioMs)}, true)`;
       try {
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(7703, hashtext(${userId}))`;
       } catch (err) {
@@ -645,6 +655,7 @@ export type ResultadoVarredura = { examinadas: number; falhas: number; emAndamen
 export async function varrerOperacoes(opcoes: { imediato?: boolean; limite?: number } = {}): Promise<ResultadoVarredura> {
   return prisma.$transaction(
     async (tx) => {
+      await tx.$executeRaw`SELECT set_config('idle_in_transaction_session_timeout', ${String(limitesTroca.ociosoVarreduraMs)}, true)`;
       const [{ livre }] = await tx.$queryRaw<{ livre: boolean }[]>`SELECT pg_try_advisory_xact_lock(7704, 0) AS livre`;
       if (!livre) return { examinadas: 0, falhas: 0, emAndamento: true as const };
       return varrerNaTrava(opcoes);
@@ -667,7 +678,11 @@ async function varrerNaTrava(opcoes: { imediato?: boolean; limite?: number }): P
     take: opcoes.limite ?? 20,
   });
   let falhas = 0;
+  let examinadas = 0;
   for (const op of ops) {
+    // O que sobrar fica gravado para a próxima rodada.
+    if (Date.now() - agora > limitesTroca.orcamentoVarreduraMs) break;
+    examinadas += 1;
     try {
       await comTravaDoUsuario(op.userId, async () => {
         const atual = await prisma.stripeOperacao.findUnique({ where: { id: op.id } });
@@ -681,7 +696,7 @@ async function varrerNaTrava(opcoes: { imediato?: boolean; limite?: number }): P
       console.error("[troca-plano] varredura: operação segue gravada para a próxima rodada:", op.id, resumoDoErro(err));
     }
   }
-  return { examinadas: ops.length, falhas };
+  return { examinadas, falhas };
 }
 
 async function reconciliarAguardando(op: StripeOperacao): Promise<void> {

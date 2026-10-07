@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuthAtivo } from "@/lib/contaAtiva";
+import { requireAdmin } from "@/lib/requireAuth";
 import { varrerOperacoes } from "@/lib/trocaDePlano";
 
 export const dynamic = "force-dynamic";
@@ -14,9 +15,15 @@ export const dynamic = "force-dynamic";
  * GET  — pendentes, aguardando pagamento e falhas, mais antigas primeiro.
  * POST — varre agora: retoma as pendentes e confere as que aguardam.
  */
+/** Papel conferido no BANCO, não no token: quem deixou de ser admin perde o acesso na hora. */
 async function exigirAdmin(req: Request) {
   const auth = await requireAuthAtivo(req);
-  return auth.role === "ADMIN";
+  try {
+    await requireAdmin(auth);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export async function GET(req: Request) {

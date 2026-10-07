@@ -3,8 +3,9 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import { varrerOperacoes } from "@/lib/trocaDePlano";
 
 export const dynamic = "force-dynamic";
-// A trava global da varredura solta em até 110 s (limitesTroca.timeoutVarreduraMs).
-export const maxDuration = 120;
+// 60 s vale no plano Hobby com ou sem Fluid compute. A rodada não começa
+// operação nova depois de 40 s e a transação dela expira em 50 s (limitesTroca).
+export const maxDuration = 60;
 
 /**
  * Cron da plataforma (Vercel Cron, `vercel.json`): a mesma varredura das
@@ -43,7 +44,7 @@ export async function GET(req: Request) {
   }
 
   try {
-    const { examinadas, falhas, emAndamento } = await varrerOperacoes({ limite: 50 });
+    const { examinadas, falhas, emAndamento } = await varrerOperacoes({ limite: 20 });
     if (emAndamento) return NextResponse.json({ ok: true, emAndamento: true, examinadas: 0, falhas: 0 });
     if (falhas > 0) console.error("[cron/reconciliar-stripe] operações com falha seguem gravadas para a próxima rodada:", falhas);
     return NextResponse.json({ ok: falhas === 0, examinadas, falhas }, { status: falhas === 0 ? 200 : 500 });

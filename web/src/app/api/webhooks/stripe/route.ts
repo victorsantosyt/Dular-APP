@@ -11,7 +11,15 @@ import {
   type TipoCicloStripe,
   type VinculoStripe,
 } from "@/lib/assinatura";
-import { marcarCheckout, marcarTrocasAplicadas, marcarTrocasExpiradas, retomarOperacoes } from "@/lib/trocaDePlano";
+import {
+  marcarCheckout,
+  marcarTrocasAplicadas,
+  marcarTrocasExpiradas,
+  registrarRenovacaoDaSubstituida,
+  retomarOperacoes,
+} from "@/lib/trocaDePlano";
+import { provaDaAssinatura, provaDaSessao } from "@/lib/origemDoCheckout";
+import { registrarRevisao } from "@/lib/revisaoStripe";
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import type Stripe from "stripe";
@@ -90,6 +98,12 @@ export async function POST(request: Request) {
         await handleTrocaExpirada(event.data.object as Stripe.Subscription);
         break;
 
+      // Rascunho de renovação: se for de assinatura substituída, o cancelamento
+      // é gravado antes do 2xx e age antes da cobrança (lib/trocaDePlano).
+      case "invoice.created":
+        await handleFaturaCriada(event.data.object as Stripe.Invoice);
+        break;
+
       // Renovação. Sem tratar isto, a validade parava no primeiro período: o
       // Stripe seguia cobrando e o acesso caía, porque quem decide o acesso é
       // o `expiresAt` gravado aqui.
@@ -145,6 +159,25 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session, evento:
       return;
     }
     if (!evento) return semEvento("checkout.session.completed", session.id);
+
+    // Sem prova de que a sessão saiu da rota autenticada para este usuário, o
+    // vínculo atual fica como está e o caso vai para revisão manual. Sem 500:
+    // reenviar não muda a prova (lib/origemDoCheckout).
+    const prova = await provaDaSessao(session);
+    if (!prova.ok) {
+      console.error("[stripe-webhook] checkout sem prova de origem; vínculo NÃO alterado:", session.id, prova.motivo);
+      await registrarRevisao({
+        tipo: "checkout_sem_prova",
+        chave: `checkout_sem_prova:${session.id}`,
+        userId,
+        assinatura: assinaturaId,
+        sessaoId: session.id,
+        valor: session.amount_total ?? null,
+        moeda: session.currency ?? null,
+        motivo: prova.motivo,
+      });
+      return;
+    }
 
     // Só cria ou troca o VÍNCULO usuário↔assinatura (mesma `sub_` → nada
     // escrito). O período efetivo vem dos eventos de ciclo de vida: o
@@ -299,21 +332,56 @@ async function handleInvoicePaid(invoice: Stripe.Invoice, evento: EventoStripe |
   // Sem linha desta assinatura (na compra, o `invoice.paid` chega ANTES do
   // `completed`), o vínculo nasce pelos metadados da ASSINATURA que o
   // /billing/checkout grava (`subscription_data.metadata`) — mas só na PRIMEIRA
-  // fatura. Renovação nunca cria nem troca vínculo: uma assinatura substituída
+  // fatura, e só com a operação da rota nesses metadados (lib/origemDoCheckout).
+  // Sem ela, o evento fica guardado e o `completed` decide pela prova da sessão.
+  // Renovação nunca cria nem troca vínculo: uma assinatura substituída
   // continua renovando, e o `created` da renovação não prova que ela é a mais nova.
   const metadados = metadadosDaAssinatura(invoice);
   const userId = metadados?.userId;
   const plano = planoDosMetadados(metadados);
   const primeiraFatura = invoice.billing_reason === "subscription_create";
-  const vinculo = primeiraFatura && typeof userId === "string" && userId !== "" && plano ? { userId, plano } : null;
+  const vinculo =
+    primeiraFatura && typeof userId === "string" && userId !== "" && plano && metadados && (await provaDaAssinatura(assinaturaId, metadados))
+      ? { userId, plano }
+      : null;
 
-  await registrarEvento("invoice.paid", assinaturaId, evento, { fimPeriodo, faturaId: idDaFatura(invoice) }, vinculo);
+  const faturaId = idDaFatura(invoice);
+  // Renovação PAGA de assinatura substituída: o cancelamento registra a
+  // cobrança indevida para revisão (lib/trocaDePlano).
+  if (invoice.billing_reason === "subscription_cycle" && faturaId) await registrarRenovacaoDaSubstituida(assinaturaId, faturaId);
+
+  await registrarEvento("invoice.paid", assinaturaId, evento, { fimPeriodo, faturaId }, vinculo);
   // A fatura guarda os metadados da assinatura de quando foi emitida: a da
   // renovação que entra no downgrade agendado já traz o plano menor. Segundo
   // caminho, além do `customer.subscription.updated`, sempre por versão.
   if (metadados) await sincronizarPelosMetadados(assinaturaId, metadados);
   // Assinatura nova paga: libera o cancelamento pendente da que ela substituiu.
   await retomarOperacoes({ externalId: assinaturaId });
+}
+
+/** Espera pela trava do usuário dentro do `invoice.created`: a resposta não pode demorar. */
+const ESPERA_NO_RASCUNHO_MS = 3_000;
+
+/**
+ * Rascunho de renovação (`invoice.created`, `subscription_cycle`). A Stripe só
+ * finaliza e cobra cerca de 1 h depois do 2xx deste evento; sem 2xx, ela
+ * reenvia e segura a finalização das faturas automáticas por até 72 h.
+ * Por isso a ordem: grava o cancelamento (durável) e SÓ ENTÃO responde 2xx.
+ * A execução é tentada já, com espera curta; se falhar, a operação segue
+ * pendente para a retomada (eventos, boot, intervalo, cron, rota de operações).
+ * Se nem a gravação der (banco fora), o erro sobe: 500, e a Stripe reenvia.
+ */
+async function handleFaturaCriada(invoice: Stripe.Invoice) {
+  if (invoice.billing_reason !== "subscription_cycle") return;
+  const assinaturaId = idDaAssinatura(invoice);
+  const faturaId = idDaFatura(invoice);
+  if (!assinaturaId || !faturaId) return;
+  if (!(await registrarRenovacaoDaSubstituida(assinaturaId, faturaId))) return;
+  try {
+    await retomarOperacoes({ externalId: assinaturaId }, 20, ESPERA_NO_RASCUNHO_MS);
+  } catch (err) {
+    console.error("[stripe-webhook] renovação de assinatura substituída: o cancelamento segue gravado para a retomada:", assinaturaId, faturaId, err);
+  }
 }
 
 /**

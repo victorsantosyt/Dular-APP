@@ -6,6 +6,7 @@ import {
   sincronizarPlanoStripe,
   versaoDoPlanoStripe,
 } from "@/lib/assinatura";
+import { registrarRevisao } from "@/lib/revisaoStripe";
 import type { StripeOperacao } from "@prisma/client";
 
 /**
@@ -183,11 +184,11 @@ export class OperacaoEmAndamento extends Error {}
  * de dentro usam o client global e são confirmadas na hora: a operação fica
  * gravada antes da chamada à Stripe mesmo que o processo caia no meio.
  */
-async function comTravaDoUsuario<T>(userId: string, fn: () => Promise<T>): Promise<T> {
-  const { lockTimeoutMs, maxWaitMs, timeoutMs, ociosoUsuarioMs } = limitesTroca;
+async function comTravaDoUsuario<T>(userId: string, fn: () => Promise<T>, esperaMs = limitesTroca.lockTimeoutMs): Promise<T> {
+  const { maxWaitMs, timeoutMs, ociosoUsuarioMs } = limitesTroca;
   return prisma.$transaction(
     async (tx) => {
-      await tx.$executeRaw`SELECT set_config('lock_timeout', ${String(lockTimeoutMs)}, true), set_config('idle_in_transaction_session_timeout', ${String(ociosoUsuarioMs)}, true)`;
+      await tx.$executeRaw`SELECT set_config('lock_timeout', ${String(esperaMs)}, true), set_config('idle_in_transaction_session_timeout', ${String(ociosoUsuarioMs)}, true)`;
       try {
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(7703, hashtext(${userId}))`;
       } catch (err) {
@@ -280,13 +281,27 @@ async function iniciarCheckout(pedido: PedidoDePlano, vinculada: string | null):
   const op = await prisma.stripeOperacao.create({
     data: { userId, tipo: "checkout", status: "pendente", planId: plano.id, chave: novaChaveDeOperacao("checkout") },
   });
-  const sessao = await stripe.checkout.sessions.create(pedido.checkout, { idempotencyKey: `${op.chave}:sessao` });
+  const sessao = await stripe.checkout.sessions.create(comOperacao(pedido.checkout, op.chave), { idempotencyKey: `${op.chave}:sessao` });
   if (!sessao.url) throw new Error("sessão de checkout sem url");
   await prisma.stripeOperacao.update({
     where: { id: op.id },
     data: { status: "aguardando", referencia: sessao.id, url: sessao.url },
   });
   return { tipo: "checkout", url: sessao.url };
+}
+
+/**
+ * A chave da operação vai nos metadados da sessão E da assinatura: é a prova
+ * de que a sessão saiu desta rota para este usuário (lib/origemDoCheckout).
+ */
+function comOperacao(params: Stripe.Checkout.SessionCreateParams, chave: string): Stripe.Checkout.SessionCreateParams {
+  return {
+    ...params,
+    metadata: { ...params.metadata, operacao: chave },
+    ...(params.subscription_data
+      ? { subscription_data: { ...params.subscription_data, metadata: { ...params.subscription_data.metadata, operacao: chave } } }
+      : {}),
+  };
 }
 
 async function trocar(pedido: PedidoDePlano, sub: Stripe.Subscription): Promise<ResultadoPedido> {
@@ -356,13 +371,14 @@ async function executar(op: StripeOperacao, urlConcluida: string | null): Promis
 /**
  * Executa e grava o erro na operação. Transitório (rede, 5xx, banco): continua
  * `pendente` e o erro sobe. Permanente (requisição inválida): `falhou`, sem
- * cobrança, e o pedido é recusado.
+ * cobrança, e o pedido é recusado. O cancelamento da substituída nunca desiste
+ * sozinho — desistir deixaria a antiga renovar —: segue `pendente` com o erro.
  */
 async function executarRegistrando(op: StripeOperacao, urlConcluida: string | null): Promise<ResultadoPedido> {
   try {
     return await executar(op, urlConcluida);
   } catch (err) {
-    const permanente = erroPermanente(err);
+    const permanente = op.tipo !== "cancelar_substituida" && erroPermanente(err);
     await marcar(op, permanente ? "falhou" : "pendente", { erro: resumoDoErro(err) }).catch(() => {});
     if (!permanente) throw err;
     console.error("[troca-plano] operação falhou de vez; ver StripeOperacao:", op.id, resumoDoErro(err));
@@ -543,46 +559,189 @@ async function executarManter(op: StripeOperacao, urlConcluida: string | null): 
   return { tipo: "troca", situacao: "sem_mudanca", url: urlConcluida };
 }
 
+/** Renovação ainda não paga: o período que a assinatura tinha pago já terminou. */
+const RENOVACAO_NAO_PAGA = new Set<string>(["draft", "open", "uncollectible"]);
+const ENCERRADAS = new Set<string>(["canceled", "incomplete_expired"]);
+
 /**
- * O vínculo passou para outra `sub_` (duas abas, legado): a anterior deixa de
- * renovar no fim do período já pago, sem estorno. SÓ depois de confirmar na
- * Stripe que a nova está paga e pertence ao mesmo usuário — e que a antiga não
- * é de outra pessoa. Nova ainda sem pagamento: a operação fica pendente.
+ * O vínculo passou para outra `sub_` (duas abas, legado): a anterior NUNCA
+ * renova depois do período que já pagou, e nada é estornado automaticamente.
+ *
+ * Antes de qualquer escrita na Stripe, as provas:
+ *  - a nova é do mesmo usuário e está paga (sem pagamento, espera; encerrada, descarta);
+ *  - a antiga tem nos metadados o MESMO dono — sem dono provado, não é cancelada;
+ *  - a antiga não é o vínculo atual da pessoa.
+ *
+ * Depois, pelas faturas de RENOVAÇÃO (`subscription_cycle`) da antiga:
+ *  - paga DEPOIS da substituição: a cobrança indevida já aconteceu → caso de
+ *    revisão manual (StripeRevisao), gravado antes de qualquer outra escrita;
+ *  - não paga (rascunho, aberta, incobrável): o período pago acabou → cancela
+ *    JÁ, sem prorrateio nem fatura nova, e neutraliza CADA fatura. Cancelar a
+ *    assinatura não prova que uma fatura existente não será cobrada;
+ *  - nenhuma não paga: cancela no fim do período pago — o que ela pagou, mesmo
+ *    que indevidamente, segue até o fim; a revisão decide o estorno.
  */
 async function executarCancelamentoDaSubstituida(op: StripeOperacao): Promise<void> {
   const nova = op.externalId ? await buscarAssinatura(op.externalId) : null;
-  const antiga = op.substituida ? await buscarAssinatura(op.substituida) : null;
-
   if (!nova || nova.metadata?.userId !== op.userId) {
     console.error("[troca-plano] assinatura nova não é deste usuário; a antiga NÃO foi cancelada:", op.id);
     await marcar(op, "falhou", { erro: "nova_de_outro_usuario" });
     return;
   }
-  const fatura = nova.latest_invoice as Stripe.Invoice | null;
-  if (!VIVAS.has(nova.status) || fatura?.status !== "paid") {
+  const faturaDaNova = nova.latest_invoice as Stripe.Invoice | null;
+  if (!VIVAS.has(nova.status) || faturaDaNova?.status !== "paid") {
     // Nova encerrada sem pagamento: não há o que substituir; a antiga segue.
-    const encerrada = nova.status === "canceled" || nova.status === "incomplete_expired";
+    const encerrada = ENCERRADAS.has(nova.status);
     await marcar(op, encerrada ? "descartada" : "pendente", { erro: encerrada ? "nova_encerrada_sem_pagamento" : "nova_nao_paga" });
     return;
   }
-  if (!antiga || antiga.status === "canceled" || antiga.status === "incomplete_expired" || antiga.cancel_at_period_end) {
+
+  const antiga = op.substituida && op.substituida !== nova.id ? await buscarAssinatura(op.substituida) : null;
+  if (!antiga) {
     await marcar(op, "concluida", { erro: null });
     return;
   }
-  const donoAntiga = antiga.metadata?.userId;
-  if (donoAntiga && donoAntiga !== op.userId) {
-    console.error("[troca-plano] assinatura substituída é de outro usuário; NÃO cancelada:", op.id);
-    await marcar(op, "falhou", { erro: "antiga_de_outro_usuario" });
+  if (antiga.metadata?.userId !== op.userId) {
+    const erro = antiga.metadata?.userId ? "antiga_de_outro_usuario" : "antiga_sem_dono_provado";
+    console.error("[troca-plano] assinatura substituída sem o mesmo dono; NÃO cancelada:", op.id, erro);
+    await marcar(op, "falhou", { erro });
+    return;
+  }
+  const vinculo = await prisma.subscription.findUnique({ where: { userId: op.userId }, select: { provider: true, externalId: true } });
+  if (vinculo?.provider === "STRIPE" && vinculo.externalId === antiga.id) {
+    await marcar(op, "descartada", { erro: "antiga_e_o_vinculo_atual" });
     return;
   }
 
-  await liberarAgenda(antiga, op);
-  await stripe.subscriptions.update(
-    antiga.id,
-    { cancel_at_period_end: true, metadata: { substituidaPor: nova.id } },
-    { idempotencyKey: `${op.chave}:cancelar` },
+  const desde = await momentoDaSubstituicao(op);
+  const renovacoes = (await stripe.invoices.list({ subscription: antiga.id, limit: 100 })).data.filter(
+    (f) => f.billing_reason === "subscription_cycle",
   );
-  await marcar(op, "concluida", { erro: null });
+  const pagasDepois = renovacoes.filter((f) => f.status === "paid" && pagaEm(f) >= desde.getTime());
+  for (const f of pagasDepois) await registrarRenovacaoPaga(op, nova.id, antiga.id, f);
+
+  const naoPagas = renovacoes.filter((f) => RENOVACAO_NAO_PAGA.has(f.status ?? ""));
+  if (naoPagas.length > 0) {
+    await cancelarJa(antiga, nova.id, op);
+    for (const f of naoPagas) {
+      const final = await neutralizarRenovacao(f.id, op);
+      // Paga entre a leitura e a anulação: também é cobrança indevida.
+      if (final.status === "paid") {
+        await registrarRenovacaoPaga(op, nova.id, antiga.id, final);
+        pagasDepois.push(final);
+      }
+    }
+  } else if (!ENCERRADAS.has(antiga.status) && !antiga.cancel_at_period_end) {
+    await liberarAgenda(antiga, op);
+    await stripe.subscriptions.update(
+      antiga.id,
+      { cancel_at_period_end: true, metadata: { substituidaPor: nova.id } },
+      { idempotencyKey: `${op.chave}:cancelar` },
+    );
+  }
+  await marcar(op, "concluida", { erro: pagasDepois.length > 0 ? "renovacao_paga_em_revisao" : null });
+}
+
+/** Quando o vínculo trocou: a primeira operação deste par nova/antiga. */
+async function momentoDaSubstituicao(op: StripeOperacao): Promise<Date> {
+  const primeira = await prisma.stripeOperacao.findFirst({
+    where: { tipo: "cancelar_substituida", userId: op.userId, externalId: op.externalId, substituida: op.substituida },
+    orderBy: { createdAt: "asc" },
+    select: { createdAt: true },
+  });
+  return primeira?.createdAt ?? op.createdAt;
+}
+
+/** Hora do pagamento (ms); sem ela, a da emissão. */
+function pagaEm(fatura: Stripe.Invoice): number {
+  return (fatura.status_transitions?.paid_at ?? fatura.created) * 1000;
+}
+
+function registrarRenovacaoPaga(op: StripeOperacao, nova: string, antiga: string, fatura: Stripe.Invoice) {
+  return registrarRevisao({
+    tipo: "renovacao_paga_da_substituida",
+    chave: `renovacao_paga:${fatura.id}`,
+    userId: op.userId,
+    assinatura: nova,
+    substituida: antiga,
+    faturaId: fatura.id,
+    valor: fatura.amount_paid,
+    moeda: fatura.currency,
+    motivo: `renovação paga em ${new Date(pagaEm(fatura)).toISOString()}, depois da substituição; sem estorno automático`,
+  });
+}
+
+/** Cancela já: o período pago acabou. Sem prorrateio e sem fatura final. */
+async function cancelarJa(antiga: Stripe.Subscription, nova: string, op: StripeOperacao) {
+  if (ENCERRADAS.has(antiga.status)) return;
+  await liberarAgenda(antiga, op);
+  try {
+    await stripe.subscriptions.cancel(
+      antiga.id,
+      { prorate: false, invoice_now: false, cancellation_details: { comment: `substituida_por ${nova}` } },
+      { idempotencyKey: `${op.chave}:cancelar_ja` },
+    );
+  } catch (err) {
+    const atual = await buscarAssinatura(antiga.id);
+    if (!atual || !ENCERRADAS.has(atual.status)) throw err;
+  }
+}
+
+/**
+ * Tira a fatura de renovação da cobrança, de forma verificável: fatura de
+ * assinatura não pode ser apagada, então o rascunho sai da cobrança automática,
+ * é finalizado SEM cobrança e anulado; a aberta (ou incobrável) é anulada.
+ * Devolve a fatura relida: `void`, ou `paid` se a Stripe cobrou antes.
+ */
+async function neutralizarRenovacao(faturaId: string, op: StripeOperacao): Promise<Stripe.Invoice> {
+  let fatura = await stripe.invoices.retrieve(faturaId);
+  if (fatura.status === "draft") {
+    if (fatura.auto_advance) {
+      fatura = await stripe.invoices.update(faturaId, { auto_advance: false }, { idempotencyKey: `${op.chave}:sem_cobranca:${faturaId}` });
+    }
+    fatura = await stripe.invoices.finalizeInvoice(faturaId, { auto_advance: false }, { idempotencyKey: `${op.chave}:finalizar:${faturaId}` });
+  }
+  if (fatura.status === "open" || fatura.status === "uncollectible") {
+    try {
+      fatura = await stripe.invoices.voidInvoice(faturaId, {}, { idempotencyKey: `${op.chave}:anular:${faturaId}` });
+    } catch (err) {
+      fatura = await stripe.invoices.retrieve(faturaId);
+      if (fatura.status !== "void" && fatura.status !== "paid") throw err;
+    }
+  }
+  if (fatura.status !== "void" && fatura.status !== "paid") {
+    throw new Error(`fatura ${faturaId} da assinatura substituída segue ${fatura.status}`);
+  }
+  return fatura;
+}
+
+/**
+ * Renovação (fatura de ciclo) de uma assinatura que FOI substituída: grava uma
+ * operação `cancelar_substituida` só desta fatura (chave por fatura: reentrega
+ * não duplica) e a deixa pendente para a execução. Tudo durável antes de a
+ * rota responder à Stripe. Devolve se a assinatura é substituída.
+ */
+export async function registrarRenovacaoDaSubstituida(substituida: string, faturaId: string): Promise<boolean> {
+  const origem = await prisma.stripeOperacao.findFirst({
+    where: { tipo: "cancelar_substituida", substituida, status: { in: ["pendente", "concluida"] } },
+    orderBy: { createdAt: "desc" },
+  });
+  if (!origem) return false;
+  await prisma.stripeOperacao.createMany({
+    data: [
+      {
+        userId: origem.userId,
+        tipo: "cancelar_substituida",
+        status: "pendente",
+        externalId: origem.externalId,
+        substituida,
+        referencia: faturaId,
+        chave: `dular-renovacao-${faturaId}`,
+      },
+    ],
+    skipDuplicates: true,
+  });
+  return true;
 }
 
 // ── Retomada ────────────────────────────────────────────────────────────────
@@ -614,10 +773,11 @@ async function retomarNaTrava(filtro: FiltroRetomada) {
 
 /**
  * Retoma operações pendentes — dos eventos da Stripe e da rota de operações.
- * Cada uma sob a trava do seu usuário. Erro transitório PROPAGA (o webhook
- * responde 500 e a Stripe reenvia); a operação continua gravada como pendente.
+ * Cada uma sob a trava do seu usuário (`esperaMs`: quanto esperar por ela).
+ * Erro transitório PROPAGA (o webhook responde 500 e a Stripe reenvia); a
+ * operação continua gravada como pendente.
  */
-export async function retomarOperacoes(filtro: FiltroRetomada, limite = 20): Promise<{ retomadas: number }> {
+export async function retomarOperacoes(filtro: FiltroRetomada, limite = 20, esperaMs?: number): Promise<{ retomadas: number }> {
   const ops = await pendentes(filtro, limite);
   let erro: unknown = null;
   for (const op of ops) {
@@ -625,7 +785,7 @@ export async function retomarOperacoes(filtro: FiltroRetomada, limite = 20): Pro
       await comTravaDoUsuario(op.userId, async () => {
         const atual = await prisma.stripeOperacao.findUnique({ where: { id: op.id } });
         if (atual?.status === "pendente") await retomarUma(atual);
-      });
+      }, esperaMs);
     } catch (err) {
       erro ??= err;
     }

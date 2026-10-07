@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAuthAtivo } from "@/lib/contaAtiva";
 import { requireAdmin } from "@/lib/requireAuth";
 import { varrerOperacoes } from "@/lib/trocaDePlano";
+import { revisoesAbertas } from "@/lib/revisaoStripe";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +13,10 @@ export const dynamic = "force-dynamic";
  * assinatura e pela varredura do servidor (boot e intervalo); esta rota é a
  * varredura sob demanda, sem esperar os prazos.
  *
- * GET  — pendentes, aguardando pagamento e falhas, mais antigas primeiro.
+ * GET  — pendentes, aguardando pagamento e falhas, mais antigas primeiro; e os
+ *        casos abertos de revisão manual (renovação paga de assinatura
+ *        substituída, checkout sem prova de origem). Só leitura: nada é
+ *        estornado nem avisado fora daqui.
  * POST — varre agora: retoma as pendentes e confere as que aguardam.
  */
 /** Papel conferido no BANCO, não no token: quem deixou de ser admin perde o acesso na hora. */
@@ -41,7 +45,7 @@ export async function GET(req: Request) {
     orderBy: { updatedAt: "asc" },
     take: 200,
   });
-  return NextResponse.json({ ok: true, operacoes });
+  return NextResponse.json({ ok: true, operacoes, revisoes: await revisoesAbertas() });
 }
 
 export async function POST(req: Request) {

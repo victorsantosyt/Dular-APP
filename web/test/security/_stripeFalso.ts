@@ -12,7 +12,13 @@ import { PLANS, type PlanDef } from "../../src/lib/stripe";
  *    autenticação → `pending_update`, nada aplicado até a fatura ser paga;
  *  - anular a fatura da troca pendente desfaz a pendência; nova troca substitui;
  *  - agenda (`from_subscription`, fases com metadados, `release`);
- *  - sessão de checkout aberta / paga / expirada.
+ *  - sessão de checkout aberta / paga / expirada (e sessões de fora da rota:
+ *    Payment Link, outra integração);
+ *  - renovação em dois tempos, como na Stripe: na virada do período nasce o
+ *    RASCUNHO (`auto_advance`); cerca de 1 h depois a Stripe finaliza e cobra —
+ *    só se ele ainda estiver em cobrança automática. Cancelar a assinatura
+ *    tira os rascunhos e as abertas da cobrança automática; fatura de
+ *    assinatura não se apaga: finaliza e anula.
  *
  * Toda fatura PAGA entra em `cobrancas`: é a prova de "cobrou uma vez só".
  */
@@ -21,8 +27,9 @@ type Intervalo = "month" | "year";
 type Preco = { id: string; unit_amount: number; interval: Intervalo; product: string; lookup_key: string | null };
 type Linha = { start: number; end: number; amount: number };
 type Fatura = {
-  id: string; sub: string; status: "open" | "paid" | "void"; billing_reason: string;
+  id: string; sub: string; status: "draft" | "open" | "paid" | "void" | "uncollectible"; billing_reason: string;
   amount: number; linhas: Linha[]; metadata: Record<string, string>;
+  auto_advance: boolean; created: number; paid_at: number | null; tentativas: number;
 };
 type Pendente = { preco: string; metadata: Record<string, string>; fatura: string; expires_at: number };
 type Assinatura = {
@@ -32,7 +39,7 @@ type Assinatura = {
 };
 type Fase = { start_date: number; end_date: number; items: Array<{ price: string; quantity: number }>; metadata: Record<string, string> };
 type Agenda = { id: string; sub: string; status: "active" | "released"; phases: Fase[]; atual: number };
-type Sessao = { id: string; status: "open" | "complete" | "expired"; params: Record<string, any>; sub: string | null };
+type Sessao = { id: string; status: "open" | "complete" | "expired"; params: Record<string, any>; sub: string | null; created: number; payment_link: string | null };
 export type Cartao = "ok" | "falha" | "3ds";
 
 const DIA = 86_400;
@@ -66,8 +73,8 @@ export function criarStripeFalso(inicio = 1_790_000_000) {
     antesDeResponder: null as null | ((metodo: string) => Promise<void>),
     /** Atraso de cada leitura de assinatura (ms): deixa a concorrência observável. */
     atrasoLeituraMs: 0,
-    /** Recusa a escrita ANTES de aplicar (Stripe fora): verdadeiro = 503 sem efeito. */
-    recusarAntes: null as null | ((metodo: string) => boolean),
+    /** Recusa a escrita ANTES de aplicar: verdadeiro = 503 sem efeito (Stripe fora); um erro = ele mesmo. */
+    recusarAntes: null as null | ((metodo: string) => boolean | Error),
     /** Assinatura desconhecida: devolve dono e status para criá-la (testes de evento). */
     externas: null as null | ((subId: string) => { userId: string; paga: boolean } | null),
   };
@@ -76,7 +83,8 @@ export function criarStripeFalso(inicio = 1_790_000_000) {
 
   async function idempotente<T>(metodo: string, params: unknown, opcoes: { idempotencyKey?: string } | undefined, fn: () => T): Promise<T> {
     const chave = opcoes?.idempotencyKey;
-    if (s.recusarAntes?.(metodo)) throw erro("StripeAPIError", 503, "api_indisponivel", "Stripe fora (simulado)");
+    const recusa = s.recusarAntes?.(metodo);
+    if (recusa) throw recusa instanceof Error ? recusa : erro("StripeAPIError", 503, "api_indisponivel", "Stripe fora (simulado)");
     s.escritas.push(`${metodo}${chave ? ` ${chave}` : ""}`);
     const texto = JSON.stringify(params ?? {});
     if (chave) {
@@ -112,6 +120,8 @@ export function criarStripeFalso(inicio = 1_790_000_000) {
       id: f.id, object: "invoice", status: f.status, billing_reason: f.billing_reason,
       amount_due: f.amount, amount_paid: f.status === "paid" ? f.amount : 0, total: f.amount, currency: "brl",
       hosted_invoice_url: f.status === "open" ? `https://invoice.stripe.test/${f.id}` : null,
+      auto_advance: f.auto_advance, created: f.created, attempt_count: f.tentativas,
+      status_transitions: { paid_at: f.paid_at },
       metadata: {},
       parent: { type: "subscription_details", subscription_details: { subscription: f.sub, metadata: { ...f.metadata } } },
       lines: { object: "list", data: f.linhas.map((l, i) => ({ id: `il_${f.id}_${i}`, amount: l.amount, period: { start: l.start, end: l.end } })) },
@@ -146,11 +156,27 @@ export function criarStripeFalso(inicio = 1_790_000_000) {
     s.precos.set(p.id, p);
     return p.id;
   }
-  function novaFatura(sub: string, motivo: string, linhas: Linha[], metadata: Record<string, string>, paga: boolean): string {
-    const f: Fatura = { id: id("in"), sub, status: paga ? "paid" : "open", billing_reason: motivo, amount: linhas.reduce((t, l) => t + l.amount, 0), linhas, metadata: { ...metadata } };
+  function novaFatura(sub: string, motivo: string, linhas: Linha[], metadata: Record<string, string>, paga: boolean | "rascunho"): string {
+    const f: Fatura = {
+      id: id("in"), sub, status: paga === "rascunho" ? "draft" : paga ? "paid" : "open", billing_reason: motivo,
+      amount: linhas.reduce((t, l) => t + l.amount, 0), linhas, metadata: { ...metadata },
+      auto_advance: paga === "rascunho" || paga === false, created: s.agora, paid_at: null, tentativas: paga === "rascunho" ? 0 : 1,
+    };
     s.faturas.set(f.id, f);
-    if (paga) s.cobrancas.push({ fatura: f.id, sub, valor: f.amount, motivo });
+    if (paga === true) cobrar(f);
     return f.id;
+  }
+  function cobrar(f: Fatura) {
+    f.status = "paid";
+    f.paid_at = s.agora;
+    f.auto_advance = false;
+    s.cobrancas.push({ fatura: f.id, sub: f.sub, valor: f.amount, motivo: f.billing_reason });
+  }
+  /** Cobrança automática de uma fatura aberta: paga se o cartão passa; senão a assinatura fica em atraso. */
+  function tentarCobrar(f: Fatura) {
+    f.tentativas += 1;
+    if (cobravel(f.sub)) cobrar(f);
+    else s.assinaturas.get(f.sub)!.status = "past_due";
   }
   const cobravel = (sid: string) => (s.cartoes.get(sid) ?? "ok") === "ok";
 
@@ -267,14 +293,50 @@ export function criarStripeFalso(inicio = 1_790_000_000) {
         return agendaObj(aid);
       }),
     "invoices.retrieve": async (fid: string) => faturaObj(fid),
+    "invoices.list": async (p: { subscription: string; limit?: number }) => ({
+      object: "list",
+      data: [...s.faturas.values()].filter((f) => f.sub === p.subscription).reverse().slice(0, p.limit ?? 10).map((f) => faturaObj(f.id)),
+    }),
+    "invoices.update": (fid: string, params: { auto_advance?: boolean }, o?: { idempotencyKey?: string }) =>
+      idempotente("invoices.update", { fid, ...params }, o, () => {
+        const f = s.faturas.get(fid)!;
+        if (params.auto_advance !== undefined) {
+          if (f.status === "paid" || f.status === "void") throw erro("StripeInvalidRequestError", 400, "invoice_not_editable", "finalized");
+          f.auto_advance = params.auto_advance;
+        }
+        return faturaObj(fid);
+      }),
+    "invoices.finalizeInvoice": (fid: string, params: { auto_advance?: boolean }, o?: { idempotencyKey?: string }) =>
+      idempotente("invoices.finalizeInvoice", { fid, ...params }, o, () => {
+        const f = s.faturas.get(fid)!;
+        if (f.status !== "draft") throw erro("StripeInvalidRequestError", 400, "invoice_not_draft", "not a draft");
+        f.status = "open";
+        if (params.auto_advance !== undefined) f.auto_advance = params.auto_advance;
+        // Cobrança automática ligada: a Stripe tenta cobrar ao finalizar.
+        if (f.auto_advance) tentarCobrar(f);
+        return faturaObj(fid);
+      }),
     "invoices.voidInvoice": (fid: string, params: unknown, o?: { idempotencyKey?: string }) =>
       idempotente("invoices.voidInvoice", { fid }, o, () => {
         const f = s.faturas.get(fid)!;
-        if (f.status !== "open") throw erro("StripeInvalidRequestError", 400, "invoice_not_open", "not open");
+        if (f.status !== "open" && f.status !== "uncollectible") throw erro("StripeInvalidRequestError", 400, "invoice_not_open", `invoice is ${f.status}`);
         f.status = "void";
+        f.auto_advance = false;
         const a = s.assinaturas.get(f.sub)!;
         if (a.pending?.fatura === fid) a.pending = null;
         return faturaObj(fid);
+      }),
+    "subscriptions.cancel": (sid: string, params: Record<string, any>, o?: { idempotencyKey?: string }) =>
+      idempotente("subscriptions.cancel", { sid, ...params }, o, () => {
+        const a = assinatura(sid);
+        if (a.status === "canceled") throw erro("StripeInvalidRequestError", 400, "subscription_canceled", "already canceled");
+        if (a.schedule && s.agendas.get(a.schedule)?.status === "active") {
+          throw erro("StripeInvalidRequestError", 400, "subscription_schedule_active", "managed by a subscription schedule");
+        }
+        a.status = "canceled";
+        // Como a Stripe: rascunhos e abertas da assinatura saem da cobrança automática.
+        for (const f of s.faturas.values()) if (f.sub === sid && (f.status === "draft" || f.status === "open")) f.auto_advance = false;
+        return retrato(a.id);
       }),
     "prices.list": async (p: { lookup_keys: string[] }) => ({
       object: "list", data: [...s.precos.values()].filter((x) => x.lookup_key && p.lookup_keys.includes(x.lookup_key)).map((x) => precoObj(x.id)),
@@ -296,7 +358,7 @@ export function criarStripeFalso(inicio = 1_790_000_000) {
       }),
     "checkout.sessions.create": (params: Record<string, any>, o?: { idempotencyKey?: string }) =>
       idempotente("checkout.sessions.create", params, o, () => {
-        const ses: Sessao = { id: id("cs_test"), status: "open", params, sub: null };
+        const ses: Sessao = { id: id("cs_test"), status: "open", params, sub: null, created: s.agora, payment_link: null };
         s.sessoes.set(ses.id, ses);
         return sessaoObj(ses.id);
       }),
@@ -316,6 +378,8 @@ export function criarStripeFalso(inicio = 1_790_000_000) {
       id: ses.id, object: "checkout.session", status: ses.status, mode: "subscription",
       payment_status: ses.status === "complete" ? "paid" : "unpaid", url: `https://checkout.stripe.test/${ses.id}`,
       client_reference_id: ses.params.client_reference_id, metadata: { ...ses.params.metadata }, subscription: ses.sub,
+      created: ses.created, payment_link: ses.payment_link, customer_email: ses.params.customer_email ?? null,
+      amount_total: ses.params.line_items?.[0]?.price_data?.unit_amount ?? null, currency: "brl",
     };
   }
 
@@ -344,12 +408,22 @@ export function criarStripeFalso(inicio = 1_790_000_000) {
     cartao(sid: string, modo: Cartao) {
       s.cartoes.set(sid, modo);
     },
+    /**
+     * Sessão criada FORA da nossa rota (outra integração com a chave, ou um
+     * Payment Link com `?client_reference_id=`): os parâmetros são os de quem a criou.
+     */
+    sessaoExterna(params: Record<string, any>, opcoes: { payment_link?: string; created?: number } = {}): string {
+      const ses: Sessao = { id: id("cs_test"), status: "open", params, sub: null, created: opcoes.created ?? s.agora, payment_link: opcoes.payment_link ?? null };
+      s.sessoes.set(ses.id, ses);
+      return ses.id;
+    },
     /** O cliente paga a sessão aberta: cria a assinatura e a primeira fatura paga. */
     completarCheckout(cid: string): string {
       const ses = s.sessoes.get(cid)!;
       if (ses.status !== "open") throw new Error(`sessão ${cid} não está aberta (${ses.status})`);
       const meta = ses.params.subscription_data?.metadata ?? {};
-      ses.sub = criarAssinatura({ metadata: meta, plano: PLANS[meta.planId as keyof typeof PLANS] });
+      const planId = meta.planId ?? ses.params.metadata?.planId;
+      ses.sub = criarAssinatura({ metadata: meta, plano: PLANS[planId as keyof typeof PLANS] });
       ses.status = "complete";
       return ses.sub;
     },
@@ -357,10 +431,10 @@ export function criarStripeFalso(inicio = 1_790_000_000) {
     pagarFatura(fid: string) {
       const f = s.faturas.get(fid)!;
       if (f.status !== "open") throw new Error(`fatura ${fid} não está aberta (${f.status})`);
-      f.status = "paid";
-      s.cobrancas.push({ fatura: f.id, sub: f.sub, valor: f.amount, motivo: f.billing_reason });
+      cobrar(f);
       const a = s.assinaturas.get(f.sub)!;
       if (a.pending?.fatura === fid) aplicarPendente(a);
+      if (a.status === "past_due") a.status = "active";
     },
     /** 23 h sem pagamento: a Stripe anula a fatura e descarta a troca. */
     expirarPendencia(sid: string) {
@@ -369,9 +443,20 @@ export function criarStripeFalso(inicio = 1_790_000_000) {
       s.faturas.get(a.pending.fatura)!.status = "void";
       a.pending = null;
     },
-    /** Fim do período: renova no preço vigente — ou entra na próxima fase da agenda. */
+    /** Fim do período: renova no preço vigente (ou na próxima fase da agenda) e cobra. */
     renovar(sid: string): string {
+      const fid = this.virada(sid);
+      this.finalizarRenovacao(fid);
+      return fid;
+    },
+    /**
+     * Virada do período: nasce o RASCUNHO da renovação (o `invoice.created`).
+     * A cobrança vem depois, em `finalizarRenovacao`.
+     */
+    virada(sid: string): string {
       const a = s.assinaturas.get(sid)!;
+      if (a.status === "canceled") throw new Error(`assinatura ${sid} cancelada não renova`);
+      if (a.cancel_at_period_end) throw new Error(`assinatura ${sid} encerra no fim do período; não renova`);
       s.agora = a.fim;
       const ag = a.schedule ? s.agendas.get(a.schedule) : null;
       const proxima = ag && ag.status === "active" ? ag.phases[ag.atual + 1] : null;
@@ -383,8 +468,18 @@ export function criarStripeFalso(inicio = 1_790_000_000) {
       const preco = s.precos.get(a.preco)!;
       a.inicio = a.fim;
       a.fim = a.inicio + duracao(preco.interval);
-      a.latest_invoice = novaFatura(a.id, "subscription_cycle", [{ start: a.inicio, end: a.fim, amount: preco.unit_amount }], a.metadata, cobravel(a.id));
+      a.latest_invoice = novaFatura(a.id, "subscription_cycle", [{ start: a.inicio, end: a.fim, amount: preco.unit_amount }], a.metadata, "rascunho");
       return a.latest_invoice;
+    },
+    /**
+     * Cerca de 1 h depois da virada (ou numa nova tentativa): a Stripe finaliza
+     * e cobra — só a fatura que segue em cobrança automática.
+     */
+    finalizarRenovacao(fid: string) {
+      const f = s.faturas.get(fid)!;
+      if (!f.auto_advance) return;
+      if (f.status === "draft") f.status = "open";
+      if (f.status === "open") tentarCobrar(f);
     },
     /** Assinaturas que ainda vão cobrar na próxima renovação. */
     cobrandoNaRenovacao(): string[] {

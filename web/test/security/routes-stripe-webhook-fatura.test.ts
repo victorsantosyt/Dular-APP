@@ -193,6 +193,15 @@ function instalarBanco(estadoAlvo: Partial<Linha> | null, opcoes: { semUsuario?:
     },
     findMany: async () => [],
     updateMany: async () => ({ count: 0 }),
+    // Prova de origem (lib/origemDoCheckout): a operação `checkout` que a rota
+    // gravou, `prova-<usuário>-<plano>:<sub_>`, já ligada à `sub_` daquela
+    // compra (como fica depois do checkout). Fora da contagem de `chamadas`.
+    findUnique: async (args: { where: { chave?: string } }) => {
+      const m = /^prova-(.+)-(\w+):(sub_\w+)$/.exec(args.where.chave ?? "");
+      return m ? { tipo: "checkout", userId: m[1], planId: m[2], referencia: null, externalId: m[3] } : null;
+    },
+    // Nenhuma assinatura destes testes foi substituída por troca de vínculo.
+    findFirst: async () => null,
   };
 
   // Lock consultivo emulado: uma fila por chave, solta no fim da transação.
@@ -485,14 +494,17 @@ describe("POST /api/webhooks/stripe — eventos de assinatura até o banco (HMAC
 
   const quando = (s: number) => new Date(s * 1000);
   const fim = (dias: number) => CRIADO + dias * DIA;
-  const META = { userId: "u-alvo", planId: "pro_anual", subscriptionPlan: "PREMIUM" };
+  const META = { userId: "u-alvo", planId: "pro_anual", subscriptionPlan: "PREMIUM", operacao: "prova-u-alvo-pro_anual" };
   let outraInicial: Linha;
   let validadeAnual: (s: number) => string;
 
+  // A operação da compra é a desta `sub_` (ver o mock de stripeOperacao.findUnique).
+  const daCompra = (metadata: Record<string, string>, sub: string) =>
+    metadata.operacao ? { ...metadata, operacao: `${metadata.operacao}:${sub}` } : metadata;
   const fatura = (sub: string, fimSeg: number, metadata: Record<string, string> = {}, faturaId = "in_test_342", motivo?: string) => ({
     id: faturaId,
     billing_reason: motivo,
-    parent: parentAssinatura(sub, metadata),
+    parent: parentAssinatura(sub, daCompra(metadata, sub)),
     lines: { object: "list", data: [{ ...linhaSemAssinatura, period: { start: fimSeg - 30 * DIA, end: fimSeg } }] },
   });
   const sessao = (sub: unknown, userId = "u-alvo") => ({
@@ -502,7 +514,7 @@ describe("POST /api/webhooks/stripe — eventos de assinatura até o banco (HMAC
     payment_status: "paid",
     client_reference_id: userId,
     subscription: sub,
-    metadata: { userId, planId: "pro_anual", subscriptionPlan: "PREMIUM" },
+    metadata: { userId, planId: "pro_anual", subscriptionPlan: "PREMIUM", operacao: `prova-${userId}-pro_anual:${typeof sub === "string" ? sub : (sub as { id: string }).id}` },
   });
   // Cada evento de fatura leva a SUA fatura (`in_<evento>` por padrão) e o período dela.
   // Renovação por padrão: só a primeira fatura (`subscription_create`) cria vínculo.

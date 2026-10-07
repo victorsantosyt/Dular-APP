@@ -29,7 +29,11 @@ Use este checklist antes do primeiro deploy. Execute os comandos a partir da rai
 - [ ] Eventos assinados nesse endpoint — os da compra e do ciclo de vida, mais os da troca de plano:
   - `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`
   - `invoice.paid`, `invoice.payment_failed`, `customer.subscription.deleted`
-  - `customer.subscription.updated`, `customer.subscription.pending_update_applied`, `customer.subscription.pending_update_expired`, `checkout.session.expired` — troca de plano (`lib/trocaDePlano`). Sem eles a troca ainda é retomada pela varredura do servidor, mas só no próximo boot ou intervalo
+  - `customer.subscription.updated`, `customer.subscription.pending_update_applied`, `customer.subscription.pending_update_expired`, `checkout.session.expired` — troca de plano (`lib/trocaDePlano`). Sem eles, uma troca paga depois na fatura fica cobrada sem o plano no banco até a próxima varredura (boot, intervalo ou cron diário), e o cancelamento de assinatura duplicada perde o gatilho da virada do período
+  - `invoice.created` — **obrigatório**: é o aviso do rascunho da renovação. Para uma assinatura substituída (duplicada), o webhook grava o cancelamento antes de responder 2xx e, em seguida, cancela a assinatura e anula o rascunho antes de a Stripe cobrar (cerca de 1 h depois). Sem este evento, a duplicada só é barrada se outro gatilho agir nessa hora; se não agir, a renovação é cobrada e vira caso de revisão manual
+- [ ] Conta Stripe **live**, só leitura: listar Payment Links e pricing tables. O webhook não cria nem troca vínculo de sessão sem prova de origem (`lib/origemDoCheckout`). Se houver sessões assim, cada uma vira caso `checkout_sem_prova` para revisão manual, e quem pagou fica com uma assinatura sem vínculo até alguém decidir o estorno
+- [ ] Usuários **sem e-mail** que estiverem com Checkout aberto na hora do deploy: a sessão criada pela versão anterior só é aceita com o e-mail do usuário igual ao da sessão. Sem isso, vira caso `checkout_sem_prova`
+- [ ] Assinaturas duplicadas que já existem: levantamento só leitura **antes** do deploy (procedimento no PR #348). A duplicada só é cancelada automaticamente se `metadata.userId` for o mesmo usuário; sem ele (anteriores ao #347), a operação falha com `antiga_sem_dono_provado` até alguém conferir a dona e gravar o `userId`
 - [ ] `STRIPE_WEBHOOK_SECRET` copiado do endpoint webhook de produção
 - [ ] `CRON_SECRET` no ambiente **Production**: aleatório, com 16 caracteres ou mais (ex.: `openssl rand -hex 32`), exclusivo deste uso. A Vercel o envia como `Authorization: Bearer …` ao chamar o cron. Sem ele, `/api/cron/reconciliar-stripe` recusa com 503 e a reconciliação das operações Stripe com hora marcada não roda
 - [ ] Cron `/api/cron/reconciliar-stripe` listado em Settings → Cron Jobs depois do deploy de produção. Vem do `web/vercel.json`: diário, `17 6 * * *` (06:17 UTC). No plano Hobby o cron só pode rodar uma vez por dia, com folga de até 59 min, e uma expressão mais frequente faz o deploy falhar. No Pro pode ser mais frequente (ex.: `*/10 * * * *`)
@@ -53,6 +57,8 @@ Use este checklist antes do primeiro deploy. Execute os comandos a partir da rai
 - [ ] Verificar recebimento de push notification em dispositivo real
 - [ ] Verificar webhook Stripe com evento real ou modo test
 - [ ] Rodar o cron uma vez pelo botão Run em Settings → Cron Jobs e conferir em View Logs: `200` com `falhas: 0`. `503` significa `CRON_SECRET` ausente ou curto
+- [ ] No endpoint de webhook da Stripe (Dashboard → Webhooks), conferir que `invoice.created` está sendo entregue com `200`. Uma resposta diferente de 2xx faz a Stripe adiar a finalização das faturas automáticas por até 72 h
+- [ ] Rotina de revisão: consultar `GET /api/ops/stripe-operacoes` (admin) e tratar `revisoes` abertas — `renovacao_paga_da_substituida` (renovação de duplicada já cobrada) e `checkout_sem_prova` (sessão paga sem prova de origem). Nada é estornado nem avisado automaticamente: só esta fila registra o caso
 - [ ] Monitorar logs nas primeiras 24h
 
 ## ROLLBACK

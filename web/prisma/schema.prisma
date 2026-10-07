@@ -1036,6 +1036,45 @@ model StripeOperacao {
   @@index([status, updatedAt])
 }
 
+/** Caso de cobrança Stripe para revisão MANUAL. Nada aqui estorna nem avisa
+ *  ninguém fora do sistema: é a fila que a rota de operações lista.
+ *  - `renovacao_paga_da_substituida`: a assinatura substituída renovou e a
+ *    fatura foi PAGA antes de o cancelamento agir (lib/trocaDePlano);
+ *  - `checkout_sem_prova`: sessão de checkout paga sem prova de que saiu da
+ *    rota autenticada para aquele usuário; o vínculo NÃO foi mexido.
+ *  `chave` única (por fatura ou por sessão): reentrega não duplica o caso. */
+model StripeRevisao {
+  id          String   @id @default(cuid())
+  tipo        String
+  chave       String   @unique
+  /** aberta | resolvida */
+  status      String   @default("aberta")
+  /** usuário do Dular envolvido (no checkout sem prova, o que a sessão alega). */
+  userId      String?
+  /** `sub_…` nova (renovação) ou a criada pela sessão (checkout). */
+  assinatura  String?
+  /** `sub_…` substituída que renovou. */
+  substituida String?
+  faturaId    String?
+  sessaoId    String?
+  /** valor pago, em centavos, e a moeda da Stripe. */
+  valor       Int?
+  moeda       String?
+  motivo      String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([status, createdAt])
+}
+
+/** Marcos de implantação gravados pela própria migration (hora do deploy).
+ *  `checkout_com_operacao`: a partir dele toda sessão de checkout nasce com
+ *  uma StripeOperacao; sessões anteriores usam a prova de legado. */
+model StripeMarco {
+  chave String   @id
+  em    DateTime @default(now())
+}
+
 /** Eventos de ciclo de vida da Stripe já recebidos: deduplicação persistente
  *  por id do evento e histórico. Sem FK para Subscription de propósito: o
  *  evento pode chegar antes de existir a linha (legado). */

@@ -66,6 +66,11 @@ describe("ordem dos eventos de assinatura Stripe contra Postgres real", { skip: 
     const id = `${RUN}_${sufixo}`;
     await prisma.user.create({ data: { id, nome: `Teste assinatura ${sufixo}`, role: "DIARISTA" } });
     usuarios.push(id);
+    // Prova de origem (lib/origemDoCheckout): a operação `checkout` que a rota
+    // teria gravado, uma por plano, já concluída (fora de qualquer varredura).
+    await prisma.stripeOperacao.createMany({
+      data: Object.keys(NIVEL).map((planId) => ({ userId: id, tipo: "checkout", status: "concluida", planId, chave: `prova_${id}_${planId}` })),
+    });
     return id;
   }
 
@@ -89,7 +94,7 @@ describe("ordem dos eventos de assinatura Stripe contra Postgres real", { skip: 
   }
 
   const NIVEL: Record<string, string> = { pro_mensal: "PREMIUM", basico_mensal: "BASIC" };
-  const metadados = (userId: string, planId = "pro_mensal") => ({ userId, planId, subscriptionPlan: NIVEL[planId] });
+  const metadados = (userId: string, planId = "pro_mensal") => ({ userId, planId, subscriptionPlan: NIVEL[planId], operacao: `prova_${userId}_${planId}` });
 
   function concluido(userId: string, assinatura: string, id: string, created: number, planId = "pro_mensal") {
     donos.set(assinatura, userId);
@@ -149,8 +154,19 @@ describe("ordem dos eventos de assinatura Stripe contra Postgres real", { skip: 
     motivo = "subscription_cycle",
   ) => fatura("invoice.paid", assinatura, id, created, fimSeg, meta, faturaId, motivo);
   /** PRIMEIRA fatura da assinatura (`subscription_create`): a única que cria vínculo. */
-  const primeira = (assinatura: string, id: string, created: number, fimSeg: number, meta: Record<string, string> = {}, faturaId?: string) =>
-    pago(assinatura, id, created, fimSeg, meta, faturaId, "subscription_create");
+  async function primeira(assinatura: string, id: string, created: number, fimSeg: number, meta: Record<string, string> = {}, faturaId?: string) {
+    // A operação do checkout que a rota gravou, já ligada a esta `sub_`: é o
+    // que o `invoice.paid` antes do completed confere (lib/origemDoCheckout).
+    if (meta.operacao && meta.userId) {
+      const chave = `prova_${assinatura}`;
+      await prisma.stripeOperacao.createMany({
+        data: [{ userId: meta.userId, tipo: "checkout", status: "concluida", planId: meta.planId, externalId: assinatura, chave }],
+        skipDuplicates: true,
+      });
+      meta = { ...meta, operacao: chave };
+    }
+    return pago(assinatura, id, created, fimSeg, meta, faturaId, "subscription_create");
+  }
   /** Falha da fatura `faturaId`, com o fim do período REAL dela. */
   const falhou = (assinatura: string, id: string, created: number, fimSeg: number, faturaId?: string) =>
     fatura("invoice.payment_failed", assinatura, id, created, fimSeg, {}, faturaId);
@@ -231,6 +247,8 @@ describe("ordem dos eventos de assinatura Stripe contra Postgres real", { skip: 
     if (!prisma) return;
     for (const nome of gatilhos) await removerGatilho(nome);
     await prisma.stripeOperacao.deleteMany({ where: { userId: { in: usuarios } } });
+    await prisma.stripeRevisao.deleteMany({ where: { userId: { in: usuarios } } });
+    await prisma.stripeOperacao.deleteMany({ where: { chave: { startsWith: `prova_sub_${RUN}_` } } });
     // Só as linhas deste RUN: todo evento enviado aqui tem id `evt_<RUN>_…`.
     await prisma.stripeEventoAssinatura.deleteMany({ where: { eventId: { startsWith: `evt_${RUN}_` } } });
     await prisma.subscription.deleteMany({ where: { userId: { in: usuarios } } });
@@ -626,8 +644,17 @@ describe("ordem dos eventos de assinatura Stripe contra Postgres real", { skip: 
     // Trocar o vínculo não basta: a substituída deixa de renovar na Stripe (fim do período, sem estorno).
     assert.equal(falso.retrato(antiga).cancel_at_period_end, true);
     assert.equal(falso.retrato(nova).cancel_at_period_end, false);
-    const ops = await prisma.stripeOperacao.findMany({ where: { userId: u }, select: { tipo: true, status: true, externalId: true, substituida: true } });
-    assert.deepEqual(ops, [{ tipo: "cancelar_substituida", status: "concluida", externalId: nova, substituida: antiga }]);
+    const ops = await prisma.stripeOperacao.findMany({
+      where: { userId: u, NOT: { chave: { startsWith: "prova_" } } },
+      orderBy: { createdAt: "asc" },
+      select: { tipo: true, status: true, externalId: true, substituida: true, referencia: true },
+    });
+    // A troca do vínculo e, para a renovação paga da substituída, UMA conferência
+    // (chave por fatura: a reentrega não cria outra).
+    assert.deepEqual(ops, [
+      { tipo: "cancelar_substituida", status: "concluida", externalId: nova, substituida: antiga, referencia: null },
+      { tipo: "cancelar_substituida", status: "concluida", externalId: nova, substituida: antiga, referencia: `in_${RUN}_b1_ra` },
+    ]);
   });
 
   it("B1: ordem inversa — renovação da antiga ANTES do completed da nova: termina na nova PREMIUM", async () => {

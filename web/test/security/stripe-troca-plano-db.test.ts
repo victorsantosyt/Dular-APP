@@ -34,6 +34,7 @@ describe("troca de plano Stripe contra Postgres real", { skip: EXIGIDO ? false :
   let postCheckout: (req: Request) => Promise<Response>;
   let postWebhook: (req: Request) => Promise<Response>;
   let postOps: (req: Request) => Promise<Response>;
+  let getOps: (req: Request) => Promise<Response>;
   let makeAuthHeaders: (userId: string, role: any) => Record<string, string>;
   let limitesTransacao: { lockTimeoutMs: number; statementTimeoutMs: number };
   let varrer: (opcoes?: { imediato?: boolean; limite?: number }) => Promise<{ examinadas: number; falhas: number; emAndamento?: true }>;
@@ -51,7 +52,20 @@ describe("troca de plano Stripe contra Postgres real", { skip: EXIGIDO ? false :
     const id = `${RUN}_${sufixo}`;
     await prisma.user.create({ data: { id, nome: `Teste troca ${sufixo}`, role } });
     usuarios.push(id);
+    await provasDeOrigem(id);
     return id;
+  }
+
+  /**
+   * Assinaturas criadas direto na Stripe simulada (sem passar pela rota) levam
+   * nos metadados a operação `checkout` que a rota teria gravado: é a prova de
+   * origem (lib/origemDoCheckout). Uma por plano, já concluída — fora da
+   * varredura e das asserções de operações.
+   */
+  async function provasDeOrigem(userId: string) {
+    await prisma.stripeOperacao.createMany({
+      data: Object.keys(PLANS).map((planId) => ({ userId, tipo: "checkout", status: "concluida", planId, chave: `prova_${userId}_${planId}` })),
+    });
   }
 
   async function pedir(userId: string, planId: string, role = "DIARISTA") {
@@ -79,16 +93,22 @@ describe("troca de plano Stripe contra Postgres real", { skip: EXIGIDO ? false :
       select: { plan: true, status: true, externalId: true, expiresAt: true, canceledAt: true, stripePlanoVersao: true, updatedAt: true },
     });
   const operacoes = (userId: string) =>
-    prisma.stripeOperacao.findMany({ where: { userId }, orderBy: { createdAt: "asc" }, select: { tipo: true, status: true, planId: true, erro: true, externalId: true, substituida: true } });
+    prisma.stripeOperacao.findMany({ where: { userId, NOT: { chave: { startsWith: "prova_" } } }, orderBy: { createdAt: "asc" }, select: { tipo: true, status: true, planId: true, erro: true, externalId: true, substituida: true } });
   const cobrancasDe = (sub: string) => falso.estado.cobrancas.filter((c) => c.sub === sub);
   const escritas = (metodo: string) => falso.estado.escritas.filter((e) => e.startsWith(metodo)).length;
-  const meta = (userId: string, planId: string) => ({ userId, planId, subscriptionPlan: PLANS[planId].plan });
+  const meta = (userId: string, planId: string) => ({ userId, planId, subscriptionPlan: PLANS[planId].plan, operacao: `prova_${userId}_${planId}` });
 
   /** Assinante como o Checkout deixa: assinatura paga na Stripe e vínculo pela primeira fatura. */
   async function assinante(sufixo: string, planId: string, role = "DIARISTA") {
     const userId = await usuario(sufixo, role);
     const sub = falso.criarAssinatura({ metadata: meta(userId, planId), plano: PLANS[planId] });
     const primeira = falso.retrato(sub).latest_invoice as string;
+    // Como a rota deixa depois do checkout: a operação dele ligada a esta `sub_`
+    // (é o que o `invoice.paid` antes do completed confere).
+    const chave = `prova_${sub}`;
+    await prisma.stripeOperacao.create({ data: { userId, tipo: "checkout", status: "concluida", planId, externalId: sub, chave } });
+    falso.estado.assinaturas.get(sub)!.metadata.operacao = chave;
+    falso.estado.faturas.get(primeira)!.metadata.operacao = chave;
     assert.equal((await entregar("invoice.paid", falso.faturaObj(primeira))).status, 200);
     const l = await linha(userId);
     assert.equal(l.externalId, sub);
@@ -112,7 +132,7 @@ describe("troca de plano Stripe contra Postgres real", { skip: EXIGIDO ? false :
     PLANS = modStripe.PLANS;
     postCheckout = (await import("../../src/app/api/billing/checkout/route")).POST;
     postWebhook = (await import("../../src/app/api/webhooks/stripe/route")).POST;
-    postOps = (await import("../../src/app/api/ops/stripe-operacoes/route")).POST;
+    ({ POST: postOps, GET: getOps } = await import("../../src/app/api/ops/stripe-operacoes/route"));
     getCron = (await import("../../src/app/api/cron/reconciliar-stripe/route")).GET;
     ({ makeAuthHeaders } = await import("./_helpers"));
     ({ limitesTransacaoStripe: limitesTransacao } = await import("../../src/lib/assinatura"));
@@ -137,6 +157,7 @@ describe("troca de plano Stripe contra Postgres real", { skip: EXIGIDO ? false :
     if (!prisma) return;
     assert.deepEqual(await linha(testemunha), fotoTestemunha, "assinatura de outro usuário intacta");
     await prisma.stripeOperacao.deleteMany({ where: { userId: { in: usuarios } } });
+    await prisma.stripeRevisao.deleteMany({ where: { userId: { in: usuarios } } });
     await prisma.subscription.deleteMany({ where: { userId: { in: usuarios } } });
     await prisma.stripeEventoAssinatura.deleteMany({ where: { externalId: { startsWith: "sub_falso" } } });
     await prisma.user.deleteMany({ where: { id: { in: usuarios } } });
@@ -766,12 +787,12 @@ describe("troca de plano Stripe contra Postgres real", { skip: EXIGIDO ? false :
       assert.ok(corpo.examinadas >= 1);
       const depois = await linha(userId);
       assert.equal(depois.plan, "PREMIUM");
-      const [op] = await prisma.stripeOperacao.findMany({ where: { userId }, select: { status: true, tentativas: true } });
+      const [op] = await prisma.stripeOperacao.findMany({ where: { userId, NOT: { chave: { startsWith: "prova_" } } }, select: { status: true, tentativas: true } });
       assert.deepEqual(op, { status: "concluida", tentativas: 1 });
 
       assert.equal((await cron(`Bearer ${SEGREDO_CRON}`)).status, 200, "repetido");
       assert.deepEqual(await linha(userId), depois, "repetido: nenhuma escrita");
-      assert.deepEqual(await prisma.stripeOperacao.findMany({ where: { userId }, select: { status: true, tentativas: true } }), [op]);
+      assert.deepEqual(await prisma.stripeOperacao.findMany({ where: { userId, NOT: { chave: { startsWith: "prova_" } } }, select: { status: true, tentativas: true } }), [op]);
     });
     assert.equal(trocasCobradas(sub), 1, "uma cobrança de troca, a original");
     assert.equal(escritas("subscriptions.update"), 1, "releu a Stripe; nenhuma troca nova");
@@ -793,7 +814,7 @@ describe("troca de plano Stripe contra Postgres real", { skip: EXIGIDO ? false :
     } finally {
       falso.estado.atrasoLeituraMs = 0;
     }
-    const [op] = await prisma.stripeOperacao.findMany({ where: { userId }, select: { status: true, tentativas: true } });
+    const [op] = await prisma.stripeOperacao.findMany({ where: { userId, NOT: { chave: { startsWith: "prova_" } } }, select: { status: true, tentativas: true } });
     assert.deepEqual(op, { status: "concluida", tentativas: 1 });
     assert.equal((await linha(userId)).plan, "PREMIUM");
     assert.equal(trocasCobradas(sub), 1);
@@ -853,4 +874,345 @@ describe("troca de plano Stripe contra Postgres real", { skip: EXIGIDO ? false :
     assert.equal(falso.estado.sessoes.size, 0);
     assert.equal(escritas("subscriptions.update"), 0);
   });
+
+  // ── 11. Renovação da assinatura substituída (P1) e caso de revisão (P3) ───
+  //
+  // A Stripe renova em dois tempos: na virada nasce o RASCUNHO (`invoice.created`)
+  // e cerca de 1 h depois ela finaliza e cobra (`finalizarRenovacao`). O relógio
+  // da Stripe simulada parte do relógio real: "pago depois da substituição"
+  // compara com a hora em que o vínculo trocou.
+
+  const agoraReal = () => Math.floor(Date.now() / 1000);
+  const fatura = (fid: string) => falso.estado.faturas.get(fid)!;
+  const revisoesDe = (userId: string) =>
+    prisma.stripeRevisao.findMany({
+      where: { userId },
+      orderBy: { createdAt: "asc" },
+      select: { tipo: true, status: true, userId: true, assinatura: true, substituida: true, faturaId: true, valor: true, moeda: true },
+    });
+
+  /** Duplicada já vinculada, com o cancelamento da antiga PENDENTE (Stripe fora na hora do completed). */
+  async function substituidaPendente(sufixo: string) {
+    falso.estado.agora = agoraReal();
+    const { userId, sub: antiga } = await assinante(sufixo, "basico_mensal");
+    const nova = falso.criarAssinatura({ metadata: meta(userId, "pro_mensal"), plano: PLANS.pro_mensal });
+    const sessao = { id: `cs_${RUN}_${sufixo}`, object: "checkout.session", mode: "subscription", payment_status: "paid", client_reference_id: userId, subscription: nova, metadata: meta(userId, "pro_mensal") };
+    falso.estado.recusarAntes = (m) => m === "subscriptions.update";
+    assert.equal((await entregar("checkout.session.completed", sessao, falso.estado.agora + 10)).status, 500);
+    falso.estado.recusarAntes = null;
+    assert.equal((await linha(userId)).externalId, nova);
+    assert.deepEqual((await operacoes(userId)).map((o: any) => [o.tipo, o.status]), [["cancelar_substituida", "pendente"]]);
+    assert.equal(falso.retrato(antiga).cancel_at_period_end, false, "a antiga segue renovando");
+    return { userId, antiga, nova };
+  }
+
+  it("renovação da substituída — RASCUNHO: o invoice.created grava e age antes do 2xx; cancela já e ANULA o rascunho; nada é cobrado", async () => {
+    const { userId, antiga, nova } = await substituidaPendente("p1_rasc");
+    const rascunho = falso.virada(antiga);
+    assert.deepEqual([fatura(rascunho).status, fatura(rascunho).auto_advance], ["draft", true]);
+
+    const r = await entregar("invoice.created", falso.faturaObj(rascunho));
+    assert.equal(r.status, 200);
+    assert.equal(falso.retrato(antiga).status, "canceled");
+    assert.deepEqual([fatura(rascunho).status, fatura(rascunho).auto_advance, fatura(rascunho).tentativas], ["void", false, 0]);
+    // Uma hora depois a Stripe finalizaria e cobraria: a fatura anulada não é cobrada.
+    falso.finalizarRenovacao(rascunho);
+    assert.deepEqual(cobrancasDe(antiga).map((c) => c.motivo), ["subscription_create"], "nenhuma renovação cobrada");
+    assert.deepEqual([falso.retrato(nova).status, falso.retrato(nova).cancel_at_period_end], ["active", false], "a atual intacta");
+    assert.equal((await linha(userId)).externalId, nova);
+    const ops = await operacoes(userId);
+    assert.equal(ops.length, 2, "a de origem e a desta fatura");
+    assert.ok(ops.every((o: any) => o.status === "concluida"));
+    assert.deepEqual(await revisoesDe(userId), []);
+    for (const m of ["subscriptions.cancel", "invoices.finalizeInvoice", "invoices.voidInvoice"]) assert.equal(escritas(m), 1, m);
+
+    // Reentregas: nenhuma escrita nova, nenhuma operação nova.
+    const antes = falso.estado.escritas.length;
+    for (let i = 0; i < 2; i++) assert.equal((await entregar("invoice.created", falso.faturaObj(rascunho), falso.estado.agora, r.id)).status, 200);
+    assert.equal(falso.estado.escritas.length, antes);
+    assert.equal((await operacoes(userId)).length, 2);
+  });
+
+  it("renovação da substituída — Stripe fora no invoice.created: 2xx DEPOIS de gravar; o cancelamento segue pendente e a retomada age antes da cobrança", async () => {
+    const { userId, antiga } = await substituidaPendente("p1_fora");
+    const rascunho = falso.virada(antiga);
+    falso.estado.recusarAntes = (m) => m === "subscriptions.cancel";
+    const r = await entregar("invoice.created", falso.faturaObj(rascunho));
+    falso.estado.recusarAntes = null;
+    assert.equal(r.status, 200, "2xx: a Stripe não segura a finalização das faturas");
+    const gravada = await prisma.stripeOperacao.findMany({ where: { userId, referencia: rascunho }, select: { tipo: true, status: true, chave: true, erro: true } });
+    assert.deepEqual(gravada.map((o: any) => [o.tipo, o.status, o.chave]), [["cancelar_substituida", "pendente", `dular-renovacao-${rascunho}`]]);
+    assert.match(gravada[0].erro ?? "", /api_indisponivel/);
+    assert.deepEqual([fatura(rascunho).status, falso.retrato(antiga).status], ["draft", "active"]);
+
+    // Sem pedido do usuário: o retrato da assinatura (evento da Stripe) acorda a retomada.
+    assert.equal((await entregar("customer.subscription.updated", falso.retrato(antiga))).status, 200);
+    assert.equal(falso.retrato(antiga).status, "canceled");
+    assert.equal(fatura(rascunho).status, "void");
+    falso.finalizarRenovacao(rascunho);
+    assert.deepEqual(cobrancasDe(antiga).map((c) => c.motivo), ["subscription_create"]);
+    assert.ok((await operacoes(userId)).every((o: any) => o.status === "concluida"));
+  });
+
+  it("renovação da substituída — erro PERMANENTE da Stripe no meio (400): o cancelamento NÃO desiste; segue pendente e a reentrega conclui", async () => {
+    const { userId, antiga } = await substituidaPendente("p1_400");
+    const rascunho = falso.virada(antiga);
+    falso.estado.recusarAntes = (m) =>
+      m === "invoices.finalizeInvoice" && Object.assign(new Error("invoice is locked"), { type: "StripeInvalidRequestError", statusCode: 400, code: "invoice_locked" });
+    const r = await entregar("invoice.created", falso.faturaObj(rascunho));
+    falso.estado.recusarAntes = null;
+    assert.equal(r.status, 200);
+    const ops = await operacoes(userId);
+    assert.deepEqual(ops.map((o: any) => o.status), ["pendente", "pendente"], "nenhuma operação desiste");
+    assert.ok(ops.every((o: any) => /invoice_locked/.test(o.erro ?? "")));
+    assert.equal(fatura(rascunho).status, "draft");
+    assert.equal(fatura(rascunho).auto_advance, false, "a assinatura cancelada já tirou o rascunho da cobrança automática");
+
+    assert.equal((await entregar("invoice.created", falso.faturaObj(rascunho), falso.estado.agora, r.id)).status, 200);
+    assert.equal(fatura(rascunho).status, "void");
+    assert.ok((await operacoes(userId)).every((o: any) => o.status === "concluida"));
+    falso.finalizarRenovacao(rascunho);
+    assert.deepEqual(cobrancasDe(antiga).map((c) => c.motivo), ["subscription_create"]);
+  });
+
+  it("renovação da substituída — ABERTA não paga (cartão recusado): cancela já e ANULA; a nova tentativa não cobra", async () => {
+    const { userId, antiga } = await substituidaPendente("p1_aberta");
+    const rascunho = falso.virada(antiga);
+    // Nenhum gatilho agiu antes da finalização; o cartão recusa e a fatura fica aberta.
+    falso.cartao(antiga, "falha");
+    falso.finalizarRenovacao(rascunho);
+    assert.deepEqual([fatura(rascunho).status, falso.retrato(antiga).status], ["open", "past_due"]);
+
+    assert.equal((await entregar("customer.subscription.updated", falso.retrato(antiga))).status, 200);
+    assert.deepEqual([fatura(rascunho).status, fatura(rascunho).auto_advance], ["void", false]);
+    assert.equal(falso.retrato(antiga).status, "canceled");
+    assert.equal(escritas("invoices.finalizeInvoice"), 0, "aberta: só anulada");
+    // O cartão volta a passar e a Stripe tentaria de novo: anulada não é cobrada.
+    falso.cartao(antiga, "ok");
+    falso.finalizarRenovacao(rascunho);
+    assert.deepEqual(cobrancasDe(antiga).map((c) => c.motivo), ["subscription_create"]);
+    assert.deepEqual(await revisoesDe(userId), []);
+  });
+
+  it("renovação da substituída JÁ PAGA: caso de revisão (usuário, assinaturas, fatura, valor), sem estorno; reentregas não duplicam; a listagem mostra", async () => {
+    const { userId, antiga, nova } = await substituidaPendente("p3_paga");
+    const renovacao = falso.virada(antiga);
+    falso.finalizarRenovacao(renovacao); // nenhum gatilho agiu a tempo: cobrada
+    assert.equal(fatura(renovacao).status, "paid");
+
+    const entregas = await Promise.all([0, 1, 2].map(() => entregar("invoice.paid", falso.faturaObj(renovacao), falso.estado.agora, `evt_${RUN}_p3_paga`)));
+    assert.deepEqual(entregas.map((e) => e.status), [200, 200, 200]);
+    assert.equal((await entregar("invoice.paid", falso.faturaObj(renovacao), falso.estado.agora, `evt_${RUN}_p3_paga`)).status, 200);
+
+    assert.deepEqual(await revisoesDe(userId), [
+      { tipo: "renovacao_paga_da_substituida", status: "aberta", userId, assinatura: nova, substituida: antiga, faturaId: renovacao, valor: 1990, moeda: "brl" },
+    ]);
+    assert.deepEqual([falso.retrato(antiga).status, falso.retrato(antiga).cancel_at_period_end], ["active", true], "não renova de novo; o período pago segue");
+    assert.equal(escritas("subscriptions.cancel"), 0);
+    assert.equal(escritas("invoices.voidInvoice"), 0);
+    assert.deepEqual(cobrancasDe(antiga).map((c) => [c.motivo, c.valor]), [["subscription_create", 1990], ["subscription_cycle", 1990]], "nada estornado");
+    const ops = await operacoes(userId);
+    assert.ok(ops.every((o: any) => o.status === "concluida"));
+    assert.ok(ops.some((o: any) => o.erro === "renovacao_paga_em_revisao"));
+
+    const admin = await usuario("p3_admin", "ADMIN");
+    const res = await getOps(new Request("http://test/api/ops/stripe-operacoes", { headers: makeAuthHeaders(admin, "ADMIN") }));
+    assert.equal(res.status, 200);
+    const corpo = await res.json();
+    assert.equal(corpo.revisoes.filter((c: any) => c.faturaId === renovacao).length, 1);
+    const negado = await getOps(new Request("http://test/api/ops/stripe-operacoes", { headers: makeAuthHeaders(userId, "DIARISTA") }));
+    assert.equal(negado.status, 403);
+  });
+
+  it("renovação paga ANTES da substituição é legítima: nenhum caso de revisão; a antiga só não renova de novo", async () => {
+    falso.estado.agora = agoraReal() - 40 * DIA;
+    const { userId, sub: antiga } = await assinante("p3_antes", "basico_mensal");
+    const renovada = falso.renovar(antiga); // paga há ~10 dias, antes de existir a duplicada
+    assert.equal(fatura(renovada).status, "paid");
+    falso.estado.agora = agoraReal();
+    const nova = falso.criarAssinatura({ metadata: meta(userId, "pro_mensal"), plano: PLANS.pro_mensal });
+    const sessao = { id: `cs_${RUN}_p3_antes`, object: "checkout.session", mode: "subscription", payment_status: "paid", client_reference_id: userId, subscription: nova, metadata: meta(userId, "pro_mensal") };
+    assert.equal((await entregar("checkout.session.completed", sessao)).status, 200);
+    assert.deepEqual([falso.retrato(antiga).status, falso.retrato(antiga).cancel_at_period_end], ["active", true]);
+    assert.equal(escritas("subscriptions.cancel"), 0);
+    assert.deepEqual(await revisoesDe(userId), []);
+  });
+
+  for (const caso of ["de_outro_usuario", "sem_dono", "vinculo_atual"] as const) {
+    it(`renovação: NUNCA cancela assinatura ${caso.replace(/_/g, " ")}; a renovação dela segue normal`, async () => {
+      falso.estado.agora = agoraReal();
+      const { userId, sub: atual } = await assinante(`p1_${caso}`, "pro_mensal");
+      let nova = atual;
+      let alvo: string;
+      if (caso === "vinculo_atual") {
+        // O vínculo voltou para `atual`; a operação antiga ainda aponta para ela como substituída.
+        nova = falso.criarAssinatura({ metadata: meta(userId, "basico_mensal"), plano: PLANS.basico_mensal });
+        alvo = atual;
+      } else {
+        const dono = caso === "de_outro_usuario" ? await usuario(`p1_${caso}_dono`) : null;
+        alvo = falso.criarAssinatura({ metadata: dono ? meta(dono, "basico_mensal") : { planId: "basico_mensal" }, plano: PLANS.basico_mensal });
+      }
+      await prisma.stripeOperacao.create({
+        data: { userId, tipo: "cancelar_substituida", status: "concluida", externalId: nova, substituida: alvo, chave: `t_${RUN}_${caso}` },
+      });
+      const antes = falso.estado.escritas.length;
+      const rascunho = falso.virada(alvo);
+      assert.equal((await entregar("invoice.created", falso.faturaObj(rascunho))).status, 200);
+      assert.equal(falso.estado.escritas.length, antes, "nenhuma escrita na Stripe");
+      assert.deepEqual([falso.retrato(alvo).status, falso.retrato(alvo).cancel_at_period_end], ["active", false]);
+      falso.finalizarRenovacao(rascunho);
+      assert.equal(fatura(rascunho).status, "paid", "a renovação dela segue sendo cobrada");
+      const [op] = await prisma.stripeOperacao.findMany({ where: { referencia: rascunho }, select: { status: true, erro: true } });
+      const esperado = { de_outro_usuario: ["falhou", "antiga_de_outro_usuario"], sem_dono: ["falhou", "antiga_sem_dono_provado"], vinculo_atual: ["descartada", "antiga_e_o_vinculo_atual"] }[caso];
+      assert.deepEqual([op.status, op.erro], esperado);
+    });
+  }
+
+  it("renovação: invoice.created em dobro e retrato da assinatura AO MESMO TEMPO — um cancelamento, uma anulação, uma operação por fatura", async () => {
+    const { userId, antiga } = await substituidaPendente("p1_conc");
+    const rascunho = falso.virada(antiga);
+    falso.estado.atrasoLeituraMs = 30;
+    try {
+      const evt = `evt_${RUN}_p1_conc_criada`;
+      const r = await Promise.all([
+        entregar("invoice.created", falso.faturaObj(rascunho), falso.estado.agora, evt),
+        entregar("invoice.created", falso.faturaObj(rascunho), falso.estado.agora, evt),
+        entregar("customer.subscription.updated", falso.retrato(antiga)),
+      ]);
+      assert.deepEqual(r.map((x) => x.status), [200, 200, 200]);
+    } finally {
+      falso.estado.atrasoLeituraMs = 0;
+    }
+    for (const m of ["subscriptions.cancel", "invoices.finalizeInvoice", "invoices.voidInvoice"]) assert.equal(escritas(m), 1, m);
+    assert.equal(fatura(rascunho).status, "void");
+    assert.equal(await prisma.stripeOperacao.count({ where: { referencia: rascunho } }), 1);
+    assert.ok((await operacoes(userId)).every((o: any) => o.status === "concluida"));
+    falso.finalizarRenovacao(rascunho);
+    assert.deepEqual(cobrancasDe(antiga).map((c) => c.motivo), ["subscription_create"]);
+  });
+
+  // ── 12. Origem do checkout (G1) ───────────────────────────────────────────
+  //
+  // `client_reference_id` é escrito por quem cria a sessão — num Payment Link,
+  // por quem abre a URL. Só sessão com prova de origem cria ou troca vínculo.
+
+  const marcoDoDeploy = async () => ((await prisma.stripeMarco.findUnique({ where: { chave: "checkout_com_operacao" } })) as { em: Date }).em;
+  const casosDaSessao = (sessaoId: string) =>
+    prisma.stripeRevisao.findMany({ where: { sessaoId }, select: { tipo: true, motivo: true, userId: true, assinatura: true } });
+  const metaFixa = (planId: string) => ({ planId, subscriptionPlan: PLANS[planId].plan });
+
+  it("Payment Link com o client_reference_id de outra pessoa: nem o invoice.paid nem o completed mexem no vínculo; um caso de revisão; nada da vítima é cancelado", async () => {
+    const { userId: vitima, sub: propria } = await assinante("g1_vitima", "basico_mensal");
+    const antes = await linha(vitima);
+    // O link copia para a sessão só os metadados FIXOS dele.
+    const ses = falso.sessaoExterna(
+      { mode: "subscription", client_reference_id: vitima, metadata: metaFixa("pro_mensal"), subscription_data: { metadata: metaFixa("pro_mensal") } },
+      { payment_link: "plink_test_g1" },
+    );
+    const sub = falso.completarCheckout(ses);
+    const primeira = falso.retrato(sub).latest_invoice as string;
+    assert.equal((await entregar("invoice.paid", falso.faturaObj(primeira))).status, 200);
+    assert.deepEqual(await linha(vitima), antes, "invoice.paid antes do completed: vínculo intacto");
+
+    const evt = `evt_${RUN}_g1_link`;
+    const r = await Promise.all([0, 1].map(() => entregar("checkout.session.completed", falso.sessaoObj(ses), falso.estado.agora, evt)));
+    assert.deepEqual(r.map((x) => x.status), [200, 200], "sem 500: reenviar não muda a prova");
+    assert.equal((await entregar("checkout.session.completed", falso.sessaoObj(ses), falso.estado.agora, evt)).status, 200);
+    assert.deepEqual(await linha(vitima), antes, "completed: vínculo intacto");
+    assert.deepEqual(await casosDaSessao(ses), [{ tipo: "checkout_sem_prova", motivo: "metadata_de_outro_usuario", userId: vitima, assinatura: sub }]);
+    assert.deepEqual(await operacoes(vitima), [], "nenhum cancelamento da assinatura da vítima");
+    assert.deepEqual([falso.retrato(propria).status, falso.retrato(propria).cancel_at_period_end], ["active", false]);
+  });
+
+  it("sessão NOVA sem prova: sem operação (mesmo com e-mail e metadados certos), operação de outro usuário, plano ou sessão, ou inexistente — vínculo intacto e caso de revisão", async () => {
+    const { userId, sub: propria } = await assinante("g1_novas", "basico_mensal");
+    await prisma.user.update({ where: { id: userId }, data: { email: `${userId}@teste.invalid` } });
+    const outro = await usuario("g1_novas_outro");
+    const deOutraSessao = `prova_${userId}_outra_sessao`;
+    await prisma.stripeOperacao.create({ data: { userId, tipo: "checkout", status: "concluida", planId: "pro_mensal", chave: deOutraSessao, referencia: `cs_${RUN}_outra` } });
+    const antes = await linha(userId);
+    const depoisDoMarco = Math.floor((await marcoDoDeploy()).getTime() / 1000) + 2 * 3600;
+    const casos: Array<[string, Record<string, string>]> = [
+      ["sessao_nova_sem_operacao", { userId, ...metaFixa("pro_mensal") }],
+      ["operacao_de_outro_usuario", { userId, ...metaFixa("pro_mensal"), operacao: `prova_${outro}_pro_mensal` }],
+      ["operacao_de_outro_plano", { userId, ...metaFixa("pro_mensal"), operacao: `prova_${userId}_basico_mensal` }],
+      ["operacao_de_outra_sessao", { userId, ...metaFixa("pro_mensal"), operacao: deOutraSessao }],
+      ["operacao_inexistente", { userId, ...metaFixa("pro_mensal"), operacao: "dular-checkout-inexistente" }],
+    ];
+    for (const [motivo, metadata] of casos) {
+      const ses = falso.sessaoExterna(
+        { mode: "subscription", client_reference_id: userId, customer_email: `${userId}@teste.invalid`, metadata, subscription_data: { metadata } },
+        { created: depoisDoMarco },
+      );
+      const sub = falso.completarCheckout(ses);
+      assert.equal((await entregar("invoice.paid", falso.faturaObj(falso.retrato(sub).latest_invoice as string))).status, 200);
+      assert.equal((await entregar("checkout.session.completed", falso.sessaoObj(ses))).status, 200);
+      assert.deepEqual(await linha(userId), antes, motivo);
+      assert.deepEqual((await casosDaSessao(ses)).map((c: any) => c.motivo), [motivo]);
+    }
+    assert.deepEqual(await operacoes(userId), []);
+    assert.equal(falso.retrato(propria).cancel_at_period_end, false);
+  });
+
+  it("sessão da ROTA (com operação): o invoice.paid antes do completed já vincula; o completed confirma sem escrever", async () => {
+    const userId = await usuario("g1_rota");
+    assert.equal((await pedir(userId, "pro_mensal")).status, 200);
+    const [sessao] = [...falso.estado.sessoes.values()];
+    assert.match(sessao.params.metadata.operacao, /^dular-checkout-/);
+    assert.equal(sessao.params.subscription_data.metadata.operacao, sessao.params.metadata.operacao);
+    const sub = falso.completarCheckout(sessao.id);
+    assert.equal((await entregar("invoice.paid", falso.faturaObj(falso.retrato(sub).latest_invoice as string))).status, 200);
+    const criada = await linha(userId);
+    assert.equal(criada.externalId, sub);
+    assert.equal((await entregar("checkout.session.completed", falso.sessaoObj(sessao.id))).status, 200);
+    assert.deepEqual(await linha(userId), criada);
+    assert.deepEqual(await casosDaSessao(sessao.id), []);
+  });
+
+  it("LEGADO (antes do marco, pela rota anterior): sem Payment Link e com o e-mail do usuário vincula; o invoice.paid antes espera o completed", async () => {
+    const userId = await usuario("g1_legado");
+    await prisma.user.update({ where: { id: userId }, data: { email: `${userId}@teste.invalid` } });
+    const antesDoMarco = Math.floor((await marcoDoDeploy()).getTime() / 1000) - 3600;
+    const metadata = { userId, ...metaFixa("pro_mensal") };
+    const ses = falso.sessaoExterna(
+      { mode: "subscription", client_reference_id: userId, customer_email: ` ${userId.toUpperCase()}@TESTE.INVALID`, metadata, subscription_data: { metadata } },
+      { created: antesDoMarco },
+    );
+    const sub = falso.completarCheckout(ses);
+    assert.equal((await entregar("invoice.paid", falso.faturaObj(falso.retrato(sub).latest_invoice as string))).status, 200);
+    assert.equal(await linha(userId), null, "sem operação nos metadados, o invoice.paid não cria vínculo");
+    assert.equal((await entregar("checkout.session.completed", falso.sessaoObj(ses))).status, 200);
+    const l = await linha(userId);
+    assert.deepEqual([l.externalId, l.plan], [sub, "PREMIUM"]);
+    assert.deepEqual(l.expiresAt, new Date(falso.retrato(sub).items.data[0].current_period_end * 1000), "o invoice.paid guardado entrou no período");
+    assert.deepEqual(await casosDaSessao(ses), []);
+  });
+
+  for (const [motivo, ajuste] of [
+    ["payment_link", { payment_link: "plink_test_legado", email: "certo" }],
+    ["email_nao_confere", { email: "outro" }],
+    ["email_nao_confere", { email: "sem" }],
+  ] as const) {
+    it(`LEGADO sem prova suficiente (${motivo}, e-mail ${ajuste.email}): vínculo intacto e caso de revisão`, async () => {
+      const { userId, sub: propria } = await assinante(`g1_leg_${ajuste.email}_${motivo}`, "basico_mensal");
+      if (ajuste.email !== "sem") await prisma.user.update({ where: { id: userId }, data: { email: `${userId}@teste.invalid` } });
+      const antes = await linha(userId);
+      const metadata = { userId, ...metaFixa("pro_mensal") };
+      const ses = falso.sessaoExterna(
+        {
+          mode: "subscription",
+          client_reference_id: userId,
+          customer_email: ajuste.email === "outro" ? "outra.pessoa@teste.invalid" : `${userId}@teste.invalid`,
+          metadata,
+          subscription_data: { metadata },
+        },
+        { created: Math.floor((await marcoDoDeploy()).getTime() / 1000) - 3600, payment_link: "payment_link" in ajuste ? ajuste.payment_link : undefined },
+      );
+      const sub = falso.completarCheckout(ses);
+      assert.equal((await entregar("checkout.session.completed", falso.sessaoObj(ses))).status, 200);
+      assert.deepEqual(await linha(userId), antes);
+      assert.deepEqual(await casosDaSessao(ses), [{ tipo: "checkout_sem_prova", motivo, userId, assinatura: sub }]);
+      assert.equal(falso.retrato(propria).cancel_at_period_end, false);
+    });
+  }
 });

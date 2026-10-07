@@ -7,6 +7,7 @@ import {
   versaoDoPlanoStripe,
 } from "@/lib/assinatura";
 import { registrarRevisao } from "@/lib/revisaoStripe";
+import { registrarPresenca } from "@/lib/origemDoCheckout";
 import type { StripeOperacao } from "@prisma/client";
 
 /**
@@ -217,6 +218,7 @@ export type PedidoDePlano = {
 };
 
 export async function pedirPlano(pedido: PedidoDePlano): Promise<ResultadoPedido> {
+  await registrarPresenca();
   return comTravaDoUsuario(pedido.userId, async () => {
     await retomarNaTrava({ userId: pedido.userId });
 
@@ -813,6 +815,7 @@ export async function retomarOperacoes(filtro: FiltroRetomada, limite = 20, espe
 export type ResultadoVarredura = { examinadas: number; falhas: number; emAndamento?: true };
 
 export async function varrerOperacoes(opcoes: { imediato?: boolean; limite?: number } = {}): Promise<ResultadoVarredura> {
+  await registrarPresenca();
   return prisma.$transaction(
     async (tx) => {
       await tx.$executeRaw`SELECT set_config('idle_in_transaction_session_timeout', ${String(limitesTroca.ociosoVarreduraMs)}, true)`;

@@ -1067,12 +1067,29 @@ model StripeRevisao {
   @@index([status, createdAt])
 }
 
-/** Marcos de implantação gravados pela própria migration (hora do deploy).
- *  `checkout_com_operacao`: a partir dele toda sessão de checkout nasce com
- *  uma StripeOperacao; sessões anteriores usam a prova de legado. */
+/** Marcos gravados em execução. `presenca_checkout_com_operacao`: última vez
+ *  em que o código que grava a operação do checkout foi visto servindo
+ *  (checkout, webhook, varredura). É o limite inferior da próxima janela. */
 model StripeMarco {
   chave String   @id
   em    DateTime @default(now())
+}
+
+/** Janela em que o código ANTERIOR (sem operação no checkout) pode ter criado
+ *  sessões. Registrada pelo build de produção que terminou bem, quando quem
+ *  estava no ar não era o código com operação (primeira implantação ou volta
+ *  depois de rollback): `desde` = última presença do código novo (nula se
+ *  nunca houve), `ate` = fim desse build. Sessão sem operação só vale como
+ *  legado se criada dentro de uma janela (lib/origemDoCheckout). */
+model StripeJanelaLegado {
+  id        String    @id @default(cuid())
+  desde     DateTime?
+  ate       DateTime
+  /** anterior | desconhecida (a saúde da produção não respondeu) */
+  origem    String
+  createdAt DateTime  @default(now())
+
+  @@index([ate])
 }
 
 /** Eventos de ciclo de vida da Stripe já recebidos: deduplicação persistente

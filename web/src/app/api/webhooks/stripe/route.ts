@@ -18,7 +18,7 @@ import {
   registrarRenovacaoDaSubstituida,
   retomarOperacoes,
 } from "@/lib/trocaDePlano";
-import { provaDaAssinatura, provaDaSessao } from "@/lib/origemDoCheckout";
+import { provaDaAssinatura, provaDaSessao, registrarPresenca } from "@/lib/origemDoCheckout";
 import { registrarRevisao } from "@/lib/revisaoStripe";
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
@@ -57,6 +57,9 @@ export async function POST(request: Request) {
   } else {
     return NextResponse.json({ error: "Webhook not configured" }, { status: 400 });
   }
+
+  // Este código está no ar: limite inferior de uma próxima janela de legado.
+  await registrarPresenca();
 
   // A Stripe não garante ordem nem entrega única. Os eventos de assinatura
   // se ordenam pelo `created` e pelo id do PRÓPRIO evento (lib/assinatura).

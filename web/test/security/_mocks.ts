@@ -36,7 +36,8 @@ export type MockPrisma = {
   subscription: { upsert: AnyFn; updateMany: AnyFn; findUnique: AnyFn; findFirst: AnyFn };
   stripeOperacao: { findMany: AnyFn; findUnique: AnyFn; findFirst: AnyFn; updateMany: AnyFn; create: AnyFn; createMany: AnyFn; update: AnyFn };
   stripeRevisao: { createMany: AnyFn; findMany: AnyFn };
-  stripeMarco: { findUnique: AnyFn };
+  stripeMarco: { findUnique: AnyFn; upsert: AnyFn };
+  stripeJanelaLegado: { findFirst: AnyFn };
   creditWallet: { upsert: AnyFn };
   creditTransaction: { create: AnyFn; findUnique: AnyFn };
   auditLog: { create: AnyFn };
@@ -172,7 +173,9 @@ export function createMockPrisma(): MockPrisma {
       createMany: notMocked("stripeRevisao.createMany"),
       findMany: (async () => []) as AnyFn,
     },
-    stripeMarco: { findUnique: (async () => null) as AnyFn },
+    // Presença do código no ar (registrarPresenca) e janelas de legado: padrão = nenhuma.
+    stripeMarco: { findUnique: (async () => null) as AnyFn, upsert: (async () => ({})) as AnyFn },
+    stripeJanelaLegado: { findFirst: (async () => null) as AnyFn },
     creditWallet: { upsert: notMocked("creditWallet.upsert") },
     creditTransaction: {
       create: notMocked("creditTransaction.create"),

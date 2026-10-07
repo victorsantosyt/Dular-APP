@@ -14,8 +14,15 @@ import { stripe } from "@/lib/stripe";
  * (`operacao`). A chave é aleatória e só existe no banco e no que a rota
  * escreveu na Stripe.
  *
- * Sessão LEGADA (criada pelo código anterior, sem operação), só até o marco
- * gravado pela migration, com folga para o build:
+ * Sessão LEGADA (criada pelo código anterior, sem operação), só se criada
+ * DENTRO de uma janela em que o código anterior pode ter estado no ar
+ * (StripeJanelaLegado: `desde` ≤ criada < `ate` + folga). A janela é registrada
+ * pelo build de produção que terminou bem quando quem estava no ar não gravava
+ * a operação — primeira implantação, volta depois de rollback —, nunca pela
+ * migration (que roda antes do build e não sabe se ele vai terminar) e nunca
+ * num deploy comum (scripts/janela-legado-checkout.mjs). `desde` é a última
+ * presença deste código: o que foi criado enquanto ele servia não é legado.
+ * Além da janela:
  *  - origem: não veio de Payment Link (`payment_link` nulo);
  *  - titularidade: o `customer_email` da sessão — que a rota anterior
  *    preenchia com o e-mail do usuário no banco — é o e-mail do usuário;
@@ -23,9 +30,10 @@ import { stripe } from "@/lib/stripe";
  * Metadados iguais, sozinhos, não provam nada: quem cria a sessão os escreve.
  */
 
-export const MARCO_CHECKOUT_COM_OPERACAO = "checkout_com_operacao";
-/** Folga depois do marco: sessões que o código anterior ainda criou durante o build e a troca de versão. */
-export const FOLGA_DO_MARCO_MS = 60 * 60_000;
+/** Folga depois do fim da janela: o deploy fica pronto e é promovido alguns minutos depois do build. */
+export const FOLGA_DA_JANELA_MS = 60 * 60_000;
+/** StripeMarco: última presença deste código servindo (limite inferior da próxima janela). */
+export const MARCO_PRESENCA = "presenca_checkout_com_operacao";
 
 export type ProvaDeOrigem = { ok: true; via: "operacao" | "legado" } | { ok: false; motivo: string };
 
@@ -55,10 +63,17 @@ export async function provaDaSessao(session: Stripe.Checkout.Session): Promise<P
     return { ok: true, via: "operacao" };
   }
 
-  const marco = await prisma.stripeMarco.findUnique({ where: { chave: MARCO_CHECKOUT_COM_OPERACAO } });
-  if (!marco) return recusa("sem_marco_de_implantacao");
   const criada = typeof session.created === "number" ? session.created * 1000 : Number.NaN;
-  if (!(criada < marco.em.getTime() + FOLGA_DO_MARCO_MS)) return recusa("sessao_nova_sem_operacao");
+  if (!Number.isFinite(criada)) return recusa("sessao_sem_data");
+  const janela = await prisma.stripeJanelaLegado.findFirst({
+    where: {
+      ate: { gt: new Date(criada - FOLGA_DA_JANELA_MS) },
+      // `lte` deixa NULL de fora: a janela sem limite inferior entra pelo ramo explícito.
+      OR: [{ desde: null }, { desde: { lte: new Date(criada) } }],
+    },
+    select: { id: true },
+  });
+  if (!janela) return recusa("sessao_nova_sem_operacao");
   if (session.payment_link) return recusa("payment_link");
   const usuario = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
   const email = normalizarEmail(usuario?.email);
@@ -85,6 +100,27 @@ export async function provaDaAssinatura(assinaturaId: string, meta: Record<strin
   } catch (err) {
     if ((err as { code?: unknown })?.code === "resource_missing") return false;
     throw err;
+  }
+}
+
+/** Intervalo mínimo entre duas gravações de presença no mesmo processo. Mutável só para os testes. */
+export const limitesPresenca = { intervaloMs: 5 * 60_000, ultimaMs: 0 };
+
+/**
+ * Este código está servindo (checkout, webhook, varredura): grava a presença,
+ * no máximo uma vez por intervalo por processo. É o `desde` da janela que um
+ * build registrar depois de um rollback. Falha aqui não derruba quem chamou.
+ */
+export async function registrarPresenca(): Promise<void> {
+  const agora = Date.now();
+  if (agora - limitesPresenca.ultimaMs < limitesPresenca.intervaloMs) return;
+  limitesPresenca.ultimaMs = agora;
+  try {
+    const em = new Date(agora);
+    await prisma.stripeMarco.upsert({ where: { chave: MARCO_PRESENCA }, update: { em }, create: { chave: MARCO_PRESENCA, em } });
+  } catch (err) {
+    limitesPresenca.ultimaMs = 0;
+    console.error("[origem-checkout] presença não gravada; segue sem ela:", (err as { message?: unknown })?.message ?? err);
   }
 }
 

@@ -40,6 +40,7 @@ describe("troca de plano Stripe contra Postgres real", { skip: EXIGIDO ? false :
   let varrer: (opcoes?: { imediato?: boolean; limite?: number }) => Promise<{ examinadas: number; falhas: number; emAndamento?: true }>;
   let getCron: (req: Request) => Promise<Response>;
   let limitesTroca: { ociosoVarreduraMs: number };
+  let limitesPresenca: { intervaloMs: number; ultimaMs: number };
   let falso: StripeFalso;
   const RUN = `t_troca_${Date.now().toString(36)}`;
   const usuarios: string[] = [];
@@ -137,6 +138,7 @@ describe("troca de plano Stripe contra Postgres real", { skip: EXIGIDO ? false :
     ({ makeAuthHeaders } = await import("./_helpers"));
     ({ limitesTransacaoStripe: limitesTransacao } = await import("../../src/lib/assinatura"));
     ({ varrerOperacoes: varrer, limitesTroca } = await import("../../src/lib/trocaDePlano"));
+    ({ limitesPresenca } = await import("../../src/lib/origemDoCheckout"));
 
     // Assinatura de outro usuário gravada antes de tudo: não pode mudar.
     testemunha = await usuario("testemunha");
@@ -158,6 +160,7 @@ describe("troca de plano Stripe contra Postgres real", { skip: EXIGIDO ? false :
     assert.deepEqual(await linha(testemunha), fotoTestemunha, "assinatura de outro usuário intacta");
     await prisma.stripeOperacao.deleteMany({ where: { userId: { in: usuarios } } });
     await prisma.stripeRevisao.deleteMany({ where: { userId: { in: usuarios } } });
+    await prisma.stripeJanelaLegado.deleteMany({ where: { origem: `teste_${RUN}` } });
     await prisma.subscription.deleteMany({ where: { userId: { in: usuarios } } });
     await prisma.stripeEventoAssinatura.deleteMany({ where: { externalId: { startsWith: "sub_falso" } } });
     await prisma.user.deleteMany({ where: { id: { in: usuarios } } });
@@ -1096,7 +1099,13 @@ describe("troca de plano Stripe contra Postgres real", { skip: EXIGIDO ? false :
   // `client_reference_id` é escrito por quem cria a sessão — num Payment Link,
   // por quem abre a URL. Só sessão com prova de origem cria ou troca vínculo.
 
-  const marcoDoDeploy = async () => ((await prisma.stripeMarco.findUnique({ where: { chave: "checkout_com_operacao" } })) as { em: Date }).em;
+  /**
+   * Janela em que o código anterior pode ter estado no ar (o build de produção
+   * a registra; aqui, direto no banco). As janelas são globais: os casos de
+   * recusa usam horários fora de qualquer janela deste arquivo.
+   */
+  const janela = (desde: Date | null, ate: Date) =>
+    prisma.stripeJanelaLegado.create({ data: { desde, ate, origem: `teste_${RUN}` } });
   const casosDaSessao = (sessaoId: string) =>
     prisma.stripeRevisao.findMany({ where: { sessaoId }, select: { tipo: true, motivo: true, userId: true, assinatura: true } });
   const metaFixa = (planId: string) => ({ planId, subscriptionPlan: PLANS[planId].plan });
@@ -1131,7 +1140,8 @@ describe("troca de plano Stripe contra Postgres real", { skip: EXIGIDO ? false :
     const deOutraSessao = `prova_${userId}_outra_sessao`;
     await prisma.stripeOperacao.create({ data: { userId, tipo: "checkout", status: "concluida", planId: "pro_mensal", chave: deOutraSessao, referencia: `cs_${RUN}_outra` } });
     const antes = await linha(userId);
-    const depoisDoMarco = Math.floor((await marcoDoDeploy()).getTime() / 1000) + 2 * 3600;
+    // Criada com o código atual no ar: fora de qualquer janela de legado.
+    const semJanela = agoraReal() + 6 * 3600;
     const casos: Array<[string, Record<string, string>]> = [
       ["sessao_nova_sem_operacao", { userId, ...metaFixa("pro_mensal") }],
       ["operacao_de_outro_usuario", { userId, ...metaFixa("pro_mensal"), operacao: `prova_${outro}_pro_mensal` }],
@@ -1142,7 +1152,7 @@ describe("troca de plano Stripe contra Postgres real", { skip: EXIGIDO ? false :
     for (const [motivo, metadata] of casos) {
       const ses = falso.sessaoExterna(
         { mode: "subscription", client_reference_id: userId, customer_email: `${userId}@teste.invalid`, metadata, subscription_data: { metadata } },
-        { created: depoisDoMarco },
+        { created: semJanela },
       );
       const sub = falso.completarCheckout(ses);
       assert.equal((await entregar("invoice.paid", falso.faturaObj(falso.retrato(sub).latest_invoice as string))).status, 200);
@@ -1169,10 +1179,11 @@ describe("troca de plano Stripe contra Postgres real", { skip: EXIGIDO ? false :
     assert.deepEqual(await casosDaSessao(sessao.id), []);
   });
 
-  it("LEGADO (antes do marco, pela rota anterior): sem Payment Link e com o e-mail do usuário vincula; o invoice.paid antes espera o completed", async () => {
+  it("LEGADO (criada pela rota anterior, dentro da janela): sem Payment Link e com o e-mail do usuário vincula; o invoice.paid antes espera o completed", async () => {
     const userId = await usuario("g1_legado");
     await prisma.user.update({ where: { id: userId }, data: { email: `${userId}@teste.invalid` } });
-    const antesDoMarco = Math.floor((await marcoDoDeploy()).getTime() / 1000) - 3600;
+    await janela(null, new Date());
+    const antesDoMarco = agoraReal() - 3600;
     const metadata = { userId, ...metaFixa("pro_mensal") };
     const ses = falso.sessaoExterna(
       { mode: "subscription", client_reference_id: userId, customer_email: ` ${userId.toUpperCase()}@TESTE.INVALID`, metadata, subscription_data: { metadata } },
@@ -1196,6 +1207,7 @@ describe("troca de plano Stripe contra Postgres real", { skip: EXIGIDO ? false :
     it(`LEGADO sem prova suficiente (${motivo}, e-mail ${ajuste.email}): vínculo intacto e caso de revisão`, async () => {
       const { userId, sub: propria } = await assinante(`g1_leg_${ajuste.email}_${motivo}`, "basico_mensal");
       if (ajuste.email !== "sem") await prisma.user.update({ where: { id: userId }, data: { email: `${userId}@teste.invalid` } });
+      await janela(null, new Date());
       const antes = await linha(userId);
       const metadata = { userId, ...metaFixa("pro_mensal") };
       const ses = falso.sessaoExterna(
@@ -1206,7 +1218,7 @@ describe("troca de plano Stripe contra Postgres real", { skip: EXIGIDO ? false :
           metadata,
           subscription_data: { metadata },
         },
-        { created: Math.floor((await marcoDoDeploy()).getTime() / 1000) - 3600, payment_link: "payment_link" in ajuste ? ajuste.payment_link : undefined },
+        { created: agoraReal() - 3600, payment_link: "payment_link" in ajuste ? ajuste.payment_link : undefined },
       );
       const sub = falso.completarCheckout(ses);
       assert.equal((await entregar("checkout.session.completed", falso.sessaoObj(ses))).status, 200);
@@ -1215,4 +1227,56 @@ describe("troca de plano Stripe contra Postgres real", { skip: EXIGIDO ? false :
       assert.equal(falso.retrato(propria).cancel_at_period_end, false);
     });
   }
+
+  it("JANELA depois de rollback: sessão sem operação criada enquanto o código atual servia é recusada; criada com o anterior no ar (entre a última presença e o fim do build), vincula; depois do fim + folga, recusada", async () => {
+    // Horários no futuro: nenhuma outra janela deste arquivo cobre esse trecho.
+    const presenca = agoraReal() + 10 * 3600;
+    const fimDoBuild = presenca + 2 * 3600;
+    await janela(new Date(presenca * 1000), new Date(fimDoBuild * 1000));
+    const casos: Array<[string, number, string | null]> = [
+      ["g1_rb_antes", presenca - 30 * 60, "sessao_nova_sem_operacao"], // o código atual ainda servia
+      ["g1_rb_dentro", presenca + 30 * 60, null], // o código anterior no ar (rollback)
+      ["g1_rb_folga", fimDoBuild + 30 * 60, null], // build pronto, promoção ainda chegando
+      ["g1_rb_depois", fimDoBuild + 2 * 3600, "sessao_nova_sem_operacao"], // o código atual de volta
+    ];
+    for (const [sufixo, criada, motivo] of casos) {
+      const userId = await usuario(sufixo);
+      await prisma.user.update({ where: { id: userId }, data: { email: `${userId}@teste.invalid` } });
+      const metadata = { userId, ...metaFixa("basico_mensal") };
+      const ses = falso.sessaoExterna(
+        { mode: "subscription", client_reference_id: userId, customer_email: `${userId}@teste.invalid`, metadata, subscription_data: { metadata } },
+        { created: criada },
+      );
+      const sub = falso.completarCheckout(ses);
+      assert.equal((await entregar("checkout.session.completed", falso.sessaoObj(ses))).status, 200);
+      assert.equal((await linha(userId))?.externalId ?? null, motivo ? null : sub, sufixo);
+      assert.deepEqual((await casosDaSessao(ses)).map((c: any) => c.motivo), motivo ? [motivo] : [], sufixo);
+    }
+  });
+
+  it("PRESENÇA: webhook, pedido de plano e varredura gravam que este código está no ar (no máximo uma vez por intervalo)", async () => {
+    const presenca = () => prisma.stripeMarco.findUnique({ where: { chave: "presenca_checkout_com_operacao" } });
+    const original = limitesPresenca.intervaloMs;
+    try {
+      for (const [nome, gatilho] of [
+        ["webhook", () => entregar("customer.subscription.updated", { id: `sub_${RUN}_presenca`, object: "subscription", metadata: {} })],
+        ["pedido", async () => pedir(await usuario(`presenca_${Date.now().toString(36)}`), "basico_mensal")],
+        ["varredura", () => varrer({ limite: 1 })],
+      ] as const) {
+        await prisma.stripeMarco.deleteMany({ where: { chave: "presenca_checkout_com_operacao" } });
+        limitesPresenca.ultimaMs = 0;
+        const antes = Date.now();
+        await gatilho();
+        const gravada = await presenca();
+        assert.ok(gravada && gravada.em.getTime() >= antes - 1000 && gravada.em.getTime() <= Date.now() + 1000, `${nome}: presença gravada agora`);
+      }
+      // Dentro do intervalo, uma nova entrega não regrava.
+      limitesPresenca.intervaloMs = 60 * 60_000;
+      const foto = await presenca();
+      await entregar("customer.subscription.updated", { id: `sub_${RUN}_presenca`, object: "subscription", metadata: {} });
+      assert.deepEqual(await presenca(), foto);
+    } finally {
+      limitesPresenca.intervaloMs = original;
+    }
+  });
 });

@@ -987,10 +987,111 @@ model Subscription {
   /** estado do vínculo ANTES de qualquer evento de ciclo de vida da Stripe:
    *  `{ status, expiresAt, canceledAt }`. Base da qual o estado é recalculado. */
   stripeBase Json?
+  /** versão do plano na Stripe (`metadata.planoVersao` da assinatura) que o
+   *  `plan` reflete. Só uma versão MAIOR troca o plano: evento antigo ou
+   *  reentregue não desfaz uma troca mais nova. Nulo até o primeiro retrato. */
+  stripePlanoVersao Int?
   createdAt  DateTime           @default(now())
   updatedAt  DateTime           @updatedAt
 
   @@index([status])
+}
+
+/** Operação de cobrança iniciada pelo Dular na Stripe (checkout novo, troca de
+ *  plano, cancelamento de assinatura substituída). Gravada ANTES de chamar a
+ *  Stripe e com chave de idempotência própria: se a Stripe aceitar e o banco
+ *  falhar em seguida, a operação continua `pendente` e é retomada — no próximo
+ *  pedido do usuário, nos eventos da assinatura ou pela rota de operações —
+ *  relendo o estado na Stripe, sem cobrar de novo. */
+model StripeOperacao {
+  id          String   @id @default(cuid())
+  userId      String
+  /** checkout | upgrade | downgrade | manter | cancelar_substituida */
+  tipo        String
+  /** pendente | aguardando | concluida | descartada | falhou */
+  status      String
+  /** plano alvo (id do catálogo). */
+  planId      String?
+  /** `sub_…` em que a operação age (no checkout, a criada pela sessão). */
+  externalId  String?
+  /** `sub_…` substituída, a cancelar no fim do período (cancelar_substituida). */
+  substituida String?
+  /** `metadata.planoVersao` que a troca grava na Stripe. */
+  versao      Int?
+  /** prefixo das chaves de idempotência das chamadas desta operação. */
+  chave       String   @unique
+  /** objeto resultante na Stripe: `cs_…`, `in_…` (troca aguardando pagamento) ou `sub_sched_…`. */
+  referencia  String?
+  /** link de pagamento devolvido ao app (sessão de checkout ou fatura). */
+  url         String?
+  tentativas  Int      @default(0)
+  /** último erro, sem segredo (código e mensagem curta). */
+  erro        String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId, status])
+  @@index([externalId])
+  @@index([substituida])
+  @@index([status, updatedAt])
+}
+
+/** Caso de cobrança Stripe para revisão MANUAL. Nada aqui estorna nem avisa
+ *  ninguém fora do sistema: é a fila que a rota de operações lista.
+ *  - `renovacao_paga_da_substituida`: a assinatura substituída renovou e a
+ *    fatura foi PAGA antes de o cancelamento agir (lib/trocaDePlano);
+ *  - `checkout_sem_prova`: sessão de checkout paga sem prova de que saiu da
+ *    rota autenticada para aquele usuário; o vínculo NÃO foi mexido.
+ *  `chave` única (por fatura ou por sessão): reentrega não duplica o caso. */
+model StripeRevisao {
+  id          String   @id @default(cuid())
+  tipo        String
+  chave       String   @unique
+  /** aberta | resolvida */
+  status      String   @default("aberta")
+  /** usuário do Dular envolvido (no checkout sem prova, o que a sessão alega). */
+  userId      String?
+  /** `sub_…` nova (renovação) ou a criada pela sessão (checkout). */
+  assinatura  String?
+  /** `sub_…` substituída que renovou. */
+  substituida String?
+  faturaId    String?
+  sessaoId    String?
+  /** valor pago, em centavos, e a moeda da Stripe. */
+  valor       Int?
+  moeda       String?
+  motivo      String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([status, createdAt])
+}
+
+/** Marcos gravados em execução. `presenca_checkout_com_operacao`: última vez
+ *  em que o código que grava a operação do checkout foi visto servindo
+ *  (checkout, webhook, varredura). É o limite inferior da próxima janela. */
+model StripeMarco {
+  chave String   @id
+  em    DateTime @default(now())
+}
+
+/** Janela em que o código ANTERIOR (sem operação no checkout) pode ter criado
+ *  sessões. Registrada ABERTA pelo build de produção que terminou bem, quando
+ *  a produção respondeu com a saúde do código anterior (primeira implantação
+ *  ou volta depois de rollback): `desde` = última presença verificada do
+ *  código novo em produção (nula se nunca houve). `ate` = a troca real: a
+ *  primeira presença verificada depois dela (nula enquanto não houver). Sessão
+ *  sem operação só vale como legado se criada dentro de uma janela
+ *  (lib/origemDoCheckout). */
+model StripeJanelaLegado {
+  id        String    @id @default(cuid())
+  desde     DateTime?
+  ate       DateTime?
+  /** anterior | desconhecida (a saúde da produção não respondeu) */
+  origem    String
+  createdAt DateTime  @default(now())
+
+  @@index([ate])
 }
 
 /** Eventos de ciclo de vida da Stripe já recebidos: deduplicação persistente

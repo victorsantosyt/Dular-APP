@@ -20,4 +20,14 @@ export function register(): void {
   // Auto-aprovação de KYC ligada em produção. Ver a função para o porquê de
   // derrubar o boot em vez de apenas ignorar a flag.
   garantirAutoVerifyForaDeProducao();
+
+  // Retomada das operações Stripe que uma queda deixou no meio. SÓ no runtime
+  // Node e por import DINÂMICO: o módulo puxa o Prisma, e um import estático
+  // aqui levaria o Prisma ao bundle do Edge (deploy recusado). Não bloqueia o
+  // boot: a varredura roda depois, em segundo plano.
+  if (process.env.NEXT_RUNTIME === "nodejs") {
+    void import("@/lib/varreduraDeOperacoes")
+      .then(({ iniciarVarreduraDeOperacoes }) => iniciarVarreduraDeOperacoes())
+      .catch((err) => console.error("[instrumentation] varredura de operações Stripe não iniciou:", err));
+  }
 }

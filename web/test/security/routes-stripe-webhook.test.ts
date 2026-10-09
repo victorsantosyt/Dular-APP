@@ -173,10 +173,12 @@ describe("POST /api/webhooks/stripe — fluxo positivo (constructEvent mockado)"
           mode: "subscription",
           client_reference_id: "u-1",
           subscription: "sub_test_123",
-          metadata: { subscriptionPlan: "PREMIUM" },
+          metadata: { userId: "u-1", planId: "pro_mensal", subscriptionPlan: "PREMIUM", operacao: "dular-checkout-prova-u-1" },
         },
       },
     })) as never;
+    // Prova de origem: a operação `checkout` que a rota gravou para este usuário e plano.
+    mockPrisma.stripeOperacao.findUnique = async () => ({ tipo: "checkout", userId: "u-1", planId: "pro_mensal", referencia: null, externalId: null });
 
     const travas = instalarTransacao();
     let createArgs: { data?: Array<Record<string, unknown>>; skipDuplicates?: boolean } | null = null;

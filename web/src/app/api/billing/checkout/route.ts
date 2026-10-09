@@ -1,4 +1,6 @@
-import { stripe, PLANS, type PlanId } from "@/lib/stripe";
+import { PLANS, type PlanId } from "@/lib/stripe";
+import { OperacaoEmAndamento, pedirPlano } from "@/lib/trocaDePlano";
+import type Stripe from "stripe";
 import { requireAuth } from "@/lib/requireAuth";
 import { requireAuthAtivo, respostaDeSessao } from "@/lib/contaAtiva";
 import { prisma } from "@/lib/prisma";
@@ -92,7 +94,7 @@ export async function POST(request: Request) {
     return fail("USER_NOT_FOUND", "Usuário não encontrado", 404);
   }
 
-  const session = await stripe.checkout.sessions.create({
+  const checkout: Stripe.Checkout.SessionCreateParams = {
     mode: plan.mode,
     line_items: [
       {
@@ -124,7 +126,34 @@ export async function POST(request: Request) {
     },
     success_url: `${BASE_URL}/billing/success?session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${BASE_URL}/billing/cancel`,
-  });
+  };
 
-  return ok({ checkoutUrl: session.url, url: session.url });
+  // Quem já assina não ganha um segundo Checkout: a mesma assinatura é
+  // alterada (lib/trocaDePlano). O app sempre recebe `url` para abrir — o
+  // Checkout, a fatura da troca a pagar, ou a página de retorno ao app.
+  let resultado;
+  try {
+    resultado = await pedirPlano({
+      userId: payload.userId,
+      role: payload.role,
+      plano: plan,
+      checkout,
+      urlConcluida: `${BASE_URL}/billing/success`,
+    });
+  } catch (err) {
+    if (err instanceof OperacaoEmAndamento) {
+      return fail("OPERACAO_EM_ANDAMENTO", "Seu pedido anterior ainda está sendo processado. Tente novamente em instantes.", 409);
+    }
+    // A operação ficou gravada como pendente: o próximo pedido a retoma sem cobrar de novo.
+    console.error("[billing/checkout] falha ao processar o pedido de plano:", err);
+    return fail("TENTE_NOVAMENTE", "Não foi possível concluir agora. Tente novamente em instantes.", 503);
+  }
+
+  if (resultado.tipo === "recusado") return fail(resultado.codigo, resultado.mensagem, resultado.status);
+  if (resultado.tipo === "checkout") return ok({ checkoutUrl: resultado.url, url: resultado.url });
+  return ok({
+    checkoutUrl: resultado.url,
+    url: resultado.url,
+    troca: { situacao: resultado.situacao, planId, vigenteEm: resultado.vigenteEm ?? null },
+  });
 }

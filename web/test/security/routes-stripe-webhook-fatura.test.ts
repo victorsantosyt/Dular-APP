@@ -42,6 +42,8 @@ type EventoGuardado = {
 
 let banco: Linha[] = [];
 let eventos: EventoGuardado[] = [];
+/** StripeOperacao gravadas (a troca de vínculo grava o cancelamento da `sub_` anterior). */
+let operacoes: Array<Record<string, unknown>> = [];
 /** `externalId` de cada lock consultivo pedido, na ordem. */
 let travas: string[] = [];
 /** Comandos de `$executeRaw` na ordem: "limites" (SET LOCAL) ou "lock". */
@@ -111,6 +113,7 @@ function instalarBanco(estadoAlvo: Partial<Linha> | null, opcoes: { semUsuario?:
   banco = [linha("sub_outra_342", "u-outra", { status: "ACTIVE", expiresAt: new Date("2026-11-20T00:00:00Z") })];
   if (estadoAlvo) banco.unshift(linha("sub_alvo_342", "u-alvo", estadoAlvo));
   eventos = [];
+  operacoes = [];
   travas = [];
   brutos = [];
   chamadas = [];
@@ -181,11 +184,32 @@ function instalarBanco(estadoAlvo: Partial<Linha> | null, opcoes: { semUsuario?:
     },
   };
 
+  // Gravadas para conferência; nenhuma é retomada aqui (a retomada chama a Stripe).
+  const stripeOperacao = {
+    create: async (args: { data: Record<string, unknown> }) => {
+      chamadas.push("operacao.create");
+      operacoes.push(structuredClone(args.data));
+      return args.data;
+    },
+    findMany: async () => [],
+    updateMany: async () => ({ count: 0 }),
+    // Prova de origem (lib/origemDoCheckout): a operação `checkout` que a rota
+    // gravou, `prova-<usuário>-<plano>:<sub_>`, já ligada à `sub_` daquela
+    // compra (como fica depois do checkout). Fora da contagem de `chamadas`.
+    findUnique: async (args: { where: { chave?: string } }) => {
+      const m = /^prova-(.+)-(\w+):(sub_\w+)$/.exec(args.where.chave ?? "");
+      return m ? { tipo: "checkout", userId: m[1], planId: m[2], referencia: null, externalId: m[3] } : null;
+    },
+    // Nenhuma assinatura destes testes foi substituída por troca de vínculo.
+    findFirst: async () => null,
+  };
+
   // Lock consultivo emulado: uma fila por chave, solta no fim da transação.
   const filas = new Map<string, Promise<void>>();
   const raiz = mockPrisma as unknown as Record<string, unknown>;
   raiz.subscription = subscription;
   raiz.stripeEventoAssinatura = stripeEventoAssinatura;
+  raiz.stripeOperacao = stripeOperacao;
   raiz.user = user;
   raiz.$transaction = async (fn: (tx: unknown) => Promise<unknown>) => {
     chamadas.push("$transaction");
@@ -193,6 +217,7 @@ function instalarBanco(estadoAlvo: Partial<Linha> | null, opcoes: { semUsuario?:
     const tx = {
       subscription,
       stripeEventoAssinatura,
+      stripeOperacao,
       user,
       $executeRaw: async (sql: TemplateStringsArray, ...valores: unknown[]) => {
         if (!sql.join("?").includes("pg_advisory_xact_lock")) {
@@ -469,14 +494,17 @@ describe("POST /api/webhooks/stripe — eventos de assinatura até o banco (HMAC
 
   const quando = (s: number) => new Date(s * 1000);
   const fim = (dias: number) => CRIADO + dias * DIA;
-  const META = { userId: "u-alvo", planId: "pro_anual", subscriptionPlan: "PREMIUM" };
+  const META = { userId: "u-alvo", planId: "pro_anual", subscriptionPlan: "PREMIUM", operacao: "prova-u-alvo-pro_anual" };
   let outraInicial: Linha;
   let validadeAnual: (s: number) => string;
 
+  // A operação da compra é a desta `sub_` (ver o mock de stripeOperacao.findUnique).
+  const daCompra = (metadata: Record<string, string>, sub: string) =>
+    metadata.operacao ? { ...metadata, operacao: `${metadata.operacao}:${sub}` } : metadata;
   const fatura = (sub: string, fimSeg: number, metadata: Record<string, string> = {}, faturaId = "in_test_342", motivo?: string) => ({
     id: faturaId,
     billing_reason: motivo,
-    parent: parentAssinatura(sub, metadata),
+    parent: parentAssinatura(sub, daCompra(metadata, sub)),
     lines: { object: "list", data: [{ ...linhaSemAssinatura, period: { start: fimSeg - 30 * DIA, end: fimSeg } }] },
   });
   const sessao = (sub: unknown, userId = "u-alvo") => ({
@@ -486,7 +514,7 @@ describe("POST /api/webhooks/stripe — eventos de assinatura até o banco (HMAC
     payment_status: "paid",
     client_reference_id: userId,
     subscription: sub,
-    metadata: { userId, planId: "pro_anual", subscriptionPlan: "PREMIUM" },
+    metadata: { userId, planId: "pro_anual", subscriptionPlan: "PREMIUM", operacao: `prova-${userId}-pro_anual:${typeof sub === "string" ? sub : (sub as { id: string }).id}` },
   });
   // Cada evento de fatura leva a SUA fatura (`in_<evento>` por padrão) e o período dela.
   // Renovação por padrão: só a primeira fatura (`subscription_create`) cria vínculo.
@@ -692,6 +720,11 @@ describe("POST /api/webhooks/stripe — eventos de assinatura até o banco (HMAC
     assert.equal(trocada.externalId, "sub_mais_nova_342");
     assert.deepEqual(trocada.startedAt, quando(CRIADO + 200));
     assert.deepEqual(trocada.stripeBase, { status: "ACTIVE", expiresAt: validadeAnual(CRIADO + 200), canceledAt: null });
+    // Trocar o vínculo não encerra a anterior na Stripe: o cancelamento fica gravado na mesma transação.
+    assert.deepEqual(
+      operacoes.map(({ userId, tipo, status, externalId, substituida }) => ({ userId, tipo, status, externalId, substituida })),
+      [{ userId: "u-alvo", tipo: "cancelar_substituida", status: "pendente", externalId: "sub_mais_nova_342", substituida: "sub_nova_342" }],
+    );
   });
 
   it("invoice.paid de outra assinatura com vínculo mais recente na pessoa: nada escrito na linha", async () => {

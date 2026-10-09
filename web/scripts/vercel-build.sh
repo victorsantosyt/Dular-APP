@@ -5,6 +5,9 @@
 # falha e a versão anterior continua no ar. Preview e development nunca migram,
 # mesmo que as variáveis do banco deles apontem para produção.
 #
+# Depois do build, ainda em produção: janela de legado do checkout
+# (scripts/janela-legado-checkout.mjs), só se o código no ar for o anterior.
+#
 # Disciplina que isto exige (docs/migrations-em-producao.md):
 # - toda migration em main precisa ser aditiva: o código que ainda está no ar
 #   tem que continuar funcionando contra o schema novo;
@@ -46,3 +49,10 @@ else
 fi
 
 npm run build
+
+# Depois do build que terminou bem, com o código anterior ainda no ar: se ele
+# não grava a operação do checkout (primeira implantação, volta de rollback),
+# registra a janela de legado. Falha aqui derruba o deploy; a versão no ar segue.
+if [ "$ambiente" = "production" ]; then
+  node scripts/janela-legado-checkout.mjs
+fi

@@ -34,6 +34,10 @@ export type MockPrisma = {
   montadorPerfil: { findUnique: AnyFn; findMany: AnyFn };
   documentVerification: { findFirst: AnyFn; create: AnyFn };
   subscription: { upsert: AnyFn; updateMany: AnyFn; findUnique: AnyFn; findFirst: AnyFn };
+  stripeOperacao: { findMany: AnyFn; findUnique: AnyFn; findFirst: AnyFn; updateMany: AnyFn; create: AnyFn; createMany: AnyFn; update: AnyFn };
+  stripeRevisao: { createMany: AnyFn; findMany: AnyFn };
+  stripeMarco: { findUnique: AnyFn; upsert: AnyFn };
+  stripeJanelaLegado: { findFirst: AnyFn };
   creditWallet: { upsert: AnyFn };
   creditTransaction: { create: AnyFn; findUnique: AnyFn };
   auditLog: { create: AnyFn };
@@ -148,6 +152,30 @@ export function createMockPrisma(): MockPrisma {
       findUnique: notMocked("subscription.findUnique"),
       findFirst: notMocked("subscription.findFirst"),
     },
+    stripeOperacao: {
+      /**
+       * Padrão = nenhuma operação Stripe em andamento, pelo mesmo motivo do
+       * `user.findUnique` acima: todo evento de assinatura no webhook procura
+       * operações pendentes para retomar e anota as que terminaram. Teste de
+       * troca de plano sobrescreve; gravar uma operação nova continua exigindo mock.
+       */
+      findMany: (async () => []) as AnyFn,
+      findUnique: (async () => null) as AnyFn,
+      // Renovação de assinatura substituída: padrão = a assinatura não foi substituída.
+      findFirst: (async () => null) as AnyFn,
+      updateMany: (async () => ({ count: 0 })) as AnyFn,
+      create: notMocked("stripeOperacao.create"),
+      createMany: notMocked("stripeOperacao.createMany"),
+      update: notMocked("stripeOperacao.update"),
+    },
+    // Casos de revisão e marco de implantação: gravar um caso exige mock.
+    stripeRevisao: {
+      createMany: notMocked("stripeRevisao.createMany"),
+      findMany: (async () => []) as AnyFn,
+    },
+    // Presença do código no ar (registrarPresenca) e janelas de legado: padrão = nenhuma.
+    stripeMarco: { findUnique: (async () => null) as AnyFn, upsert: (async () => ({})) as AnyFn },
+    stripeJanelaLegado: { findFirst: (async () => null) as AnyFn },
     creditWallet: { upsert: notMocked("creditWallet.upsert") },
     creditTransaction: {
       create: notMocked("creditTransaction.create"),

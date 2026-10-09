@@ -436,6 +436,10 @@ describe("checkout.session.completed — compra de créditos idempotente", () =>
       };
       mockPrisma.subscription.findFirst = async () => null;
       mockPrisma.$transaction = async (fn: (tx: unknown) => Promise<unknown>) => fn(txAssinatura);
+      // Prova de origem: a operação `checkout` que a rota gravou para cada compra.
+      mockPrisma.stripeOperacao.findUnique = (async (args: { where: { chave: string } }) => ({
+        tipo: "checkout", userId: args.where.chave.replace("prova-", ""), planId: "pro_mensal", referencia: null, externalId: null,
+      })) as never;
 
       // Usuário e assinatura distintos: cada entrega é a primeira daquela compra.
       const segundos: Array<[number, number]> = [];
@@ -445,7 +449,7 @@ describe("checkout.session.completed — compra de créditos idempotente", () =>
           payment_status,
           client_reference_id: `u-assinatura-${payment_status}`,
           subscription: `sub_ficticio_fluxo_${payment_status}`,
-          metadata: { planId: "pro_mensal" },
+          metadata: { planId: "pro_mensal", userId: `u-assinatura-${payment_status}`, operacao: `prova-u-assinatura-${payment_status}` },
         });
         const inicio = Math.floor(Date.now() / 1000);
         assert.equal(await enviar(sessao), 200);

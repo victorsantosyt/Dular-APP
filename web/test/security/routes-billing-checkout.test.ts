@@ -14,10 +14,23 @@ type Params = Record<string, unknown> & { metadata?: unknown; subscription_data?
 describe("POST /api/billing/checkout — metadados da assinatura", () => {
   let criarOriginal: unknown = null;
   let criadas: Params[] = [];
+  /** Chave da operação gravada antes da sessão: vai nos metadados como prova de origem. */
+  let chaves: string[] = [];
 
   beforeEach(async () => {
     resetMockPrisma();
     mockPrisma.user.findUnique = async () => ({ status: "ATIVO", email: "profissional@teste.invalid" });
+    // Sem assinatura: o pedido vai ao Checkout (lib/trocaDePlano), sob a trava
+    // da pessoa e com a operação gravada antes da chamada à Stripe.
+    const raiz = mockPrisma as unknown as Record<string, unknown>;
+    raiz.$transaction = async (fn: (tx: unknown) => Promise<unknown>) => fn({ $executeRaw: async () => 1 });
+    mockPrisma.subscription.findUnique = async () => null;
+    chaves = [];
+    mockPrisma.stripeOperacao.create = async (args: { data: Record<string, unknown> }) => {
+      chaves.push(String(args.data.chave));
+      return { id: "op-1", ...args.data };
+    };
+    mockPrisma.stripeOperacao.update = async () => ({});
     const { stripe } = await import("../../src/lib/stripe");
     criarOriginal ??= stripe.checkout.sessions.create;
     criadas = [];
@@ -49,7 +62,9 @@ describe("POST /api/billing/checkout — metadados da assinatura", () => {
 
       assert.equal(res.status, 200);
       assert.equal(criadas.length, 1);
-      const esperado = { userId, planId, subscriptionPlan };
+      assert.equal(chaves.length, 1);
+      assert.match(chaves[0], /^dular-checkout-[0-9a-f-]{36}$/);
+      const esperado = { userId, planId, subscriptionPlan, operacao: chaves[0] };
       assert.deepEqual(criadas[0].metadata, esperado);
       assert.deepEqual(criadas[0].subscription_data, { metadata: esperado });
       assert.equal(criadas[0].client_reference_id, userId);
@@ -61,7 +76,7 @@ describe("POST /api/billing/checkout — metadados da assinatura", () => {
 
     assert.equal(res.status, 200);
     assert.deepEqual(criadas[0].subscription_data, {
-      metadata: { userId: "u-checkout-legado", planId: "basico_mensal", subscriptionPlan: "BASIC" },
+      metadata: { userId: "u-checkout-legado", planId: "basico_mensal", subscriptionPlan: "BASIC", operacao: chaves[0] },
     });
   });
 

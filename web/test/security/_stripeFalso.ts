@@ -35,7 +35,7 @@ type Pendente = { preco: string; metadata: Record<string, string>; fatura: strin
 type Assinatura = {
   id: string; customer: string; status: string; metadata: Record<string, string>; itemId: string; preco: string;
   inicio: number; fim: number; pending: Pendente | null; schedule: string | null; latest_invoice: string | null;
-  cancel_at_period_end: boolean;
+  cancel_at_period_end: boolean; criada: number;
 };
 type Fase = { start_date: number; end_date: number; items: Array<{ price: string; quantity: number }>; metadata: Record<string, string> };
 type Agenda = { id: string; sub: string; status: "active" | "released"; phases: Fase[]; atual: number };
@@ -139,7 +139,7 @@ export function criarStripeFalso(inicio = 1_790_000_000) {
   function retrato(sid: string, expand: string[] = []) {
     const a = s.assinaturas.get(sid)!;
     return {
-      id: a.id, object: "subscription", customer: a.customer, status: a.status, metadata: { ...a.metadata },
+      id: a.id, object: "subscription", customer: a.customer, status: a.status, metadata: { ...a.metadata }, start_date: a.criada,
       items: { object: "list", data: [{ id: a.itemId, price: precoObj(a.preco), quantity: 1, current_period_start: a.inicio, current_period_end: a.fim }] },
       pending_update: a.pending
         ? { expires_at: a.pending.expires_at, subscription_items: [{ id: a.itemId, price: precoObj(a.pending.preco) }], metadata: { ...a.pending.metadata } }
@@ -186,7 +186,7 @@ export function criarStripeFalso(inicio = 1_790_000_000) {
     const a: Assinatura = {
       id: id("sub"), customer: opcoes.customer ?? id("cus"), status: "active", metadata: { ...opcoes.metadata },
       itemId: id("si"), preco, inicio: s.agora, fim: s.agora + duracao(opcoes.plano.interval),
-      pending: null, schedule: null, latest_invoice: null, cancel_at_period_end: false,
+      pending: null, schedule: null, latest_invoice: null, cancel_at_period_end: false, criada: s.agora,
     };
     s.assinaturas.set(a.id, a);
     a.latest_invoice = novaFatura(a.id, "subscription_create", [{ start: a.inicio, end: a.fim, amount: opcoes.plano.priceInCents }], a.metadata, true);
@@ -233,7 +233,7 @@ export function criarStripeFalso(inicio = 1_790_000_000) {
       s.assinaturas.set(sid, {
         id: sid, customer: id("cus"), status: "active", metadata: { userId: externa.userId },
         itemId: id("si"), preco: precoInline(PLANS.pro_mensal), inicio: s.agora, fim: s.agora + 30 * DIA,
-        pending: null, schedule: null, latest_invoice: null, cancel_at_period_end: false,
+        pending: null, schedule: null, latest_invoice: null, cancel_at_period_end: false, criada: s.agora,
       });
       a = s.assinaturas.get(sid)!;
       a.latest_invoice = novaFatura(sid, "subscription_create", [{ start: a.inicio, end: a.fim, amount: 3990 }], a.metadata, externa.paga);

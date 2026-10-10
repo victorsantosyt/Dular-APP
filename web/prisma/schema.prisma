@@ -1078,8 +1078,8 @@ model StripeOperacao {
  *    rota autenticada para aquele usuário; o vínculo NÃO foi mexido;
  *  - `renovacao_paga_com_loja`, `pagamento_stripe_com_loja`: cobrança Stripe
  *    com a assinatura da loja vigente; a Stripe encerra no fim do período;
- *  - `loja_anterior_ao_vinculo`: compra de loja anterior ao vínculo Stripe
- *    vivo; nada foi cancelado (issue #359).
+ *  - `loja_anterior_ao_vinculo`: assinatura de loja anterior à Stripe que
+ *    segue renovando; as duas cobraram juntas e a Stripe encerra (issue #359).
  *  `chave` única (por fatura ou por sessão): reentrega não duplica o caso. */
 model StripeRevisao {
   id          String   @id @default(cuid())

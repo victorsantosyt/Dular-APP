@@ -14,7 +14,7 @@ export type CasoDeRevisao = {
     | "renovacao_paga_com_loja"
     /** Pagamento Stripe que chegou com a assinatura da loja vigente (regra 3). */
     | "pagamento_stripe_com_loja"
-    /** Compra de loja anterior ao vínculo Stripe vivo: nada cancelado, duas cobranças. */
+    /** Assinatura de loja anterior à Stripe que segue renovando: as duas cobraram juntas; a Stripe encerra. */
     | "loja_anterior_ao_vinculo";
   chave: string;
   userId?: string | null;

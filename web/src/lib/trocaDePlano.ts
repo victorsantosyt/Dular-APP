@@ -806,9 +806,20 @@ export async function registrarRenovacaoDaSubstituida(substituida: string, fatur
 // assinatura (quem cancela é a pessoa, no aparelho). Liberar cobrança ou
 // cancelar exige a loja consultada AGORA; sem resposta, nada é liberado nem
 // cancelado, e o gravado nunca prova que a loja parou de cobrar.
+//
+// Quem decide é a situação ATUAL da compra na loja, nunca a data original:
+//  - em período pago E renovando: a loja prevalece e a Stripe encerra, mesmo
+//    que a compra da loja seja anterior ao vínculo Stripe (as duas seguiriam
+//    cobrando; a data só vira caso de revisão);
+//  - em período, SEM renovação (cancelada na loja): não há segunda cobrança
+//    recorrente; a Stripe, única que renova, não é encerrada. Fica em espera:
+//    se a renovação voltar, encerra; se a loja terminar, descarta;
+//  - fora do período (comprovante antigo): não concede nem encerra nada.
 
 export type SituacaoDasLojas = {
   compras: number;
+  /** Alguma compra em período pago E renovando: a loja prevalece. */
+  prevalece: boolean;
   /** Alguma compra com período pago em curso, segundo a loja agora. */
   vigente: boolean;
   /** Alguma compra que a loja ainda vai renovar. */
@@ -831,12 +842,13 @@ function estadoNaLoja(s: SituacaoNaLoja) {
 /** Pergunta à loja, agora, por cada compra de loja da pessoa, e guarda a resposta. */
 export async function consultarLojasDoUsuario(userId: string): Promise<SituacaoDasLojas> {
   const compras = await prisma.assinaturaLoja.findMany({ where: { userId }, select: { id: true, provider: true, externalId: true } });
-  const situacao: SituacaoDasLojas = { compras: compras.length, vigente: false, renova: false, desconhecida: false };
+  const situacao: SituacaoDasLojas = { compras: compras.length, prevalece: false, vigente: false, renova: false, desconhecida: false };
   for (const compra of compras) {
     try {
       const s = await loja.consultar(compra.provider as LojaProvedor, compra.externalId);
       if (s.externalId !== compra.externalId) throw new Error("a loja respondeu por outra compra");
       await prisma.assinaturaLoja.update({ where: { id: compra.id }, data: estadoNaLoja(s) });
+      situacao.prevalece ||= s.vigente && s.renova;
       situacao.vigente ||= s.vigente;
       situacao.renova ||= s.renova;
     } catch (err) {
@@ -897,28 +909,13 @@ export async function registrarCompraDaLoja(
 }
 
 /**
- * Regra 1: o vínculo Stripe encerra no fim do período pago. Comprovante de uma
- * compra ANTERIOR ao vínculo Stripe não o substitui: nada é cancelado e, com o
- * vínculo vivo, as duas cobranças vão para revisão manual.
+ * Regra 1: grava o encerramento do vínculo Stripe. Quem decide se ele acontece
+ * é a execução, pela situação atual na loja — não a data da compra.
  */
 async function encerrarStripePelaLoja(compra: AssinaturaLoja) {
-  const vinculo = await prisma.subscription.findUnique({
-    where: { userId: compra.userId },
-    select: { provider: true, externalId: true, startedAt: true, status: true },
-  });
+  const vinculo = await prisma.subscription.findUnique({ where: { userId: compra.userId }, select: { provider: true, externalId: true } });
   if (vinculo?.provider !== "STRIPE" || !vinculo.externalId?.startsWith("sub_")) return;
   const sub = vinculo.externalId;
-  if (compra.compradaEm.getTime() < vinculo.startedAt.getTime()) {
-    if (vinculo.status !== "ACTIVE" && vinculo.status !== "TRIAL") return;
-    await registrarRevisao({
-      tipo: "loja_anterior_ao_vinculo",
-      chave: `loja_anterior:${compra.id}:${sub}`,
-      userId: compra.userId,
-      assinatura: sub,
-      motivo: `compra ${compra.provider} ${compra.externalId} de ${compra.compradaEm.toISOString()}, anterior ao vínculo Stripe (${vinculo.startedAt.toISOString()}); nada foi cancelado`,
-    });
-    return;
-  }
   await prisma.stripeOperacao.createMany({
     data: [{ userId: compra.userId, tipo: "encerrar_por_loja", status: "pendente", substituida: sub, referencia: compra.id, chave: `dular-loja-${compra.id}-encerra-${sub}` }],
     skipDuplicates: true,
@@ -928,21 +925,27 @@ async function encerrarStripePelaLoja(compra: AssinaturaLoja) {
 /**
  * A assinatura Stripe encerra porque a loja prevalece (regras 1 e 3). Antes de
  * qualquer escrita na Stripe:
- *  - a loja, consultada agora, diz que uma compra da pessoa vale. Sem resposta,
- *    ou renovando sem período em curso, espera: nada é cancelado. Fora do
- *    período e sem renovação: a Stripe segue, a operação é descartada;
+ *  - a loja, consultada agora, diz que uma compra da pessoa está em período
+ *    pago E renovando. Sem resposta, em período sem renovação, ou renovando
+ *    sem período: espera, nada é cancelado. Fora do período e sem renovação:
+ *    a Stripe segue, a operação é descartada;
  *  - a assinatura Stripe tem nos metadados o MESMO dono (o controle do #348).
- * Pagamento Stripe que chegou com a loja vigente (regra 3, sem compra de
- * referência): o próprio pagamento vira caso de revisão. Nada é estornado.
+ * Vira caso de revisão (nada é estornado): o pagamento Stripe que chegou com
+ * a loja ativa (regra 3), a renovação Stripe paga depois da compra na loja, e
+ * a compra de loja ANTERIOR à assinatura Stripe — as duas cobraram juntas.
  */
 async function executarEncerramentoPorLoja(op: StripeOperacao): Promise<void> {
   const lojas = await consultarLojasDoUsuario(op.userId);
-  if (!lojas.vigente) {
-    if (lojas.desconhecida || lojas.renova) {
-      await marcar(op, "pendente", { erro: lojas.desconhecida ? "loja_indisponivel" : "loja_renovando_sem_periodo" });
-      return;
-    }
-    await marcar(op, "descartada", { erro: "loja_nao_vigente" });
+  if (!lojas.prevalece) {
+    const espera = lojas.desconhecida
+      ? "loja_indisponivel"
+      : lojas.vigente
+        ? "loja_em_periodo_sem_renovacao"
+        : lojas.renova
+          ? "loja_renovando_sem_periodo"
+          : null;
+    if (espera) await marcar(op, "pendente", { erro: espera });
+    else await marcar(op, "descartada", { erro: "loja_nao_vigente" });
     return;
   }
 
@@ -958,12 +961,31 @@ async function executarEncerramentoPorLoja(op: StripeOperacao): Promise<void> {
     return;
   }
 
-  const pagamento = op.referencia ? 0 : await registrarPagamentoComLoja(op, antiga.id);
+  const anteriores = op.referencia ? await registrarLojaAnterior(op, op.referencia, antiga) : await registrarPagamentoComLoja(op, antiga.id);
   const pagas = await encerrarNoFimDoPeriodo(op, antiga, op.createdAt, {
     motivo: { comentario: "assinatura_na_loja", metadata: { encerradaPorLoja: "1" } },
     revisar: (f) => registrarRenovacaoPaga(op, null, antiga.id, f, "renovacao_paga_com_loja"),
   });
-  await marcar(op, "concluida", { erro: pagamento + pagas > 0 ? "cobranca_em_revisao" : null });
+  await marcar(op, "concluida", { erro: anteriores + pagas > 0 ? "cobranca_em_revisao" : null });
+}
+
+/**
+ * Regra 1 com a compra de loja ANTERIOR à assinatura Stripe: a loja prevalece
+ * do mesmo jeito (segue renovando), mas as duas cobraram juntas desde o início
+ * da Stripe — caso de revisão.
+ */
+async function registrarLojaAnterior(op: StripeOperacao, compraId: string, sub: Stripe.Subscription): Promise<number> {
+  const compra = await prisma.assinaturaLoja.findUnique({ where: { id: compraId } });
+  const inicioStripe = typeof sub.start_date === "number" ? sub.start_date * 1000 : Number.NaN;
+  if (!compra || !(compra.compradaEm.getTime() < inicioStripe)) return 0;
+  await registrarRevisao({
+    tipo: "loja_anterior_ao_vinculo",
+    chave: `loja_anterior:${compra.id}:${sub.id}`,
+    userId: op.userId,
+    assinatura: sub.id,
+    motivo: `assinatura ${compra.provider} ${compra.externalId} de ${compra.compradaEm.toISOString()}, anterior à Stripe (${new Date(inicioStripe).toISOString()}), segue renovando; as duas cobraram juntas; a Stripe encerra no fim do período pago; sem estorno automático`,
+  });
+  return 1;
 }
 
 /** Regra 3: a primeira fatura paga da assinatura que chegou com a loja vigente. */

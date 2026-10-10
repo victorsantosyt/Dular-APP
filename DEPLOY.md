@@ -84,7 +84,7 @@ Cada item abaixo precisa estar feito **antes** do merge, porque o merge publica 
   - O painel pode não mostrar o corpo. Para saber se ficou trabalho pendente, consultar `GET /api/ops/stripe-operacoes` (admin, só leitura).
   - `401`: segredo diferente. `503`: `CRON_SECRET` ausente ou curto
 - [ ] No endpoint de webhook da Stripe (Dashboard → Webhooks), conferir que `invoice.created` está sendo entregue com `200`. Uma resposta diferente de 2xx faz a Stripe adiar a finalização das faturas automáticas por até 72 h
-- [ ] Rotina de revisão: consultar `GET /api/ops/stripe-operacoes` (admin) e tratar `revisoes` abertas — `renovacao_paga_da_substituida` (renovação de duplicada já cobrada), `checkout_sem_prova` (sessão paga sem prova de origem) e, quando houver compra de loja, `pagamento_stripe_com_loja`, `renovacao_paga_com_loja` e `loja_anterior_ao_vinculo` (cobrança Stripe com a assinatura da loja vigente). Nada é estornado nem avisado automaticamente: só esta fila registra o caso
+- [ ] Rotina de revisão: consultar `GET /api/ops/stripe-operacoes` (admin) e tratar `revisoes` abertas — `renovacao_paga_da_substituida` (renovação de duplicada já cobrada), `checkout_sem_prova` (sessão paga sem prova de origem) e, quando houver compra de loja, `pagamento_stripe_com_loja`, `renovacao_paga_com_loja` e `loja_anterior_ao_vinculo` (cobrança Stripe junto com a assinatura da loja ativa; a Stripe encerra no fim do período). Nada é estornado nem avisado automaticamente: só esta fila registra o caso
 - [ ] Monitorar logs nas primeiras 24h
 
 ## FALHA DE BUILD

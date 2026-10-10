@@ -494,14 +494,44 @@ describe("Stripe × loja contra Postgres real (#359)", { skip: EXIGIDO ? false :
     assert.equal(falso.retrato(sub).cancel_at_period_end, false);
   });
 
-  it("comprovante ANTIGO (compra anterior ao vínculo Stripe): não encerra o vínculo mais novo; caso de revisão", async () => {
-    const { userId, sub } = await assinanteStripe("antigo", "basico_mensal");
-    const externalId = compraNaLoja(userId, "antigo", "pro_mensal", { compradaEm: new Date(Date.now() - 10 * DIA) });
+  it("assinatura de loja ANTIGA que segue renovando (ativa na consulta): a data original não decide — a loja prevalece, a Stripe encerra e as duas cobranças vão para revisão", async () => {
+    const { userId, sub } = await assinanteStripe("antiga_renovando", "basico_mensal");
+    // Comprada 40 dias antes da Stripe e renovando desde então; nunca apresentada.
+    const externalId = compraNaLoja(userId, "antiga_renovando", "pro_mensal", { compradaEm: new Date(Date.now() - 40 * DIA) });
     assert.equal((await apresentar(userId, externalId)).status, 200);
-    assert.deepEqual(await encerramentos(userId), []);
-    assert.equal(falso.retrato(sub).cancel_at_period_end, false);
+    assert.deepEqual(await encerramentos(userId), [{ tipo: "encerrar_por_loja", status: "concluida", substituida: sub, erro: "cobranca_em_revisao" }]);
+    assert.equal(falso.retrato(sub).cancel_at_period_end, true, "a Stripe encerra no fim do período pago");
+    assert.equal(falso.retrato(sub).status, "active");
     assert.deepEqual(await revisoes(userId), [{ tipo: "loja_anterior_ao_vinculo", assinatura: sub }]);
-    assert.equal((await linha(userId)).externalId, sub);
+    assert.equal((await linha(userId)).externalId, sub, "o vínculo Stripe fica no histórico");
+    assert.equal(vaiRenovar(sub), false);
+  });
+
+  it("assinatura de loja em período mas SEM renovação (cancelada na loja): não há segunda cobrança recorrente — a Stripe não encerra; se a renovação voltar, encerra", async () => {
+    const { userId, sub } = await assinanteStripe("sem_renovacao", "basico_mensal");
+    const externalId = compraNaLoja(userId, "sem_renovacao", "pro_mensal", { compradaEm: new Date(Date.now() - 20 * DIA), renova: false });
+    assert.equal((await apresentar(userId, externalId)).status, 200);
+    assert.deepEqual(await encerramentos(userId), [{ tipo: "encerrar_por_loja", status: "pendente", substituida: sub, erro: "loja_em_periodo_sem_renovacao" }]);
+    assert.equal(falso.retrato(sub).cancel_at_period_end, false, "a Stripe, única que renova, segue");
+    assert.deepEqual(await revisoes(userId), []);
+    assert.equal(await acesso(userId), "PREMIUM", "a loja ainda vale até o fim do período dela");
+
+    // A pessoa religa a renovação na loja: as duas cobrariam; a loja prevalece.
+    loja.compras.get(externalId)!.renova = true;
+    await retomar(userId);
+    assert.equal(falso.retrato(sub).cancel_at_period_end, true);
+    assert.deepEqual(await revisoes(userId), [{ tipo: "loja_anterior_ao_vinculo", assinatura: sub }]);
+  });
+
+  it("assinatura de loja em período sem renovação que termina: a espera é descartada e a Stripe segue", async () => {
+    const { userId, sub } = await assinanteStripe("sem_renovacao_fim", "basico_mensal");
+    const externalId = compraNaLoja(userId, "sem_renovacao_fim", "pro_mensal", { renova: false });
+    assert.equal((await apresentar(userId, externalId)).status, 200);
+    Object.assign(loja.compras.get(externalId)!, { vigente: false, expiraEm: new Date(Date.now() - 1000) });
+    await retomar(userId);
+    assert.deepEqual(await encerramentos(userId), [{ tipo: "encerrar_por_loja", status: "descartada", substituida: sub, erro: "loja_nao_vigente" }]);
+    assert.equal(falso.retrato(sub).cancel_at_period_end, false);
+    assert.equal(await acesso(userId), "BASIC");
   });
 
   it("compra que a loja diz fora do período: 409, fica no histórico, não concede nem cancela", async () => {

@@ -74,7 +74,11 @@ Cada item abaixo precisa estar feito **antes** do merge, porque o merge publica 
 - [ ] Verificar que KYC envia para S3 correto
 - [ ] Verificar recebimento de push notification em dispositivo real
 - [ ] Verificar webhook Stripe com evento real ou modo test
-- [ ] Rodar o cron uma vez pelo botão Run em Settings → Cron Jobs e conferir em View Logs: `200` com `falhas: 0`. `503` significa `CRON_SECRET` ausente ou curto
+- [ ] Rodar o cron uma vez pelo botão Run em Settings → Cron Jobs e conferir em View Logs:
+  - `200`: autenticou e o banco respondeu. Todo `200` traz `falhas: 0` no corpo; falha em operação devolve `500`.
+  - `200` **não prova que a rodada varreu**. Se outra varredura segura a trava global, a resposta também é `200`, com `emAndamento: true` e `examinadas: 0`. Essa varredura pode ser a do início ou do intervalo de uma instância, um `POST` em `/api/ops/stripe-operacoes` ou uma entrega repetida do cron.
+  - O painel pode não mostrar o corpo. Para saber se ficou trabalho pendente, consultar `GET /api/ops/stripe-operacoes` (admin, só leitura).
+  - `401`: segredo diferente. `503`: `CRON_SECRET` ausente ou curto
 - [ ] No endpoint de webhook da Stripe (Dashboard → Webhooks), conferir que `invoice.created` está sendo entregue com `200`. Uma resposta diferente de 2xx faz a Stripe adiar a finalização das faturas automáticas por até 72 h
 - [ ] Rotina de revisão: consultar `GET /api/ops/stripe-operacoes` (admin) e tratar `revisoes` abertas — `renovacao_paga_da_substituida` (renovação de duplicada já cobrada) e `checkout_sem_prova` (sessão paga sem prova de origem). Nada é estornado nem avisado automaticamente: só esta fila registra o caso
 - [ ] Monitorar logs nas primeiras 24h

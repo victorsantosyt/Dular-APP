@@ -567,6 +567,50 @@ describe("Stripe × loja contra Postgres real (#359)", { skip: EXIGIDO ? false :
     assert.equal(escritas("checkout.sessions.create"), 0);
   });
 
+  // Estados desconhecidos: resposta da loja sem um campo, com tipo errado ou de
+  // outra compra vale o mesmo que loja fora do ar — nunca "renovação desligada".
+  const respostasIncompletas: Array<[string, (s: Record<string, unknown>) => void]> = [
+    ["sem o campo de renovação", (s) => delete s.renova],
+    ["sem o campo de vigência", (s) => delete s.vigente],
+    ["renovação com tipo errado", (s) => (s.renova = "false")],
+    ["fim do período inválido", (s) => (s.expiraEm = new Date("data inválida"))],
+    ["sem o produto", (s) => (s.storeProductId = "")],
+    ["de outra compra", (s) => (s.externalId = "apple_outra_compra")],
+  ];
+
+  for (const [nome, estragar] of respostasIncompletas) {
+    it(`resposta incompleta da loja (${nome}): desconhecida — checkout recusado (503) e nada encerrado`, async () => {
+      const { userId, sub } = await assinanteStripe(`incompleta_${respostasIncompletas.findIndex(([n]) => n === nome)}`, "basico_mensal");
+      const externalId = compraNaLoja(userId, `incompleta_${nome.replace(/\W+/g, "_")}`, "pro_mensal", { vigente: false, expiraEm: new Date(Date.now() - DIA) });
+      // Registrada quando a loja respondia por completo (fora do período, renovando).
+      falso.estado.recusarAntes = (metodo) => metodo.startsWith("subscriptions.");
+      assert.equal((await apresentar(userId, externalId)).status, 409, "fora do período: não concede");
+      falso.estado.recusarAntes = null;
+      await prisma.stripeOperacao.createMany({
+        data: [{ userId, tipo: "encerrar_por_loja", status: "pendente", substituida: sub, chave: `dular-teste-incompleta-${sub}` }],
+      });
+      estragar(loja.compras.get(externalId)! as unknown as Record<string, unknown>);
+
+      const r = await pedir(userId, "pro_mensal");
+      assert.equal(r.status, 503, JSON.stringify(r.corpo));
+      assert.equal(r.corpo.error.code, "LOJA_INDISPONIVEL");
+      await retomar(userId);
+      assert.deepEqual(await encerramentos(userId), [{ tipo: "encerrar_por_loja", status: "pendente", substituida: sub, erro: "loja_indisponivel" }]);
+      assert.equal(falso.retrato(sub).cancel_at_period_end, false);
+    });
+  }
+
+  it("verificação com resposta incompleta (sem o campo de renovação): 503, nada gravado nem encerrado", async () => {
+    const { userId, sub } = await assinanteStripe("verif_incompleta", "basico_mensal");
+    const externalId = compraNaLoja(userId, "verif_incompleta", "pro_mensal");
+    delete (loja.compras.get(externalId) as unknown as Record<string, unknown>).renova;
+    const r = await apresentar(userId, externalId);
+    assert.equal(r.status, 503);
+    assert.equal(r.corpo.error.code, "LOJA_INDISPONIVEL");
+    assert.deepEqual(await comprasGravadas(userId), []);
+    assert.equal(falso.retrato(sub).cancel_at_period_end, false);
+  });
+
   it("o gravado não prova que a loja terminou: expiraEm local no passado, mas a loja ainda renova → recusado", async () => {
     const userId = await usuario("r2_local");
     const externalId = compraNaLoja(userId, "r2_local", "basico_mensal");

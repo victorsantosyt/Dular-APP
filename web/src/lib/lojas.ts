@@ -41,6 +41,29 @@ export type SituacaoNaLoja = {
   dono: string | null;
 };
 
+const dataValida = (v: unknown) => v instanceof Date && !Number.isNaN(v.getTime());
+
+/**
+ * A resposta da loja traz TODOS os campos, com o tipo certo? Faltou um (a
+ * renovação, a vigência, o produto), ou veio de outro tipo: a situação é
+ * DESCONHECIDA — nunca "renovação desligada" nem "fora do período".
+ */
+export function situacaoCompleta(s: unknown): s is SituacaoNaLoja {
+  if (typeof s !== "object" || s === null) return false;
+  const x = s as Record<string, unknown>;
+  return (
+    typeof x.externalId === "string" &&
+    x.externalId !== "" &&
+    typeof x.storeProductId === "string" &&
+    x.storeProductId !== "" &&
+    dataValida(x.compradaEm) &&
+    typeof x.vigente === "boolean" &&
+    typeof x.renova === "boolean" &&
+    (x.expiraEm === null || dataValida(x.expiraEm)) &&
+    (x.dono === null || typeof x.dono === "string")
+  );
+}
+
 export class ErroDeLoja extends Error {
   constructor(
     readonly codigo: "CREDENCIAIS_AUSENTES" | "COMPRA_INVALIDA" | "LOJA_INDISPONIVEL",

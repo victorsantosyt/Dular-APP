@@ -8,7 +8,7 @@ import {
 } from "@/lib/assinatura";
 import { registrarRevisao, type CasoDeRevisao } from "@/lib/revisaoStripe";
 import { registrarPresenca } from "@/lib/origemDoCheckout";
-import { loja, type LojaProvedor, type SituacaoNaLoja } from "@/lib/lojas";
+import { loja, situacaoCompleta, type LojaProvedor, type SituacaoNaLoja } from "@/lib/lojas";
 import { Prisma, type AssinaturaLoja, type StripeOperacao } from "@prisma/client";
 
 /**
@@ -845,7 +845,9 @@ export async function consultarLojasDoUsuario(userId: string): Promise<SituacaoD
   const situacao: SituacaoDasLojas = { compras: compras.length, prevalece: false, vigente: false, renova: false, desconhecida: false };
   for (const compra of compras) {
     try {
-      const s = await loja.consultar(compra.provider as LojaProvedor, compra.externalId);
+      const s: unknown = await loja.consultar(compra.provider as LojaProvedor, compra.externalId);
+      // Resposta incompleta vale o mesmo que loja fora do ar: desconhecida.
+      if (!situacaoCompleta(s)) throw new Error("resposta incompleta da loja");
       if (s.externalId !== compra.externalId) throw new Error("a loja respondeu por outra compra");
       await prisma.assinaturaLoja.update({ where: { id: compra.id }, data: estadoNaLoja(s) });
       situacao.prevalece ||= s.vigente && s.renova;

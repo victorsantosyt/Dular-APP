@@ -6,7 +6,7 @@ import { planoPorProdutoDaLoja } from "@/lib/stripe";
 import { requireAuth } from "@/lib/requireAuth";
 import { requireAuthAtivo, respostaDeSessao } from "@/lib/contaAtiva";
 import { cleanupRateLimit, rateLimit } from "@/lib/rateLimit";
-import { ErroDeLoja, loja, tokenDaConta } from "@/lib/lojas";
+import { ErroDeLoja, loja, situacaoCompleta, tokenDaConta } from "@/lib/lojas";
 import { OperacaoEmAndamento, registrarCompraDaLoja } from "@/lib/trocaDePlano";
 
 /**
@@ -74,6 +74,13 @@ export async function POST(request: Request) {
       return fail(erro.codigo, erro.message, status);
     }
     console.error("[loja] erro inesperado:", erro);
+    return fail("LOJA_INDISPONIVEL", "Não foi possível confirmar a compra agora.", 503);
+  }
+
+  // Resposta sem algum campo: não dá para saber se a compra vale nem se renova.
+  // É indisponibilidade, não compra inválida: o app reapresenta depois.
+  if (!situacaoCompleta(compra)) {
+    console.error("[loja] resposta incompleta da loja; nada foi gravado");
     return fail("LOJA_INDISPONIVEL", "Não foi possível confirmar a compra agora.", 503);
   }
 

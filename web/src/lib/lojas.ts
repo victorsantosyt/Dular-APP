@@ -1,27 +1,44 @@
+import { createHash } from "node:crypto";
+
 /**
- * Verificação de compra na App Store e no Google Play.
+ * Verificação e consulta de assinatura na App Store e no Google Play.
  *
  * Por que verificar no servidor: o app manda um recibo, e recibo é dado que
  * vem do cliente. Confiar nele é entregar plano PREMIUM a quem souber montar
- * um JSON. Quem decide se a compra existe é a loja, e é ela que respondemos.
+ * um JSON. Quem decide se a compra existe — e se ainda vale — é a loja, e é
+ * ela que respondemos.
  *
- * As credenciais ainda NÃO existem — falta cadastrar os produtos e gerar as
- * chaves. Até lá, cada verificador falha com `CREDENCIAIS_AUSENTES`, que a
- * rota traduz em 503: "ainda não disponível", não "compra inválida". A
- * diferença importa — dizer que a compra é inválida para quem pagou de
- * verdade é o pior desfecho possível.
+ * A verificação e a consulta reais ainda NÃO existem (issue #359: falta a
+ * integração com a App Store Server API e a Play Developer API, as
+ * notificações das lojas e a compra dentro do app). Até lá as duas falham:
+ * sem credencial, `CREDENCIAIS_AUSENTES`; com ela, `LOJA_INDISPONIVEL`. A rota
+ * traduz em 503 — "ainda não disponível", não "compra inválida" — e
+ * `lojasProntas()` segue falso mesmo com credencial: o app não é mandado para
+ * uma compra que o servidor não confirma.
  */
 
-export type CompraVerificada = {
+export type LojaProvedor = "APPLE" | "GOOGLE";
+
+/** O que a loja responde sobre uma compra de assinatura, no momento da consulta. */
+export type SituacaoNaLoja = {
+  /** Identidade estável da compra: `originalTransactionId` (Apple), `purchaseToken` (Google). */
+  externalId: string;
   /** Id do produto na loja, que o catálogo traduz em plano. */
   storeProductId: string;
-  /**
-   * Identidade estável da assinatura, para renovações caírem no mesmo
-   * registro: `originalTransactionId` na Apple, `purchaseToken` no Google.
-   */
-  externalId: string;
-  /** Fim do período pago, informado pela loja. */
+  /** Início desta compra na loja (Apple `originalPurchaseDate`, Google `startTime`). */
+  compradaEm: Date;
+  /** Período pago em curso. */
+  vigente: boolean;
+  /** Renovação automática ligada: a loja ainda vai cobrar. */
+  renova: boolean;
+  /** Fim do período pago. */
   expiraEm: Date | null;
+  /**
+   * Conta que comprou: `appAccountToken` (Apple) ou `obfuscatedExternalAccountId`
+   * (Google), que o app grava na compra com `tokenDaConta()`. Nulo: a compra não
+   * diz de quem é, e nada é feito com ela.
+   */
+  dono: string | null;
 };
 
 export class ErroDeLoja extends Error {
@@ -47,19 +64,6 @@ export function credenciaisApleProntas(): boolean {
   return Boolean(APPLE_ENV.keyId && APPLE_ENV.issuerId && APPLE_ENV.privateKey && APPLE_ENV.bundleId);
 }
 
-export async function verificarCompraApple(_transactionId: string): Promise<CompraVerificada> {
-  if (!credenciaisApleProntas()) {
-    throw new ErroDeLoja(
-      "CREDENCIAIS_AUSENTES",
-      "APPLE_IAP_* não configurado. Cadastre os produtos no App Store Connect e gere a chave da App Store Server API.",
-    );
-  }
-  // Implementar com a App Store Server API assim que houver credencial:
-  // GET /inApps/v1/subscriptions/{transactionId}, validar o JWS com as chaves
-  // da Apple e ler `productId`, `originalTransactionId` e `expiresDate`.
-  throw new ErroDeLoja("LOJA_INDISPONIVEL", "Verificação Apple ainda não implementada.");
-}
-
 // ── Google ──────────────────────────────────────────────────────────────────
 // A Play Developer API pede uma conta de serviço com acesso ao app.
 const GOOGLE_ENV = {
@@ -71,23 +75,53 @@ export function credenciaisGoogleProntas(): boolean {
   return Boolean(GOOGLE_ENV.packageName && GOOGLE_ENV.serviceAccount);
 }
 
-export async function verificarCompraGoogle(
-  _storeProductId: string,
-  _purchaseToken: string,
-): Promise<CompraVerificada> {
-  if (!credenciaisGoogleProntas()) {
+function semIntegracao(provider: LojaProvedor): never {
+  if (provider === "APPLE" && !credenciaisApleProntas()) {
+    throw new ErroDeLoja(
+      "CREDENCIAIS_AUSENTES",
+      "APPLE_IAP_* não configurado. Cadastre os produtos no App Store Connect e gere a chave da App Store Server API.",
+    );
+  }
+  if (provider === "GOOGLE" && !credenciaisGoogleProntas()) {
     throw new ErroDeLoja(
       "CREDENCIAIS_AUSENTES",
       "GOOGLE_PLAY_* não configurado. Cadastre os produtos no Play Console e crie a conta de serviço.",
     );
   }
-  // Implementar com purchases.subscriptionsv2.get assim que houver credencial:
-  // ler `lineItems[].productId`, `lineItems[].expiryTime` e o estado da
-  // assinatura.
-  throw new ErroDeLoja("LOJA_INDISPONIVEL", "Verificação Google ainda não implementada.");
+  // Apple: GET /inApps/v1/subscriptions/{transactionId}, JWS validado com as
+  // chaves da Apple. Google: purchases.subscriptionsv2.get. Os dois devolvem
+  // produto, identidade, início, fim, renovação e o token da conta.
+  throw new ErroDeLoja("LOJA_INDISPONIVEL", `Verificação ${provider === "APPLE" ? "Apple" : "Google"} ainda não implementada.`);
 }
+
+/**
+ * Quem responde pela loja. `verificar` recebe o comprovante que o app mandou
+ * (`transactionId` no iOS, `purchaseToken` no Android); `consultar`, a
+ * identidade de uma compra já registrada. As duas devolvem a situação ATUAL na
+ * loja ou lançam ErroDeLoja — nunca um palpite. Os testes trocam as funções por
+ * uma loja simulada; `implementada` só vira verdadeiro com a integração real.
+ */
+export const loja = {
+  verificar: async (provider: LojaProvedor, _comprovante: string, _produtoId: string): Promise<SituacaoNaLoja> => semIntegracao(provider),
+  consultar: async (provider: LojaProvedor, _externalId: string): Promise<SituacaoNaLoja> => semIntegracao(provider),
+  implementada: { APPLE: false, GOOGLE: false } as Record<LojaProvedor, boolean>,
+};
 
 /** As lojas estão prontas para receber compra? Usado pelo app para escolher o caminho. */
 export function lojasProntas() {
-  return { apple: credenciaisApleProntas(), google: credenciaisGoogleProntas() };
+  return {
+    apple: loja.implementada.APPLE && credenciaisApleProntas(),
+    google: loja.implementada.GOOGLE && credenciaisGoogleProntas(),
+  };
+}
+
+/**
+ * Token da conta para a loja: um UUID fixo por usuário, que o app grava na
+ * compra (`appAccountToken` / `obfuscatedExternalAccountId`). A verificação só
+ * aceita a compra se a loja devolver este mesmo token.
+ */
+export function tokenDaConta(userId: string): string {
+  const h = createHash("sha256").update(`dular-loja:${userId}`).digest("hex");
+  const variante = ((parseInt(h[16], 16) & 0x3) | 0x8).toString(16);
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-${variante}${h.slice(17, 20)}-${h.slice(20, 32)}`;
 }

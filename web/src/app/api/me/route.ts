@@ -530,27 +530,36 @@ export async function DELETE(req: Request) {
     // sendo cobrada, sem conta para reclamar.
     //
     // `provider` vai na resposta para o app dizer ONDE cancelar. O texto fica
-    // no app, não aqui.
-    const assinatura = await prisma.subscription.findUnique({
-      where: { userId: auth.userId },
-      select: { plan: true, status: true, provider: true, expiresAt: true },
-    });
+    // no app, não aqui. A compra de loja fica fora da Subscription (é o
+    // vínculo Stripe): conta também a que ainda vale ou que a loja disse que
+    // renova, na última resposta dela.
+    const [assinatura, compraDeLoja] = await Promise.all([
+      prisma.subscription.findUnique({
+        where: { userId: auth.userId },
+        select: { plan: true, status: true, provider: true, expiresAt: true },
+      }),
+      prisma.assinaturaLoja.findFirst({
+        where: { userId: auth.userId, OR: [{ vigente: true, expiraEm: { gt: new Date() } }, { renova: true }] },
+        select: { plan: true, provider: true, expiraEm: true },
+      }),
+    ]);
     const assinaturaViva =
       assinatura != null &&
       (assinatura.status === "ACTIVE" || assinatura.status === "TRIAL") &&
       (!assinatura.expiresAt || assinatura.expiresAt.getTime() > Date.now());
+    const viva = assinaturaViva
+      ? { provider: assinatura.provider, plan: assinatura.plan, expiresAt: assinatura.expiresAt }
+      : compraDeLoja
+        ? { provider: compraDeLoja.provider, plan: compraDeLoja.plan, expiresAt: compraDeLoja.expiraEm }
+        : null;
 
-    if (assinaturaViva) {
+    if (viva) {
       return NextResponse.json(
         {
           ok: false,
           error: "SUBSCRIPTION_ACTIVE",
           message: "Cancele sua assinatura antes de excluir a conta.",
-          assinatura: {
-            provider: assinatura.provider,
-            plan: assinatura.plan,
-            expiresAt: assinatura.expiresAt,
-          },
+          assinatura: viva,
         },
         { status: 409 },
       );

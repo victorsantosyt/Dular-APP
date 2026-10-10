@@ -1,13 +1,13 @@
 import { z } from "zod";
 
-import { concederAssinatura } from "@/lib/assinatura";
+import { assinaturaEfetiva } from "@/lib/assinatura";
 import { ok, fail } from "@/lib/apiResponse";
 import { planoPorProdutoDaLoja } from "@/lib/stripe";
-import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/requireAuth";
 import { requireAuthAtivo, respostaDeSessao } from "@/lib/contaAtiva";
 import { cleanupRateLimit, rateLimit } from "@/lib/rateLimit";
-import { ErroDeLoja, verificarCompraApple, verificarCompraGoogle } from "@/lib/lojas";
+import { ErroDeLoja, loja, tokenDaConta } from "@/lib/lojas";
+import { OperacaoEmAndamento, registrarCompraDaLoja } from "@/lib/trocaDePlano";
 
 /**
  * POST /api/billing/loja — registra uma compra feita na App Store ou no Google
@@ -17,6 +17,9 @@ import { ErroDeLoja, verificarCompraApple, verificarCompraGoogle } from "@/lib/l
  * que desbloqueia função dentro do app) e manda o comprovante para cá. Quem
  * decide se a compra vale é a LOJA, consultada aqui — o recibo sozinho é dado
  * vindo do cliente, e aceitá-lo seria dar PREMIUM a quem souber montar um JSON.
+ *
+ * Hoje a verificação NÃO existe (lib/lojas): a rota responde 503 e nada é
+ * gravado. As regras entre os canais (issue #359) ficam em lib/trocaDePlano.
  */
 
 const corpo = z.object({
@@ -56,12 +59,10 @@ export async function POST(request: Request) {
     return fail("PLAN_ROLE_MISMATCH", "Plano indisponível para este perfil", 403);
   }
 
+  const provider = parsed.data.plataforma === "ios" ? "APPLE" : "GOOGLE";
   let compra;
   try {
-    compra =
-      parsed.data.plataforma === "ios"
-        ? await verificarCompraApple(parsed.data.comprovante)
-        : await verificarCompraGoogle(parsed.data.produtoId, parsed.data.comprovante);
+    compra = await loja.verificar(provider, parsed.data.comprovante, parsed.data.produtoId);
   } catch (erro) {
     if (erro instanceof ErroDeLoja) {
       // Sem credencial ou loja fora do ar NÃO é compra inválida. Dizer o
@@ -76,33 +77,40 @@ export async function POST(request: Request) {
     return fail("LOJA_INDISPONIVEL", "Não foi possível confirmar a compra agora.", 503);
   }
 
-  // O produto que a LOJA confirmou manda, não o que o app disse ter comprado.
-  const planoConfirmado = planoPorProdutoDaLoja(compra.storeProductId) ?? plano;
-
-  const provider = parsed.data.plataforma === "ios" ? "APPLE" : "GOOGLE";
-
-  // Um comprovante não pode ativar plano em duas contas. O índice único
-  // (provider, externalId) garante isso no banco; aqui devolvemos um erro
-  // claro em vez de deixar estourar violação de constraint.
-  const jaUsado = await prisma.subscription.findFirst({
-    where: { provider, externalId: compra.externalId, NOT: { userId: auth.userId } },
-    select: { id: true },
-  });
-  if (jaUsado) {
-    return fail("COMPRA_DE_OUTRA_CONTA", "Esta compra já está vinculada a outra conta.", 409);
+  // Titularidade: a loja devolve o token que o app gravou na compra. Sem ele,
+  // ou com o de outra conta, nada é feito — quem souber um `transactionId`
+  // alheio não ganha a assinatura de outra pessoa.
+  if (compra.dono !== tokenDaConta(auth.userId)) {
+    return fail("COMPRA_SEM_TITULARIDADE", "Esta compra não está associada a esta conta.", 403);
   }
 
-  const assinatura = await concederAssinatura({
-    userId: auth.userId,
-    plano: planoConfirmado,
-    provider,
-    externalId: compra.externalId,
-    expiraEm: compra.expiraEm,
-  });
+  // O produto que a LOJA confirmou manda, não o que o app disse ter comprado.
+  const planoConfirmado = planoPorProdutoDaLoja(compra.storeProductId) ?? plano;
+  if (planoConfirmado.role !== auth.role) {
+    return fail("PLAN_ROLE_MISMATCH", "Plano indisponível para este perfil", 403);
+  }
 
+  let resultado;
+  try {
+    resultado = await registrarCompraDaLoja(auth.userId, provider, compra, planoConfirmado);
+  } catch (err) {
+    if (err instanceof OperacaoEmAndamento) {
+      return fail("OPERACAO_EM_ANDAMENTO", "Seu pedido anterior ainda está sendo processado. Tente novamente em instantes.", 409);
+    }
+    throw err;
+  }
+  // Uma compra não pertence a duas contas (índice único em AssinaturaLoja).
+  if (resultado === "de_outra_conta") {
+    return fail("COMPRA_DE_OUTRA_CONTA", "Esta compra já está vinculada a outra conta.", 409);
+  }
+  if (resultado === "vencida") {
+    return fail("COMPRA_VENCIDA", "Esta compra da loja já terminou.", 409);
+  }
+
+  const { plan, registro } = await assinaturaEfetiva(auth.userId);
   return ok({
-    plan: assinatura.plan,
-    status: assinatura.status,
-    expiresAt: assinatura.expiresAt,
+    plan,
+    status: registro?.status ?? null,
+    expiresAt: registro?.expiresAt ?? null,
   });
 }

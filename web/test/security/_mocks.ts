@@ -38,6 +38,7 @@ export type MockPrisma = {
   stripeRevisao: { createMany: AnyFn; findMany: AnyFn };
   stripeMarco: { findUnique: AnyFn; upsert: AnyFn };
   stripeJanelaLegado: { findFirst: AnyFn };
+  assinaturaLoja: { findMany: AnyFn; findFirst: AnyFn; count: AnyFn };
   creditWallet: { upsert: AnyFn };
   creditTransaction: { create: AnyFn; findUnique: AnyFn };
   auditLog: { create: AnyFn };
@@ -176,6 +177,12 @@ export function createMockPrisma(): MockPrisma {
     // Presença do código no ar (registrarPresenca) e janelas de legado: padrão = nenhuma.
     stripeMarco: { findUnique: (async () => null) as AnyFn, upsert: (async () => ({})) as AnyFn },
     stripeJanelaLegado: { findFirst: (async () => null) as AnyFn },
+    // Padrão = nenhuma compra de loja: o acesso e o checkout seguem só a Stripe.
+    assinaturaLoja: {
+      findMany: (async () => []) as AnyFn,
+      findFirst: (async () => null) as AnyFn,
+      count: (async () => 0) as AnyFn,
+    },
     creditWallet: { upsert: notMocked("creditWallet.upsert") },
     creditTransaction: {
       create: notMocked("creditTransaction.create"),

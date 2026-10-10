@@ -296,6 +296,7 @@ model User {
   chatMessages          ChatMessage[]
   chatRoomExclusoes     ChatRoomExclusao[]
   subscription          Subscription?
+  assinaturasLoja       AssinaturaLoja[]
   creditWallet          CreditWallet?
   notifications         Notification[]
   feedbacks             Feedback[]
@@ -997,6 +998,39 @@ model Subscription {
   @@index([status])
 }
 
+/** Compra de assinatura numa LOJA (App Store / Google Play), já verificada por
+ *  ela e com a titularidade conferida. Uma linha por compra, nunca apagada: é o
+ *  histórico do canal. Registrar a loja NÃO toca a Subscription, que segue
+ *  sendo o vínculo Stripe; o acesso considera os dois (lib/assinatura).
+ *  Os campos de estado são a ÚLTIMA resposta da loja (`verificadaEm`): servem
+ *  para o acesso, nunca como prova de que a loja terminou (lib/trocaDePlano
+ *  consulta a loja antes de liberar cobrança ou cancelar). */
+model AssinaturaLoja {
+  id             String               @id @default(cuid())
+  userId         String
+  user           User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /** APPLE | GOOGLE */
+  provider       SubscriptionProvider
+  /** originalTransactionId (Apple) / purchaseToken (Google): identidade da compra. */
+  externalId     String
+  storeProductId String
+  plan           SubscriptionPlan
+  /** Início desta compra na loja (Apple `originalPurchaseDate`, Google `startTime`). */
+  compradaEm     DateTime
+  /** Período pago em curso, segundo a loja. */
+  vigente        Boolean
+  /** Renovação automática ligada, segundo a loja: ainda vai cobrar. */
+  renova         Boolean
+  expiraEm       DateTime?
+  verificadaEm   DateTime
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  /** Uma compra, uma conta. */
+  @@unique([provider, externalId])
+  @@index([userId])
+}
+
 /** Operação de cobrança iniciada pelo Dular na Stripe (checkout novo, troca de
  *  plano, cancelamento de assinatura substituída). Gravada ANTES de chamar a
  *  Stripe e com chave de idempotência própria: se a Stripe aceitar e o banco
@@ -1006,7 +1040,7 @@ model Subscription {
 model StripeOperacao {
   id          String   @id @default(cuid())
   userId      String
-  /** checkout | upgrade | downgrade | manter | cancelar_substituida */
+  /** checkout | upgrade | downgrade | manter | cancelar_substituida | encerrar_por_loja */
   tipo        String
   /** pendente | aguardando | concluida | descartada | falhou */
   status      String
@@ -1041,7 +1075,11 @@ model StripeOperacao {
  *  - `renovacao_paga_da_substituida`: a assinatura substituída renovou e a
  *    fatura foi PAGA antes de o cancelamento agir (lib/trocaDePlano);
  *  - `checkout_sem_prova`: sessão de checkout paga sem prova de que saiu da
- *    rota autenticada para aquele usuário; o vínculo NÃO foi mexido.
+ *    rota autenticada para aquele usuário; o vínculo NÃO foi mexido;
+ *  - `renovacao_paga_com_loja`, `pagamento_stripe_com_loja`: cobrança Stripe
+ *    com a assinatura da loja vigente; a Stripe encerra no fim do período;
+ *  - `loja_anterior_ao_vinculo`: assinatura de loja anterior à Stripe que
+ *    segue renovando; as duas cobraram juntas e a Stripe encerra (issue #359).
  *  `chave` única (por fatura ou por sessão): reentrega não duplica o caso. */
 model StripeRevisao {
   id          String   @id @default(cuid())

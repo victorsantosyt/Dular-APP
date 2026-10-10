@@ -7,7 +7,15 @@ import { prisma } from "@/lib/prisma";
  * não abre outro caso.
  */
 export type CasoDeRevisao = {
-  tipo: "renovacao_paga_da_substituida" | "checkout_sem_prova";
+  tipo:
+    | "renovacao_paga_da_substituida"
+    | "checkout_sem_prova"
+    /** Renovação Stripe paga depois da compra na loja que a encerra (issue #359). */
+    | "renovacao_paga_com_loja"
+    /** Pagamento Stripe que chegou com a assinatura da loja vigente (regra 3). */
+    | "pagamento_stripe_com_loja"
+    /** Assinatura de loja anterior à Stripe que segue renovando: as duas cobraram juntas; a Stripe encerra. */
+    | "loja_anterior_ao_vinculo";
   chave: string;
   userId?: string | null;
   assinatura?: string | null;

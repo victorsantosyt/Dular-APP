@@ -3,6 +3,7 @@ import { requireAuthAtivo, respostaDeSessao } from "@/lib/contaAtiva";
 import { prisma } from "@/lib/prisma";
 import { ok, fail } from "@/lib/apiResponse";
 import { checkFeatureAccess } from "@/lib/featureGate";
+import { assinaturaEfetiva } from "@/lib/assinatura";
 
 export const dynamic = "force-dynamic";
 
@@ -14,17 +15,9 @@ export async function GET(request: Request) {
     return fail("UNAUTHORIZED", "Não autenticado", 401);
   }
 
-  const [subscription, solicitacoes, usuario] = await Promise.all([
-    prisma.subscription.findUnique({
-      where: { userId: payload.userId },
-      select: {
-        plan: true,
-        status: true,
-        startedAt: true,
-        expiresAt: true,
-        canceledAt: true,
-      },
-    }),
+  // A assinatura mostrada é a que dá o plano (vínculo Stripe ou compra de loja).
+  const [{ registro: subscription }, solicitacoes, usuario] = await Promise.all([
+    assinaturaEfetiva(payload.userId),
     checkFeatureAccess(payload.userId, "SOLICITACOES_MES"),
     prisma.user.findUnique({
       where: { id: payload.userId },

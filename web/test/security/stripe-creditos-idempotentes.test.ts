@@ -433,6 +433,7 @@ describe("checkout.session.completed — compra de créditos idempotente", () =>
         },
         subscription: mockPrisma.subscription,
         stripeEventoAssinatura: { findMany: async () => [] },
+        assinaturaLoja: { count: async () => 0 },
       };
       mockPrisma.subscription.findFirst = async () => null;
       mockPrisma.$transaction = async (fn: (tx: unknown) => Promise<unknown>) => fn(txAssinatura);
@@ -473,7 +474,8 @@ describe("checkout.session.completed — compra de créditos idempotente", () =>
           canceledAt: null,
         });
       });
-      assert.deepEqual(travas, ["sub_ficticio_fluxo_paid", "sub_ficticio_fluxo_unpaid"]);
+      // A trava da pessoa (issue #359) e, dentro dela, o lock da sub.
+      assert.deepEqual(travas, ["u-assinatura-paid", "sub_ficticio_fluxo_paid", "u-assinatura-unpaid", "sub_ficticio_fluxo_unpaid"]);
       assert.deepEqual(tocadas, [], "primeira entrega: cria, sem upsert nem troca de vínculo");
       assert.deepEqual(estado, antes);
       assert.deepEqual(chamadas, [], "nenhum crédito");

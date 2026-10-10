@@ -162,7 +162,7 @@ describe("POST /api/webhooks/stripe — fluxo positivo (constructEvent mockado)"
     resetEnv();
   });
 
-  it("checkout.session.completed em modo subscription cria o vínculo (createMany skipDuplicates) sob o lock da sub", async () => {
+  it("checkout.session.completed em modo subscription cria o vínculo (createMany skipDuplicates) sob a trava da pessoa e o lock da sub", async () => {
     const { stripe, PLANS, validadeDoPlano } = await import("../../src/lib/stripe");
     stripe.webhooks.constructEvent = (() => ({
       id: "evt_test_completed_1",
@@ -219,7 +219,8 @@ describe("POST /api/webhooks/stripe — fluxo positivo (constructEvent mockado)"
         },
       },
     ]);
-    assert.deepEqual(travas, ["sub_test_123"]);
+    // A trava da pessoa (com o checkout e a compra de loja, issue #359) e, dentro dela, a da sub.
+    assert.deepEqual(travas, ["u-1", "sub_test_123"]);
     assert.deepEqual(tocadas, [], "criou e nada mudou no recálculo: nenhuma outra escrita");
   });
 

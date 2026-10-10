@@ -38,6 +38,7 @@ export type MockPrisma = {
   stripeRevisao: { createMany: AnyFn; findMany: AnyFn };
   stripeMarco: { findUnique: AnyFn; upsert: AnyFn };
   stripeJanelaLegado: { findFirst: AnyFn };
+  assinaturaLoja: { findMany: AnyFn; findFirst: AnyFn; count: AnyFn };
   creditWallet: { upsert: AnyFn };
   creditTransaction: { create: AnyFn; findUnique: AnyFn };
   auditLog: { create: AnyFn };
@@ -48,6 +49,7 @@ export type MockPrisma = {
   bairro: { findUnique: AnyFn };
   diaristaBairro: { findFirst: AnyFn };
   $queryRaw: AnyFn;
+  $executeRaw: AnyFn;
   $transaction: AnyFn;
 };
 
@@ -176,6 +178,12 @@ export function createMockPrisma(): MockPrisma {
     // Presença do código no ar (registrarPresenca) e janelas de legado: padrão = nenhuma.
     stripeMarco: { findUnique: (async () => null) as AnyFn, upsert: (async () => ({})) as AnyFn },
     stripeJanelaLegado: { findFirst: (async () => null) as AnyFn },
+    // Padrão = nenhuma compra de loja: o acesso e o checkout seguem só a Stripe.
+    assinaturaLoja: {
+      findMany: (async () => []) as AnyFn,
+      findFirst: (async () => null) as AnyFn,
+      count: (async () => 0) as AnyFn,
+    },
     creditWallet: { upsert: notMocked("creditWallet.upsert") },
     creditTransaction: {
       create: notMocked("creditTransaction.create"),
@@ -195,6 +203,8 @@ export function createMockPrisma(): MockPrisma {
     bairro: { findUnique: notMocked("bairro.findUnique") },
     diaristaBairro: { findFirst: notMocked("diaristaBairro.findFirst") },
     $queryRaw: notMocked("$queryRaw"),
+    // Travas consultivas (SET LOCAL e pg_advisory_xact_lock): sem efeito no banco simulado.
+    $executeRaw: (async () => 1) as AnyFn,
     $transaction: (async (cb: any) => {
       if (typeof cb === "function") {
         return cb(mock);

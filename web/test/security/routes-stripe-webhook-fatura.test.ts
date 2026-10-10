@@ -219,6 +219,8 @@ function instalarBanco(estadoAlvo: Partial<Linha> | null, opcoes: { semUsuario?:
       stripeEventoAssinatura,
       stripeOperacao,
       user,
+      // Nenhuma compra de loja nestes testes (issue #359).
+      assinaturaLoja: { count: async () => 0 },
       $executeRaw: async (sql: TemplateStringsArray, ...valores: unknown[]) => {
         if (!sql.join("?").includes("pg_advisory_xact_lock")) {
           brutos.push(sql.join("?").includes("set_config('lock_timeout'") ? "limites" : "outro");
@@ -563,7 +565,8 @@ describe("POST /api/webhooks/stripe — eventos de assinatura até o banco (HMAC
 
     assert.equal((await concluido("evt_c1", CRIADO + 1)).status, 200);
     assert.deepEqual(doUsuario("u-alvo"), criada, "completed da mesma sub não escreve nada");
-    assert.deepEqual(travas, [ALVO, ALVO], "o completed usa o MESMO lock da sub");
+    // Cada um sob a trava da pessoa (issue #359) e, dentro dela, o MESMO lock da sub.
+    assert.deepEqual(travas, ["u-alvo", ALVO, "u-alvo", ALVO], "o completed usa o MESMO lock da sub");
     outraIntacta();
   });
 

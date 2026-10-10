@@ -54,6 +54,10 @@ Cada item abaixo precisa estar feito **antes** do merge, porque o merge publica 
 - [ ] `DATABASE_URL_UNPOOLED` presente em Production e sem o pooler: sem ela o build falha antes de migrar
 - [ ] Plano da Vercel confirmado em Billing antes de mudar a frequência do cron. Vem do `web/vercel.json`: diário, `17 6 * * *` (06:17 UTC). No plano Hobby o cron só pode rodar uma vez por dia, com folga de até 59 min, e uma expressão mais frequente faz o deploy falhar. No Pro pode ser mais frequente (ex.: `*/10 * * * *`)
 - [ ] Janela de pouco movimento de checkout escolhida e responsável pela rotina de revisão definido
+- [ ] Compra pela App Store / Google Play **continua indisponível**:
+  - a verificação e a consulta à loja não existem (`web/src/lib/lojas.ts`), então `/api/billing/loja` responde 503 e `/api/billing/plans` mantém `loja: false` mesmo com credencial;
+  - não cadastrar `APPLE_IAP_*` nem `GOOGLE_PLAY_*` em Production até a integração da issue #359;
+  - as regras entre Stripe e loja já estão no servidor (`lib/trocaDePlano`, seção Loja) e só agem quando houver compra de loja registrada.
 
 ## DEPLOY MOBILE (Expo EAS)
 
@@ -74,9 +78,13 @@ Cada item abaixo precisa estar feito **antes** do merge, porque o merge publica 
 - [ ] Verificar que KYC envia para S3 correto
 - [ ] Verificar recebimento de push notification em dispositivo real
 - [ ] Verificar webhook Stripe com evento real ou modo test
-- [ ] Rodar o cron uma vez pelo botão Run em Settings → Cron Jobs e conferir em View Logs: `200` com `falhas: 0`. `503` significa `CRON_SECRET` ausente ou curto
+- [ ] Rodar o cron uma vez pelo botão Run em Settings → Cron Jobs e conferir em View Logs:
+  - `200`: autenticou e o banco respondeu. Todo `200` traz `falhas: 0` no corpo; falha em operação devolve `500`.
+  - `200` **não prova que a rodada varreu**. Se outra varredura segura a trava global, a resposta também é `200`, com `emAndamento: true` e `examinadas: 0`. Essa varredura pode ser a do início ou do intervalo de uma instância, um `POST` em `/api/ops/stripe-operacoes` ou uma entrega repetida do cron.
+  - O painel pode não mostrar o corpo. Para saber se ficou trabalho pendente, consultar `GET /api/ops/stripe-operacoes` (admin, só leitura).
+  - `401`: segredo diferente. `503`: `CRON_SECRET` ausente ou curto
 - [ ] No endpoint de webhook da Stripe (Dashboard → Webhooks), conferir que `invoice.created` está sendo entregue com `200`. Uma resposta diferente de 2xx faz a Stripe adiar a finalização das faturas automáticas por até 72 h
-- [ ] Rotina de revisão: consultar `GET /api/ops/stripe-operacoes` (admin) e tratar `revisoes` abertas — `renovacao_paga_da_substituida` (renovação de duplicada já cobrada) e `checkout_sem_prova` (sessão paga sem prova de origem). Nada é estornado nem avisado automaticamente: só esta fila registra o caso
+- [ ] Rotina de revisão: consultar `GET /api/ops/stripe-operacoes` (admin) e tratar `revisoes` abertas — `renovacao_paga_da_substituida` (renovação de duplicada já cobrada), `checkout_sem_prova` (sessão paga sem prova de origem) e, quando houver compra de loja, `pagamento_stripe_com_loja`, `renovacao_paga_com_loja` e `loja_anterior_ao_vinculo` (cobrança Stripe junto com a assinatura da loja ativa; a Stripe encerra no fim do período). Nada é estornado nem avisado automaticamente: só esta fila registra o caso
 - [ ] Monitorar logs nas primeiras 24h
 
 ## FALHA DE BUILD

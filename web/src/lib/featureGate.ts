@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { assinaturaEfetiva } from "@/lib/assinatura";
 import { Prisma, type FeatureKey, type ServicoStatus } from "@prisma/client";
 
 export type { FeatureKey };
@@ -14,33 +15,21 @@ export async function checkFeatureAccess(
   userId: string,
   feature: FeatureKey
 ): Promise<FeatureAccess> {
-  // 1. Subscription + role em paralelo
-  const [subscription, user] = await Promise.all([
-    prisma.subscription.findUnique({
-      where: { userId },
-      select: { plan: true, status: true, expiresAt: true },
-    }),
+  // 1. Assinatura efetiva (vínculo Stripe + compras de loja) + role em paralelo.
+  //
+  // Só ACTIVE/TRIAL dentro do prazo valem; o resto cai para FREE. A validade
+  // também conta, e essa era a rede que faltava: o status só muda quando chega
+  // o aviso de cancelamento da loja ou do Stripe. Se esse aviso se perder, a
+  // assinatura ficava ACTIVE para sempre e a pessoa mantinha acesso ilimitado
+  // sem pagar. A regra fica em lib/assinatura (`assinaturaEfetiva`).
+  const [efetiva, user] = await Promise.all([
+    assinaturaEfetiva(userId),
     prisma.user.findUnique({
       where: { id: userId },
       select: { role: true },
     }),
   ]);
-
-  // ACTIVE e TRIAL são planos válidos; CANCELED/EXPIRED caem para FREE.
-  //
-  // A validade também conta, e essa era a rede que faltava: o status só muda
-  // quando chega o aviso de cancelamento da loja ou do Stripe. Se esse aviso se
-  // perder — endpoint fora do ar, assinatura inválida, notificação não
-  // reenviada —, a assinatura ficava ACTIVE para sempre e a pessoa mantinha
-  // acesso ilimitado sem pagar, sem nada no sistema para desfazer isso.
-  //
-  // `expiresAt` nulo = sem prazo conhecido (é o caso de quem foi promovido na
-  // mão pelo admin); aí vale o status, como antes.
-  const statusValido =
-    subscription?.status === "ACTIVE" || subscription?.status === "TRIAL";
-  const dentroDoPrazo =
-    !subscription?.expiresAt || subscription.expiresAt.getTime() > Date.now();
-  const plan = subscription && statusValido && dentroDoPrazo ? subscription.plan : "FREE";
+  const plan = efetiva.plan;
 
   // 2. Limite definido para esse plano + feature
   const featureLimit = await prisma.featureLimit.findUnique({

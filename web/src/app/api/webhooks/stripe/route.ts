@@ -12,11 +12,13 @@ import {
   type VinculoStripe,
 } from "@/lib/assinatura";
 import {
+  comTravaDoUsuario,
   marcarCheckout,
   marcarTrocasAplicadas,
   marcarTrocasExpiradas,
   registrarRenovacaoDaSubstituida,
   retomarOperacoes,
+  temEncerramentoPorLojaPendente,
 } from "@/lib/trocaDePlano";
 import { provaDaAssinatura, provaDaSessao, registrarPresenca } from "@/lib/origemDoCheckout";
 import { registrarRevisao } from "@/lib/revisaoStripe";
@@ -185,7 +187,8 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session, evento:
     // Só cria ou troca o VÍNCULO usuário↔assinatura (mesma `sub_` → nada
     // escrito). O período efetivo vem dos eventos de ciclo de vida: o
     // `invoice.paid` costuma chegar ANTES deste evento e já está guardado.
-    await vincularAssinaturaStripe({ userId, plano, externalId: assinaturaId, quando: evento.quando });
+    // Sob a trava da pessoa: um de cada vez com o checkout e a compra de loja.
+    await comTravaDoUsuario(userId, () => vincularAssinaturaStripe({ userId, plano, externalId: assinaturaId, quando: evento.quando }));
     await marcarCheckout(session.id, "concluida", assinaturaId);
     // Se o vínculo trocou de `sub_`, a anterior tem cancelamento pendente.
     await retomarOperacoes({ userId });
@@ -353,7 +356,9 @@ async function handleInvoicePaid(invoice: Stripe.Invoice, evento: EventoStripe |
   // cobrança indevida para revisão (lib/trocaDePlano).
   if (invoice.billing_reason === "subscription_cycle" && faturaId) await registrarRenovacaoDaSubstituida(assinaturaId, faturaId);
 
-  await registrarEvento("invoice.paid", assinaturaId, evento, { fimPeriodo, faturaId }, vinculo);
+  // A primeira fatura pode criar o vínculo: sob a trava da pessoa, como o completed.
+  const registrar = () => registrarEvento("invoice.paid", assinaturaId, evento, { fimPeriodo, faturaId }, vinculo);
+  await (vinculo ? comTravaDoUsuario(vinculo.userId, registrar) : registrar());
   // A fatura guarda os metadados da assinatura de quando foi emitida: a da
   // renovação que entra no downgrade agendado já traz o plano menor. Segundo
   // caminho, além do `customer.subscription.updated`, sempre por versão.
@@ -379,7 +384,8 @@ async function handleFaturaCriada(invoice: Stripe.Invoice) {
   const assinaturaId = idDaAssinatura(invoice);
   const faturaId = idDaFatura(invoice);
   if (!assinaturaId || !faturaId) return;
-  if (!(await registrarRenovacaoDaSubstituida(assinaturaId, faturaId))) return;
+  // Substituída por outra `sub_`, ou encerrando porque a loja prevalece (issue #359).
+  if (!(await registrarRenovacaoDaSubstituida(assinaturaId, faturaId)) && !(await temEncerramentoPorLojaPendente(assinaturaId))) return;
   try {
     await retomarOperacoes({ externalId: assinaturaId }, 20, ESPERA_NO_RASCUNHO_MS);
   } catch (err) {

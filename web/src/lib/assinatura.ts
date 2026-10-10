@@ -1,65 +1,79 @@
 import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { PLANS, validadeDoPlano, type PlanDef } from "@/lib/stripe";
-import { SubscriptionStatus, type Prisma, type SubscriptionProvider } from "@prisma/client";
+import { SubscriptionStatus, type Prisma, type SubscriptionPlan, type SubscriptionProvider } from "@prisma/client";
 
 /**
- * Conceder e revogar assinatura — um lugar só, para os três provedores.
+ * Assinatura de cada canal e o acesso que resulta delas.
  *
  * Stripe, App Store e Google Play avisam por canais diferentes e com formatos
- * diferentes, mas o efeito no sistema é o mesmo: alguém passa a ter (ou deixa
- * de ter) um plano até uma data. Cada webhook traduz o seu recado para estas
- * duas funções, e a regra de acesso continua existindo em um lugar só.
+ * diferentes. A Subscription é o vínculo Stripe (eventos e operações abaixo e
+ * em lib/trocaDePlano); cada compra de loja fica em AssinaturaLoja, sem tocar
+ * o vínculo Stripe. O ACESSO considera os dois, em um lugar só:
+ * `assinaturaEfetiva`.
  */
 
-export type ConcessaoAssinatura = {
-  userId: string;
-  plano: PlanDef;
+const NIVEL_DO_PLANO: Record<SubscriptionPlan, number> = { FREE: 0, BASIC: 1, PREMIUM: 2 };
+
+/** Uma assinatura como a pessoa a vê: o vínculo Stripe ou uma compra de loja. */
+export type RegistroDeAssinatura = {
   provider: SubscriptionProvider;
-  /** id da assinatura no provedor. Um por provedor — ver índice único. */
-  externalId: string;
-  /**
-   * Fim do período pago, quando o provedor informa. A Apple e o Google mandam
-   * `expiresDate` a cada renovação; o Stripe manda o fim do período no invoice.
-   * Sem isso, calculamos pelo intervalo do plano.
-   */
-  expiraEm?: Date | null;
+  plan: SubscriptionPlan;
+  status: SubscriptionStatus;
+  startedAt: Date;
+  expiresAt: Date | null;
+  canceledAt: Date | null;
+};
+
+export type AssinaturaEfetiva = {
+  /** Plano que vale agora; FREE sem nenhuma assinatura válida. */
+  plan: SubscriptionPlan;
+  /** A assinatura que dá esse plano; sem nenhuma válida, o vínculo Stripe como está (ou nulo). */
+  registro: RegistroDeAssinatura | null;
 };
 
 /**
- * Registra uma compra ou renovação.
+ * O que vale agora, entre o vínculo Stripe e as compras de loja.
  *
- * A validade vem do provedor quando ele informa. Antes era sempre "hoje + 1
- * mês", inclusive no plano ANUAL de R$ 359 — o campo não era lido por
- * ninguém, então o erro passava despercebido; agora que o acesso depende dele,
- * passaria a cortar o acesso 11 meses cedo.
+ * - Vínculo: ACTIVE ou TRIAL e dentro do prazo (`expiresAt` nulo = sem prazo
+ *   conhecido, como a promoção feita na mão pelo admin).
+ * - Loja: a última resposta da loja diz período em curso, e o fim que ela deu
+ *   ainda não passou. Sem resposta nova, o acesso pela loja acaba na data
+ *   informada; é a renovação confirmada pela loja que o estende.
+ * Duas válidas ao mesmo tempo (a troca de canal, até o fim do período pago):
+ * vale o plano MAIOR — a pessoa pagou pelos dois; empate, a mais recente.
  */
-export async function concederAssinatura(dados: ConcessaoAssinatura) {
-  const { userId, plano, provider, externalId, expiraEm } = dados;
-  const expiresAt = expiraEm ?? validadeDoPlano(plano);
+export async function assinaturaEfetiva(userId: string): Promise<AssinaturaEfetiva> {
+  const agora = Date.now();
+  const [linha, lojas] = await Promise.all([
+    prisma.subscription.findUnique({
+      where: { userId },
+      select: { plan: true, status: true, provider: true, startedAt: true, expiresAt: true, canceledAt: true },
+    }),
+    prisma.assinaturaLoja.findMany({
+      where: { userId, vigente: true, expiraEm: { gt: new Date(agora) } },
+      select: { plan: true, provider: true, compradaEm: true, expiraEm: true },
+    }),
+  ]);
 
-  return prisma.subscription.upsert({
-    where: { userId },
-    update: {
-      plan: plano.plan,
-      status: "ACTIVE",
-      provider,
-      externalId,
-      storeProductId: provider === "STRIPE" ? null : plano.storeProductId,
-      startedAt: new Date(),
-      expiresAt,
-      canceledAt: null,
-    },
-    create: {
-      userId,
-      plan: plano.plan,
-      status: "ACTIVE",
-      provider,
-      externalId,
-      storeProductId: provider === "STRIPE" ? null : plano.storeProductId,
-      expiresAt,
-    },
-  });
+  const validas: RegistroDeAssinatura[] = lojas.map((l) => ({
+    provider: l.provider,
+    plan: l.plan,
+    status: "ACTIVE",
+    startedAt: l.compradaEm,
+    expiresAt: l.expiraEm,
+    canceledAt: null,
+  }));
+  const linhaValida =
+    linha != null &&
+    (linha.status === "ACTIVE" || linha.status === "TRIAL") &&
+    (!linha.expiresAt || linha.expiresAt.getTime() > agora);
+  if (linha && linhaValida) validas.push(linha);
+
+  const [melhor] = validas.sort(
+    (a, b) => NIVEL_DO_PLANO[b.plan] - NIVEL_DO_PLANO[a.plan] || b.startedAt.getTime() - a.startedAt.getTime(),
+  );
+  return melhor ? { plan: melhor.plan, registro: melhor } : { plan: "FREE", registro: linha };
 }
 
 /**
@@ -411,6 +425,15 @@ async function vincularNaTransacao(tx: Prisma.TransactionClient, vinculo: Vincul
   }
 
   const vinculou = criada.count > 0 || trocou;
+  // Pagamento Stripe de quem tem compra de loja registrada (issue #359, regra
+  // 3): a execução pergunta à loja e só encerra esta `sub_` se a compra vale
+  // (lib/trocaDePlano). O vínculo Stripe fica: é o histórico do canal.
+  if (vinculou && (await tx.assinaturaLoja.count({ where: { userId } })) > 0) {
+    await tx.stripeOperacao.createMany({
+      data: [{ userId, tipo: "encerrar_por_loja", status: "pendente", substituida: externalId, chave: `dular-pagamento-${externalId}-com-loja` }],
+      skipDuplicates: true,
+    });
+  }
   // O `invoice.paid` costuma chegar ANTES do completed: entra aqui, sem reenvio.
   if (vinculou) await recalcularAssinaturaStripe(tx, externalId);
   return vinculou;

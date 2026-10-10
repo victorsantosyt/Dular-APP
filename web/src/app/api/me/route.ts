@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/requireAuth";
 import { requireAuthAtivo, respostaDeSessao } from "@/lib/contaAtiva";
 import { anonimizarUsuario } from "@/lib/lgpd";
+import { OperacaoEmAndamento, comTravaDoUsuario, consultarLojasDoUsuario } from "@/lib/trocaDePlano";
 
 export const dynamic = "force-dynamic";
 
@@ -530,42 +531,74 @@ export async function DELETE(req: Request) {
     // sendo cobrada, sem conta para reclamar.
     //
     // `provider` vai na resposta para o app dizer ONDE cancelar. O texto fica
-    // no app, não aqui. A compra de loja fica fora da Subscription (é o
-    // vínculo Stripe): conta também a que ainda vale ou que a loja disse que
-    // renova, na última resposta dela.
-    const [assinatura, compraDeLoja] = await Promise.all([
-      prisma.subscription.findUnique({
-        where: { userId: auth.userId },
-        select: { plan: true, status: true, provider: true, expiresAt: true },
-      }),
-      prisma.assinaturaLoja.findFirst({
-        where: { userId: auth.userId, OR: [{ vigente: true, expiraEm: { gt: new Date() } }, { renova: true }] },
-        select: { plan: true, provider: true, expiraEm: true },
-      }),
-    ]);
-    const assinaturaViva =
-      assinatura != null &&
-      (assinatura.status === "ACTIVE" || assinatura.status === "TRIAL") &&
-      (!assinatura.expiresAt || assinatura.expiresAt.getTime() > Date.now());
-    const viva = assinaturaViva
-      ? { provider: assinatura.provider, plan: assinatura.plan, expiresAt: assinatura.expiresAt }
-      : compraDeLoja
-        ? { provider: compraDeLoja.provider, plan: compraDeLoja.plan, expiresAt: compraDeLoja.expiraEm }
-        : null;
+    // no app, não aqui.
+    //
+    // Tudo sob a trava da pessoa, a mesma do checkout e da compra de loja:
+    // nenhuma compra surge entre a conferência e a exclusão (quem esperou pela
+    // trava encontra a conta já excluída e não compra).
+    let decisao;
+    try {
+      decisao = await comTravaDoUsuario(auth.userId, async () => {
+        const assinatura = await prisma.subscription.findUnique({
+          where: { userId: auth.userId },
+          select: { plan: true, status: true, provider: true, expiresAt: true },
+        });
+        const assinaturaViva =
+          assinatura != null &&
+          (assinatura.status === "ACTIVE" || assinatura.status === "TRIAL") &&
+          (!assinatura.expiresAt || assinatura.expiresAt.getTime() > Date.now());
+        if (assinaturaViva) {
+          return { tipo: "viva" as const, assinatura: { provider: assinatura.provider, plan: assinatura.plan, expiresAt: assinatura.expiresAt } };
+        }
 
-    if (viva) {
+        // Compra de loja: a situação ATUAL, consultada agora — o gravado nunca
+        // prova que a loja parou de cobrar. Ainda vale ou ainda renova: bloqueia.
+        // Sem resposta (ou resposta incompleta): não exclui. Encerrada: segue.
+        const lojas = await consultarLojasDoUsuario(auth.userId);
+        if (lojas.vigente || lojas.renova) {
+          const compra = await prisma.assinaturaLoja.findFirst({
+            where: { userId: auth.userId, OR: [{ vigente: true }, { renova: true }] },
+            orderBy: { verificadaEm: "desc" },
+            select: { plan: true, provider: true, expiraEm: true },
+          });
+          return { tipo: "viva" as const, assinatura: { provider: compra?.provider ?? null, plan: compra?.plan ?? null, expiresAt: compra?.expiraEm ?? null } };
+        }
+        if (lojas.desconhecida) return { tipo: "loja_indisponivel" as const };
+
+        return { tipo: "excluida" as const, resumo: await anonimizarUsuario(auth.userId) };
+      });
+    } catch (err) {
+      if (err instanceof OperacaoEmAndamento) {
+        return NextResponse.json(
+          { ok: false, error: "OPERACAO_EM_ANDAMENTO", message: "Há uma operação da sua conta em andamento. Tente novamente em instantes." },
+          { status: 409 },
+        );
+      }
+      throw err;
+    }
+
+    if (decisao.tipo === "viva") {
       return NextResponse.json(
         {
           ok: false,
           error: "SUBSCRIPTION_ACTIVE",
           message: "Cancele sua assinatura antes de excluir a conta.",
-          assinatura: viva,
+          assinatura: decisao.assinatura,
         },
         { status: 409 },
       );
     }
-
-    const resumo = await anonimizarUsuario(auth.userId);
+    if (decisao.tipo === "loja_indisponivel") {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "LOJA_INDISPONIVEL",
+          message: "Não foi possível confirmar sua assinatura na loja agora. Tente novamente mais tarde.",
+        },
+        { status: 503 },
+      );
+    }
+    const { resumo } = decisao;
 
     const res = NextResponse.json({
       ok: true,

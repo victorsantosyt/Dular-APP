@@ -9,6 +9,7 @@ import {
 import { registrarRevisao, type CasoDeRevisao } from "@/lib/revisaoStripe";
 import { registrarPresenca } from "@/lib/origemDoCheckout";
 import { loja, situacaoCompleta, type LojaProvedor, type SituacaoNaLoja } from "@/lib/lojas";
+import { assertContaAtiva } from "@/lib/contaAtiva";
 import { Prisma, type AssinaturaLoja, type StripeOperacao } from "@prisma/client";
 
 /**
@@ -221,6 +222,9 @@ export type PedidoDePlano = {
 export async function pedirPlano(pedido: PedidoDePlano): Promise<ResultadoPedido> {
   await registrarPresenca();
   return comTravaDoUsuario(pedido.userId, async () => {
+    // A exclusão de conta usa a mesma trava: quem esperou por ela não compra
+    // para uma conta que acabou de ser excluída.
+    await assertContaAtiva(pedido.userId);
     await retomarNaTrava({ userId: pedido.userId });
 
     // Assinatura de loja ativa: nenhuma cobrança Stripe nova. Pergunta à loja
@@ -879,6 +883,8 @@ export async function registrarCompraDaLoja(
   plano: PlanDef,
 ): Promise<ResultadoCompraDeLoja> {
   return comTravaDoUsuario(userId, async () => {
+    // Conta excluída enquanto a compra esperava pela trava: nada é gravado.
+    await assertContaAtiva(userId);
     const existente = await prisma.assinaturaLoja.findUnique({
       where: { provider_externalId: { provider, externalId: situacao.externalId } },
     });

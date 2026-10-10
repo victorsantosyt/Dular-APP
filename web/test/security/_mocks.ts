@@ -49,6 +49,7 @@ export type MockPrisma = {
   bairro: { findUnique: AnyFn };
   diaristaBairro: { findFirst: AnyFn };
   $queryRaw: AnyFn;
+  $executeRaw: AnyFn;
   $transaction: AnyFn;
 };
 
@@ -202,6 +203,8 @@ export function createMockPrisma(): MockPrisma {
     bairro: { findUnique: notMocked("bairro.findUnique") },
     diaristaBairro: { findFirst: notMocked("diaristaBairro.findFirst") },
     $queryRaw: notMocked("$queryRaw"),
+    // Travas consultivas (SET LOCAL e pg_advisory_xact_lock): sem efeito no banco simulado.
+    $executeRaw: (async () => 1) as AnyFn,
     $transaction: (async (cb: any) => {
       if (typeof cb === "function") {
         return cb(mock);

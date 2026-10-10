@@ -2,7 +2,7 @@ import { PLANS, type PlanId } from "@/lib/stripe";
 import { OperacaoEmAndamento, pedirPlano } from "@/lib/trocaDePlano";
 import type Stripe from "stripe";
 import { requireAuth } from "@/lib/requireAuth";
-import { requireAuthAtivo, respostaDeSessao } from "@/lib/contaAtiva";
+import { ContaInativaError, codigoDaConta, requireAuthAtivo, respostaDeSessao } from "@/lib/contaAtiva";
 import { prisma } from "@/lib/prisma";
 import { ok, fail } from "@/lib/apiResponse";
 import { cleanupRateLimit, rateLimit, rateLimitRetryAfterMs } from "@/lib/rateLimit";
@@ -143,6 +143,11 @@ export async function POST(request: Request) {
   } catch (err) {
     if (err instanceof OperacaoEmAndamento) {
       return fail("OPERACAO_EM_ANDAMENTO", "Seu pedido anterior ainda está sendo processado. Tente novamente em instantes.", 409);
+    }
+    // A conta foi excluída (ou bloqueada) enquanto o pedido esperava pela trava.
+    if (err instanceof ContaInativaError) {
+      const { codigo, message } = codigoDaConta(err);
+      return fail(codigo, message, 403);
     }
     // A operação ficou gravada como pendente: o próximo pedido a retoma sem cobrar de novo.
     console.error("[billing/checkout] falha ao processar o pedido de plano:", err);

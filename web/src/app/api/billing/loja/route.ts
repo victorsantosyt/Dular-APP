@@ -4,7 +4,7 @@ import { assinaturaEfetiva } from "@/lib/assinatura";
 import { ok, fail } from "@/lib/apiResponse";
 import { planoPorProdutoDaLoja } from "@/lib/stripe";
 import { requireAuth } from "@/lib/requireAuth";
-import { requireAuthAtivo, respostaDeSessao } from "@/lib/contaAtiva";
+import { ContaInativaError, codigoDaConta, requireAuthAtivo, respostaDeSessao } from "@/lib/contaAtiva";
 import { cleanupRateLimit, rateLimit } from "@/lib/rateLimit";
 import { ErroDeLoja, loja, situacaoCompleta, tokenDaConta } from "@/lib/lojas";
 import { OperacaoEmAndamento, registrarCompraDaLoja } from "@/lib/trocaDePlano";
@@ -24,7 +24,10 @@ import { OperacaoEmAndamento, registrarCompraDaLoja } from "@/lib/trocaDePlano";
 
 const corpo = z.object({
   plataforma: z.enum(["ios", "android"]),
-  /** Id do produto na loja, como aparece no catálogo. */
+  /**
+   * Id do produto na loja, como o app o conhece. Só acompanha a consulta à
+   * loja: o plano concedido vem do produto que a LOJA confirma.
+   */
   produtoId: z.string().min(1).max(200),
   /**
    * Comprovante: `transactionId` no iOS, `purchaseToken` no Android. A
@@ -49,15 +52,6 @@ export async function POST(request: Request) {
 
   const parsed = corpo.safeParse(await request.json().catch(() => ({})));
   if (!parsed.success) return fail("INVALID_BODY", "Dados inválidos", 400);
-
-  const plano = planoPorProdutoDaLoja(parsed.data.produtoId);
-  if (!plano) return fail("INVALID_PLAN", "Produto desconhecido", 400);
-
-  // Mesmo guarda do checkout do Stripe: plano de diarista não é vendido a
-  // montador, e o empregador não tem plano nenhum.
-  if (plano.role !== auth.role) {
-    return fail("PLAN_ROLE_MISMATCH", "Plano indisponível para este perfil", 403);
-  }
 
   const provider = parsed.data.plataforma === "ios" ? "APPLE" : "GOOGLE";
   let compra;
@@ -91,8 +85,16 @@ export async function POST(request: Request) {
     return fail("COMPRA_SEM_TITULARIDADE", "Esta compra não está associada a esta conta.", 403);
   }
 
-  // O produto que a LOJA confirmou manda, não o que o app disse ter comprado.
-  const planoConfirmado = planoPorProdutoDaLoja(compra.storeProductId) ?? plano;
+  // O plano vem SÓ do produto que a loja confirmou, nunca do que o app pediu.
+  // Produto fora do catálogo (outro app, produto retirado): nada é concedido,
+  // gravado nem encerrado.
+  const planoConfirmado = planoPorProdutoDaLoja(compra.storeProductId);
+  if (!planoConfirmado) {
+    console.error("[loja] a loja confirmou um produto fora do catálogo; nada foi gravado:", compra.storeProductId);
+    return fail("PRODUTO_DESCONHECIDO", "A loja confirmou um produto que não é vendido aqui.", 409);
+  }
+  // Mesmo guarda do checkout do Stripe: plano de diarista não é vendido a
+  // montador, e o empregador não tem plano nenhum.
   if (planoConfirmado.role !== auth.role) {
     return fail("PLAN_ROLE_MISMATCH", "Plano indisponível para este perfil", 403);
   }
@@ -103,6 +105,11 @@ export async function POST(request: Request) {
   } catch (err) {
     if (err instanceof OperacaoEmAndamento) {
       return fail("OPERACAO_EM_ANDAMENTO", "Seu pedido anterior ainda está sendo processado. Tente novamente em instantes.", 409);
+    }
+    // A conta foi excluída (ou bloqueada) enquanto a compra esperava pela trava.
+    if (err instanceof ContaInativaError) {
+      const { codigo, message } = codigoDaConta(err);
+      return fail(codigo, message, 403);
     }
     throw err;
   }

@@ -62,6 +62,7 @@ describe("Stripe × loja contra Postgres real (#359)", { skip: EXIGIDO ? false :
   let postLoja: (r: Request) => Promise<Response>;
   let postCheckout: (r: Request) => Promise<Response>;
   let postWebhook: (r: Request) => Promise<Response>;
+  let deleteMe: (r: Request) => Promise<Response>;
   let retomarOperacoes: (filtro: { userId?: string }) => Promise<unknown>;
   let makeAuthHeaders: (u: string, r: any) => Record<string, string>;
   let limitesPresenca: { intervaloMs: number; ultimaMs: number };
@@ -116,8 +117,9 @@ describe("Stripe × loja contra Postgres real (#359)", { skip: EXIGIDO ? false :
     });
     return externalId;
   }
-  async function apresentar(userId: string, externalId: string) {
-    const produtoId = loja.compras.get(externalId)?.storeProductId ?? PLANS.basico_mensal.storeProductId;
+  /** `produtoPedido`: o produto que o app diz ter comprado (por padrão, o mesmo que a loja confirma). */
+  async function apresentar(userId: string, externalId: string, produtoPedido?: string) {
+    const produtoId = produtoPedido ?? loja.compras.get(externalId)?.storeProductId ?? PLANS.basico_mensal.storeProductId;
     const res = await postLoja(
       new Request("http://test/api/billing/loja", {
         method: "POST",
@@ -217,6 +219,23 @@ describe("Stripe × loja contra Postgres real (#359)", { skip: EXIGIDO ? false :
     }
   }
   const retomar = (userId: string) => retomarOperacoes({ userId });
+  async function excluir(userId: string) {
+    const res = await deleteMe(
+      new Request("http://test/api/me", {
+        method: "DELETE",
+        headers: { "content-type": "application/json", ...makeAuthHeaders(userId, "DIARISTA") },
+        body: JSON.stringify({ confirmacao: "EXCLUIR MINHA CONTA" }),
+      }),
+    );
+    return { status: res.status, corpo: await res.json() };
+  }
+  const statusDaConta = async (userId: string) => (await prisma.user.findUnique({ where: { id: userId }, select: { status: true } })).status;
+  /** Compra de loja gravada como a última resposta da loja a deixou, sem passar pela rota. */
+  async function compraGravada(userId: string, externalId: string, estado: { vigente: boolean; renova: boolean; expiraEm: Date | null; verificadaEm: Date }) {
+    await prisma.assinaturaLoja.create({
+      data: { userId, provider: "APPLE", externalId, storeProductId: PLANS.pro_mensal.storeProductId, plan: "PREMIUM", compradaEm: new Date(Date.now() - 400 * DIA), ...estado },
+    });
+  }
 
   before(async () => {
     if (PULAR) throw new Error(`SAFESCORE_DB_REQUIRED=1, mas ${PULAR}`);
@@ -242,6 +261,7 @@ describe("Stripe × loja contra Postgres real (#359)", { skip: EXIGIDO ? false :
     postLoja = (await import("../../src/app/api/billing/loja/route")).POST;
     postCheckout = (await import("../../src/app/api/billing/checkout/route")).POST;
     postWebhook = (await import("../../src/app/api/webhooks/stripe/route")).POST;
+    deleteMe = (await import("../../src/app/api/me/route")).DELETE;
     ({ makeAuthHeaders } = await import("./_helpers"));
     ({ limitesPresenca } = await import("../../src/lib/origemDoCheckout"));
     limitesPresenca.intervaloMs = Number.MAX_SAFE_INTEGER;
@@ -711,6 +731,145 @@ describe("Stripe × loja contra Postgres real (#359)", { skip: EXIGIDO ? false :
     assert.equal((await encerramentos(userId)).length, 1);
     assert.equal((await revisoes(userId)).length, 1);
     assert.equal(escritas("subscriptions.update"), 1);
+  });
+
+  // ── Exclusão de conta: a loja consultada agora, sob a trava da pessoa ─────
+
+  it("exclusão com estado antigo \"renovando\" gravado, mas a loja confirma o encerramento: a exclusão segue", async () => {
+    const userId = await usuario("exc_antigo_encerrado");
+    const externalId = `apple_${RUN}_exc_antigo_encerrado`;
+    await compraGravada(userId, externalId, { vigente: false, renova: true, expiraEm: new Date(Date.now() - 300 * DIA), verificadaEm: new Date(Date.now() - 300 * DIA) });
+    loja.compras.set(externalId, { externalId, storeProductId: PLANS.pro_mensal.storeProductId, compradaEm: new Date(Date.now() - 400 * DIA), vigente: false, renova: false, expiraEm: new Date(Date.now() - 300 * DIA), dono: tokenDaConta(userId) });
+    const r = await excluir(userId);
+    assert.equal(r.status, 200, JSON.stringify(r.corpo));
+    assert.equal(await statusDaConta(userId), "REMOVIDO");
+  });
+
+  it("exclusão com estado antigo \"renovando\" gravado e a loja confirma que ainda renova: bloqueada (409), com o provedor", async () => {
+    const userId = await usuario("exc_antigo_renovando");
+    const externalId = `apple_${RUN}_exc_antigo_renovando`;
+    await compraGravada(userId, externalId, { vigente: false, renova: true, expiraEm: new Date(Date.now() - 300 * DIA), verificadaEm: new Date(Date.now() - 300 * DIA) });
+    loja.compras.set(externalId, { externalId, storeProductId: PLANS.pro_mensal.storeProductId, compradaEm: new Date(Date.now() - 400 * DIA), vigente: true, renova: true, expiraEm: new Date(Date.now() + 20 * DIA), dono: tokenDaConta(userId) });
+    const r = await excluir(userId);
+    assert.equal(r.status, 409);
+    assert.equal(r.corpo.error, "SUBSCRIPTION_ACTIVE");
+    assert.equal(r.corpo.assinatura.provider, "APPLE");
+    assert.equal(await statusDaConta(userId), "ATIVO");
+  });
+
+  it("exclusão com a loja em período, mesmo sem renovação: bloqueada (409)", async () => {
+    const userId = await usuario("exc_em_periodo");
+    assert.equal((await apresentar(userId, compraNaLoja(userId, "exc_em_periodo", "pro_mensal", { renova: false }))).status, 200);
+    const r = await excluir(userId);
+    assert.equal(r.status, 409);
+    assert.equal(await statusDaConta(userId), "ATIVO");
+  });
+
+  it("exclusão com a loja indisponível ou com resposta incompleta: 503, nada excluído", async () => {
+    const userId = await usuario("exc_desconhecida");
+    const externalId = compraNaLoja(userId, "exc_desconhecida", "pro_mensal", { vigente: false, renova: false, expiraEm: new Date(Date.now() - DIA) });
+    assert.equal((await apresentar(userId, externalId)).status, 409, "fora do período: só histórico");
+    loja.consultaFora = true;
+    const fora = await excluir(userId);
+    assert.equal(fora.status, 503);
+    assert.equal(fora.corpo.error, "LOJA_INDISPONIVEL");
+    loja.consultaFora = false;
+    delete (loja.compras.get(externalId) as unknown as Record<string, unknown>).renova;
+    const incompleta = await excluir(userId);
+    assert.equal(incompleta.status, 503);
+    assert.equal(await statusDaConta(userId), "ATIVO");
+  });
+
+  it("exclusão em andamento (consultando a loja): compra de loja e checkout da mesma pessoa esperam e depois são recusados, sem gravar nada", async () => {
+    const userId = await usuario("exc_concorrente");
+    const antiga = `apple_${RUN}_exc_concorrente_antiga`;
+    await compraGravada(userId, antiga, { vigente: false, renova: false, expiraEm: new Date(Date.now() - 100 * DIA), verificadaEm: new Date(Date.now() - 100 * DIA) });
+    loja.compras.set(antiga, { externalId: antiga, storeProductId: PLANS.pro_mensal.storeProductId, compradaEm: new Date(Date.now() - 400 * DIA), vigente: false, renova: false, expiraEm: new Date(Date.now() - 100 * DIA), dono: tokenDaConta(userId) });
+    const nova = compraNaLoja(userId, "exc_concorrente_nova", "pro_mensal");
+    let soltar!: () => void;
+    let entrou!: () => void;
+    const dentro = new Promise<void>((r) => (entrou = r));
+    loja.pausa = new Promise<void>((r) => (soltar = r));
+    loja.aoConsultar = entrou;
+    let tentativas = 0;
+    falso.estado.recusarAntes = (metodo) => metodo === "checkout.sessions.create" && ++tentativas > 0;
+    try {
+      const exclusao = excluir(userId);
+      await dentro; // a exclusão está sob a trava, consultando a loja
+      const compra = apresentar(userId, nova);
+      const checkout = pedir(userId, "pro_mensal");
+      await new Promise((r) => setTimeout(r, 300));
+      loja.pausa = null;
+      soltar();
+      const [e, c, k] = await Promise.all([exclusao, compra, checkout]);
+      assert.equal(e.status, 200, JSON.stringify(e.corpo));
+      assert.deepEqual([c.status, c.corpo.error?.code], [403, "CONTA_REMOVIDA"]);
+      assert.deepEqual([k.status, k.corpo.error?.code], [403, "CONTA_REMOVIDA"]);
+    } finally {
+      loja.pausa = null;
+      loja.aoConsultar = null;
+      soltar?.();
+      falso.estado.recusarAntes = null;
+    }
+    assert.equal(await prisma.assinaturaLoja.count({ where: { externalId: nova } }), 0, "a compra não foi gravada");
+    assert.equal(tentativas, 0, "nenhuma sessão de checkout foi pedida à Stripe");
+    assert.equal(await statusDaConta(userId), "REMOVIDO");
+  });
+
+  it("compra de loja e exclusão ao mesmo tempo: nunca as duas — ou a compra bloqueia a exclusão, ou a exclusão recusa a compra", async () => {
+    for (let rodada = 0; rodada < 6; rodada++) {
+      const userId = await usuario(`exc_corrida_${rodada}`);
+      const externalId = compraNaLoja(userId, `exc_corrida_${rodada}`, "pro_mensal");
+      const [c, e] = await Promise.all([apresentar(userId, externalId), excluir(userId)]);
+      const gravada = (await prisma.assinaturaLoja.count({ where: { externalId } })) > 0;
+      assert.ok(
+        // Exclusão antes da conferência de sessão da rota: 401; antes da trava da compra: 403.
+        (c.status === 200 && gravada && e.status === 409) || (e.status === 200 && !gravada && (c.status === 403 || c.status === 401)),
+        `rodada ${rodada}: compra ${c.status} (gravada: ${gravada}), exclusão ${e.status}`,
+      );
+    }
+  });
+
+  // ── Produto: o plano vem só do produto que a loja confirmou ───────────────
+
+  it("produto fora do catálogo confirmado pela loja: 409, nada concedido, gravado nem encerrado", async () => {
+    const { userId, sub } = await assinanteStripe("produto_desconhecido", "basico_mensal");
+    const externalId = compraNaLoja(userId, "produto_desconhecido", "pro_mensal", { storeProductId: "com.outro.app.produto" });
+    const r = await apresentar(userId, externalId, PLANS.pro_mensal.storeProductId);
+    assert.equal(r.status, 409);
+    assert.equal(r.corpo.error.code, "PRODUTO_DESCONHECIDO");
+    assert.deepEqual(await comprasGravadas(userId), []);
+    assert.deepEqual(await operacoes(userId), []);
+    assert.equal(falso.retrato(sub).cancel_at_period_end, false);
+    assert.equal(await acesso(userId), "BASIC");
+  });
+
+  it("produto válido com plano divergente no pedido: vale o produto verificado, nunca o pedido", async () => {
+    const a = await usuario("produto_pediu_basico");
+    const ra = await apresentar(a, compraNaLoja(a, "produto_pediu_basico", "pro_mensal"), PLANS.basico_mensal.storeProductId);
+    assert.equal(ra.status, 200);
+    assert.deepEqual((await comprasGravadas(a)).map((c: any) => c.plan), ["PREMIUM"]);
+    assert.equal(await acesso(a), "PREMIUM");
+
+    const b = await usuario("produto_pediu_pro");
+    const rb = await apresentar(b, compraNaLoja(b, "produto_pediu_pro", "basico_mensal"), PLANS.pro_mensal.storeProductId);
+    assert.equal(rb.status, 200);
+    assert.deepEqual((await comprasGravadas(b)).map((c: any) => c.plan), ["BASIC"]);
+    assert.equal(await acesso(b), "BASIC");
+
+    // Pedido com um produto que nem existe: a decisão continua sendo da loja.
+    const c = await usuario("produto_pediu_inexistente");
+    const rc = await apresentar(c, compraNaLoja(c, "produto_pediu_inexistente", "pro_mensal"), "produto.que.nao.existe");
+    assert.equal(rc.status, 200);
+    assert.equal(await acesso(c), "PREMIUM");
+  });
+
+  it("produto verificado de outro perfil (montador para diarista): 403, nada gravado", async () => {
+    const userId = await usuario("produto_outro_perfil");
+    const r = await apresentar(userId, compraNaLoja(userId, "produto_outro_perfil", "montador_pro_mensal"), PLANS.pro_mensal.storeProductId);
+    assert.equal(r.status, 403);
+    assert.equal(r.corpo.error.code, "PLAN_ROLE_MISMATCH");
+    assert.deepEqual(await comprasGravadas(userId), []);
   });
 
   // ── Serialização por pessoa ───────────────────────────────────────────────

@@ -134,6 +134,25 @@ describe("diagnóstico no caminho real (lojas.ts)", () => {
     semSegredo();
   });
 
+  it("applicationNotFound: LOJA_INDISPONIVEL; comprovante inexistente ou inválido: COMPRA_INVALIDA", async () => {
+    const casos: [number, unknown, string][] = [
+      [404, { error: { code: 404, errors: [{ reason: "applicationNotFound" }] } }, "LOJA_INDISPONIVEL"],
+      [404, { error: { code: 404, status: "NOT_FOUND", errors: [{ reason: "notFound" }] } }, "COMPRA_INVALIDA"],
+      [400, { error: { code: 400, status: "INVALID_ARGUMENT", errors: [{ reason: "invalid" }] } }, "COMPRA_INVALIDA"],
+      [410, { error: { code: 410, errors: [{ reason: "purchaseTokenNoLongerValid" }] } }, "COMPRA_INVALIDA"],
+      [404, null, "COMPRA_INVALIDA"],
+      [403, { error: { code: 403, status: "PERMISSION_DENIED", errors: [{ reason: "permissionDenied" }] } }, "LOJA_INDISPONIVEL"],
+    ];
+    for (const [http, corpo, esperado] of casos) {
+      prepararGoogle((url) => (url.includes("oauth2") ? oauthOk() : corpo === null ? new Response("x", { status: http }) : Response.json(corpo, { status: http })));
+      await assert.rejects(consultarAssinaturaGoogle(COMPROVANTE), (e: any) => {
+        assert.equal(e.codigo, esperado, `${http} ${JSON.stringify(corpo)}`);
+        return true;
+      });
+      semSegredo();
+    }
+  });
+
   it("controle positivo: consulta bem-sucedida não registra erro", async () => {
     prepararGoogle((url) => (url.includes("oauth2") ? oauthOk() : Response.json({}, { status: 200 })));
     await consultarAssinaturaGoogle(COMPROVANTE).catch(() => {});

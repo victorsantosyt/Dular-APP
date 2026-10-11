@@ -55,6 +55,8 @@ describe("Google Play contra Postgres real (#359)", { skip: EXIGIDO ? false : PU
     reconhecidas: [] as string[],
     foraDoAr: false,
     reconhecimentoFora: false,
+    /** O Google não enxerga o app (sem acesso da conta de serviço ou sem pacote enviado). */
+    appNaoEncontrado: false,
   };
 
   async function usuario(sufixo: string, role = "DIARISTA") {
@@ -181,6 +183,12 @@ describe("Google Play contra Postgres real (#359)", { skip: EXIGIDO ? false : PU
       const get = /^subscriptionsv2\/tokens\/(.+)$/.exec(resto);
       if (get) {
         google.chamadas.push(`get ${get[1]}`);
+        if (google.appNaoEncontrado) {
+          return Response.json(
+            { error: { code: 404, message: "No application was found for the given package name.", errors: [{ reason: "applicationNotFound" }] } },
+            { status: 404 },
+          );
+        }
         const r = google.assinaturas.get(get[1]);
         return r ? Response.json(r) : new Response("não encontrada", { status: 404 });
       }
@@ -336,6 +344,29 @@ describe("Google Play contra Postgres real (#359)", { skip: EXIGIDO ? false : PU
     assert.equal(r.status, 400);
     assert.equal(r.corpo.error.code, "COMPRA_INVALIDA");
     assert.equal(await prisma.assinaturaLoja.count({ where: { userId } }), 0);
+  });
+
+  it("app não encontrado no Google (applicationNotFound): 503 LOJA_INDISPONIVEL, nada gravado; comprovante inexistente segue 400", async () => {
+    const userId = await usuario("app_nao_encontrado");
+    const tk = compraNoGoogle(token("app_nao_encontrado"), recurso(lojas.tokenDaConta(userId)));
+    google.appNaoEncontrado = true;
+    try {
+      for (const comprovante of [tk, `${RUN}.token.inexistente`]) {
+        const r = await apresentar(userId, comprovante);
+        assert.equal(r.status, 503);
+        assert.equal(r.corpo.error.code, "LOJA_INDISPONIVEL");
+      }
+      // RTDN: a falha é transitória (500), para o Pub/Sub reenviar.
+      await assert.rejects(compras.sincronizarCompraGoogle(tk), (e: any) => e instanceof lojas.ErroDeLoja && e.codigo === "LOJA_INDISPONIVEL");
+    } finally {
+      google.appNaoEncontrado = false;
+    }
+    assert.equal(await prisma.assinaturaLoja.count({ where: { userId } }), 0);
+    assert.equal(await acesso(userId), "FREE");
+    // Controle: com o app visível, o comprovante inexistente volta a ser compra inválida.
+    const r = await apresentar(userId, `${RUN}.token.inexistente`);
+    assert.equal(r.status, 400);
+    assert.equal(r.corpo.error.code, "COMPRA_INVALIDA");
   });
 
   it("reconhecimento falhou na hora: a compra vale e o cron reconhece dentro do prazo", async () => {

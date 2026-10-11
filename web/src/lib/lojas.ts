@@ -279,10 +279,16 @@ export async function consultarAssinaturaGoogle(purchaseToken: string): Promise<
     if (err instanceof ErroDeLoja) throw err;
     throw new ErroDeLoja("LOJA_INDISPONIVEL", "Google Play fora do ar.");
   }
-  if (!res.ok) registrarErroGoogle("consulta", res.status, await res.clone().json().catch(() => null));
-  // Token de outro app, inexistente ou malformado: compra inválida, nunca "indisponível".
-  if (res.status === 400 || res.status === 404 || res.status === 410) throw new ErroDeLoja("COMPRA_INVALIDA", `Google respondeu ${res.status}.`);
-  if (!res.ok) throw new ErroDeLoja("LOJA_INDISPONIVEL", `Google respondeu ${res.status}.`);
+  if (!res.ok) {
+    const erro = registrarErroGoogle("consulta", res.status, await res.json().catch(() => null));
+    // O Google não enxerga o APP (conta de serviço sem acesso, app sem pacote
+    // enviado): é configuração nossa, não comprovante ruim. Indisponível, para
+    // o app tentar de novo — nunca "compra inválida" para quem pagou.
+    if (erro.reason === "applicationNotFound") throw new ErroDeLoja("LOJA_INDISPONIVEL", `Google respondeu ${res.status} (app não encontrado).`);
+    // Token de outro app, inexistente ou malformado: compra inválida, nunca "indisponível".
+    if (res.status === 400 || res.status === 404 || res.status === 410) throw new ErroDeLoja("COMPRA_INVALIDA", `Google respondeu ${res.status}.`);
+    throw new ErroDeLoja("LOJA_INDISPONIVEL", `Google respondeu ${res.status}.`);
+  }
   return situacaoDoGoogle(await res.json(), purchaseToken, Date.now());
 }
 
@@ -378,8 +384,10 @@ export function diagnosticoDoErroGoogle(etapa: DiagnosticoGoogle["etapa"], http:
   return { etapa, http: codigoHttp, status: permitido(erro.status, STATUS_DO_GOOGLE), reason: permitido(motivo, MOTIVOS_DO_GOOGLE) };
 }
 
-function registrarErroGoogle(etapa: DiagnosticoGoogle["etapa"], http: number, corpo: unknown): void {
-  console.warn("[google-play] erro do Google", JSON.stringify(diagnosticoDoErroGoogle(etapa, http, corpo)));
+function registrarErroGoogle(etapa: DiagnosticoGoogle["etapa"], http: number, corpo: unknown): DiagnosticoGoogle {
+  const diagnostico = diagnosticoDoErroGoogle(etapa, http, corpo);
+  console.warn("[google-play] erro do Google", JSON.stringify(diagnostico));
+  return diagnostico;
 }
 
 /** Estados em que o período pago está em curso (com `expiryTime` no futuro). */

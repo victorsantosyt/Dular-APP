@@ -840,12 +840,24 @@ function estadoNaLoja(s: SituacaoNaLoja) {
     expiraEm: s.expiraEm,
     verificadaEm: new Date(),
     ...(plano ? { storeProductId: s.storeProductId, plan: plano.plan } : {}),
+    ...(s.planoBase !== undefined ? { planoBase: s.planoBase } : {}),
+    ...(s.estadoLoja !== undefined ? { estadoLoja: s.estadoLoja } : {}),
+    ...(s.teste !== undefined ? { teste: s.teste } : {}),
+    // Estado final dito pela loja (Google: o token nunca volta). Não é o fim
+    // local do período: só a loja encerra uma compra de vez.
+    ...(s.final ? { encerradaEm: new Date() } : {}),
   };
+}
+
+/** A loja já registrou o reconhecimento: anota uma vez. */
+async function gravarReconhecimento(id: string, s: SituacaoNaLoja) {
+  if (s.reconhecida) await prisma.assinaturaLoja.updateMany({ where: { id, reconhecidaEm: null }, data: { reconhecidaEm: new Date() } });
 }
 
 /** Pergunta à loja, agora, por cada compra de loja da pessoa, e guarda a resposta. */
 export async function consultarLojasDoUsuario(userId: string): Promise<SituacaoDasLojas> {
-  const compras = await prisma.assinaturaLoja.findMany({ where: { userId }, select: { id: true, provider: true, externalId: true } });
+  // Compra encerrada de vez pela loja (vencida no Google, ou substituída) não volta: não é consultada.
+  const compras = await prisma.assinaturaLoja.findMany({ where: { userId, encerradaEm: null }, select: { id: true, provider: true, externalId: true } });
   const situacao: SituacaoDasLojas = { compras: compras.length, prevalece: false, vigente: false, renova: false, desconhecida: false };
   for (const compra of compras) {
     try {
@@ -854,6 +866,7 @@ export async function consultarLojasDoUsuario(userId: string): Promise<SituacaoD
       if (!situacaoCompleta(s)) throw new Error("resposta incompleta da loja");
       if (s.externalId !== compra.externalId) throw new Error("a loja respondeu por outra compra");
       await prisma.assinaturaLoja.update({ where: { id: compra.id }, data: estadoNaLoja(s) });
+      await gravarReconhecimento(compra.id, s);
       situacao.prevalece ||= s.vigente && s.renova;
       situacao.vigente ||= s.vigente;
       situacao.renova ||= s.renova;
@@ -889,6 +902,13 @@ export async function registrarCompraDaLoja(
       where: { provider_externalId: { provider, externalId: situacao.externalId } },
     });
     if (existente && existente.userId !== userId) return "de_outra_conta";
+    // Troca de plano ou reassinatura (Google `linkedPurchaseToken`): a compra
+    // anterior só é substituída se for desta conta — compra não muda de dono.
+    const anterior =
+      situacao.substitui && situacao.substitui !== situacao.externalId
+        ? await prisma.assinaturaLoja.findUnique({ where: { provider_externalId: { provider, externalId: situacao.substitui } } })
+        : null;
+    if (anterior && anterior.userId !== userId) return "de_outra_conta";
     const estado = { ...estadoNaLoja(situacao), storeProductId: situacao.storeProductId, plan: plano.plan };
     let compra: AssinaturaLoja;
     if (existente) {
@@ -903,6 +923,13 @@ export async function registrarCompraDaLoja(
         if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") return "de_outra_conta";
         throw err;
       }
+    }
+    await gravarReconhecimento(compra.id, situacao);
+    if (anterior && anterior.substituidaPor !== compra.externalId) {
+      await prisma.assinaturaLoja.update({
+        where: { id: anterior.id },
+        data: { substituidaPor: compra.externalId, vigente: false, renova: false, encerradaEm: new Date() },
+      });
     }
     if (!situacao.vigente) return "vencida";
 

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { PLANS } from "@/lib/stripe";
 import { lojasProntas } from "@/lib/lojas";
+import { garantirTokenDaConta } from "@/lib/googlePlayCompras";
 import { requireAuth } from "@/lib/requireAuth";
 import { requireAuthAtivo, respostaDeSessao } from "@/lib/contaAtiva";
 import { fail } from "@/lib/apiResponse";
@@ -21,7 +22,7 @@ export async function GET(request: Request) {
   const plans = Object.values(PLANS)
     .filter((p) => p.role === payload.role)
     .map(
-    ({ id, name, description, role, mode, interval, priceInCents, plan, storeProductId }) => ({
+    ({ id, name, description, role, mode, interval, priceInCents, plan, storeProductId, storeBasePlanId }) => ({
       id,
       name,
       description,
@@ -31,6 +32,7 @@ export async function GET(request: Request) {
       priceInCents,
       plan,
       storeProductId,
+      storeBasePlanId,
     })
   );
 
@@ -43,6 +45,9 @@ export async function GET(request: Request) {
   const pagamento = {
     stripe: Boolean(process.env.STRIPE_SECRET_KEY),
     loja: { ios: lojas.apple, android: lojas.google },
+    // Token da conta que o app grava na compra da loja. Só existe com alguma
+    // loja pronta: até lá, nada é gravado.
+    tokenLoja: lojas.apple || lojas.google ? await garantirTokenDaConta(payload.userId) : null,
   };
 
   return NextResponse.json({ ok: true, plans, pagamento });

@@ -2,6 +2,7 @@ import { createRemoteJWKSet, jwtVerify, type JWTVerifyGetKey } from "jose";
 import { prisma } from "@/lib/prisma";
 import {
   ErroDeLoja,
+  googlePlayLigado,
   loja,
   pacoteGooglePlay,
   planoDaSituacao,
@@ -15,7 +16,7 @@ import { registrarCompraDaLoja } from "@/lib/trocaDePlano";
 /**
  * Google Play (issue #359): reconhecimento das compras, notificações em tempo
  * real (RTDN via Pub/Sub) e o token da conta. A integração só age com
- * `loja.implementada.GOOGLE` ligada; até a homologação, fica desligada.
+ * integração ligada (`googlePlayLigado()`); até a homologação, fica desligada.
  */
 
 /**
@@ -46,7 +47,7 @@ export async function reconhecerCompra(provider: LojaProvedor, externalId: strin
 /** Cron: compras concedidas ainda sem reconhecimento. Relê a loja antes (pode já estar reconhecida ou ter terminado). */
 export async function reconhecerPendentesGoogle(limite = 50): Promise<{ reconhecidas: number; falhas: number }> {
   const resultado = { reconhecidas: 0, falhas: 0 };
-  if (!loja.implementada.GOOGLE) return resultado;
+  if (!googlePlayLigado()) return resultado;
   const pendentes = await prisma.assinaturaLoja.findMany({
     where: { provider: "GOOGLE", reconhecidaEm: null, vigente: true, encerradaEm: null },
     orderBy: { createdAt: "asc" },

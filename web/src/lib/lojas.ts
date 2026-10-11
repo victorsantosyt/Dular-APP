@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { SignJWT, importPKCS8 } from "jose";
 import { PLANS, type PlanDef } from "@/lib/stripe";
+import { conferirBancoDoAmbiente } from "@/lib/ambientePreview";
 
 /**
  * Verificação e consulta de assinatura na App Store e no Google Play.
@@ -150,18 +151,36 @@ function semIntegracao(provider: LojaProvedor): never {
  */
 export const loja = {
   verificar: async (provider: LojaProvedor, comprovante: string, _produtoId: string): Promise<SituacaoNaLoja> =>
-    provider === "GOOGLE" && loja.implementada.GOOGLE ? consultarAssinaturaGoogle(comprovante) : semIntegracao(provider),
+    provider === "GOOGLE" && googlePlayLigado() ? consultarAssinaturaGoogle(comprovante) : semIntegracao(provider),
   consultar: async (provider: LojaProvedor, externalId: string): Promise<SituacaoNaLoja> =>
-    provider === "GOOGLE" && loja.implementada.GOOGLE ? consultarAssinaturaGoogle(externalId) : semIntegracao(provider),
+    provider === "GOOGLE" && googlePlayLigado() ? consultarAssinaturaGoogle(externalId) : semIntegracao(provider),
   /** Integração ligada. Só vira verdadeiro com a homologação real (issue #359). */
   implementada: { APPLE: false, GOOGLE: false } as Record<LojaProvedor, boolean>,
 };
+
+/**
+ * Google Play ligado? Pelo código (`loja.implementada.GOOGLE`, homologação
+ * concluída) ou, para homologar, por `DULAR_GOOGLE_PLAY_PREVIEW=ligado` — que
+ * só vale num Preview da Vercel com o banco de staging validado
+ * (lib/ambientePreview). Em produção, local ou com o banco errado, a variável
+ * é ignorada e as compras seguem desligadas.
+ */
+export function googlePlayLigado(env: Record<string, string | undefined> = process.env): boolean {
+  if (loja.implementada.GOOGLE) return true;
+  if (env.VERCEL_ENV !== "preview" || env.DULAR_GOOGLE_PLAY_PREVIEW !== "ligado") return false;
+  try {
+    conferirBancoDoAmbiente(env);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 /** As lojas estão prontas para receber compra? Usado pelo app para escolher o caminho. */
 export function lojasProntas() {
   return {
     apple: loja.implementada.APPLE && credenciaisApleProntas(),
-    google: loja.implementada.GOOGLE && credenciaisGoogleProntas(),
+    google: googlePlayLigado() && credenciaisGoogleProntas(),
   };
 }
 

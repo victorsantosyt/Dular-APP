@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { loja } from "@/lib/lojas";
+import { googlePlayLigado } from "@/lib/lojas";
 import { autenticarPushGoogle, processarMensagemGoogle } from "@/lib/googlePlayCompras";
 
 export const dynamic = "force-dynamic";
@@ -8,14 +8,14 @@ export const dynamic = "force-dynamic";
  * POST /api/webhooks/google-play — notificações em tempo real do Google Play
  * (RTDN), entregues por uma assinatura push do Pub/Sub com autenticação OIDC.
  *
- * - Integração desligada (`loja.implementada.GOOGLE`): 503, nada é lido.
+ * - Integração desligada (`googlePlayLigado()`): 503, nada é lido.
  * - Token OIDC inválido (assinatura, emissor, audiência, conta de serviço,
  *   e-mail verificado): 401, nada é lido.
  * - A notificação só serve de gatilho: o estado vem de uma consulta nova ao
  *   Google (lib/googlePlayCompras). Falha transitória: 500, e o Pub/Sub reenvia.
  */
 export async function POST(request: Request) {
-  if (!loja.implementada.GOOGLE) {
+  if (!googlePlayLigado()) {
     return NextResponse.json({ ok: false, error: "Integração Google Play desligada." }, { status: 503 });
   }
   if (!(await autenticarPushGoogle(request.headers.get("authorization")))) {

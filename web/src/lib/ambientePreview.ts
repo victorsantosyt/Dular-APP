@@ -15,9 +15,40 @@
 
 type Env = Record<string, string | undefined>;
 
+/**
+ * Banco de uma URL Postgres, sem a diferença do pooler da Neon: o host com
+ * pooler só acrescenta `-pooler` ao primeiro rótulo. Mesma regra de
+ * scripts/staging/confirmar-banco.mjs (build).
+ */
+function bancoDaUrl(bruta: string | undefined) {
+  if (!bruta) return null;
+  try {
+    const u = new URL(bruta);
+    const host = u.hostname.replace(/^([^.]+)-pooler\./, "$1.");
+    return host ? { host, banco: u.pathname, usuario: u.username } : null;
+  } catch {
+    return null;
+  }
+}
+
 export function conferirBancoDoAmbiente(env: Env = process.env): void {
-  if (env.VERCEL_ENV === "preview" && env.DULAR_DB_AMBIENTE !== "staging") {
-    throw new Error("Preview sem banco de staging: DULAR_DB_AMBIENTE=staging ausente.");
+  if (env.VERCEL_ENV === "preview") {
+    if (env.DULAR_DB_AMBIENTE !== "staging") {
+      throw new Error("Preview sem banco de staging: DULAR_DB_AMBIENTE=staging ausente.");
+    }
+    // A variável só diz o que o ambiente DEVERIA ser; quem decide o banco é a
+    // URL. As duas conexões têm que ser do host de staging, mesmo banco e
+    // mesmo usuário. As mensagens nunca levam host, usuário ou senha.
+    const staging = env.DULAR_STAGING_DB_HOST?.trim();
+    if (!staging) throw new Error("Preview sem DULAR_STAGING_DB_HOST.");
+    const runtime = bancoDaUrl(env.DATABASE_URL);
+    const direta = bancoDaUrl(env.DATABASE_URL_UNPOOLED);
+    if (!runtime || runtime.host !== staging) {
+      throw new Error("Preview: DATABASE_URL não é do banco de staging.");
+    }
+    if (!direta || direta.host !== runtime.host || direta.banco !== runtime.banco || direta.usuario !== runtime.usuario) {
+      throw new Error("Preview: DATABASE_URL e DATABASE_URL_UNPOOLED não são o mesmo banco de staging.");
+    }
   }
   if (env.VERCEL_ENV === "production" && env.DULAR_DB_AMBIENTE === "staging") {
     throw new Error("Produção configurada com o banco de staging.");

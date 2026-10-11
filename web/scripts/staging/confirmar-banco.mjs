@@ -27,6 +27,25 @@ function falhar(msg) {
   throw e;
 }
 
+/**
+ * Duas URLs do mesmo banco Neon? O pooler só acrescenta `-pooler` ao primeiro
+ * rótulo do host (ep-x-pooler.regiao… ↔ ep-x.regiao…); banco e usuário são
+ * os mesmos. Mesma regra de src/lib/ambientePreview.ts (runtime).
+ */
+export function mesmoBanco(a, b) {
+  const id = (bruta) => {
+    try {
+      const u = new URL(bruta);
+      return { host: u.hostname.replace(/^([^.]+)-pooler\./, "$1."), banco: u.pathname, usuario: u.username };
+    } catch {
+      return null;
+    }
+  };
+  const x = id(a);
+  const y = id(b);
+  return Boolean(x && y && x.host && x.host === y.host && x.banco === y.banco && x.usuario === y.usuario);
+}
+
 export async function confirmarBancoStaging({ marcar = false, env = process.env } = {}) {
   if (env.DULAR_DB_AMBIENTE !== "staging") falhar("DULAR_DB_AMBIENTE não é 'staging'.");
   const esperado = (env.DULAR_STAGING_DB_HOST ?? "").trim();
@@ -42,6 +61,10 @@ export async function confirmarBancoStaging({ marcar = false, env = process.env 
   }
   if (url.hostname !== esperado) falhar("Host da conexão diferente de DULAR_STAGING_DB_HOST.");
   if (url.hostname.includes("-pooler.")) falhar("Conexão com pooler; migrações precisam da direta.");
+  // A conexão do runtime (DATABASE_URL, pelo pooler) tem que ser do MESMO
+  // banco: provar só a direta deixaria o app no ar ler e gravar outro banco.
+  if (!env.DATABASE_URL) falhar("DATABASE_URL ausente.");
+  if (!mesmoBanco(env.DATABASE_URL, bruta)) falhar("DATABASE_URL não é o mesmo banco de DATABASE_URL_UNPOOLED.");
 
   const cliente = new pg.Client({ connectionString: bruta });
   await cliente.connect();

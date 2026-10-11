@@ -62,7 +62,8 @@
           "cameraPermission": "O Dular usa a câmera para fotografar documentos de verificação e foto de perfil."
         }
       ],
-      "expo-notifications"
+      "expo-notifications",
+      "expo-iap"
     ],
     "extra": {
       "apiBaseUrl": "https://dular-three.vercel.app",

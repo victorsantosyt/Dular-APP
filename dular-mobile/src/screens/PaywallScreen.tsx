@@ -4,6 +4,7 @@ import {
   ActivityIndicator,
   Alert,
   Animated,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -20,8 +21,11 @@ import { MotivoPaywall, type PaywallParams } from "@/lib/paywall";
 import {
   abrirCheckout,
   comprarPlano,
+  lojaDisponivel,
+  restaurarCompras,
   type CaminhoDePagamento,
 } from "@/lib/compraDePlano";
+import { ErroCompraLoja } from "@/lib/lojaGoogle";
 import { AppIcon, type AppIconName } from "@/components/ui";
 import { colors, radius, spacing, typography } from "@/theme/tokens";
 import { useGenderTheme } from "@/hooks/useProfileTheme";
@@ -42,6 +46,8 @@ type PlanoApi = {
   plan: "BASIC" | "PREMIUM";
   /** Id do produto nas lojas. Sem ele a compra in-app não sabe o que comprar. */
   storeProductId?: string | null;
+  /** Google: plano base do produto. */
+  storeBasePlanId?: string | null;
 };
 
 /**
@@ -427,6 +433,21 @@ function BotaoAssinar({
   );
 }
 
+const MSG_PENDENTE =
+  "A Google Play ainda está confirmando o pagamento. Assim que ele for aprovado, o plano é liberado automaticamente.";
+
+/** Mensagem para quem tentou comprar ou restaurar pela loja. */
+function mensagemDeErroDaCompra(e: unknown): string {
+  if (e instanceof ErroCompraLoja) {
+    if (e.codigo === "IAP_INDISPONIVEL") return "A compra pela loja ainda não está disponível nesta versão do app.";
+    if (e.codigo === "PRODUTO_INDISPONIVEL") return "Este plano ainda não está disponível na Google Play.";
+  }
+  const codigo = (e as { response?: { data?: { error?: { code?: string } } } } | null)?.response?.data?.error?.code;
+  if (codigo === "COMPRA_DE_OUTRA_CONTA") return "Esta assinatura da Google Play já está vinculada a outra conta.";
+  if (codigo === "COMPRA_SEM_TITULARIDADE") return "Esta assinatura da Google Play não pertence a esta conta.";
+  return "Não foi possível iniciar a assinatura. Tente novamente.";
+}
+
 export default function PaywallScreen({ onClose }: Props) {
   const navigation = useNavigation<any>();
   const route = useRoute();
@@ -526,17 +547,36 @@ export default function PaywallScreen({ onClose }: Props) {
       // que já funcionava.
       const r = await comprarPlano(planoEscolhido, pagamento);
       if (r.via === "stripe") await abrirCheckout(r.url);
+      else if ("pendente" in r) Alert.alert("Pagamento pendente", MSG_PENDENTE);
       else setPlanoAtual(r.plano);
     } catch (e) {
-      const msg =
-        e instanceof Error && e.message === "IAP_INDISPONIVEL"
-          ? "A compra pela loja ainda não está disponível nesta versão do app."
-          : "Não foi possível iniciar a assinatura. Tente novamente.";
-      Alert.alert("Erro", msg);
+      if (e instanceof ErroCompraLoja && e.codigo === "COMPRA_CANCELADA") return;
+      Alert.alert("Erro", mensagemDeErroDaCompra(e));
     } finally {
       setAssinando(false);
     }
   }, [planoEscolhido, pagamento]);
+
+  const [restaurando, setRestaurando] = useState(false);
+  const restaurar = useCallback(async () => {
+    setRestaurando(true);
+    try {
+      const r = await restaurarCompras(pagamento);
+      if (r.plano) setPlanoAtual(r.plano);
+      Alert.alert(
+        "Restaurar compras",
+        r.restauradas > 0
+          ? "Sua assinatura foi restaurada."
+          : r.recusadas > 0
+            ? "Encontramos uma assinatura na Google Play, mas ela pertence a outra conta ou já terminou."
+            : "Nenhuma assinatura ativa foi encontrada na Google Play para esta conta.",
+      );
+    } catch (e) {
+      Alert.alert("Erro", mensagemDeErroDaCompra(e));
+    } finally {
+      setRestaurando(false);
+    }
+  }, [pagamento]);
 
   return (
     <View style={[s.root, { paddingTop: insets.top + spacing.md, paddingBottom: insets.bottom + spacing.md }]}>
@@ -714,6 +754,21 @@ export default function PaywallScreen({ onClose }: Props) {
               borda de baixo e encostava no rodapé. Com o cartão em 92% a lista
               inteira cabe no caso comum; quando não cabe (aviso de limite), a
               saída chega rolando, e o "voltar" do Android continua fechando. */}
+          {Platform.OS === "android" && lojaDisponivel(pagamento) ? (
+            <Pressable
+              onPress={restaurar}
+              disabled={restaurando}
+              style={({ pressed }) => [s.secundario, pressed && s.secundarioPressionado]}
+              accessibilityRole="button"
+            >
+              {restaurando ? (
+                <ActivityIndicator size="small" color={colors.textSecondary} />
+              ) : (
+                <Text style={s.secundarioTexto}>Restaurar compras</Text>
+              )}
+            </Pressable>
+          ) : null}
+
           {planoEscolhido ? (
             <Pressable
               onPress={() => setEscolhido(null)}

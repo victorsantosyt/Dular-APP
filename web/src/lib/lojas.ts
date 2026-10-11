@@ -251,7 +251,10 @@ async function tokenDeAcessoGoogle(): Promise<string> {
     body: new URLSearchParams({ grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer", assertion }).toString(),
   });
   const corpo = (await res.json().catch(() => null)) as { access_token?: unknown; expires_in?: unknown } | null;
-  if (!res.ok || typeof corpo?.access_token !== "string") throw new ErroDeLoja("LOJA_INDISPONIVEL", `Google OAuth respondeu ${res.status}.`);
+  if (!res.ok || typeof corpo?.access_token !== "string") {
+    registrarErroGoogle("oauth", res.status, corpo);
+    throw new ErroDeLoja("LOJA_INDISPONIVEL", `Google OAuth respondeu ${res.status}.`);
+  }
   const validade = typeof corpo.expires_in === "number" ? corpo.expires_in : 3600;
   acessoGoogle = { token: corpo.access_token, valeAte: Date.now() + validade * 1000, conta: email };
   return acessoGoogle.token;
@@ -276,6 +279,7 @@ export async function consultarAssinaturaGoogle(purchaseToken: string): Promise<
     if (err instanceof ErroDeLoja) throw err;
     throw new ErroDeLoja("LOJA_INDISPONIVEL", "Google Play fora do ar.");
   }
+  if (!res.ok) registrarErroGoogle("consulta", res.status, await res.clone().json().catch(() => null));
   // Token de outro app, inexistente ou malformado: compra inválida, nunca "indisponível".
   if (res.status === 400 || res.status === 404 || res.status === 410) throw new ErroDeLoja("COMPRA_INVALIDA", `Google respondeu ${res.status}.`);
   if (!res.ok) throw new ErroDeLoja("LOJA_INDISPONIVEL", `Google respondeu ${res.status}.`);
@@ -288,7 +292,94 @@ export async function reconhecerCompraGoogle(storeProductId: string, purchaseTok
     `/purchases/subscriptions/${encodeURIComponent(storeProductId)}/tokens/${encodeURIComponent(purchaseToken)}:acknowledge`,
     { method: "POST", headers: { "content-type": "application/json" }, body: "{}" },
   );
-  if (!res.ok) throw new ErroDeLoja("LOJA_INDISPONIVEL", `Google acknowledge respondeu ${res.status}.`);
+  if (!res.ok) {
+    registrarErroGoogle("reconhecimento", res.status, await res.json().catch(() => null));
+    throw new ErroDeLoja("LOJA_INDISPONIVEL", `Google acknowledge respondeu ${res.status}.`);
+  }
+}
+
+// ── Diagnóstico dos erros do Google ─────────────────────────────────────────
+// No log vão só o código HTTP e dois campos do erro, cada um conferido contra
+// uma lista fechada: valor fora dela vira "OUTRO", campo ausente vira
+// "AUSENTE". Nunca a mensagem, o corpo, o token de acesso, o comprovante ou a
+// conta de serviço — a mensagem do Google pode citar qualquer um deles.
+
+/** `error.status` da API (códigos canônicos do Google). No OAuth, o campo `error`. */
+const STATUS_DO_GOOGLE = new Set([
+  "INVALID_ARGUMENT",
+  "FAILED_PRECONDITION",
+  "OUT_OF_RANGE",
+  "UNAUTHENTICATED",
+  "PERMISSION_DENIED",
+  "NOT_FOUND",
+  "ALREADY_EXISTS",
+  "ABORTED",
+  "RESOURCE_EXHAUSTED",
+  "CANCELLED",
+  "DATA_LOSS",
+  "UNKNOWN",
+  "INTERNAL",
+  "NOT_IMPLEMENTED",
+  "UNAVAILABLE",
+  "DEADLINE_EXCEEDED",
+  // OAuth (oauth2.googleapis.com/token)
+  "invalid_grant",
+  "invalid_client",
+  "unauthorized_client",
+  "invalid_request",
+  "invalid_scope",
+  "access_denied",
+]);
+
+/** `error.errors[0].reason` da Play Developer API. */
+const MOTIVOS_DO_GOOGLE = new Set([
+  "invalid",
+  "required",
+  "notFound",
+  "purchaseTokenNoLongerValid",
+  "subscriptionPurchaseNoLongerAvailable",
+  "permissionDenied",
+  "forbidden",
+  "insufficientPermissions",
+  "authError",
+  "unauthorized",
+  "applicationNotFound",
+  "packageNameNotFound",
+  "accessNotConfigured",
+  "rateLimitExceeded",
+  "userRateLimitExceeded",
+  "quotaExceeded",
+  "backendError",
+  "internalError",
+]);
+
+export type DiagnosticoGoogle = {
+  etapa: "oauth" | "consulta" | "reconhecimento";
+  http: number;
+  status: string;
+  reason: string;
+};
+
+function permitido(valor: unknown, lista: Set<string>): string {
+  if (valor === undefined || valor === null) return "AUSENTE";
+  return typeof valor === "string" && lista.has(valor) ? valor : "OUTRO";
+}
+
+/** O que do erro do Google pode ir para o log. Puro, para o teste conferir. */
+export function diagnosticoDoErroGoogle(etapa: DiagnosticoGoogle["etapa"], http: number, corpo: unknown): DiagnosticoGoogle {
+  const c = (typeof corpo === "object" && corpo !== null ? corpo : {}) as Record<string, unknown>;
+  const codigoHttp = Number.isInteger(http) && http >= 100 && http <= 599 ? http : 0;
+  if (etapa === "oauth") return { etapa, http: codigoHttp, status: permitido(c.error, STATUS_DO_GOOGLE), reason: "AUSENTE" };
+  const erro = (typeof c.error === "object" && c.error !== null ? c.error : {}) as {
+    status?: unknown;
+    errors?: { reason?: unknown }[];
+  };
+  const motivo = Array.isArray(erro.errors) ? erro.errors[0]?.reason : undefined;
+  return { etapa, http: codigoHttp, status: permitido(erro.status, STATUS_DO_GOOGLE), reason: permitido(motivo, MOTIVOS_DO_GOOGLE) };
+}
+
+function registrarErroGoogle(etapa: DiagnosticoGoogle["etapa"], http: number, corpo: unknown): void {
+  console.warn("[google-play] erro do Google", JSON.stringify(diagnosticoDoErroGoogle(etapa, http, corpo)));
 }
 
 /** Estados em que o período pago está em curso (com `expiryTime` no futuro). */

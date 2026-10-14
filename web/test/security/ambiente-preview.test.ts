@@ -9,14 +9,69 @@ import { conferirBancoDoAmbiente, pushRemotoPermitido, tempoRealPermitido } from
  * desligados no preview (lib/ambientePreview).
  */
 
+// URLs fictícias, no formato da Neon (pooler = `-pooler` no primeiro rótulo).
+const STG_HOST = "ep-staging-aaa111.sa-east-1.aws.neon.tech";
+const STG_DIRETA = `postgresql://dono_stg:senha-stg-falsa@${STG_HOST}/neondb?sslmode=require`;
+const STG_POOLER = "postgresql://dono_stg:senha-stg-falsa@ep-staging-aaa111-pooler.sa-east-1.aws.neon.tech/neondb?sslmode=require";
+const PROD_POOLER = "postgresql://dono_prod:senha-prod-falsa@ep-producao-bbb222-pooler.sa-east-1.aws.neon.tech/neondb?sslmode=require";
+const PROD_DIRETA = "postgresql://dono_prod:senha-prod-falsa@ep-producao-bbb222.sa-east-1.aws.neon.tech/neondb?sslmode=require";
+
+const previewStaging = (extra: Record<string, string | undefined> = {}) => ({
+  VERCEL_ENV: "preview",
+  DULAR_DB_AMBIENTE: "staging",
+  DULAR_STAGING_DB_HOST: STG_HOST,
+  DATABASE_URL: STG_POOLER,
+  DATABASE_URL_UNPOOLED: STG_DIRETA,
+  ...extra,
+});
+
+function capturar(fn: () => unknown): Error {
+  try {
+    fn();
+  } catch (e) {
+    return e as Error;
+  }
+  throw new Error("esperava recusa");
+}
+
+function assertSemCredencial(msg: string) {
+  for (const segredo of ["senha", "dono_", "ep-", "neon.tech", "postgresql://"]) {
+    assert.ok(!msg.includes(segredo), `mensagem expõe "${segredo}"`);
+  }
+}
+
 describe("banco por ambiente", () => {
   it("preview sem a marca de staging: recusa abrir conexão", () => {
     assert.throws(() => conferirBancoDoAmbiente({ VERCEL_ENV: "preview" }), /staging/);
     assert.throws(() => conferirBancoDoAmbiente({ VERCEL_ENV: "preview", DULAR_DB_AMBIENTE: "producao" }), /staging/);
   });
 
-  it("preview com a marca de staging: segue", () => {
-    assert.doesNotThrow(() => conferirBancoDoAmbiente({ VERCEL_ENV: "preview", DULAR_DB_AMBIENTE: "staging" }));
+  it("preview com a marca e as duas conexões do staging (pooler + direta): segue", () => {
+    assert.doesNotThrow(() => conferirBancoDoAmbiente(previewStaging()));
+  });
+
+  it("preview: só a marca não basta — sem as URLs de staging, recusa", () => {
+    assert.throws(() => conferirBancoDoAmbiente({ VERCEL_ENV: "preview", DULAR_DB_AMBIENTE: "staging" }), /DULAR_STAGING_DB_HOST/);
+    assert.throws(() => conferirBancoDoAmbiente(previewStaging({ DULAR_STAGING_DB_HOST: undefined })), /DULAR_STAGING_DB_HOST/);
+  });
+
+  it("preview: conexão direta de staging + conexão de runtime de produção — recusa sem expor a credencial", () => {
+    const erro = capturar(() => conferirBancoDoAmbiente(previewStaging({ DATABASE_URL: PROD_POOLER })));
+    assert.match(erro.message, /DATABASE_URL não é do banco de staging/);
+    assertSemCredencial(erro.message);
+  });
+
+  it("preview: runtime de staging + conexão direta de produção — recusa", () => {
+    const erro = capturar(() => conferirBancoDoAmbiente(previewStaging({ DATABASE_URL_UNPOOLED: PROD_DIRETA })));
+    assert.match(erro.message, /não são o mesmo banco/);
+    assertSemCredencial(erro.message);
+  });
+
+  it("preview: mesmo host de staging, outro banco ou outro usuário — recusa", () => {
+    assert.throws(() => conferirBancoDoAmbiente(previewStaging({ DATABASE_URL: STG_POOLER.replace("/neondb", "/outro") })), /mesmo banco/);
+    assert.throws(() => conferirBancoDoAmbiente(previewStaging({ DATABASE_URL: STG_POOLER.replace("dono_stg", "intruso") })), /mesmo banco/);
+    assert.throws(() => conferirBancoDoAmbiente(previewStaging({ DATABASE_URL_UNPOOLED: undefined })), /mesmo banco/);
+    assert.throws(() => conferirBancoDoAmbiente(previewStaging({ DATABASE_URL: "não é url" })), /staging/);
   });
 
   it("produção: segue sem marca; recusa se vier marcada como staging", () => {
@@ -26,6 +81,28 @@ describe("banco por ambiente", () => {
 
   it("fora da Vercel (testes, local): não interfere", () => {
     assert.doesNotThrow(() => conferirBancoDoAmbiente({}));
+  });
+});
+
+describe("build do preview e migração do staging (confirmar-banco.mjs)", () => {
+  it("conexão direta de staging + conexão de runtime de produção: recusa antes de conectar, sem expor a credencial", async () => {
+    const { confirmarBancoStaging } = await import("../../scripts/staging/confirmar-banco.mjs");
+    await assert.rejects(confirmarBancoStaging({ env: previewStaging({ DATABASE_URL: PROD_POOLER }) as unknown as NodeJS.ProcessEnv }), (e: any) => {
+      assert.equal(e.falhaDeIdentidade, true);
+      assert.match(e.message, /DATABASE_URL não é o mesmo banco/);
+      assertSemCredencial(e.message);
+      return true;
+    });
+    await assert.rejects(confirmarBancoStaging({ env: previewStaging({ DATABASE_URL: undefined }) as unknown as NodeJS.ProcessEnv }), /DATABASE_URL ausente/);
+  });
+
+  it("mesmoBanco: pooler e direta do mesmo banco sim; outro host, banco ou usuário não", async () => {
+    const { mesmoBanco } = await import("../../scripts/staging/confirmar-banco.mjs");
+    assert.equal(mesmoBanco(STG_POOLER, STG_DIRETA), true);
+    assert.equal(mesmoBanco(PROD_POOLER, STG_DIRETA), false);
+    assert.equal(mesmoBanco(STG_POOLER.replace("/neondb", "/outro"), STG_DIRETA), false);
+    assert.equal(mesmoBanco(STG_POOLER.replace("dono_stg", "intruso"), STG_DIRETA), false);
+    assert.equal(mesmoBanco("não é url", STG_DIRETA), false);
   });
 });
 

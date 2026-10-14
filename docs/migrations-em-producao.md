@@ -34,6 +34,7 @@ Desde 27/09/2026 são dois bancos Neon, dois projetos independentes, ligados pel
 Travas (`web/src/lib/ambientePreview.ts` e `web/scripts/staging/`):
 
 - **Build de preview**: antes de compilar, `scripts/staging/confirmar-banco.mjs` exige três evidências de que o banco é o de staging — `DULAR_DB_AMBIENTE=staging`, host igual a `DULAR_STAGING_DB_HOST` e a marca `COMMENT ON DATABASE ... IS 'dular-staging'` gravada no próprio banco. Qualquer desvio falha o build. O preview continua sem migrar.
+- **Conexão de runtime**: o build e o runtime do preview conferem também a `DATABASE_URL` (pooler): mesmo host de `DATABASE_URL_UNPOOLED` sem o `-pooler`, mesmo banco e mesmo usuário. Direta de staging com runtime de produção é recusada.
 - **Runtime de preview**: sem `DULAR_DB_AMBIENTE=staging` o Prisma não abre conexão; push remoto e tempo real (Ably) ficam desligados, salvo `DULAR_PUSH_PREVIEW=ligado` / `DULAR_ABLY_PREVIEW=ligado`.
 - **Migração e seed do staging** (de `web/`, com as variáveis do ambiente Preview): `node scripts/staging/migrar.mjs` e `STAGING_SENHA=... npx tsx prisma/seed-staging.ts`. Os dois recusam qualquer banco sem as três evidências; o seed recusa banco que já tenha usuários. Nunca use `seed.ts` ou `copiar-contas-para-prod.ts` no staging.
 

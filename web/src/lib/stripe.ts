@@ -62,6 +62,11 @@ export type PlanDef = {
    * e nada no código muda depois disso.
    */
   storeProductId: string;
+  /**
+   * Plano base da assinatura no Google Play (`basePlanId`). A verificação exige
+   * este exato: outro plano base ou oferta do mesmo produto não vale.
+   */
+  storeBasePlanId: string;
 };
 
 export const PLANS: Record<PlanId, PlanDef> = {
@@ -76,6 +81,7 @@ export const PLANS: Record<PlanId, PlanDef> = {
     priceInCents: 1990, // R$19,90
     plan: "BASIC",
     storeProductId: "br.com.dular.diarista.basico.mensal",
+    storeBasePlanId: "mensal",
   },
   pro_mensal: {
     id: "pro_mensal",
@@ -87,6 +93,7 @@ export const PLANS: Record<PlanId, PlanDef> = {
     priceInCents: 3990, // R$39,90
     plan: "PREMIUM",
     storeProductId: "br.com.dular.diarista.pro.mensal",
+    storeBasePlanId: "mensal",
   },
   pro_anual: {
     id: "pro_anual",
@@ -98,6 +105,7 @@ export const PLANS: Record<PlanId, PlanDef> = {
     priceInCents: 35900, // R$359,00
     plan: "PREMIUM",
     storeProductId: "br.com.dular.diarista.pro.anual",
+    storeBasePlanId: "anual",
   },
 
   // ── MONTADOR ──────────────────────────────────────────────────────────────
@@ -114,6 +122,7 @@ export const PLANS: Record<PlanId, PlanDef> = {
     priceInCents: 1990, // R$19,90
     plan: "BASIC",
     storeProductId: "br.com.dular.montador.basico.mensal",
+    storeBasePlanId: "mensal",
   },
   montador_pro_mensal: {
     id: "montador_pro_mensal",
@@ -125,6 +134,7 @@ export const PLANS: Record<PlanId, PlanDef> = {
     priceInCents: 3990, // R$39,90
     plan: "PREMIUM",
     storeProductId: "br.com.dular.montador.pro.mensal",
+    storeBasePlanId: "mensal",
   },
   montador_pro_anual: {
     id: "montador_pro_anual",
@@ -136,6 +146,7 @@ export const PLANS: Record<PlanId, PlanDef> = {
     priceInCents: 35900, // R$359,00
     plan: "PREMIUM",
     storeProductId: "br.com.dular.montador.pro.anual",
+    storeBasePlanId: "anual",
   },
 };
 

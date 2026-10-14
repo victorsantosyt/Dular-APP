@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createHash, timingSafeEqual } from "node:crypto";
 import { varrerOperacoes } from "@/lib/trocaDePlano";
+import { reconhecerPendentesGoogle } from "@/lib/googlePlayCompras";
 
 export const dynamic = "force-dynamic";
 // 60 s vale no plano Hobby com ou sem Fluid compute. A rodada não começa
@@ -41,6 +42,15 @@ export async function GET(req: Request) {
   }
   if (autenticacao === "negado") {
     return NextResponse.json({ ok: false, error: "Não autorizado." }, { status: 401 });
+  }
+
+  // Google Play: compras concedidas ainda sem reconhecimento (prazo de 3 dias).
+  // Só age com a integração ligada; falha aqui não muda a resposta da varredura.
+  try {
+    const { falhas: semReconhecer } = await reconhecerPendentesGoogle();
+    if (semReconhecer > 0) console.error("[cron/reconciliar-stripe] compras Google ainda sem reconhecimento:", semReconhecer);
+  } catch (err) {
+    console.error("[cron/reconciliar-stripe] reconhecimento Google interrompido:", err);
   }
 
   try {

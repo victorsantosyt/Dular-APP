@@ -1,6 +1,13 @@
 import { Linking, Platform } from "react-native";
 
 import { api } from "@/lib/api";
+import {
+  ErroCompraLoja,
+  comprarAssinaturaGoogle,
+  comprasParaRestaurarGoogle,
+  concluirCompraGoogle,
+  type CompraGoogle,
+} from "@/lib/lojaGoogle";
 
 /**
  * Por onde a assinatura é comprada.
@@ -22,11 +29,15 @@ import { api } from "@/lib/api";
 export type CaminhoDePagamento = {
   stripe: boolean;
   loja: { ios: boolean; android: boolean };
+  /** Token da conta que vai na compra da loja. Só vem com alguma loja pronta. */
+  tokenLoja?: string | null;
 };
 
 export type PlanoParaCompra = {
   id: string;
   storeProductId?: string | null;
+  /** Google: plano base do produto (mensal/anual). */
+  storeBasePlanId?: string | null;
 };
 
 /** A loja está pronta para receber compra nesta plataforma? */
@@ -37,25 +48,31 @@ export function lojaDisponivel(caminho: CaminhoDePagamento | null | undefined): 
   return false;
 }
 
-/**
- * Compra pela loja do sistema.
- *
- * O corpo fica isolado aqui de propósito: a biblioteca de compra in-app é
- * módulo nativo e NÃO roda em Expo Go, que é como o app é desenvolvido hoje.
- * Instalá-la agora tiraria o Expo Go de todo mundo por uma função que ainda
- * não tem produto cadastrado para comprar.
- *
- * Quando houver dev build, o que muda é só o miolo desta função: pedir a
- * compra à loja e devolver o comprovante. O resto do caminho — validar no
- * servidor, conceder o plano — já está pronto e não muda.
- */
-async function comprarNaLoja(_produtoId: string): Promise<{ comprovante: string }> {
-  throw new Error("IAP_INDISPONIVEL");
-}
-
 export type ResultadoCompra =
   | { via: "loja"; plano: string }
+  | { via: "loja"; pendente: true }
   | { via: "stripe"; url: string };
+
+/**
+ * Apresenta ao servidor uma compra paga na loja. Concedida (200), conclui a
+ * compra na loja; pendente (202), não conclui — o servidor recebe da Google o
+ * aviso de quando ela for paga. Recusa (4xx) sobe como erro da api.
+ */
+async function apresentarCompraGoogle(compra: CompraGoogle): Promise<{ plano: string } | { pendente: true }> {
+  const res = await api.post<{ plan?: string; pendente?: boolean }>("/api/billing/loja", {
+    plataforma: "android",
+    produtoId: compra.produtoId,
+    comprovante: compra.comprovante,
+  });
+  if (res.status === 202 || res.data?.pendente) return { pendente: true };
+  try {
+    await concluirCompraGoogle(compra);
+  } catch {
+    // O servidor já reconheceu a compra no Google ao concedê-la; concluir aqui
+    // é redundância. Na próxima restauração ela é apresentada de novo.
+  }
+  return { plano: res.data.plan ?? "FREE" };
+}
 
 /**
  * Inicia a compra do plano.
@@ -63,6 +80,7 @@ export type ResultadoCompra =
  * Pela loja, a compra acontece no aparelho e o comprovante é validado no
  * servidor — que consulta a loja, porque recibo é dado vindo do cliente e
  * aceitá-lo de olhos fechados daria PREMIUM a quem souber montar um JSON.
+ * Hoje só a Google Play existe; no iOS a loja segue indisponível.
  *
  * Pelo Stripe, devolve a URL do checkout para abrir no navegador.
  */
@@ -71,17 +89,51 @@ export async function comprarPlano(
   caminho: CaminhoDePagamento | null | undefined,
 ): Promise<ResultadoCompra> {
   if (lojaDisponivel(caminho) && plano.storeProductId) {
-    const { comprovante } = await comprarNaLoja(plano.storeProductId);
-    const res = await api.post<{ plan: string }>("/api/billing/loja", {
-      plataforma: Platform.OS === "ios" ? "ios" : "android",
+    if (Platform.OS !== "android") throw new ErroCompraLoja("IAP_INDISPONIVEL");
+    const compra = await comprarAssinaturaGoogle({
       produtoId: plano.storeProductId,
-      comprovante,
+      planoBase: plano.storeBasePlanId,
+      tokenDaConta: caminho?.tokenLoja,
     });
-    return { via: "loja", plano: res.data.plan };
+    if (compra.pendente) return { via: "loja", pendente: true };
+    const r = await apresentarCompraGoogle(compra);
+    return "pendente" in r ? { via: "loja", pendente: true } : { via: "loja", plano: r.plano };
   }
 
   const res = await api.post<{ url: string }>("/api/billing/checkout", { planId: plano.id });
   return { via: "stripe", url: res.data.url };
+}
+
+export type ResultadoRestauracao = {
+  /** Compras que o servidor concedeu (ou já tinha concedido) a esta conta. */
+  restauradas: number;
+  /** Compras que o servidor recusou (de outra conta, vencida, outro perfil). */
+  recusadas: number;
+  /** Plano depois da última restauração concedida. */
+  plano: string | null;
+};
+
+/**
+ * Restaurar compras: reapresenta ao servidor as assinaturas pagas que a Google
+ * Play associa a este aparelho. Serve para quem trocou de aparelho, reinstalou
+ * o app ou fechou o app no meio da compra. O servidor decide cada uma — compra
+ * de outra conta continua recusada.
+ */
+export async function restaurarCompras(caminho: CaminhoDePagamento | null | undefined): Promise<ResultadoRestauracao> {
+  if (Platform.OS !== "android" || !lojaDisponivel(caminho)) throw new ErroCompraLoja("IAP_INDISPONIVEL");
+  const resultado: ResultadoRestauracao = { restauradas: 0, recusadas: 0, plano: null };
+  for (const compra of await comprasParaRestaurarGoogle()) {
+    try {
+      const r = await apresentarCompraGoogle(compra);
+      if ("plano" in r) {
+        resultado.restauradas += 1;
+        resultado.plano = r.plano;
+      }
+    } catch {
+      resultado.recusadas += 1;
+    }
+  }
+  return resultado;
 }
 
 /** Abre o checkout do Stripe. Separado para a tela decidir quando abrir. */

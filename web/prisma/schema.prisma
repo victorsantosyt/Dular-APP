@@ -225,6 +225,9 @@ model User {
   senhaHash      String?
   role           UserRole?
   status         UserStatus    @default(ATIVO)
+  /// Token da conta para as lojas (`obfuscatedAccountId` / `appAccountToken`),
+  /// gravado antes da compra: é por ele que uma notificação da loja chega à conta.
+  tokenLoja      String?       @unique
 
   /// Conta de demonstração para a revisão das lojas (App Store / Google Play).
   ///
@@ -1026,9 +1029,38 @@ model AssinaturaLoja {
   createdAt      DateTime             @default(now())
   updatedAt      DateTime             @updatedAt
 
+  /** Google: plano base confirmado pela loja (`offerDetails.basePlanId`). */
+  planoBase      String?
+  /** Estado bruto na última resposta da loja (ex.: SUBSCRIPTION_STATE_ON_HOLD). */
+  estadoLoja     String?
+  /** Compra encerrada de vez na loja (Google: vencida ou substituída): não volta e não é mais consultada. */
+  encerradaEm    DateTime?
+  /** Reconhecida na loja (Google: acknowledge). Sem isso em 3 dias, o Google reembolsa e revoga. */
+  reconhecidaEm  DateTime?
+  /** Compra de teste (testador de licença). */
+  teste          Boolean              @default(false)
+  /** Compra que substituiu esta (troca de plano ou reassinatura: `linkedPurchaseToken`). */
+  substituidaPor String?
+
   /** Uma compra, uma conta. */
   @@unique([provider, externalId])
   @@index([userId])
+}
+
+/** Notificação recebida de uma loja (Google: RTDN via Pub/Sub). Cada mensagem
+ *  uma vez: a chave é o id da mensagem. Serve de auditoria; o estado gravado
+ *  vem sempre de uma consulta nova à loja, nunca do conteúdo da mensagem. */
+model NotificacaoLoja {
+  id           String               @id @default(cuid())
+  provider     SubscriptionProvider
+  mensagemId   String
+  externalId   String?
+  tipo         String
+  recebidaEm   DateTime             @default(now())
+  processadaEm DateTime?
+  erro         String?
+
+  @@unique([provider, mensagemId])
 }
 
 /** Operação de cobrança iniciada pelo Dular na Stripe (checkout novo, troca de

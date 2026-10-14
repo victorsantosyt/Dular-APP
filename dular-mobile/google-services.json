@@ -1,13 +1,32 @@
 {
   "project_info": {
-    "project_number": "83410111756",
-    "project_id": "dular-app-ea1e1",
-    "storage_bucket": "dular-app-ea1e1.firebasestorage.app"
+    "project_number": "385216680299",
+    "project_id": "dular-app-dfa8c",
+    "storage_bucket": "dular-app-dfa8c.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:83410111756:android:970d2584e6b49502b94d29",
+        "mobilesdk_app_id": "1:385216680299:android:e664378344ee1058f1fc2e",
+        "android_client_info": {
+          "package_name": "br.com.dular.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDtZCkyqJTPAjavfdzJqOpbIHb-Mnj3k8o"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:385216680299:android:ca9c30e8ab461cccf1fc2e",
         "android_client_info": {
           "package_name": "com.dular.app"
         }
@@ -15,7 +34,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyAcPWkY8iv0k5k3Uq4uG2Ztb-z40fiGB4U"
+          "current_key": "AIzaSyDtZCkyqJTPAjavfdzJqOpbIHb-Mnj3k8o"
         }
       ],
       "services": {

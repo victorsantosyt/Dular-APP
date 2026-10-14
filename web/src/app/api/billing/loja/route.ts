@@ -2,11 +2,11 @@ import { z } from "zod";
 
 import { assinaturaEfetiva } from "@/lib/assinatura";
 import { ok, fail } from "@/lib/apiResponse";
-import { planoPorProdutoDaLoja } from "@/lib/stripe";
 import { requireAuth } from "@/lib/requireAuth";
 import { ContaInativaError, codigoDaConta, requireAuthAtivo, respostaDeSessao } from "@/lib/contaAtiva";
 import { cleanupRateLimit, rateLimit } from "@/lib/rateLimit";
-import { ErroDeLoja, loja, situacaoCompleta, tokenDaConta } from "@/lib/lojas";
+import { ErroDeLoja, loja, planoDaSituacao, situacaoCompleta, tokenDaConta } from "@/lib/lojas";
+import { reconhecerCompra } from "@/lib/googlePlayCompras";
 import { OperacaoEmAndamento, registrarCompraDaLoja } from "@/lib/trocaDePlano";
 
 /**
@@ -58,6 +58,11 @@ export async function POST(request: Request) {
   try {
     compra = await loja.verificar(provider, parsed.data.comprovante, parsed.data.produtoId);
   } catch (erro) {
+    // Pagamento ainda pendente na loja (boleto, por exemplo): nada é gravado;
+    // a notificação da loja conclui quando o pagamento entrar.
+    if (erro instanceof ErroDeLoja && erro.codigo === "COMPRA_PENDENTE") {
+      return ok({ pendente: true }, 202);
+    }
     if (erro instanceof ErroDeLoja) {
       // Sem credencial ou loja fora do ar NÃO é compra inválida. Dizer o
       // contrário a quem acabou de pagar é o pior desfecho possível: ele perde
@@ -85,10 +90,10 @@ export async function POST(request: Request) {
     return fail("COMPRA_SEM_TITULARIDADE", "Esta compra não está associada a esta conta.", 403);
   }
 
-  // O plano vem SÓ do produto que a loja confirmou, nunca do que o app pediu.
-  // Produto fora do catálogo (outro app, produto retirado): nada é concedido,
-  // gravado nem encerrado.
-  const planoConfirmado = planoPorProdutoDaLoja(compra.storeProductId);
+  // O plano vem SÓ do produto que a loja confirmou (no Google, também o plano
+  // base), nunca do que o app pediu. Fora do catálogo (outro app, produto
+  // retirado, outro plano base): nada é concedido, gravado nem encerrado.
+  const planoConfirmado = planoDaSituacao(provider, compra);
   if (!planoConfirmado) {
     console.error("[loja] a loja confirmou um produto fora do catálogo; nada foi gravado:", compra.storeProductId);
     return fail("PRODUTO_DESCONHECIDO", "A loja confirmou um produto que não é vendido aqui.", 409);
@@ -119,6 +124,14 @@ export async function POST(request: Request) {
   }
   if (resultado === "vencida") {
     return fail("COMPRA_VENCIDA", "Esta compra da loja já terminou.", 409);
+  }
+
+  // Concedida: reconhece na loja (Google: em até 3 dias, ou ela reembolsa).
+  // Falha aqui não desfaz a compra; o cron tenta de novo dentro do prazo.
+  try {
+    await reconhecerCompra(provider, compra.externalId);
+  } catch (err) {
+    console.error("[loja] reconhecimento fica para o cron:", (err as Error)?.message);
   }
 
   const { plan, registro } = await assinaturaEfetiva(auth.userId);

@@ -27,6 +27,8 @@ export function DInput({
   error,
   secureTextEntry,
   containerStyle,
+  onFocus,
+  onBlur,
   ...rest
 }: Props) {
   const [focused, setFocused] = useState(false);
@@ -48,8 +50,14 @@ export function DInput({
           placeholder={placeholder}
           placeholderTextColor={colors.textDisabled}
           secureTextEntry={secureTextEntry}
-          onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
+          onFocus={(event) => {
+            setFocused(true);
+            onFocus?.(event);
+          }}
+          onBlur={(event) => {
+            setFocused(false);
+            onBlur?.(event);
+          }}
           {...rest}
         />
       </View>
@@ -87,3 +95,4 @@ const s = StyleSheet.create({
     marginLeft: spacing.sm,
   },
 });
+

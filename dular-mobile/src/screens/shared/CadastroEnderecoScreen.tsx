@@ -191,7 +191,9 @@ export function CadastroEnderecoScreen({ role, mode = "onboarding", initial, onD
     }
     if (!bairroReconhecido) {
       setErro(
-        `Ainda não atendemos "${bairro.trim()}" em ${cidade.trim()}. Escolha um dos bairros disponíveis.`,
+        bairrosCatalogo?.length === 0
+          ? `Não há bairros disponíveis para ${cidade.trim()} no momento. Tente novamente mais tarde.`
+          : `Ainda não atendemos "${bairro.trim()}" em ${cidade.trim()}. Escolha um dos bairros disponíveis.`,
       );
       return;
     }
@@ -354,7 +356,9 @@ export function CadastroEnderecoScreen({ role, mode = "onboarding", initial, onD
           {!bairroReconhecido && bairrosCatalogo ? (
             <View style={s.bairroAviso}>
               <Text style={s.bairroAvisoTexto}>
-                Ainda não atendemos esse bairro em {cidade.trim()}. Toque em um dos disponíveis:
+                {bairrosCatalogo.length === 0
+                  ? `Não há bairros disponíveis para ${cidade.trim()} no momento. Tente novamente mais tarde.`
+                  : `Ainda não atendemos esse bairro em ${cidade.trim()}. Toque em um dos disponíveis:`}
               </Text>
               <View style={s.bairroChips}>
                 {bairrosCatalogo.map((nome) => (
@@ -503,3 +507,4 @@ function makeStyles(colors: ReturnType<typeof useDularColors>) {
     saveBtnText: { ...typography.bodyMedium, color: colors.white, fontWeight: "800" },
   });
 }
+

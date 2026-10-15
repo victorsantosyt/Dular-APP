@@ -23,7 +23,7 @@ import type * as ExpoIap from "expo-iap";
 
 type Iap = Pick<
   typeof ExpoIap,
-  "initConnection" | "fetchProducts" | "requestPurchase" | "getAvailablePurchases" | "finishTransaction"
+  "initConnection" | "fetchProducts" | "requestPurchase" | "getAvailablePurchases" | "finishTransaction" | "purchaseUpdatedListener" | "purchaseErrorListener"
 >;
 
 type CompraDaLoja = { productId: string; purchaseToken?: string | null; purchaseState: string };
@@ -41,7 +41,9 @@ export type CodigoCompraLoja =
   | "SEM_TOKEN_DA_CONTA"
   | "PRODUTO_INDISPONIVEL"
   | "COMPRA_CANCELADA"
-  | "COMPRA_NAO_CONCLUIDA";
+  | "COMPRA_NAO_CONCLUIDA"
+  | "COMPRA_EM_CONFIRMACAO"
+  | "COMPRA_JA_EXISTENTE";
 
 export class ErroCompraLoja extends Error {
   constructor(readonly codigo: CodigoCompraLoja) {
@@ -81,6 +83,14 @@ export async function comprarAssinaturaGoogle(
   if (!pedido.planoBase) throw new ErroCompraLoja("PRODUTO_INDISPONIVEL");
 
   await iap.initConnection();
+  // Recupera uma compra anterior antes de abrir outra cobrança. O servidor ainda
+  // precisa validar o comprovante e o vínculo com a conta atual.
+  const anteriores = ((await iap.getAvailablePurchases()) ?? []) as CompraDaLoja[];
+  const anterior = anteriores.find((c) => c.productId === pedido.produtoId && (
+    (c.purchaseState === "purchased" && c.purchaseToken) || c.purchaseState === "pending"
+  ));
+  if (anterior) return paraCompraGoogle(anterior);
+
   const produtos = ((await iap.fetchProducts({ skus: [pedido.produtoId], type: "subs" })) ?? []) as {
     id: string;
     subscriptionOfferDetailsAndroid?: { basePlanId: string; offerId?: string | null; offerToken: string }[];
@@ -90,26 +100,58 @@ export async function comprarAssinaturaGoogle(
   const oferta = produto?.subscriptionOfferDetailsAndroid?.find((o) => o.basePlanId === pedido.planoBase && !o.offerId);
   if (!oferta) throw new ErroCompraLoja("PRODUTO_INDISPONIVEL");
 
-  let resultado: unknown;
-  try {
-    resultado = await iap.requestPurchase({
-      type: "subs",
-      request: {
-        google: {
-          skus: [pedido.produtoId],
-          subscriptionOffers: [{ sku: pedido.produtoId, offerToken: oferta.offerToken }],
-          obfuscatedAccountId: pedido.tokenDaConta,
+  // O requestPurchase só abre a folha nativa. O comprovante chega pelo evento,
+  // inclusive quando o Android não devolve nenhuma compra no retorno da chamada.
+  return new Promise<CompraGoogle>((resolve, reject) => {
+    let encerrada = false;
+    const listeners: { remove(): void }[] = [];
+    const timer = setTimeout(() => terminar(new ErroCompraLoja("COMPRA_EM_CONFIRMACAO")), 120_000);
+    function terminar(erro: unknown, compra?: CompraDaLoja) {
+      if (encerrada) return;
+      encerrada = true;
+      clearTimeout(timer);
+      listeners.forEach((listener) => listener.remove());
+      if (compra) resolve(paraCompraGoogle(compra));
+      else reject(erro);
+    }
+    const falhou = async (erro: unknown) => {
+      if (encerrada) return;
+      const codigo = (erro as { code?: string } | null)?.code;
+      if (codigo === "user-cancelled") return terminar(new ErroCompraLoja("COMPRA_CANCELADA"));
+      if (codigo === "already-owned") {
+        try {
+          const compras = (await iap.getAvailablePurchases()) as CompraDaLoja[] | null;
+          const existente = compras?.find((c) => c.productId === pedido.produtoId && c.purchaseToken && c.purchaseState === "purchased");
+          if (existente) return terminar(null, existente);
+          return terminar(new ErroCompraLoja("COMPRA_JA_EXISTENTE"));
+        } catch (e) {
+          return terminar(e);
+        }
+      }
+      terminar(erro);
+    };
+    try {
+      listeners.push(iap.purchaseUpdatedListener((evento) => {
+        const compra = evento as CompraDaLoja;
+        if (compra.productId !== pedido.produtoId) return;
+        if (compra.purchaseState === "pending") return terminar(null, compra);
+        if (compra.purchaseState === "purchased" && compra.purchaseToken) terminar(null, compra);
+      }));
+      listeners.push(iap.purchaseErrorListener((erro) => { void falhou(erro); }));
+      void iap.requestPurchase({
+        type: "subs",
+        request: {
+          google: {
+            skus: [pedido.produtoId],
+            subscriptionOffers: [{ sku: pedido.produtoId, offerToken: oferta.offerToken }],
+            obfuscatedAccountId: pedido.tokenDaConta,
+          },
         },
-      },
-    });
-  } catch (e) {
-    if ((e as { code?: string } | null)?.code === "user-cancelled") throw new ErroCompraLoja("COMPRA_CANCELADA");
-    throw e;
-  }
-  const lista = (Array.isArray(resultado) ? resultado : resultado ? [resultado] : []) as CompraDaLoja[];
-  const compra = lista.find((c) => c.productId === pedido.produtoId && c.purchaseToken);
-  if (!compra) throw new ErroCompraLoja("COMPRA_NAO_CONCLUIDA");
-  return paraCompraGoogle(compra);
+      }).catch(falhou);
+    } catch (erro) {
+      void falhou(erro);
+    }
+  });
 }
 
 /** Compras pagas que a Google Play ainda associa a este aparelho, para reapresentar ao servidor. */

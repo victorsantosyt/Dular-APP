@@ -9,15 +9,17 @@
  * - Diarista/Montador: formulário único, salvo como RESIDENCIAL, sem ponto de ref.
  * - CEP com máscara 00000-000 + auto-preenchimento via ViaCEP (campos editáveis).
  */
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -97,6 +99,38 @@ export function CadastroEnderecoScreen({ role, mode = "onboarding", initial, onD
   const [erro, setErro] = useState<string | null>(null);
 
   const tipoAtual = queue?.[0];
+
+  const scrollRef = useRef<ScrollView>(null);
+  const inputFocusedRef = useRef(false);
+  const scrollFrameRef = useRef<number | null>(null);
+
+  const revealFocusedInput = useCallback(() => {
+    if (scrollFrameRef.current !== null) cancelAnimationFrame(scrollFrameRef.current);
+    scrollFrameRef.current = requestAnimationFrame(() => {
+      scrollFrameRef.current = null;
+      const input = TextInput.State.currentlyFocusedInput();
+      if (inputFocusedRef.current && input !== null && Keyboard.isVisible()) {
+        scrollRef.current?.scrollResponderScrollNativeHandleToKeyboard(input, spacing.md, true);
+      }
+    });
+  }, []);
+
+  const onInputFocus = () => {
+    inputFocusedRef.current = true;
+    revealFocusedInput();
+  };
+
+  const onInputBlur = () => {
+    inputFocusedRef.current = false;
+  };
+
+  useEffect(() => {
+    const subscription = Keyboard.addListener("keyboardDidShow", revealFocusedInput);
+    return () => {
+      subscription.remove();
+      if (scrollFrameRef.current !== null) cancelAnimationFrame(scrollFrameRef.current);
+    };
+  }, [revealFocusedInput]);
 
   const resetForm = () => {
     setCep("");
@@ -289,7 +323,11 @@ export function CadastroEnderecoScreen({ role, mode = "onboarding", initial, onD
 
   return (
     <SafeAreaView style={s.safe} edges={["top", "left", "right"]}>
-      <KeyboardAvoidingView style={s.flex} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      <KeyboardAvoidingView
+        style={s.flex}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
+      >
         <View style={s.header}>
           {onCancel ? (
             <BackCircleButton onPress={onCancel} color={theme.primary} borderColor={theme.border} />
@@ -302,11 +340,20 @@ export function CadastroEnderecoScreen({ role, mode = "onboarding", initial, onD
           <View style={s.backBtn} />
         </View>
 
-        <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        <ScrollView
+          ref={scrollRef}
+          style={s.flex}
+          contentContainerStyle={s.scroll}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          onLayout={revealFocusedInput}
+        >
           <Text style={s.formTitle}>Endereço {tipoLabel}{stepLabel}</Text>
 
           <Text style={s.fieldLabel}>CEP</Text>
           <DInput
+            onFocus={onInputFocus}
+            onBlur={onInputBlur}
             placeholder="00000-000"
             value={cep}
             onChangeText={onCepChange}
@@ -320,21 +367,21 @@ export function CadastroEnderecoScreen({ role, mode = "onboarding", initial, onD
           ) : null}
 
           <Text style={s.fieldLabel}>Rua</Text>
-          <DInput placeholder="Rua / Avenida" value={rua} onChangeText={setRua} />
+          <DInput onFocus={onInputFocus} onBlur={onInputBlur} placeholder="Rua / Avenida" value={rua} onChangeText={setRua} />
 
           <View style={s.row}>
             <View style={s.flex}>
               <Text style={s.fieldLabel}>Número</Text>
-              <DInput placeholder="Nº" value={numero} onChangeText={setNumero} keyboardType="number-pad" />
+              <DInput onFocus={onInputFocus} onBlur={onInputBlur} placeholder="Nº" value={numero} onChangeText={setNumero} keyboardType="number-pad" />
             </View>
             <View style={s.flex}>
               <Text style={s.fieldLabel}>Complemento</Text>
-              <DInput placeholder="Apto, bloco…" value={complemento} onChangeText={setComplemento} />
+              <DInput onFocus={onInputFocus} onBlur={onInputBlur} placeholder="Apto, bloco…" value={complemento} onChangeText={setComplemento} />
             </View>
           </View>
 
           <Text style={s.fieldLabel}>Bairro</Text>
-          <DInput placeholder="Bairro" value={bairro} onChangeText={setBairro} />
+          <DInput onFocus={onInputFocus} onBlur={onInputBlur} placeholder="Bairro" value={bairro} onChangeText={setBairro} />
           {catalogoFalhou ? (
             /* Falha ao carregar o catálogo BLOQUEIA em vez de deixar passar.
                Antes seguia em silêncio e o endereço era salvo num bairro que o
@@ -373,11 +420,13 @@ export function CadastroEnderecoScreen({ role, mode = "onboarding", initial, onD
           <View style={s.row}>
             <View style={s.flexCidade}>
               <Text style={s.fieldLabel}>Cidade</Text>
-              <DInput placeholder="Cidade" value={cidade} onChangeText={setCidade} />
+              <DInput onFocus={onInputFocus} onBlur={onInputBlur} placeholder="Cidade" value={cidade} onChangeText={setCidade} />
             </View>
             <View style={s.ufBox}>
               <Text style={s.fieldLabel}>UF</Text>
               <DInput
+                onFocus={onInputFocus}
+                onBlur={onInputBlur}
                 placeholder="UF"
                 value={uf}
                 onChangeText={(t) => setUf(t.toUpperCase().slice(0, 2))}
@@ -390,7 +439,7 @@ export function CadastroEnderecoScreen({ role, mode = "onboarding", initial, onD
           {isEmpregador ? (
             <>
               <Text style={s.fieldLabel}>Ponto de referência (opcional)</Text>
-              <DInput placeholder="Ex.: próximo à praça" value={ponto} onChangeText={setPonto} />
+              <DInput onFocus={onInputFocus} onBlur={onInputBlur} placeholder="Ex.: próximo à praça" value={ponto} onChangeText={setPonto} />
             </>
           ) : null}
 
@@ -507,4 +556,5 @@ function makeStyles(colors: ReturnType<typeof useDularColors>) {
     saveBtnText: { ...typography.bodyMedium, color: colors.white, fontWeight: "800" },
   });
 }
+
 

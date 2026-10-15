@@ -109,6 +109,10 @@ export type ResultadoRestauracao = {
   restauradas: number;
   /** Compras que o servidor recusou (de outra conta, vencida, outro perfil). */
   recusadas: number;
+  /** Pagamentos ainda pendentes: não são assinaturas concedidas. */
+  pendentes: number;
+  /** Falhas transitórias na confirmação; restauração pode ser repetida. */
+  falhas: number;
   /** Plano depois da última restauração concedida. */
   plano: string | null;
 };
@@ -121,16 +125,20 @@ export type ResultadoRestauracao = {
  */
 export async function restaurarCompras(caminho: CaminhoDePagamento | null | undefined): Promise<ResultadoRestauracao> {
   if (Platform.OS !== "android" || !lojaDisponivel(caminho)) throw new ErroCompraLoja("IAP_INDISPONIVEL");
-  const resultado: ResultadoRestauracao = { restauradas: 0, recusadas: 0, plano: null };
+  const resultado: ResultadoRestauracao = { restauradas: 0, recusadas: 0, pendentes: 0, falhas: 0, plano: null };
   for (const compra of await comprasParaRestaurarGoogle()) {
     try {
       const r = await apresentarCompraGoogle(compra);
       if ("plano" in r) {
         resultado.restauradas += 1;
         resultado.plano = r.plano;
+      } else {
+        resultado.pendentes += 1;
       }
-    } catch {
-      resultado.recusadas += 1;
+    } catch (erro) {
+      const status = (erro as { response?: { status?: number } })?.response?.status;
+      if (status && status >= 400 && status < 500 && status !== 408 && status !== 429) resultado.recusadas += 1;
+      else resultado.falhas += 1;
     }
   }
   return resultado;

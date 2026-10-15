@@ -43,7 +43,8 @@ export type CodigoCompraLoja =
   | "COMPRA_CANCELADA"
   | "COMPRA_NAO_CONCLUIDA"
   | "COMPRA_EM_CONFIRMACAO"
-  | "COMPRA_JA_EXISTENTE";
+  | "COMPRA_JA_EXISTENTE"
+  | "UPGRADE_INDISPONIVEL";
 
 export class ErroCompraLoja extends Error {
   constructor(readonly codigo: CodigoCompraLoja) {
@@ -75,7 +76,8 @@ function paraCompraGoogle(c: CompraDaLoja): CompraGoogle {
  * o token da conta. Devolve a compra — pendente ou paga — sem concluí-la.
  */
 export async function comprarAssinaturaGoogle(
-  pedido: { produtoId: string; planoBase: string | null | undefined; tokenDaConta: string | null | undefined },
+  pedido: { produtoId: string; planoBase: string | null | undefined; tokenDaConta: string | null | undefined;
+    substituicao?: { produtoId: string; validar: (compra: CompraGoogle) => Promise<void> } },
   iap: Iap | null = moduloIap(),
 ): Promise<CompraGoogle> {
   if (!iap) throw new ErroCompraLoja("IAP_INDISPONIVEL");
@@ -90,6 +92,21 @@ export async function comprarAssinaturaGoogle(
     (c.purchaseState === "purchased" && c.purchaseToken) || c.purchaseState === "pending"
   ));
   if (anterior) return paraCompraGoogle(anterior);
+  if (!pedido.substituicao && anteriores.some((c) => c.purchaseState === "purchased" || c.purchaseState === "pending")) {
+    // O servidor pode ainda não conhecer uma compra concluída fora deste fluxo.
+    // Restaure primeiro; abrir outra folha criaria assinaturas em paralelo.
+    throw new ErroCompraLoja("COMPRA_JA_EXISTENTE");
+  }
+
+  let substituida: CompraDaLoja | undefined;
+  if (pedido.substituicao) {
+    // Nunca escolher uma compra arbitrária de outra conta/produto do aparelho.
+    const candidatas = anteriores.filter((c) => c.productId === pedido.substituicao?.produtoId && c.purchaseToken && c.purchaseState === "purchased");
+    if (candidatas.length !== 1 || pedido.substituicao.produtoId === pedido.produtoId) throw new ErroCompraLoja("UPGRADE_INDISPONIVEL");
+    substituida = candidatas[0];
+    // Validação autenticada no servidor deve terminar ANTES da folha de troca.
+    await pedido.substituicao.validar(paraCompraGoogle(substituida));
+  }
 
   const produtos = ((await iap.fetchProducts({ skus: [pedido.produtoId], type: "subs" })) ?? []) as {
     id: string;
@@ -145,6 +162,13 @@ export async function comprarAssinaturaGoogle(
             skus: [pedido.produtoId],
             subscriptionOffers: [{ sku: pedido.produtoId, offerToken: oferta.offerToken }],
             obfuscatedAccountId: pedido.tokenDaConta,
+            ...(substituida ? {
+              purchaseToken: substituida.purchaseToken,
+              subscriptionProductReplacementParams: {
+                oldProductId: substituida.productId,
+                replacementMode: "with-time-proration" as const,
+              },
+            } : {}),
           },
         },
       }).catch(falhou);
@@ -166,4 +190,22 @@ export async function comprasParaRestaurarGoogle(iap: Iap | null = moduloIap()):
 export async function concluirCompraGoogle(compra: CompraGoogle, iap: Iap | null = moduloIap()): Promise<void> {
   if (!iap) throw new ErroCompraLoja("IAP_INDISPONIVEL");
   await iap.finishTransaction({ purchase: compra.original as Parameters<Iap["finishTransaction"]>[0]["purchase"], isConsumable: false });
+}
+
+
+/** Apenas produtos publicados e com o plano base sem promoção podem ser oferecidos. */
+export async function consultarDisponibilidadeGoogle(
+  planos: { id: string; storeProductId?: string | null; storeBasePlanId?: string | null }[],
+  iap: Iap | null = moduloIap(),
+): Promise<string[]> {
+  if (!iap) throw new ErroCompraLoja("IAP_INDISPONIVEL");
+  const skus = [...new Set(planos.flatMap((p) => p.storeProductId ? [p.storeProductId] : []))];
+  if (!skus.length) return [];
+  await iap.initConnection();
+  const produtos = ((await iap.fetchProducts({ skus, type: "subs" })) ?? []) as {
+    id: string; subscriptionOfferDetailsAndroid?: { basePlanId: string; offerId?: string | null }[];
+  }[];
+  return planos.filter((p) => p.storeProductId && p.storeBasePlanId && produtos.some((produto) =>
+    produto.id === p.storeProductId && produto.subscriptionOfferDetailsAndroid?.some((oferta) =>
+      oferta.basePlanId === p.storeBasePlanId && !oferta.offerId))).map((p) => p.id);
 }

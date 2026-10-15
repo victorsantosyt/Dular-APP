@@ -4,6 +4,7 @@ import {
   ActivityIndicator,
   Animated,
   Platform,
+  Linking,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -17,7 +18,7 @@ import { useNavigation, useRoute } from "@react-navigation/native";
 
 import { api } from "@/lib/api";
 import { useAssinaturaPlano, planoAtualDoCatalogo } from "@/hooks/useAssinaturaPlano";
-import { bloqueiaNovaCompra } from "@/components/ui/assinaturaPlano";
+import { alternativasDoPlano, exibicaoDosPlanos, gerenciaAssinaturaNaGoogle, podeFazerUpgradeGoogle, estadoDoPlano, bloqueiaNovaCompra } from "@/components/ui/assinaturaPlano";
 import { MotivoPaywall, type PaywallParams } from "@/lib/paywall";
 import {
   abrirCheckout,
@@ -26,7 +27,7 @@ import {
   restaurarCompras,
   type CaminhoDePagamento,
 } from "@/lib/compraDePlano";
-import { ErroCompraLoja } from "@/lib/lojaGoogle";
+import { ErroCompraLoja, consultarDisponibilidadeGoogle } from "@/lib/lojaGoogle";
 import { AppIcon, type AppIconName } from "@/components/ui";
 import { colors, radius, spacing, typography } from "@/theme/tokens";
 import { useGenderTheme } from "@/hooks/useProfileTheme";
@@ -447,6 +448,7 @@ const MSG_PENDENTE =
 function mensagemDeErroDaCompra(e: unknown): string {
   if (e instanceof ErroCompraLoja) {
     if (e.codigo === "IAP_INDISPONIVEL") return "A compra pela loja ainda não está disponível nesta versão do app.";
+    if (e.codigo === "UPGRADE_INDISPONIVEL") return "Não foi possível preparar a troca. Atualize seu plano e tente novamente.";
     if (e.codigo === "PRODUTO_INDISPONIVEL") return "Este plano ainda não está disponível na Google Play.";
   }
   const codigo = (e as { response?: { data?: { error?: { code?: string } } } } | null)?.response?.data?.error?.code;
@@ -475,6 +477,10 @@ export default function PaywallScreen({ onClose }: Props) {
   // catálogo só tem planos de DIARISTA, então o montador cai no segundo caso
   // e dizer "não foi possível carregar" seria mentira.
   const [falhouBusca, setFalhouBusca] = useState(false);
+  const [upgrade, setUpgrade] = useState(false);
+  const [disponiveisGoogle, setDisponiveisGoogle] = useState<string[] | null>(null);
+  const [falhouDisponibilidade, setFalhouDisponibilidade] = useState(false);
+  const [tentativaDisponibilidade, setTentativaDisponibilidade] = useState(0);
   const [escolhido, setEscolhido] = useState<string | null>(null);
   // `escolhido` volta a null ao tocar em "Ver outros planos" — este guarda o
   // último plano aberto para o card continuar em destaque na lista.
@@ -520,8 +526,42 @@ export default function PaywallScreen({ onClose }: Props) {
   const planoEscolhido = planos.find((p) => p.id === escolhido) ?? null;
   const escolhidoAtual = Boolean(planoEscolhido && planoAtualDoCatalogo(assinatura.data, planoEscolhido.id));
   const temPlanoPago = Boolean(assinatura.data && assinatura.data.plan !== "FREE");
+  const exibicao = exibicaoDosPlanos(assinatura.data, upgrade);
+  const mostrarResumo = exibicao === "resumo";
+  const alternativas = useMemo(() => alternativasDoPlano(assinatura.data, planos), [assinatura.data, planos]);
+  const consultaLoja = upgrade && Platform.OS === "android" && lojaDisponivel(pagamento);
+  const alternativasVisiveis = consultaLoja
+    ? alternativas.filter((p) => disponiveisGoogle?.includes(p.id))
+    : alternativas;
+
+  useEffect(() => {
+    if (!consultaLoja || carregando || falhouBusca) return;
+    let vivo = true;
+    setDisponiveisGoogle(null);
+    setFalhouDisponibilidade(false);
+    consultarDisponibilidadeGoogle(alternativas).then((ids) => {
+      if (vivo) setDisponiveisGoogle(ids);
+    }).catch(() => {
+      if (vivo) setFalhouDisponibilidade(true);
+    });
+    return () => { vivo = false; };
+  }, [consultaLoja, carregando, falhouBusca, alternativas, tentativaDisponibilidade]);
+  const planoAtual = planos.find((p) => planoAtualDoCatalogo(assinatura.data, p.id)) ?? null;
+  const subAtual = assinatura.data?.subscription;
+  const beneficiosAtuais = assinatura.data
+    ? beneficiosDe({ plan: assinatura.data.plan, interval: subAtual?.interval ?? null })
+    : [];
+  const trocaPelaGoogle = gerenciaAssinaturaNaGoogle(assinatura.data);
+  const gerenciarGoogle = () => {
+    const produto = subAtual?.storeProductId;
+    const url = produto
+      ? `https://play.google.com/store/account/subscriptions?sku=${encodeURIComponent(produto)}&package=br.com.dular.app`
+      : "https://play.google.com/store/account/subscriptions";
+    void Linking.openURL(url).catch(() => setRetornoCompra({ tipo: "erro", texto: "Não foi possível abrir a Google Play. Abra a Play Store e acesse Pagamentos e assinaturas." }));
+  };
   const operando = assinando || restaurando;
-  const bloqueioPlano = Boolean(planoEscolhido && bloqueiaNovaCompra(assinatura.data, planoEscolhido.id, lojaDisponivel(pagamento)));
+  const upgradeGoogle = Boolean(planoEscolhido && lojaDisponivel(pagamento) && podeFazerUpgradeGoogle(assinatura.data, planoEscolhido));
+  const bloqueioPlano = Boolean(planoEscolhido && bloqueiaNovaCompra(assinatura.data, planoEscolhido.id, lojaDisponivel(pagamento)) && !upgradeGoogle);
   const compraBloqueada = assinatura.carregando || !pagamento || !assinatura.data || bloqueioPlano || requerVerificacao || retornoCompra?.tipo === "pendente";
   const economiaDoAnual =
     planoEscolhido && planoEscolhido.interval === "year"
@@ -532,6 +572,7 @@ export default function PaywallScreen({ onClose }: Props) {
     if (retornoCompra?.tipo === "pendente" && planoEmConfirmacao.current && planoAtualDoCatalogo(assinatura.data, planoEmConfirmacao.current) && !assinatura.carregando && assinatura.apresentacao) {
       setRetornoCompra({ tipo: "sucesso", texto: `Seu plano ${assinatura.apresentacao.nome} está ativo.` });
       setEscolhido(null);
+      setUpgrade(false);
       setRequerVerificacao(false);
     }
   }, [retornoCompra?.tipo, assinatura.data, assinatura.carregando, assinatura.apresentacao?.nome]);
@@ -562,6 +603,7 @@ export default function PaywallScreen({ onClose }: Props) {
           setRequerVerificacao(false);
           setRetornoCompra({ tipo: "sucesso", texto: `Assinatura confirmada. Seu plano ${atual?.subscription?.name ?? planoEscolhido.name} está ativo.` });
           setEscolhido(null);
+          setUpgrade(false);
         } else {
           setRetornoCompra({ tipo: "pendente", texto: "A compra foi recebida, mas ainda não conseguimos confirmar seu plano. Atualize o status ou restaure a compra. Não assine novamente." });
         }
@@ -597,6 +639,7 @@ export default function PaywallScreen({ onClose }: Props) {
         planoEmConfirmacao.current = null;
         setRetornoCompra({ tipo: "sucesso", texto: `Assinatura restaurada. Seu plano ${atual.subscription?.name ?? assinatura.apresentacao?.nome ?? "pago"} está ativo.` });
         setEscolhido(null);
+        setUpgrade(false);
       } else if (r.pendentes > 0) {
         setRetornoCompra({ tipo: "pendente", texto: MSG_PENDENTE });
       } else if (r.falhas > 0 || (r.restauradas > 0 && !atual)) {
@@ -622,6 +665,7 @@ export default function PaywallScreen({ onClose }: Props) {
       setRequerVerificacao(false);
       setRetornoCompra({ tipo: "sucesso", texto: `Seu plano ${atual.subscription?.name ?? "pago"} está ativo.` });
       setEscolhido(null);
+      setUpgrade(false);
     }
   };
 
@@ -657,18 +701,34 @@ export default function PaywallScreen({ onClose }: Props) {
           ) : null}
           {assinatura.erro ? <Text style={s.vazio}>Não foi possível consultar seu plano. Atualize o status antes de assinar.</Text> : null}
           {assinatura.carregando ? <View style={s.carregando}><ActivityIndicator color={tema.primary} /><Text style={s.atualDesc}>Consultando seu plano…</Text></View> : null}
-          {assinatura.apresentacao && temPlanoPago ? (
-            <View style={s.atual}>
-              <View style={[s.opcaoIcone, { backgroundColor: tema.primarySoft }]}><AppIcon name={assinatura.apresentacao.icone} size={24} color={tema.primary} /></View>
-              <View style={s.atualEsq}>
-                <Text style={s.atualNome}>{assinatura.apresentacao.nome}</Text>
-                <Text style={s.atualDesc}>{assinatura.data?.subscription?.canceledAt ? "Renovação cancelada. Acesso mantido até o fim do período." : "Sua assinatura atual"}</Text>
+          {mostrarResumo && assinatura.apresentacao ? (
+            <>
+              <View style={s.cabecalhoCentro}>
+                <LinearGradient colors={[tema.primaryLight, tema.primary]} style={s.cabecalhoIcone}>
+                  <AppIcon name={assinatura.apresentacao.icone} size={28} color={colors.white} />
+                </LinearGradient>
+                <Text style={s.subtitulo}>Meu plano</Text>
+                <Text style={s.titulo}>{assinatura.apresentacao.nome}</Text>
+                <View style={s.atualTag}><Text style={s.atualTagTexto}>Plano atual</Text></View>
+                <Text style={s.subtitulo}>{assinatura.data ? estadoDoPlano(assinatura.data) : ""}</Text>
+                {subAtual?.expiresAt && Number.isFinite(Date.parse(subAtual.expiresAt)) ? (
+                  <Text style={s.atualDesc}>Acesso até {new Date(subAtual.expiresAt).toLocaleDateString("pt-BR")}</Text>
+                ) : null}
+                {planoAtual ? <Text style={s.subtitulo}>{formatMoneyFromCents(planoAtual.priceInCents)} {sufixoPeriodo(planoAtual.interval)}</Text> : null}
               </View>
-              <View style={s.atualTag}><Text style={s.atualTagTexto}>Plano atual</Text></View>
-            </View>
+              <Text style={s.secao}>Benefícios do seu plano</Text>
+              <View style={s.beneficios}>{beneficiosAtuais.map((beneficio) => (
+                <View key={beneficio} style={s.beneficio}>
+                  <View style={[s.beneficioIcone, { backgroundColor: tema.primarySoft }]}><AppIcon name="Check" size={13} color={tema.primary} /></View>
+                  <Text style={s.beneficioTexto}>{beneficio}</Text>
+                </View>
+              ))}</View>
+              <BotaoAssinar tema={tema} rotulo="Upgrade" carregando={false} disabled={operando} onPress={() => { setEscolhido(null); setDisponiveisGoogle(null); setFalhouDisponibilidade(false); setUpgrade(true); }} />
+              {trocaPelaGoogle ? <Pressable onPress={gerenciarGoogle} style={s.secundario} accessibilityRole="button"><Text style={s.secundarioTexto}>Gerenciar assinatura na Google Play</Text></Pressable> : null}
+            </>
           ) : null}
 
-          {planoEscolhido ? (
+          {!mostrarResumo && exibicao !== "consulta" ? planoEscolhido ? (
             /* ── Passo 2: o que o plano libera + assinar ─────────────────── */
             <>
               {/* Repete a identidade da lista: quem tocou em "Pro Mensal"
@@ -724,14 +784,17 @@ export default function PaywallScreen({ onClose }: Props) {
                 ))}
               </View>
 
-              <BotaoAssinar
+              {bloqueioPlano && temPlanoPago ? (
+                <View style={s.aviso}><Text style={s.avisoTexto}>Esta mudança não está disponível pelo aplicativo. Seu plano atual continua válido; consulte o gerenciamento da assinatura.</Text></View>
+              ) : <BotaoAssinar
                 tema={tema}
-                rotulo={escolhidoAtual ? "Plano atual" : bloqueioPlano && temPlanoPago ? "Você já possui um plano ativo" : requerVerificacao ? "Verifique sua assinatura abaixo" : `Assinar ${planoEscolhido.name}`}
+                rotulo={escolhidoAtual ? "Plano atual" : bloqueioPlano && temPlanoPago ? "Você já possui um plano ativo" : requerVerificacao ? "Verifique sua assinatura abaixo" : upgradeGoogle ? `Fazer upgrade para ${planoEscolhido.name}` : `Assinar ${planoEscolhido.name}`}
                 carregando={operando}
                 disabled={compraBloqueada}
                 onPress={assinar}
-              />
-              <Text style={s.legal}>Cancele quando quiser. Sem fidelidade.</Text>
+              />}
+              {trocaPelaGoogle ? <Pressable onPress={gerenciarGoogle} style={s.secundario} accessibilityRole="button"><Text style={s.secundarioTexto}>Gerenciar assinatura na Google Play</Text></Pressable> : null}
+              <Text style={s.legal}>{upgradeGoogle ? "A Google Play substituirá sua assinatura atual e apresentará as condições antes da confirmação." : "Cancele quando quiser. Sem fidelidade."}</Text>
             </>
           ) : (
             /* ── Passo 1: só as opções, sem botão de ação ─────────────────── */
@@ -740,8 +803,8 @@ export default function PaywallScreen({ onClose }: Props) {
                 <View style={[s.cabecalhoIcone, { backgroundColor: tema.primarySoft }]}>
                   <AppIcon name="Sparkles" size={24} color={tema.primary} strokeWidth={2.1} />
                 </View>
-                <Text style={s.titulo}>{temPlanoPago ? "Seu plano" : "Escolha seu plano"}</Text>
-                <Text style={s.subtitulo}>{temPlanoPago ? "Confira sua assinatura e os benefícios dos planos." : "Toque em um plano para ver o que ele libera."}</Text>
+                <Text style={s.titulo}>{temPlanoPago ? "Upgrade" : "Escolha seu plano"}</Text>
+                <Text style={s.subtitulo}>{temPlanoPago ? "Compare as outras opções. Seu plano atual continua ativo." : "Toque em um plano para ver o que ele libera."}</Text>
               </View>
 
               {mensagem ? (
@@ -778,19 +841,25 @@ export default function PaywallScreen({ onClose }: Props) {
                 </View>
               ) : null}
 
-              {carregando ? (
+
+              {carregando || (consultaLoja && !falhouBusca && !falhouDisponibilidade && disponiveisGoogle === null) ? (
                 <View style={s.carregando}>
                   <ActivityIndicator color={tema.primary} />
                 </View>
-              ) : planos.length === 0 ? (
+              ) : consultaLoja && falhouDisponibilidade ? (
+                <>
+                  <Text style={s.vazio}>Não foi possível consultar os planos na Google Play.</Text>
+                  <Pressable onPress={() => setTentativaDisponibilidade((v) => v + 1)} style={s.secundario} accessibilityRole="button"><Text style={s.secundarioTexto}>Tentar novamente</Text></Pressable>
+                </>
+              ) : alternativasVisiveis.length === 0 ? (
                 <Text style={s.vazio}>
                   {falhouBusca
                     ? "Não foi possível carregar os planos agora."
-                    : "Ainda não há planos disponíveis para o seu perfil."}
+                    : temPlanoPago ? "Não há outros planos disponíveis para o seu perfil." : "Ainda não há planos disponíveis para o seu perfil."}
                 </Text>
               ) : (
                 <View style={s.lista}>
-                  {planos.map((p, i) => (
+                  {alternativasVisiveis.map((p, i) => (
                     <PlanoCard
                       key={p.id}
                       plano={p}
@@ -818,7 +887,7 @@ export default function PaywallScreen({ onClose }: Props) {
                 </View>
               )}
             </>
-          )}
+          ) : null}
 
           {/* A saída é o último item da lista, não um rodapé fixo. Fixa, ela
               ficava num bloco separado e a rolagem cortava o último plano numa
@@ -844,26 +913,20 @@ export default function PaywallScreen({ onClose }: Props) {
           <Pressable onPress={() => { void atualizarStatus(); }} disabled={operando || assinatura.carregando} style={s.secundario} accessibilityRole="button">
             <Text style={s.secundarioTexto}>Atualizar status</Text>
           </Pressable>
-          {temPlanoPago && !planoEscolhido ? (
+          {mostrarResumo ? (
             <Pressable onPress={fechar} style={s.secundario} accessibilityRole="button"><Text style={s.secundarioTexto}>Concluir</Text></Pressable>
           ) : planoEscolhido ? (
-            <Pressable
-              onPress={() => setEscolhido(null)}
-              style={({ pressed }) => [s.secundario, pressed && s.secundarioPressionado]}
-              accessibilityRole="button"
-              accessibilityLabel="Ver outros planos"
-            >
-              <AppIcon name="ArrowLeft" size={16} color={colors.textSecondary} strokeWidth={2.5} />
+            <Pressable onPress={() => setEscolhido(null)} style={s.secundario} accessibilityRole="button">
+              <AppIcon name="ArrowLeft" size={16} color={colors.textSecondary} />
               <Text style={s.secundarioTexto}>Ver outros planos</Text>
             </Pressable>
-          ) : (
-            <Pressable
-              onPress={fechar}
-              style={({ pressed }) => [s.secundario, pressed && s.secundarioPressionado]}
-              accessibilityRole="button"
-            >
-              <Text style={s.secundarioTexto}>Agora não</Text>
+          ) : temPlanoPago ? (
+            <Pressable onPress={() => { setEscolhido(null); setUpgrade(false); }} style={s.secundario} accessibilityRole="button">
+              <AppIcon name="ArrowLeft" size={16} color={colors.textSecondary} />
+              <Text style={s.secundarioTexto}>Voltar ao meu plano</Text>
             </Pressable>
+          ) : (
+            <Pressable onPress={fechar} style={s.secundario} accessibilityRole="button"><Text style={s.secundarioTexto}>{exibicao === "consulta" ? "Fechar" : "Agora não"}</Text></Pressable>
           )}
         </ScrollView>
       </View>
@@ -1045,4 +1108,5 @@ const s = StyleSheet.create({
   secundarioPressionado: { opacity: 0.7 },
   secundarioTexto: { ...typography.bodySm, color: colors.textSecondary, fontWeight: "700" },
 });
+
 

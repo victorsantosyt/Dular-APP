@@ -63,7 +63,9 @@
         }
       ],
       "expo-notifications",
-      "expo-iap"
+      "expo-iap",
+      "./plugins/withSingleSplash.cjs",
+      "expo-splash-screen"
     ],
     "extra": {
       "apiBaseUrl": "https://dular-three.vercel.app",

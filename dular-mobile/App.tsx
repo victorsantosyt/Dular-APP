@@ -24,8 +24,8 @@ import { aplicarFonteGlobal } from "@/theme/fonte";
 // primeiro render de qualquer <Text>.
 aplicarFonteGlobal();
 
-// A splash nativa cobre fontes, sessão e decisão inicial de navegação. A
-// liberação única fica no RootNavigator, quando esses estados são válidos.
+// A splash nativa cobre a montagem inicial. O RootNavigator a libera assim
+// que a arte oficial está pronta, mantendo-a durante o bootstrap.
 void ExpoSplashScreen.preventAutoHideAsync().catch(() => {});
 
 export default function App() {
@@ -77,3 +77,4 @@ export default function App() {
     </SafeAreaProvider>
   );
 }
+

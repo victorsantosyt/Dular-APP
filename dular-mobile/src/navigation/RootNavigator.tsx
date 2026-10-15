@@ -1,6 +1,7 @@
-import React, { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import * as ExpoSplashScreen from "expo-splash-screen";
+import { SplashScreen } from "@/screens/onboarding/SplashScreen";
 import OnboardingNavigator from "@/navigation/OnboardingNavigator";
 import { GeneroGateScreen } from "@/screens/onboarding/GeneroGateScreen";
 import { NichosGateScreen } from "@/screens/onboarding/NichosGateScreen";
@@ -144,7 +145,7 @@ function AuthenticatedFlow({ role, onboardingSeen }: { role: string | null; onbo
     );
   }
 
-  const initialRouteName = onboardingSeen ? "RoleSelect" : "Splash";
+  const initialRouteName = onboardingSeen ? "RoleSelect" : "Welcome";
   return (
     <ThemeScope forceLight>
       <OnboardingNavigator key={initialRouteName} initialRouteName={initialRouteName} />
@@ -164,14 +165,6 @@ function BootstrapRecovery({ message, onRetry }: { message: string; onRetry: () 
   );
 }
 
-function BootstrapLoading() {
-  return (
-    <View style={styles.bootScreen}>
-      <ActivityIndicator color={colors.primary} />
-    </View>
-  );
-}
-
 type RootNavigatorProps = {
   fontsReady?: boolean;
 };
@@ -184,6 +177,9 @@ export function RootNavigator({ fontsReady = true }: RootNavigatorProps) {
   const hydrate = useAuthStore((state) => state.hydrate);
   const [onboardingSeen, setOnboardingSeen] = useState<boolean | null>(null);
   const splashHiddenRef = useRef(false);
+  const [splashReady, setSplashReady] = useState(false);
+  const [nativeSplashHidden, setNativeSplashHidden] = useState(false);
+  const handleSplashReady = useCallback(() => setSplashReady(true), []);
 
   useEffect(() => {
     let mounted = true;
@@ -211,16 +207,17 @@ export function RootNavigator({ fontsReady = true }: RootNavigatorProps) {
   }, [hydrate]);
 
   useEffect(() => {
-    const isReadyToRender =
-      fontsReady && bootstrapStatus !== "bootstrapping" && onboardingSeen !== null;
-    if (isReadyToRender && !splashHiddenRef.current) {
-      splashHiddenRef.current = true;
-      void ExpoSplashScreen.hideAsync().catch(() => {});
-    }
-  }, [bootstrapStatus, fontsReady, onboardingSeen]);
+    if (!splashReady || splashHiddenRef.current) return;
+    splashHiddenRef.current = true;
+    // A arte oficial já está pronta. A rede e as fontes continuam carregando
+    // sob ela, sem prolongar a tela nativa com o ícone do aplicativo.
+    void ExpoSplashScreen.hideAsync()
+      .catch(() => {})
+      .finally(() => setNativeSplashHidden(true));
+  }, [splashReady]);
 
-  if (!fontsReady || bootstrapStatus === "bootstrapping" || onboardingSeen === null) {
-    return <BootstrapLoading />;
+  if (!nativeSplashHidden || !fontsReady || bootstrapStatus === "bootstrapping" || onboardingSeen === null) {
+    return <SplashScreen onReady={handleSplashReady} />;
   }
 
   if (bootstrapStatus === "error") {
@@ -228,7 +225,7 @@ export function RootNavigator({ fontsReady = true }: RootNavigatorProps) {
   }
 
   if (bootstrapStatus === "unauthenticated") {
-    const initialRouteName = onboardingSeen ? "RoleSelect" : "Splash";
+    const initialRouteName = onboardingSeen ? "RoleSelect" : "Welcome";
     return (
       <ThemeScope forceLight>
         <OnboardingNavigator key={initialRouteName} initialRouteName={initialRouteName} />
@@ -291,3 +288,4 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
 });
+

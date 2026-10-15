@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Animated,
   Easing,
@@ -6,20 +6,13 @@ import {
   View,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { useNavigation } from "@react-navigation/native";
-import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import type { OnboardingStackParamList } from "@/navigation/OnboardingNavigator";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
 const LOGO_SIZE = 550;
 
-const DURATION_BG     = 700;
-const DURATION_LOGO   = 900;
-const DELAY_LOGO      = 280;
 const DURATION_PULSE  = 2600;
 const DURATION_FLOAT  = 5200;
-const NAVIGATE_AFTER  = 5000;
 
 const C = {
   bg1:    "#F7F5FF",
@@ -30,37 +23,27 @@ const C = {
   shape3: "rgba(233,138, 203, 0.05)",
   dot1:   "rgba(108, 77, 255, 0.18)",
   dot2:   "rgba(108, 77, 255, 0.11)",
-  indicator: "rgba(108, 77, 255, 0.20)",
 };
 
 const logoImg = require("../../../assets/adaptive-icon.png");
 
-type Navigation = NativeStackNavigationProp<OnboardingStackParamList>;
+type SplashScreenProps = {
+  onReady?: () => void;
+};
 
 // ─── Screen ──────────────────────────────────────────────────────────────────
 
-export function SplashScreen() {
-  const navigation = useNavigation<Navigation>();
-
-  const bgOpacity     = useRef(new Animated.Value(0)).current;
+export function SplashScreen({ onReady }: SplashScreenProps) {
+  const [layoutReady, setLayoutReady] = useState(false);
+  const [imageReady, setImageReady] = useState(false);
   const shape1Y       = useRef(new Animated.Value(0)).current;
   const shape2Y       = useRef(new Animated.Value(0)).current;
-  const logoScale     = useRef(new Animated.Value(0.88)).current;
-  const logoOpacity   = useRef(new Animated.Value(0)).current;
   const logoPulse     = useRef(new Animated.Value(1)).current;
   const dot1Y         = useRef(new Animated.Value(0)).current;
   const dot2Y         = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    // 1. Background fade in
-    Animated.timing(bgOpacity, {
-      toValue: 1,
-      duration: DURATION_BG,
-      easing: Easing.out(Easing.ease),
-      useNativeDriver: true,
-    }).start();
-
-    // 2. Organic shapes — slow breathing float
+    // Mantém o movimento suave da arte oficial durante o carregamento.
     const floatLoop = (anim: Animated.Value, dir: 1 | -1) =>
       Animated.loop(
         Animated.sequence([
@@ -79,29 +62,11 @@ export function SplashScreen() {
         ])
       );
 
-    floatLoop(shape1Y, 1).start();
-    floatLoop(shape2Y, -1).start();
-    floatLoop(dot1Y, 1).start();
-    floatLoop(dot2Y, -1).start();
-
-    // 3. Logo reveal — scale + opacity, premium easing
-    Animated.parallel([
-      Animated.timing(logoScale, {
-        toValue: 1,
-        duration: DURATION_LOGO,
-        delay: DELAY_LOGO,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }),
-      Animated.timing(logoOpacity, {
-        toValue: 1,
-        duration: DURATION_LOGO,
-        delay: DELAY_LOGO,
-        easing: Easing.out(Easing.ease),
-        useNativeDriver: true,
-      }),
-    ]).start(() => {
-      // 4. Soft pulse after reveal
+    const animations = [
+      floatLoop(shape1Y, 1),
+      floatLoop(shape2Y, -1),
+      floatLoop(dot1Y, 1),
+      floatLoop(dot2Y, -1),
       Animated.loop(
         Animated.sequence([
           Animated.timing(logoPulse, {
@@ -116,18 +81,19 @@ export function SplashScreen() {
             easing: Easing.inOut(Easing.sin),
             useNativeDriver: true,
           }),
-        ])
-      ).start();
-    });
+        ]),
+      ),
+    ];
+    animations.forEach((animation) => animation.start());
+    return () => animations.forEach((animation) => animation.stop());
+  }, [dot1Y, dot2Y, logoPulse, shape1Y, shape2Y]);
 
-    const timer = setTimeout(() => navigation.replace("Welcome"), NAVIGATE_AFTER);
-    return () => clearTimeout(timer);
-  }, [bgOpacity, dot1Y, dot2Y, logoOpacity, logoPulse, logoScale, navigation, shape1Y, shape2Y]);
-
-  const combinedScale = Animated.multiply(logoScale, logoPulse);
+  useEffect(() => {
+    if (layoutReady && imageReady) onReady?.();
+  }, [imageReady, layoutReady, onReady]);
 
   return (
-    <Animated.View style={[styles.root, { opacity: bgOpacity }]}>
+    <View style={styles.root} onLayout={() => setLayoutReady(true)}>
       <LinearGradient
         colors={[C.bg1, C.bg2, C.bg3]}
         start={{ x: 0.5, y: 0 }}
@@ -154,14 +120,13 @@ export function SplashScreen() {
       <View style={styles.center}>
         <Animated.Image
           source={logoImg}
-          style={[styles.logo, { transform: [{ scale: combinedScale }], opacity: logoOpacity }]}
+          style={[styles.logo, { transform: [{ scale: logoPulse }] }]}
+          onLoadEnd={() => setImageReady(true)}
+          onError={() => setImageReady(true)}
           resizeMode="contain"
         />
       </View>
-
-      {/* ── Home indicator ── */}
-      <View style={styles.homeIndicator} />
-    </Animated.View>
+    </View>
   );
 }
 
@@ -175,6 +140,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",
+    backgroundColor: C.bg1,
   },
 
   // Organic shapes
@@ -242,13 +208,4 @@ const styles = StyleSheet.create({
     height: LOGO_SIZE,
   },
 
-  // Home indicator
-  homeIndicator: {
-    position: "absolute",
-    bottom: 18,
-    width: 120,
-    height: 4,
-    borderRadius: 999,
-    backgroundColor: C.indicator,
-  },
 });

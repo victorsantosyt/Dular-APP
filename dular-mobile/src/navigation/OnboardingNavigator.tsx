@@ -1,6 +1,5 @@
 import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import { SplashScreen } from "@/screens/onboarding/SplashScreen";
 import { WelcomeScreen } from "@/screens/onboarding/WelcomeScreen";
 import { BenefitsScreen } from "@/screens/onboarding/BenefitsScreen";
 import { SecurityScreen } from "@/screens/onboarding/SecurityScreen";
@@ -9,7 +8,6 @@ import { RoleSelectScreen } from "@/screens/onboarding/RoleSelectScreen";
 import { LoginScreen } from "@/screens/onboarding/LoginScreen";
 
 export type OnboardingStackParamList = {
-  Splash: undefined;
   Welcome: undefined;
   Benefits: undefined;
   Security: undefined;
@@ -24,13 +22,12 @@ type Props = {
   initialRouteName?: keyof OnboardingStackParamList;
 };
 
-export default function OnboardingNavigator({ initialRouteName = "Splash" }: Props) {
+export default function OnboardingNavigator({ initialRouteName = "Welcome" }: Props) {
   return (
     <Stack.Navigator
       initialRouteName={initialRouteName}
       screenOptions={{ headerShown: false, animation: "slide_from_right" }}
     >
-      <Stack.Screen name="Splash" component={SplashScreen} />
       <Stack.Screen name="Welcome" component={WelcomeScreen} />
       <Stack.Screen name="Benefits" component={BenefitsScreen} />
       <Stack.Screen name="Security" component={SecurityScreen} />
@@ -40,3 +37,4 @@ export default function OnboardingNavigator({ initialRouteName = "Splash" }: Pro
     </Stack.Navigator>
   );
 }
+

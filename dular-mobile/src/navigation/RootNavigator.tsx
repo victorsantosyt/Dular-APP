@@ -167,9 +167,10 @@ function BootstrapRecovery({ message, onRetry }: { message: string; onRetry: () 
 
 type RootNavigatorProps = {
   fontsReady?: boolean;
+  onReadyChange?: (ready: boolean) => void;
 };
 
-export function RootNavigator({ fontsReady = true }: RootNavigatorProps) {
+export function RootNavigator({ fontsReady = true, onReadyChange }: RootNavigatorProps) {
   const role = useAuthStore((state) => state.role);
   const user = useAuthStore((state) => state.user);
   const bootstrapStatus = useAuthStore((state) => state.bootstrapStatus);
@@ -215,6 +216,13 @@ export function RootNavigator({ fontsReady = true }: RootNavigatorProps) {
       .catch(() => {})
       .finally(() => setNativeSplashHidden(true));
   }, [splashReady]);
+
+  const appReady = nativeSplashHidden && fontsReady && onboardingSeen !== null &&
+    (bootstrapStatus === "unauthenticated" || (bootstrapStatus === "authenticated" && Boolean(user)));
+  useEffect(() => {
+    onReadyChange?.(appReady);
+    return () => onReadyChange?.(false);
+  }, [appReady, onReadyChange]);
 
   if (!nativeSplashHidden || !fontsReady || bootstrapStatus === "bootstrapping" || onboardingSeen === null) {
     return <SplashScreen onReady={handleSplashReady} />;
@@ -288,4 +296,5 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
 });
+
 

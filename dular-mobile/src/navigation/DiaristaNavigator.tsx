@@ -19,6 +19,7 @@ import SegurancaScreen from "@/screens/diarista/SegurancaScreen";
 import DiaristaCarteira from "@/screens/diarista/DiaristaCarteira";
 import VerificacaoDocs from "@/screens/perfil/VerificacaoDocs";
 import SafeScoreScreen from "@/screens/perfil/SafeScoreScreen";
+import SafeScoreGuideScreen from "@/screens/perfil/SafeScoreGuideScreen";
 import SosFlowScreen from "@/screens/perfil/SosFlowScreen";
 import ReportIncident from "@/screens/perfil/ReportIncident";
 import type { ReportIncidentParams } from "@/lib/reportIncident";
@@ -50,6 +51,7 @@ export type DiaristaTabParamList = {
   Carteira: { from?: keyof DiaristaTabParamList } | undefined;
   VerificacaoDocs: undefined;
   SafeScore: undefined;
+  SafeScoreGuide: undefined;
   SosFlow: undefined;
   ReportIncident: ReportIncidentParams | undefined;
   Suporte: undefined;
@@ -149,6 +151,7 @@ export function DiaristaNavigator() {
       <RootStack.Screen name="Carteira" component={DiaristaCarteira} />
       <RootStack.Screen name="VerificacaoDocs" component={VerificacaoDocs} />
       <RootStack.Screen name="SafeScore" component={SafeScoreScreen} />
+      <RootStack.Screen name="SafeScoreGuide" component={SafeScoreGuideScreen} />
       <RootStack.Screen name="SosFlow" component={SosFlowScreen} />
       <RootStack.Screen name="ReportIncident" component={ReportIncident} />
       <RootStack.Screen name="Suporte" component={Suporte} />

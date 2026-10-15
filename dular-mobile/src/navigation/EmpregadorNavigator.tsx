@@ -32,6 +32,7 @@ import Termos from "@/screens/perfil/Termos";
 import VerificacaoDocs from "@/screens/perfil/VerificacaoDocs";
 import SosFlowScreen from "@/screens/perfil/SosFlowScreen";
 import SafeScoreScreen from "@/screens/perfil/SafeScoreScreen";
+import SafeScoreGuideScreen from "@/screens/perfil/SafeScoreGuideScreen";
 import { EnderecoEditRoute, type CadastroEnderecoParams } from "@/screens/shared/EnderecoEditRoute";
 import { MeusEnderecosScreen, type MeusEnderecosParams } from "@/screens/shared/MeusEnderecosScreen";
 import { useAuth } from "@/stores/authStore";
@@ -90,6 +91,7 @@ export type EmpregadorTabParamList = {
   ReportIncident: ReportIncidentParams | undefined;
   SosFlow: undefined;
   SafeScore: undefined;
+  SafeScoreGuide: undefined;
   Termos: undefined;
   Privacidade: undefined;
   ExcluirConta: undefined;
@@ -179,6 +181,7 @@ export function EmpregadorNavigator() {
       <RootStack.Screen name="ReportIncident" component={ReportIncident} />
       <RootStack.Screen name="SosFlow" component={SosFlowScreen} />
       <RootStack.Screen name="SafeScore" component={SafeScoreScreen} />
+      <RootStack.Screen name="SafeScoreGuide" component={SafeScoreGuideScreen} />
       <RootStack.Screen name="Termos" component={Termos} />
       <RootStack.Screen name="Privacidade" component={Privacidade} />
       <RootStack.Screen name="ExcluirConta" component={ExcluirConta} />

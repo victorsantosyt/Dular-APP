@@ -428,7 +428,21 @@ export function situacaoDoGoogle(recurso: unknown, purchaseToken: string, agora:
   const expiraEm = dataDoGoogle(item.expiryTime);
   const renovacao = item.autoRenewingPlan?.autoRenewEnabled;
   if (!compradaEm || !expiraEm || typeof item.productId !== "string" || typeof renovacao !== "boolean") {
-    throw new ErroDeLoja("LOJA_INDISPONIVEL", "Resposta do Google sem início, fim, produto ou renovação.");
+    // Diagnóstico: só NOMES dos campos e a ESTRUTURA do item (presença e
+    // tipo), nunca valores — o recurso traz token, conta e preço.
+    const faltando = [
+      !compradaEm && "startTime",
+      !expiraEm && "lineItems[0].expiryTime",
+      typeof item.productId !== "string" && "lineItems[0].productId",
+      typeof renovacao !== "boolean" && "lineItems[0].autoRenewingPlan.autoRenewEnabled",
+    ].filter(Boolean);
+    const tipo = (v: unknown) => (v === undefined ? "ausente" : v === null ? "null" : Array.isArray(v) ? "array" : typeof v);
+    throw new ErroDeLoja(
+      "LOJA_INDISPONIVEL",
+      `Resposta do Google incompleta: falta ${faltando.join(", ")}; estado=${estado}; ` +
+        `item{autoRenewingPlan=${tipo(item.autoRenewingPlan)}, autoRenewEnabled=${tipo(item.autoRenewingPlan?.autoRenewEnabled)}, ` +
+        `prepaidPlan=${tipo(item.prepaidPlan)}, expiryTime=${tipo(item.expiryTime)}}; startTime=${tipo(r.startTime)}.`,
+    );
   }
   const contexto = r.outOfAppPurchaseContext ?? r.outofAppPurchaseContext ?? null;
   return {

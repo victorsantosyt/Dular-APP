@@ -225,7 +225,8 @@ async function fluxoComAdaptadores(opcoes: { status?: number; erro?: unknown; pe
   }).outputText;
   const adapters: Record<string, unknown> = {
     "react-native": { Platform: { OS: "android" }, Linking: { openURL: async () => {} } },
-    "@/lib/api": { api: { post: async () => {
+    "@/components/ui/assinaturaPlano": { podeFazerUpgradeGoogle: () => false },
+    "@/lib/api": { api: { get: async () => ({ data: { plan: "FREE", subscription: null } }), post: async () => {
       chamadas.push("servidor");
       if (opcoes.erro) throw opcoes.erro;
       return { status: opcoes.status ?? 200, data: { plan: "PREMIUM" } };

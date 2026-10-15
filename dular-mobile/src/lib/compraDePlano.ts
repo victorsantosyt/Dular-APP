@@ -1,6 +1,7 @@
 import { Linking, Platform } from "react-native";
 
 import { api } from "@/lib/api";
+import { podeFazerUpgradeGoogle, type AssinaturaPlano } from "@/components/ui/assinaturaPlano";
 import {
   ErroCompraLoja,
   comprarAssinaturaGoogle,
@@ -90,10 +91,32 @@ export async function comprarPlano(
 ): Promise<ResultadoCompra> {
   if (lojaDisponivel(caminho) && plano.storeProductId) {
     if (Platform.OS !== "android") throw new ErroCompraLoja("IAP_INDISPONIVEL");
+    // O estado usado para decidir a troca é relido; o perfil visível pode estar atrasado.
+    const atual = (await api.get<AssinaturaPlano>("/api/me/subscription")).data;
+    if (!atual || !["FREE", "BASIC", "PREMIUM"].includes(atual.plan)) throw new ErroCompraLoja("UPGRADE_INDISPONIVEL");
+    let substituicao: { produtoId: string; validar: (compra: CompraGoogle) => Promise<void> } | undefined;
+    if (atual.plan !== "FREE") {
+      const catalogo = (await api.get<{ plans: (PlanoParaCompra & { plan: string; interval: string | null })[] }>("/api/billing/plans")).data;
+      const alvo = catalogo.plans?.find((p) => p.id === plano.id && p.storeProductId === plano.storeProductId && p.storeBasePlanId === plano.storeBasePlanId);
+      const sub = atual.subscription;
+      if (!alvo || !sub?.storeProductId || !podeFazerUpgradeGoogle(atual, alvo)) throw new ErroCompraLoja("UPGRADE_INDISPONIVEL");
+      substituicao = {
+        produtoId: sub.storeProductId,
+        validar: async (compraAnterior) => {
+          const validada = await api.post<{ plan?: string; pendente?: boolean }>("/api/billing/loja", {
+            plataforma: "android", produtoId: compraAnterior.produtoId, comprovante: compraAnterior.comprovante,
+          });
+          if (validada.status !== 200 || validada.data.pendente || validada.data.plan !== atual.plan) throw new ErroCompraLoja("UPGRADE_INDISPONIVEL");
+          const confirmada = (await api.get<AssinaturaPlano>("/api/me/subscription")).data;
+          if (!podeFazerUpgradeGoogle(confirmada, alvo) || confirmada.subscription?.planId !== sub.planId || confirmada.subscription?.storeProductId !== sub.storeProductId) throw new ErroCompraLoja("UPGRADE_INDISPONIVEL");
+        },
+      };
+    }
     const compra = await comprarAssinaturaGoogle({
       produtoId: plano.storeProductId,
       planoBase: plano.storeBasePlanId,
       tokenDaConta: caminho?.tokenLoja,
+      substituicao,
     });
     if (compra.pendente) return { via: "loja", pendente: true };
     const r = await apresentarCompraGoogle(compra);
@@ -148,3 +171,4 @@ export async function restaurarCompras(caminho: CaminhoDePagamento | null | unde
 export async function abrirCheckout(url: string): Promise<void> {
   await Linking.openURL(url);
 }
+

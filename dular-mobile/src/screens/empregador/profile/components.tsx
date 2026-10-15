@@ -27,6 +27,7 @@ export function NotificationBell({ hasBadge, onPress }: NotificationBellProps) {
 
 type ProfileHeroCardProps = {
   nome: string;
+  plano?: { nome: string; icone: AppIconName } | null;
   subtitle: string;
   location: string;
   memberSince: string;
@@ -75,6 +76,7 @@ function verificacaoPill(status: ProfileHeroCardProps["verificacaoStatus"], colo
 
 export function ProfileHeroCard({
   nome,
+  plano,
   subtitle,
   location,
   memberSince,
@@ -153,6 +155,10 @@ export function ProfileHeroCard({
             </View>
           )}
         </View>
+        {plano ? <View style={s.infoLine} accessibilityLabel={`Plano atual: ${plano.nome}`}>
+          <AppIcon name={plano.icone} size={20} color={colors.white} strokeWidth={2.3} />
+          <Text style={[s.infoLineText, { fontWeight: "700" }]}>{plano.nome} · Plano atual</Text>
+        </View> : null}
         {showSubtitle ? <Text style={s.heroSubtitle}>{subtitle}</Text> : null}
         <View style={s.heroDivider} />
         <View style={s.infoLine}>
@@ -485,3 +491,4 @@ function makeStyles(colors: ThemeColors) {
     },
   });
 }
+

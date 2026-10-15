@@ -426,7 +426,19 @@ export function situacaoDoGoogle(recurso: unknown, purchaseToken: string, agora:
   const item = itens[0] ?? {};
   const compradaEm = dataDoGoogle(r.startTime);
   const expiraEm = dataDoGoogle(item.expiryTime);
-  const renovacao = item.autoRenewingPlan?.autoRenewEnabled;
+  // Renovação automática (não confundir com acesso, que segue estado e fim):
+  // - autoRenewingPlan presente: autoRenewEnabled. A API omite booleanos
+  //   falsos, e com a renovação desligada (CANCELED, EXPIRED) o campo some —
+  //   ausente, dentro do plano, é false. Medido no staging; o Google documenta
+  //   autoRenewEnabled=false para CANCELED.
+  // - prepaidPlan (pré-pago): não renova.
+  // - nenhum dos dois: desconhecido, e a resposta é recusada.
+  const objeto = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
+  const renovacao: unknown = objeto(item.autoRenewingPlan)
+    ? (item.autoRenewingPlan.autoRenewEnabled ?? false)
+    : objeto(item.prepaidPlan)
+      ? false
+      : undefined;
   if (!compradaEm || !expiraEm || typeof item.productId !== "string" || typeof renovacao !== "boolean") {
     // Diagnóstico: só NOMES dos campos e a ESTRUTURA do item (presença e
     // tipo), nunca valores — o recurso traz token, conta e preço.
@@ -434,7 +446,7 @@ export function situacaoDoGoogle(recurso: unknown, purchaseToken: string, agora:
       !compradaEm && "startTime",
       !expiraEm && "lineItems[0].expiryTime",
       typeof item.productId !== "string" && "lineItems[0].productId",
-      typeof renovacao !== "boolean" && "lineItems[0].autoRenewingPlan.autoRenewEnabled",
+      typeof renovacao !== "boolean" && "lineItems[0].autoRenewingPlan|prepaidPlan",
     ].filter(Boolean);
     const tipo = (v: unknown) => (v === undefined ? "ausente" : v === null ? "null" : Array.isArray(v) ? "array" : typeof v);
     throw new ErroDeLoja(

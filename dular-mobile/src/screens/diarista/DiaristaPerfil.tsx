@@ -84,6 +84,7 @@ import {
 } from "../empregador/profile/components";
 import type { ServicoOferecido } from "@/types/diarista";
 import { OFERTAS_DIARISTA } from "@/constants/categorias";
+import { useAssinaturaPlano } from "@/hooks/useAssinaturaPlano";
 import { MotivoPaywall } from "@/lib/paywall";
 import { deveMostrarProgresso, estadoDaCompletude } from "@/lib/profileProgress";
 import { estadoDeVisibilidadeDiarista } from "@/lib/diaristaVisibilidade";
@@ -339,6 +340,7 @@ function splitBairros(value: string): string[] {
 export default function DiaristaPerfil({ onLogout }: Props) {
   const bottomContentPadding = getBottomNavContentPadding(useBottomTabBarHeight(), spacing.xl);
   const navigation = useNavigation<Navigation>();
+  const assinatura = useAssinaturaPlano();
   const colors = useDularColors();
   const theme = useGenderTheme("DIARISTA");
   const insets = useSafeAreaInsets();
@@ -1342,6 +1344,7 @@ export default function DiaristaPerfil({ onLogout }: Props) {
             <>
               <ProfileHeroCard
                 nome={displayName}
+                plano={assinatura.apresentacao}
                 subtitle={heroSubtitle}
                 location={heroLocation}
                 memberSince={heroMemberSince}
@@ -1549,9 +1552,9 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                 <ProfileRow
                   accentColor={theme.primary}
                   accentSoft={theme.primarySoft}
-                  icon="Sparkles"
+                  icon={assinatura.apresentacao?.icone ?? "Sparkles"}
                   title="Meu plano"
-                  subtitle="Assine antes de atingir o limite de serviços"
+                  subtitle={assinatura.apresentacao?.nome ?? (assinatura.erro ? "Não foi possível consultar seu plano" : "Consultando seu plano…")}
                   onPress={() => navigation.navigate("Paywall", { motivo: MotivoPaywall.USER_REQUESTED })}
                 />
                 <ProfileRow
@@ -3015,3 +3018,4 @@ function makeStyles(colors: ThemeColors, theme: ProfileTheme) {
     },
   });
 }
+

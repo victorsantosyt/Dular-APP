@@ -23,6 +23,8 @@ export type RegistroDeAssinatura = {
   startedAt: Date;
   expiresAt: Date | null;
   canceledAt: Date | null;
+  /** Identidade confirmada do produto da loja; ausente no vínculo Stripe legado. */
+  storeProductId?: string | null;
 };
 
 export type AssinaturaEfetiva = {
@@ -52,12 +54,13 @@ export async function assinaturaEfetiva(userId: string): Promise<AssinaturaEfeti
     }),
     prisma.assinaturaLoja.findMany({
       where: { userId, vigente: true, expiraEm: { gt: new Date(agora) } },
-      select: { plan: true, provider: true, compradaEm: true, expiraEm: true },
+      select: { plan: true, provider: true, storeProductId: true, compradaEm: true, expiraEm: true },
     }),
   ]);
 
   const validas: RegistroDeAssinatura[] = lojas.map((l) => ({
     provider: l.provider,
+    storeProductId: l.storeProductId,
     plan: l.plan,
     status: "ACTIVE",
     startedAt: l.compradaEm,
@@ -74,6 +77,21 @@ export async function assinaturaEfetiva(userId: string): Promise<AssinaturaEfeti
     (a, b) => NIVEL_DO_PLANO[b.plan] - NIVEL_DO_PLANO[a.plan] || b.startedAt.getTime() - a.startedAt.getTime(),
   );
   return melhor ? { plan: melhor.plan, registro: melhor } : { plan: "FREE", registro: linha };
+}
+
+/** Identidade de catálogo sem adivinhar o ciclo por datas ou pelo nível PREMIUM. */
+export function identidadeDoPlano(registro: RegistroDeAssinatura | null) {
+  const storeProductId = registro?.storeProductId ?? null;
+  const plano = registro && storeProductId
+    ? Object.values(PLANS).find((p) => p.storeProductId === storeProductId && p.plan === registro.plan)
+    : null;
+  return {
+    provider: registro?.provider ?? null,
+    storeProductId,
+    planId: plano?.id ?? null,
+    name: plano?.name ?? null,
+    interval: plano?.interval ?? null,
+  };
 }
 
 /**

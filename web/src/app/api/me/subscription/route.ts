@@ -1,9 +1,8 @@
-import { requireAuth } from "@/lib/requireAuth";
-import { requireAuthAtivo, respostaDeSessao } from "@/lib/contaAtiva";
+import { requireAuthAtivo } from "@/lib/contaAtiva";
 import { prisma } from "@/lib/prisma";
 import { ok, fail } from "@/lib/apiResponse";
 import { checkFeatureAccess } from "@/lib/featureGate";
-import { assinaturaEfetiva } from "@/lib/assinatura";
+import { assinaturaEfetiva, identidadeDoPlano } from "@/lib/assinatura";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +27,7 @@ export async function GET(request: Request) {
   return ok({
     subscription: subscription
       ? {
+          ...identidadeDoPlano(subscription),
           plan: subscription.plan,
           status: subscription.status,
           startedAt: subscription.startedAt,

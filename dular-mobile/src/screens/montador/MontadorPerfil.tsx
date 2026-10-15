@@ -48,6 +48,7 @@ import { platformSelect } from "@/utils/platform";
 import { VerifiedBadge } from "@/components/ui/VerifiedBadge";
 import { firstName, formatMoneyFromCents, upperStatus } from "./montadorUtils";
 import { plural } from "@/utils/formatters";
+import { useAssinaturaPlano } from "@/hooks/useAssinaturaPlano";
 import { MotivoPaywall } from "@/lib/paywall";
 import { deveMostrarProgresso, estadoDaCompletude } from "@/lib/profileProgress";
 import { calcularImeInsetAndroid } from "@/lib/keyboardInset";
@@ -409,6 +410,7 @@ function formatReviewDate(iso: string) {
 }
 
 export default function MontadorPerfil() {
+  const assinatura = useAssinaturaPlano();
   const profileTheme = useProfileTheme("MONTADOR");
   const navigation = useNavigation<MontadorNavigation>();
   const authUser = useAuth((state) => state.user);
@@ -989,6 +991,10 @@ export default function MontadorPerfil() {
             {verificado ? <VerifiedBadge size={18} /> : null}
           </View>
           <Text style={styles.role}>Montador profissional</Text>
+          {assinatura.apresentacao ? <View style={styles.nameRow} accessibilityLabel={`Plano atual: ${assinatura.apresentacao.nome}`}>
+            <AppIcon name={assinatura.apresentacao.icone} size={20} color={colors.white} strokeWidth={2.3} />
+            <Text style={styles.badgeText}>{assinatura.apresentacao.nome} · Plano atual</Text>
+          </View> : null}
           <View style={styles.heroBadges}>
             <View style={styles.badge}><Text style={styles.badgeText}>{perfil.rating > 0 ? perfil.rating.toFixed(1) : "Sem avaliações"}</Text></View>
             <View style={styles.badge}><Text style={styles.badgeText}>{perfil.totalServicos} serviço(s)</Text></View>
@@ -1097,7 +1103,7 @@ export default function MontadorPerfil() {
         <Row icon="CreditCard" title="Carteira/Ganhos" subtitle={formatMoneyFromCents(ganhos)} theme={profileTheme} onPress={() => navigation.navigate("Carteira", { from: "MontadorPerfil" })} />
         {/* Mesma entrada voluntária da diarista: sem isso o paywall só abria
             depois de estourar o limite, e não havia como assinar antes. */}
-        <Row icon="Sparkles" title="Meu plano" subtitle="Assine antes de atingir o limite de serviços" theme={profileTheme} onPress={() => navigation.navigate("Paywall", { motivo: MotivoPaywall.USER_REQUESTED })} />
+        <Row icon={assinatura.apresentacao?.icone ?? "Sparkles"} title="Meu plano" subtitle={assinatura.apresentacao?.nome ?? (assinatura.erro ? "Não foi possível consultar seu plano" : "Consultando seu plano…")} theme={profileTheme} onPress={() => navigation.navigate("Paywall", { motivo: MotivoPaywall.USER_REQUESTED })} />
         <Row icon="Landmark" title="Recebimentos" subtitle="Receber pelo PIX" theme={profileTheme} onPress={() => navigation.navigate("Recebimentos")} />
       </Section>
 
@@ -1872,3 +1878,4 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
 });
+

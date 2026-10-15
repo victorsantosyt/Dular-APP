@@ -21,10 +21,20 @@ const TOKEN_CONTA = "3f2a9c1e-0b4d-4e8a-9f6b-1c2d3e4f5a6b";
 
 function lojaFalsa(opcoes: { compras?: unknown; erro?: unknown; disponiveis?: unknown[] } = {}) {
   const chamadas: { nome: string; args: any }[] = [];
+  let atualizou: ((compra: any) => void) | null = null;
+  let falhou: ((erro: any) => void) | null = null;
   const registrar = (nome: string) => async (args?: any) => {
     chamadas.push({ nome, args });
   };
   const iap = {
+    purchaseUpdatedListener: (callback: any) => {
+      atualizou = callback;
+      return { remove: () => { atualizou = null; chamadas.push({ nome: "removeUpdated", args: null }); } };
+    },
+    purchaseErrorListener: (callback: any) => {
+      falhou = callback;
+      return { remove: () => { falhou = null; chamadas.push({ nome: "removeError", args: null }); } };
+    },
     initConnection: async () => {
       chamadas.push({ nome: "initConnection", args: null });
       return true;
@@ -44,12 +54,15 @@ function lojaFalsa(opcoes: { compras?: unknown; erro?: unknown; disponiveis?: un
     },
     requestPurchase: async (args: any) => {
       chamadas.push({ nome: "requestPurchase", args });
-      if (opcoes.erro) throw opcoes.erro;
-      return opcoes.compras ?? [{ productId: PRODUTO, purchaseToken: "comprovante-1", purchaseState: "purchased" }];
+      setTimeout(() => {
+        if (opcoes.erro) { falhou?.(opcoes.erro); return; }
+        for (const compra of (opcoes.compras ?? [{ productId: PRODUTO, purchaseToken: "comprovante-1", purchaseState: "purchased" }]) as any[]) atualizou?.(compra);
+      }, 0);
+      return undefined;
     },
     getAvailablePurchases: async () => {
       chamadas.push({ nome: "getAvailablePurchases", args: null });
-      return opcoes.disponiveis ?? [];
+      return opcoes.erro && chamadas.filter((c) => c.nome === "getAvailablePurchases").length === 1 ? [] : opcoes.disponiveis ?? [];
     },
     finishTransaction: registrar("finishTransaction"),
   };
@@ -102,9 +115,60 @@ test("pagamento pendente volta marcado como pendente", async () => {
   assert.equal(compra.pendente, true);
 });
 
-test("a loja não devolveu a compra deste produto: COMPRA_NAO_CONCLUIDA", async () => {
-  const { iap } = lojaFalsa({ compras: [{ productId: "outro.produto", purchaseToken: "x", purchaseState: "purchased" }] });
-  await assert.rejects(comprarAssinaturaGoogle(pedido, iap), (e: any) => e.codigo === "COMPRA_NAO_CONCLUIDA");
+test("retorno void não encerra compra; evento de outro produto é ignorado e listeners são removidos", async () => {
+  const { iap, chamadas } = lojaFalsa({ compras: [
+    { productId: "outro.produto", purchaseToken: "x", purchaseState: "purchased" },
+    { productId: PRODUTO, purchaseToken: "correto", purchaseState: "purchased" },
+  ] });
+  const compra = await comprarAssinaturaGoogle(pedido, iap);
+  assert.equal(compra.comprovante, "correto");
+  assert.equal(chamadas.filter((c) => c.nome.startsWith("remove")).length, 2);
+});
+
+test("compra já possuída é recuperada antes de abrir a folha ou consultar produtos", async () => {
+  const { iap, chamadas } = lojaFalsa({ disponiveis: [
+    { productId: PRODUTO, purchaseToken: "existente", purchaseState: "purchased" },
+  ] });
+  assert.equal((await comprarAssinaturaGoogle(pedido, iap)).comprovante, "existente");
+  assert.equal(chamadas.some((c) => c.nome === "requestPurchase" || c.nome === "fetchProducts" || c.nome === "finishTransaction"), false);
+});
+
+test("compra pendente anterior não inicia nova cobrança", async () => {
+  const { iap, chamadas } = lojaFalsa({ disponiveis: [
+    { productId: PRODUTO, purchaseState: "pending" },
+  ] });
+  assert.equal((await comprarAssinaturaGoogle(pedido, iap)).pendente, true);
+  assert.equal(chamadas.some((c) => c.nome === "requestPurchase"), false);
+});
+
+test("sem evento a tempo devolve confirmação pendente e remove listeners", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const { iap, chamadas } = lojaFalsa({ compras: [] });
+  const compra = comprarAssinaturaGoogle(pedido, iap);
+  const rejeicao = assert.rejects(compra, (e: any) => e.codigo === "COMPRA_EM_CONFIRMACAO");
+  // Conexão, preflight e catálogo terminam antes do relógio da compra.
+  for (let i = 0; i < 8; i += 1) await Promise.resolve();
+  t.mock.timers.tick(120_000);
+  await rejeicao;
+  assert.equal(chamadas.filter((c) => c.nome.startsWith("remove")).length, 2);
+  assert.equal(chamadas.some((c) => c.nome === "finishTransaction"), false);
+});
+
+test("já possuído recupera somente compra paga do produto pedido, sem reconhecer antes do servidor", async () => {
+  const { iap, chamadas } = lojaFalsa({ erro: { code: "already-owned" }, disponiveis: [
+    { productId: "outro", purchaseToken: "outro", purchaseState: "purchased" },
+    { productId: PRODUTO, purchaseToken: "existente", purchaseState: "purchased" },
+  ] });
+  assert.equal((await comprarAssinaturaGoogle(pedido, iap)).comprovante, "existente");
+  assert.equal(chamadas.some((c) => c.nome === "finishTransaction"), false);
+});
+
+test("já possuído sem comprovante pago correspondente não concede plano nem usa token de outro produto", async () => {
+  const { iap } = lojaFalsa({ erro: { code: "already-owned" }, disponiveis: [
+    { productId: "outro", purchaseToken: "x", purchaseState: "purchased" },
+    { productId: PRODUTO, purchaseToken: "pendente", purchaseState: "pending" },
+  ] });
+  await assert.rejects(comprarAssinaturaGoogle(pedido, iap), (e: any) => e.codigo === "COMPRA_JA_EXISTENTE");
 });
 
 test("restaurar: só compras pagas e com comprovante", async () => {
@@ -148,4 +212,67 @@ test("fluxo: pendente não vai ao servidor nem é concluído; conclusão só dep
 
 test("fluxo: a compra leva o token da conta vindo do servidor", () => {
   assert.match(FLUXO, /tokenDaConta: caminho\?\.tokenLoja/);
+});
+
+// Executa o coordenador real com os adaptadores nativos/HTTP substituídos.
+// O React Native não roda no Node; transpilar não altera as decisões do fluxo.
+async function fluxoComAdaptadores(opcoes: { status?: number; erro?: unknown; pendente?: boolean; restaurar?: boolean } = {}) {
+  const { transpileModule, ModuleKind, ScriptTarget } = await import("typescript");
+  const chamadas: string[] = [];
+  const compra = { produtoId: PRODUTO, comprovante: "token", pendente: opcoes.pendente ?? false, original: {} };
+  const codigo = transpileModule(readFileSync(join(import.meta.dirname, "..", "src", "lib", "compraDePlano.ts"), "utf8"), {
+    compilerOptions: { module: ModuleKind.CommonJS, target: ScriptTarget.ES2022 },
+  }).outputText;
+  const adapters: Record<string, unknown> = {
+    "react-native": { Platform: { OS: "android" }, Linking: { openURL: async () => {} } },
+    "@/lib/api": { api: { post: async () => {
+      chamadas.push("servidor");
+      if (opcoes.erro) throw opcoes.erro;
+      return { status: opcoes.status ?? 200, data: { plan: "PREMIUM" } };
+    } } },
+    "@/lib/lojaGoogle": {
+      ErroCompraLoja,
+      comprarAssinaturaGoogle: async () => { chamadas.push("comprar"); return compra; },
+      comprasParaRestaurarGoogle: async () => [compra],
+      concluirCompraGoogle: async () => { chamadas.push("concluir"); },
+    },
+  };
+  const modulo = { exports: {} as any };
+  new Function("require", "module", "exports", codigo)((name: string) => {
+    if (!(name in adapters)) throw new Error(`Adaptador inesperado: ${name}`);
+    return adapters[name];
+  }, modulo, modulo.exports);
+  const caminho = { stripe: false, loja: { android: true, ios: false }, tokenLoja: TOKEN_CONTA };
+  return { chamadas, executar: () => opcoes.restaurar
+    ? modulo.exports.restaurarCompras(caminho)
+    : modulo.exports.comprarPlano({ id: "pro_mensal", storeProductId: PRODUTO, storeBasePlanId: "mensal" }, caminho) };
+}
+
+test("coordenador real: confirma no servidor antes de concluir a compra e devolver sucesso", async () => {
+  const fluxo = await fluxoComAdaptadores();
+  assert.deepEqual(await fluxo.executar(), { via: "loja", plano: "PREMIUM" });
+  assert.deepEqual(fluxo.chamadas, ["comprar", "servidor", "concluir"]);
+});
+
+test("coordenador real: pendência local ou HTTP202 nunca conclui compra nem anuncia sucesso", async () => {
+  for (const opcoes of [{ pendente: true }, { status: 202 }]) {
+    const fluxo = await fluxoComAdaptadores(opcoes);
+    assert.deepEqual(await fluxo.executar(), { via: "loja", pendente: true });
+    assert.deepEqual(fluxo.chamadas, opcoes.pendente ? ["comprar"] : ["comprar", "servidor"]);
+  }
+});
+
+test("coordenador real: erro de validação não reconhece transação nem devolve sucesso", async () => {
+  const erro = { response: { status: 403 } };
+  const fluxo = await fluxoComAdaptadores({ erro });
+  await assert.rejects(fluxo.executar(), (e) => e === erro);
+  assert.deepEqual(fluxo.chamadas, ["comprar", "servidor"]);
+});
+
+test("restauração real: distingue recusa da conta e indisponibilidade transitória", async () => {
+  for (const status of [403, 503]) {
+    const fluxo = await fluxoComAdaptadores({ restaurar: true, erro: { response: { status } } });
+    assert.deepEqual(await fluxo.executar(), { restauradas: 0, recusadas: status === 403 ? 1 : 0, pendentes: 0, falhas: status === 503 ? 1 : 0, plano: null });
+    assert.deepEqual(fluxo.chamadas, ["servidor"]);
+  }
 });

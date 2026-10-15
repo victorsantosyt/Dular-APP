@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAuth } from "@/lib/requireAuth";
 import { requireAuthAtivo, respostaDeSessao } from "@/lib/contaAtiva";
-import { getFaixa } from "@/lib/safeScore";
+import { canReadScore, countCompletedServices, readScorePresentation } from "@/lib/safeScore/presentation";
+import { getDiaristaVerificationStatus, getMontadorVerificationStatus, getEmpregadorVerificationStatus } from "@/lib/profileVerification";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -28,23 +28,6 @@ type Params = { params: Promise<{ id: string }> };
  * Lista explícita de papéis profissionais: um papel novo — ou `role` nulo,
  * que o schema permite — cai no caso restrito até alguém decidir o contrário.
  */
-async function podeVerFaixa(
-  viewer: { userId: string; role: string },
-  alvo: { id: string; role: string | null },
-): Promise<boolean> {
-  if (viewer.userId === alvo.id) return true;
-  if (viewer.role === "ADMIN") return true;
-  if (alvo.role === "DIARISTA" || alvo.role === "MONTADOR") return true;
-
-  const vinculo = await prisma.servico.findFirst({
-    where: {
-      clientId: alvo.id,
-      OR: [{ diaristaId: viewer.userId }, { montadorId: viewer.userId }],
-    },
-    select: { id: true },
-  });
-  return vinculo !== null;
-}
 
 export async function GET(req: Request, { params }: Params) {
   try {
@@ -69,49 +52,18 @@ export async function GET(req: Request, { params }: Params) {
       return NextResponse.json({ ok: false, error: "Usuário não encontrado" }, { status: 404 });
     }
 
-    if (!(await podeVerFaixa(auth, user))) {
+    if (!(await canReadScore(auth, user))) {
       return NextResponse.json({ ok: false, error: "Acesso negado." }, { status: 403 });
     }
 
-    // Dual-read: SafeScoreProfile (novo) com fallback para SafeScore (legado)
-    let score = 500;
-    let tier = "BRONZE";
-
-    const profile = await prisma.safeScoreProfile.findUnique({
-      where: { userId: id },
-      select: { currentScore: true, tier: true },
-    });
-
-    if (profile) {
-      score = profile.currentScore;
-      tier = profile.tier;
-    } else {
-      const legacy = await prisma.safeScore.findUnique({
-        where: { userId: id },
-        select: { score: true },
-      });
-      if (legacy) score = legacy.score;
-    }
-
-    const totalServicos =
-      user.diaristaProfile?.totalServicos ??
-      (await prisma.servico.count({
-        where: {
-          status: "FINALIZADO",
-          OR: [{ clientId: id }, { diaristaId: id }],
-        },
-      }));
-
-    const faixaData = getFaixa(score);
-
-    return NextResponse.json({
-      faixa: faixaData.label,
-      cor: faixaData.cor,
-      bloqueado: faixaData.bloqueado,
-      tier,
-      totalServicos,
-      verificado: user.diaristaProfile?.verificacao === "VERIFICADO",
-    });
+    const [reputation, totalServicos, identity] = await Promise.all([
+      readScorePresentation(id), countCompletedServices(id),
+      user.role === "DIARISTA" ? getDiaristaVerificationStatus(id)
+        : user.role === "MONTADOR" ? getMontadorVerificationStatus(id)
+        : user.role === "EMPREGADOR" ? getEmpregadorVerificationStatus(id) : Promise.resolve(null),
+    ]);
+    if (!reputation) return NextResponse.json({ error: "SafeScore indisponível." }, { status: 503 });
+    return NextResponse.json({ ...reputation, totalServicos, verificado: identity === "VERIFICADO" });
   } catch (e: any) {
     const sessao = respostaDeSessao(e);
     if (sessao) return sessao;

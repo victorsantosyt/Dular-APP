@@ -49,6 +49,9 @@ describe("GET /api/usuarios/[id]/score — controle de acesso", () => {
     mockPrisma.safeScoreProfile.findUnique = async () => ({ currentScore: 720, tier: "GOLD" });
     mockPrisma.safeScore.findUnique = async () => null;
     mockPrisma.servico.count = async () => 0;
+    mockPrisma.documentVerification.findFirst = async () => null;
+    mockPrisma.diaristaProfile.findUnique = async () => null;
+    mockPrisma.montadorPerfil.findUnique = async () => null;
     (mockPrisma.servico as any).findFirst = async (args: any) => {
       const w = args?.where ?? {};
       const viewers = (w.OR ?? []).flatMap((c: any) => Object.values(c));
@@ -128,4 +131,21 @@ describe("GET /api/usuarios/[id]/score — controle de acesso", () => {
     assert.equal(r.body.score, undefined);
     assert.doesNotMatch(JSON.stringify(r.body), /720/);
   });
+  it("trust-signals também recusa leitura de empregador sem vínculo", async () => {
+    const { GET } = await import("../../src/app/api/usuarios/[id]/trust-signals/route");
+    const res = await GET(new Request("http://test/api/usuarios/u-emp/trust-signals", {
+      headers: makeAuthHeaders("u-dia2", "DIARISTA"),
+    }), { params: Promise.resolve({ id: "u-emp" }) });
+    assert.equal(res.status, 403);
+    assert.equal(Object.hasOwn(await res.json(), "tier"), false);
+  });
+  it("trust-signals preserva a leitura da contraparte com vínculo", async () => {
+    const { GET } = await import("../../src/app/api/usuarios/[id]/trust-signals/route");
+    const res = await GET(new Request("http://test/api/usuarios/u-emp/trust-signals", {
+      headers: makeAuthHeaders("u-mont", "MONTADOR"),
+    }), { params: Promise.resolve({ id: "u-emp" }) });
+    assert.equal(res.status, 200);
+    assert.equal((await res.json()).tier, "GOLD");
+  });
+
 });

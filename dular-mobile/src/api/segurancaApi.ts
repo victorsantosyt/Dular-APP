@@ -37,6 +37,9 @@ export type SafetyEvent = {
   id: string;
   type: SafetyEventTipo;
   serviceId: string | null;
+  status?: "ACIONADO" | "EM_ATENDIMENTO" | "RESOLVIDO" | null;
+  statusLabel?: string | null;
+  statusAtualizadoEm?: string | null;
   createdAt: string;
   meta?: { mensagem?: string; tipo?: string; prioridade?: string } | null;
 };
@@ -50,5 +53,10 @@ export async function listarEventosSeguranca(
   if (type) params.set("type", type);
   params.set("limit", String(limit));
   const res = await api.get(`/api/seguranca/eventos?${params.toString()}`);
-  return Array.isArray(res.data?.eventos) ? res.data.eventos : [];
+  if (!Array.isArray(res.data?.eventos) || !res.data.eventos.every((event: SafetyEvent) =>
+    event && typeof event.id === "string" && typeof event.createdAt === "string" &&
+    Number.isFinite(Date.parse(event.createdAt)) &&
+    (event.type === "SOS_SILENT" || event.type === "CHECKIN_OK")
+  )) throw new Error("Registros de segurança indisponíveis.");
+  return res.data.eventos;
 }

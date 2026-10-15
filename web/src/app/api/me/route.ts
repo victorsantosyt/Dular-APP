@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/requireAuth";
 import { requireAuthAtivo, respostaDeSessao } from "@/lib/contaAtiva";
 import { anonimizarUsuario } from "@/lib/lgpd";
+import { getMontadorVerificationStatus } from "@/lib/profileVerification";
 import { OperacaoEmAndamento, comTravaDoUsuario, consultarLojasDoUsuario } from "@/lib/trocaDePlano";
 
 export const dynamic = "force-dynamic";
@@ -138,6 +139,7 @@ export async function GET(req: Request) {
       }
 
       const hasDocs = Boolean(profile?.documentoFrente || profile?.documentoVerso || profile?.selfieDoc);
+      const verificationStatus = await getMontadorVerificationStatus(auth.userId);
 
       if (isDev) console.log(`[me GET MONTADOR] TOTAL: ${Date.now() - t0}ms`);
       return NextResponse.json({
@@ -148,7 +150,7 @@ export async function GET(req: Request) {
           avatarUrl: profile?.fotoPerfil ?? user.avatarUrl ?? null,
           verificado: Boolean(profile?.verificado),
           docEnviado: hasDocs,
-          verificacao: { status: profile?.verificado ? "APROVADO" : hasDocs ? "PENDENTE" : "NAO_ENVIADO" },
+          verificacao: { status: verificationStatus === "VERIFICADO" ? "APROVADO" : verificationStatus },
           notaMedia: profile?.rating ?? 0,
           totalServicos: profile?.totalServicos ?? 0,
           especialidades: profile?.especialidades ?? [],

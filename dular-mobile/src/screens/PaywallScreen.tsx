@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AccessibilityInfo,
   ActivityIndicator,
-  Alert,
   Animated,
   Platform,
   Pressable,
@@ -14,9 +13,11 @@ import {
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
+import { useNavigation, useRoute } from "@react-navigation/native";
 
 import { api } from "@/lib/api";
+import { useAssinaturaPlano, planoAtualDoCatalogo } from "@/hooks/useAssinaturaPlano";
+import { bloqueiaNovaCompra } from "@/components/ui/assinaturaPlano";
 import { MotivoPaywall, type PaywallParams } from "@/lib/paywall";
 import {
   abrirCheckout,
@@ -171,6 +172,7 @@ function PlanoCard({
   indice,
   tema,
   selecionado,
+  atual,
   onPress,
 }: {
   plano: PlanoApi;
@@ -186,6 +188,7 @@ function PlanoCard({
    * recomendado e passa para o que a pessoa abrir — nunca os dois juntos.
    */
   selecionado: boolean;
+  atual: boolean;
   onPress: () => void;
 }) {
   const [reduzirMovimento, setReduzirMovimento] = useState(false);
@@ -329,9 +332,11 @@ function PlanoCard({
           <Text style={s.opcaoBeneficio} numberOfLines={2}>
             {resumoTexto}
           </Text>
-          {identidade.destaque || economia ? (
+          {atual || identidade.destaque || economia ? (
             <View style={s.opcaoSelos}>
-              {identidade.destaque ? (
+              {atual ? (
+                <View style={[s.selinho, { backgroundColor: tema.primary }]}><Text style={s.selinhoTexto}>Plano atual</Text></View>
+              ) : identidade.destaque ? (
                 <View style={[s.selinho, { backgroundColor: tema.primary }]}>
                   <Text style={s.selinhoTexto}>{identidade.destaque}</Text>
                 </View>
@@ -366,11 +371,13 @@ function BotaoAssinar({
   tema,
   rotulo,
   carregando,
+  disabled,
   onPress,
 }: {
   tema: ReturnType<typeof useGenderTheme>;
   rotulo: string;
   carregando: boolean;
+  disabled?: boolean;
   onPress: () => void;
 }) {
   const [reduzirMovimento, setReduzirMovimento] = useState(false);
@@ -409,7 +416,7 @@ function BotaoAssinar({
     >
       <Pressable
         onPress={onPress}
-        disabled={carregando}
+        disabled={carregando || disabled}
         onPressIn={() => comprimir(0.97)}
         onPressOut={() => comprimir(1)}
         style={s.ctaWrap}
@@ -445,7 +452,7 @@ function mensagemDeErroDaCompra(e: unknown): string {
   const codigo = (e as { response?: { data?: { error?: { code?: string } } } } | null)?.response?.data?.error?.code;
   if (codigo === "COMPRA_DE_OUTRA_CONTA") return "Esta assinatura da Google Play já está vinculada a outra conta.";
   if (codigo === "COMPRA_SEM_TITULARIDADE") return "Esta assinatura da Google Play não pertence a esta conta.";
-  return "Não foi possível iniciar a assinatura. Tente novamente.";
+  return "Não foi possível confirmar a assinatura agora.";
 }
 
 export default function PaywallScreen({ onClose }: Props) {
@@ -455,8 +462,12 @@ export default function PaywallScreen({ onClose }: Props) {
   // Antes usava o roxo global: no perfil verde da diarista a tela destoava.
   const tema = useGenderTheme();
 
-  const [planoAtual, setPlanoAtual] = useState<string | null>(null);
-  const [uso, setUso] = useState<{ used: number; limit: number | null } | null>(null);
+  const assinatura = useAssinaturaPlano();
+  const uso = assinatura.data?.usage?.solicitacoesMes ?? null;
+  const [retornoCompra, setRetornoCompra] = useState<{ tipo: "sucesso" | "pendente" | "erro"; texto: string } | null>(null);
+  const operacaoRef = useRef(false);
+  const planoEmConfirmacao = useRef<string | null>(null);
+  const [requerVerificacao, setRequerVerificacao] = useState(false);
 
   const [planosApi, setPlanosApi] = useState<PlanoApi[] | null>(null);
   const [pagamento, setPagamento] = useState<CaminhoDePagamento | null>(null);
@@ -469,6 +480,7 @@ export default function PaywallScreen({ onClose }: Props) {
   // último plano aberto para o card continuar em destaque na lista.
   const [ultimoEscolhido, setUltimoEscolhido] = useState<string | null>(null);
   const [assinando, setAssinando] = useState(false);
+  const [restaurando, setRestaurando] = useState(false);
 
   // Por que esta tela abriu. Sem motivo declarado, trata como abertura manual:
   // é o caso de quem chegou por "Meu plano" ou pela barra de limite, e é o
@@ -479,28 +491,6 @@ export default function PaywallScreen({ onClose }: Props) {
   // presença de um texto, para que um `mensagem` vindo de outro caminho não
   // herde a moldura de alerta sem querer.
   const mensagem = motivo === MotivoPaywall.FREE_LIMIT_REACHED ? params?.mensagem : undefined;
-
-  // Refaz ao focar para refletir a assinatura logo após voltar do Stripe.
-  // Fonte: /api/me/subscription — `useRestricoes` tipa um campo `plano` que a
-  // rota /api/me/restrictions não devolve (ela traz restrições administrativas).
-  useFocusEffect(
-    useCallback(() => {
-      let vivo = true;
-      api
-        .get<{ plan?: string; usage?: { solicitacoesMes?: { used: number; limit: number | null } } }>(
-          "/api/me/subscription",
-        )
-        .then((res) => {
-          if (!vivo) return;
-          setPlanoAtual(res.data?.plan ?? "FREE");
-          setUso(res.data?.usage?.solicitacoesMes ?? null);
-        })
-        .catch(() => vivo && setPlanoAtual("FREE"));
-      return () => {
-        vivo = false;
-      };
-    }, []),
-  );
 
   useEffect(() => {
     let vivo = true;
@@ -526,12 +516,25 @@ export default function PaywallScreen({ onClose }: Props) {
   const planos = useMemo(() => planosApi ?? [], [planosApi]);
   const carregando = planosApi === null;
 
-  const noPlanoGratuito = (planoAtual ?? "FREE") === "FREE";
+  const noPlanoGratuito = assinatura.data?.plan === "FREE";
   const planoEscolhido = planos.find((p) => p.id === escolhido) ?? null;
+  const escolhidoAtual = Boolean(planoEscolhido && planoAtualDoCatalogo(assinatura.data, planoEscolhido.id));
+  const temPlanoPago = Boolean(assinatura.data && assinatura.data.plan !== "FREE");
+  const operando = assinando || restaurando;
+  const bloqueioPlano = Boolean(planoEscolhido && bloqueiaNovaCompra(assinatura.data, planoEscolhido.id, lojaDisponivel(pagamento)));
+  const compraBloqueada = assinatura.carregando || !pagamento || !assinatura.data || bloqueioPlano || requerVerificacao || retornoCompra?.tipo === "pendente";
   const economiaDoAnual =
     planoEscolhido && planoEscolhido.interval === "year"
       ? economiaAnual(planoEscolhido, planos)
       : null;
+
+  useEffect(() => {
+    if (retornoCompra?.tipo === "pendente" && planoEmConfirmacao.current && planoAtualDoCatalogo(assinatura.data, planoEmConfirmacao.current) && !assinatura.carregando && assinatura.apresentacao) {
+      setRetornoCompra({ tipo: "sucesso", texto: `Seu plano ${assinatura.apresentacao.nome} está ativo.` });
+      setEscolhido(null);
+      setRequerVerificacao(false);
+    }
+  }, [retornoCompra?.tipo, assinatura.data, assinatura.carregando, assinatura.apresentacao?.nome]);
 
   const fechar = useCallback(() => {
     if (onClose) return onClose();
@@ -539,44 +542,88 @@ export default function PaywallScreen({ onClose }: Props) {
   }, [onClose, navigation]);
 
   const assinar = useCallback(async () => {
-    if (!planoEscolhido) return;
+    if (!planoEscolhido || compraBloqueada || operacaoRef.current) return;
+    operacaoRef.current = true;
+    planoEmConfirmacao.current = planoEscolhido.id;
     setAssinando(true);
+    setRequerVerificacao(true);
+    setRetornoCompra(null);
     try {
-      // Loja ou Stripe — quem decide é o servidor, em `pagamento`. Enquanto os
-      // produtos não existirem nas lojas, cai no checkout do Stripe, que é o
-      // que já funcionava.
       const r = await comprarPlano(planoEscolhido, pagamento);
-      if (r.via === "stripe") await abrirCheckout(r.url);
-      else if ("pendente" in r) Alert.alert("Pagamento pendente", MSG_PENDENTE);
-      else setPlanoAtual(r.plano);
+      if (r.via === "stripe") {
+        await abrirCheckout(r.url);
+        setRetornoCompra({ tipo: "pendente", texto: "Conclua o pagamento no checkout. Ao voltar, vamos consultar seu plano." });
+      } else if ("pendente" in r) {
+        setRetornoCompra({ tipo: "pendente", texto: MSG_PENDENTE });
+        await assinatura.atualizar();
+      } else {
+        const atual = await assinatura.atualizar();
+        if (planoAtualDoCatalogo(atual, planoEscolhido.id)) {
+          setRequerVerificacao(false);
+          setRetornoCompra({ tipo: "sucesso", texto: `Assinatura confirmada. Seu plano ${atual?.subscription?.name ?? planoEscolhido.name} está ativo.` });
+          setEscolhido(null);
+        } else {
+          setRetornoCompra({ tipo: "pendente", texto: "A compra foi recebida, mas ainda não conseguimos confirmar seu plano. Atualize o status ou restaure a compra. Não assine novamente." });
+        }
+      }
     } catch (e) {
-      if (e instanceof ErroCompraLoja && e.codigo === "COMPRA_CANCELADA") return;
-      Alert.alert("Erro", mensagemDeErroDaCompra(e));
+      if (e instanceof ErroCompraLoja && e.codigo === "COMPRA_CANCELADA") {
+        setRequerVerificacao(false);
+        planoEmConfirmacao.current = null;
+      } else if (e instanceof ErroCompraLoja && (e.codigo === "COMPRA_EM_CONFIRMACAO" || e.codigo === "COMPRA_JA_EXISTENTE")) {
+        setRetornoCompra({ tipo: "pendente", texto: "A Google Play pode já ter concluído esta compra. Atualize o status ou use Restaurar compras para vinculá-la. Não assine novamente." });
+        await assinatura.atualizar();
+      } else {
+        if (pagamento && !lojaDisponivel(pagamento)) setRequerVerificacao(false);
+        if (e instanceof ErroCompraLoja && (e.codigo === "IAP_INDISPONIVEL" || e.codigo === "PRODUTO_INDISPONIVEL" || e.codigo === "SEM_TOKEN_DA_CONTA")) setRequerVerificacao(false);
+        setRetornoCompra({ tipo: "erro", texto: mensagemDeErroDaCompra(e) + " Se a Google Play já confirmou a compra, use Restaurar compras." });
+      }
     } finally {
+      operacaoRef.current = false;
       setAssinando(false);
     }
-  }, [planoEscolhido, pagamento]);
+  }, [planoEscolhido, pagamento, compraBloqueada, assinatura.atualizar]);
 
-  const [restaurando, setRestaurando] = useState(false);
   const restaurar = useCallback(async () => {
+    if (operacaoRef.current) return;
+    operacaoRef.current = true;
     setRestaurando(true);
+    setRetornoCompra(null);
     try {
       const r = await restaurarCompras(pagamento);
-      if (r.plano) setPlanoAtual(r.plano);
-      Alert.alert(
-        "Restaurar compras",
-        r.restauradas > 0
-          ? "Sua assinatura foi restaurada."
-          : r.recusadas > 0
-            ? "Encontramos uma assinatura na Google Play, mas ela pertence a outra conta ou já terminou."
-            : "Nenhuma assinatura ativa foi encontrada na Google Play para esta conta.",
-      );
+      const atual = await assinatura.atualizar();
+      setRequerVerificacao(r.pendentes > 0 || r.falhas > 0 || (r.restauradas > 0 && (!atual || atual.plan === "FREE")));
+      if (r.restauradas > 0 && atual && atual.plan !== "FREE") {
+        planoEmConfirmacao.current = null;
+        setRetornoCompra({ tipo: "sucesso", texto: `Assinatura restaurada. Seu plano ${atual.subscription?.name ?? assinatura.apresentacao?.nome ?? "pago"} está ativo.` });
+        setEscolhido(null);
+      } else if (r.pendentes > 0) {
+        setRetornoCompra({ tipo: "pendente", texto: MSG_PENDENTE });
+      } else if (r.falhas > 0 || (r.restauradas > 0 && !atual)) {
+        setRetornoCompra({ tipo: "erro", texto: "Não foi possível confirmar seu plano agora. Tente restaurar novamente. Não assine novamente." });
+      } else {
+        setRetornoCompra({ tipo: "erro", texto: r.recusadas > 0
+          ? "Encontramos uma assinatura na Google Play, mas ela pertence a outra conta ou já terminou."
+          : r.restauradas > 0
+            ? "A compra foi recebida, mas o plano ainda não está ativo. Atualize o status."
+            : "Nenhuma assinatura ativa foi encontrada na Google Play para esta conta." });
+      }
     } catch (e) {
-      Alert.alert("Erro", mensagemDeErroDaCompra(e));
+      setRetornoCompra({ tipo: "erro", texto: mensagemDeErroDaCompra(e) });
     } finally {
+      operacaoRef.current = false;
       setRestaurando(false);
     }
-  }, [pagamento]);
+  }, [pagamento, assinatura.atualizar, assinatura.apresentacao?.nome]);
+
+  const atualizarStatus = async () => {
+    const atual = await assinatura.atualizar();
+    if (atual && atual.plan !== "FREE" && (!planoEmConfirmacao.current || planoAtualDoCatalogo(atual, planoEmConfirmacao.current))) {
+      setRequerVerificacao(false);
+      setRetornoCompra({ tipo: "sucesso", texto: `Seu plano ${atual.subscription?.name ?? "pago"} está ativo.` });
+      setEscolhido(null);
+    }
+  };
 
   return (
     <View style={[s.root, { paddingTop: insets.top + spacing.md, paddingBottom: insets.bottom + spacing.md }]}>
@@ -597,6 +644,29 @@ export default function PaywallScreen({ onClose }: Props) {
 
               A pílula "PLANOS" saiu: com o ícone acima do título ela virava
               um segundo rótulo dizendo a mesma coisa. */}
+
+          {operando ? <Text style={s.subtitulo} accessibilityLiveRegion="polite">{assinando ? "Processando sua assinatura…" : "Restaurando sua assinatura…"}</Text> : null}
+          {retornoCompra ? (
+            <View style={[s.aviso, { backgroundColor: retornoCompra.tipo === "sucesso" ? colors.successSoft : retornoCompra.tipo === "erro" ? colors.dangerSoft : colors.warningSoft }]} accessibilityLiveRegion="polite">
+              <AppIcon name={retornoCompra.tipo === "sucesso" ? "CheckCircle" : retornoCompra.tipo === "erro" ? "AlertCircle" : "Clock"} size={20} color={tema.primary} />
+              <View style={{ flex: 1, gap: 4 }}>
+                <Text style={s.atualNome}>{retornoCompra.tipo === "sucesso" ? "Assinatura confirmada" : retornoCompra.tipo === "erro" ? "Não foi possível confirmar" : "Aguardando confirmação"}</Text>
+                <Text style={s.atualDesc}>{retornoCompra.texto}</Text>
+              </View>
+            </View>
+          ) : null}
+          {assinatura.erro ? <Text style={s.vazio}>Não foi possível consultar seu plano. Atualize o status antes de assinar.</Text> : null}
+          {assinatura.carregando ? <View style={s.carregando}><ActivityIndicator color={tema.primary} /><Text style={s.atualDesc}>Consultando seu plano…</Text></View> : null}
+          {assinatura.apresentacao && temPlanoPago ? (
+            <View style={s.atual}>
+              <View style={[s.opcaoIcone, { backgroundColor: tema.primarySoft }]}><AppIcon name={assinatura.apresentacao.icone} size={24} color={tema.primary} /></View>
+              <View style={s.atualEsq}>
+                <Text style={s.atualNome}>{assinatura.apresentacao.nome}</Text>
+                <Text style={s.atualDesc}>{assinatura.data?.subscription?.canceledAt ? "Renovação cancelada. Acesso mantido até o fim do período." : "Sua assinatura atual"}</Text>
+              </View>
+              <View style={s.atualTag}><Text style={s.atualTagTexto}>Plano atual</Text></View>
+            </View>
+          ) : null}
 
           {planoEscolhido ? (
             /* ── Passo 2: o que o plano libera + assinar ─────────────────── */
@@ -656,8 +726,9 @@ export default function PaywallScreen({ onClose }: Props) {
 
               <BotaoAssinar
                 tema={tema}
-                rotulo={`Assinar ${planoEscolhido.name}`}
-                carregando={assinando}
+                rotulo={escolhidoAtual ? "Plano atual" : bloqueioPlano && temPlanoPago ? "Você já possui um plano ativo" : requerVerificacao ? "Verifique sua assinatura abaixo" : `Assinar ${planoEscolhido.name}`}
+                carregando={operando}
+                disabled={compraBloqueada}
                 onPress={assinar}
               />
               <Text style={s.legal}>Cancele quando quiser. Sem fidelidade.</Text>
@@ -669,8 +740,8 @@ export default function PaywallScreen({ onClose }: Props) {
                 <View style={[s.cabecalhoIcone, { backgroundColor: tema.primarySoft }]}>
                   <AppIcon name="Sparkles" size={24} color={tema.primary} strokeWidth={2.1} />
                 </View>
-                <Text style={s.titulo}>Escolha seu plano</Text>
-                <Text style={s.subtitulo}>Toque em um plano para ver o que ele libera.</Text>
+                <Text style={s.titulo}>{temPlanoPago ? "Seu plano" : "Escolha seu plano"}</Text>
+                <Text style={s.subtitulo}>{temPlanoPago ? "Confira sua assinatura e os benefícios dos planos." : "Toque em um plano para ver o que ele libera."}</Text>
               </View>
 
               {mensagem ? (
@@ -732,6 +803,7 @@ export default function PaywallScreen({ onClose }: Props) {
                       tema={tema}
                       // Sem escolha ainda, o foco fica no recomendado; a
                       // partir da primeira escolha ele passa para ela.
+                      atual={planoAtualDoCatalogo(assinatura.data, p.id)}
                       selecionado={
                         ultimoEscolhido
                           ? ultimoEscolhido === p.id
@@ -757,7 +829,7 @@ export default function PaywallScreen({ onClose }: Props) {
           {Platform.OS === "android" && lojaDisponivel(pagamento) ? (
             <Pressable
               onPress={restaurar}
-              disabled={restaurando}
+              disabled={operando || assinatura.carregando}
               style={({ pressed }) => [s.secundario, pressed && s.secundarioPressionado]}
               accessibilityRole="button"
             >
@@ -769,7 +841,12 @@ export default function PaywallScreen({ onClose }: Props) {
             </Pressable>
           ) : null}
 
-          {planoEscolhido ? (
+          <Pressable onPress={() => { void atualizarStatus(); }} disabled={operando || assinatura.carregando} style={s.secundario} accessibilityRole="button">
+            <Text style={s.secundarioTexto}>Atualizar status</Text>
+          </Pressable>
+          {temPlanoPago && !planoEscolhido ? (
+            <Pressable onPress={fechar} style={s.secundario} accessibilityRole="button"><Text style={s.secundarioTexto}>Concluir</Text></Pressable>
+          ) : planoEscolhido ? (
             <Pressable
               onPress={() => setEscolhido(null)}
               style={({ pressed }) => [s.secundario, pressed && s.secundarioPressionado]}
@@ -968,3 +1045,4 @@ const s = StyleSheet.create({
   secundarioPressionado: { opacity: 0.7 },
   secundarioTexto: { ...typography.bodySm, color: colors.textSecondary, fontWeight: "700" },
 });
+

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { createRemoteJWKSet, jwtVerify, type JWTVerifyGetKey } from "jose";
 import { prisma } from "@/lib/prisma";
 import {
@@ -62,9 +63,65 @@ export async function reconhecerPendentesGoogle(limite = 50): Promise<{ reconhec
       if (compra?.reconhecidaEm) resultado.reconhecidas += 1;
     } catch (err) {
       resultado.falhas += 1;
-      console.error("[google-play] reconhecimento pendente segue para a próxima rodada:", externalId, (err as Error)?.message);
+      console.error("[google-play] reconhecimento pendente segue para a próxima rodada:", resumoDaCompra(externalId), (err as Error)?.message);
     }
   }
+  return resultado;
+}
+
+/** Identificação da compra para log: hash curto, nunca o purchaseToken. */
+function resumoDaCompra(externalId: string): string {
+  return createHash("sha256").update(externalId).digest("hex").slice(0, 8);
+}
+
+/** Intervalo mínimo entre duas releituras da mesma compra atrasada. */
+const RELEITURA_MINIMA_MS = 30_000;
+
+/**
+ * Renovação que a loja ainda não confirmou: a compra diz que renova, não foi
+ * encerrada nem substituída, e o fim gravado já passou. A notificação do Google
+ * pode atrasar, repetir ou se perder; o fim gravado passar não prova expiração.
+ * Relê o Google e grava o estado atual. Sem resposta, nada é concedido.
+ *
+ * Devolve `pendente` quando, depois da releitura, ainda há renovação sem
+ * confirmação: o Google não respondeu, ou responde em período ativo com o fim
+ * já passado (a cobrança da renovação ainda está em processamento).
+ */
+export async function sincronizarRenovacoesAtrasadas(
+  filtro: { userId?: string } = {},
+  limite = 50,
+): Promise<{ sincronizadas: number; falhas: number; pendente: boolean }> {
+  const resultado = { sincronizadas: 0, falhas: 0, pendente: false };
+  if (!googlePlayLigado()) return resultado;
+  const agora = Date.now();
+  const atrasada = {
+    provider: "GOOGLE" as const,
+    renova: true,
+    encerradaEm: null,
+    substituidaPor: null,
+    expiraEm: { lte: new Date(agora) },
+    ...(filtro.userId ? { userId: filtro.userId } : {}),
+  };
+  const compras = await prisma.assinaturaLoja.findMany({
+    where: { ...atrasada, verificadaEm: { lte: new Date(agora - RELEITURA_MINIMA_MS) } },
+    orderBy: { expiraEm: "asc" },
+    take: limite,
+    select: { externalId: true },
+  });
+  for (const { externalId } of compras) {
+    try {
+      await sincronizarCompraGoogle(externalId);
+      resultado.sincronizadas += 1;
+    } catch (err) {
+      resultado.falhas += 1;
+      console.error("[google-play] renovação atrasada segue sem confirmação:", resumoDaCompra(externalId), (err as Error)?.message);
+    }
+  }
+  // Suspensa ou pausada é estado confirmado pelo Google, não renovação em curso.
+  const semConfirmacao = await prisma.assinaturaLoja.count({
+    where: { ...atrasada, estadoLoja: { in: ["SUBSCRIPTION_STATE_ACTIVE", "SUBSCRIPTION_STATE_IN_GRACE_PERIOD"] } },
+  });
+  resultado.pendente = resultado.falhas > 0 || semConfirmacao > 0;
   return resultado;
 }
 

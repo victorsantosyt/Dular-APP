@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createHash, timingSafeEqual } from "node:crypto";
 import { varrerOperacoes } from "@/lib/trocaDePlano";
-import { reconhecerPendentesGoogle } from "@/lib/googlePlayCompras";
+import { reconhecerPendentesGoogle, sincronizarRenovacoesAtrasadas } from "@/lib/googlePlayCompras";
 
 export const dynamic = "force-dynamic";
 // 60 s vale no plano Hobby com ou sem Fluid compute. A rodada não começa
@@ -51,6 +51,13 @@ export async function GET(req: Request) {
     if (semReconhecer > 0) console.error("[cron/reconciliar-stripe] compras Google ainda sem reconhecimento:", semReconhecer);
   } catch (err) {
     console.error("[cron/reconciliar-stripe] reconhecimento Google interrompido:", err);
+  }
+  // Renovações do Google cuja notificação se perdeu ou atrasou: relê a loja.
+  try {
+    const { falhas: semRenovar } = await sincronizarRenovacoesAtrasadas();
+    if (semRenovar > 0) console.error("[cron/reconciliar-stripe] renovações Google ainda sem confirmação:", semRenovar);
+  } catch (err) {
+    console.error("[cron/reconciliar-stripe] releitura de renovações Google interrompida:", err);
   }
 
   try {

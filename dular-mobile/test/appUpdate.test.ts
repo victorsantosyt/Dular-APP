@@ -56,7 +56,15 @@ test("loja tenta aplicativo e HTTPS; falha dupla permite repetir", async () => {
   assert.equal(await policy.openPlayStore(async () => {}), true);
 });
 
-function hookHarness(options: { build?: string; platform?: string; dev?: boolean; storageFails?: boolean; storage?: () => Promise<string | null>; response?: () => Promise<unknown> } = {}) {
+/** Igual ao Linking do React Native: openURL é método e depende de `this`. */
+class LinkingFalso {
+  abertas: string[] = [];
+  constructor(private abrir: (url: string) => Promise<void> = async () => {}) {}
+  _validateURL(url: string) { if (typeof url !== "string" || !url) throw new Error("URL inválida"); }
+  openURL(url: string) { this._validateURL(url); this.abertas.push(url); return this.abrir(url); }
+}
+
+function hookHarness(options: { build?: string; platform?: string; dev?: boolean; storageFails?: boolean; storage?: () => Promise<string | null>; response?: () => Promise<unknown>; linking?: LinkingFalso } = {}) {
   const require = createRequire(import.meta.url);
   const ts = require("typescript");
   const code = ts.transpileModule(readFileSync(new NodeURL("../src/hooks/useAppUpdate.ts", import.meta.url), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true } }).outputText;
@@ -80,7 +88,7 @@ function hookHarness(options: { build?: string; platform?: string; dev?: boolean
   };
   const mocks: Record<string, unknown> = {
     react,
-    "react-native": { AppState: appState, Platform: { OS: options.platform ?? "android" }, Linking: { openURL: async () => {} } },
+    "react-native": { AppState: appState, Platform: { OS: options.platform ?? "android" }, Linking: options.linking ?? new LinkingFalso() },
     "@react-native-async-storage/async-storage": { getItem: async () => { if (options.storageFails) throw Error(); return options.storage ? options.storage() : null; }, setItem: async () => { storageWrites++; if (options.storageFails) throw Error(); } },
     "expo-constants": { default: { executionEnvironment: "standalone" }, ExecutionEnvironment: { StoreClient: "storeClient" }, __esModule: true },
     "expo-application": { nativeBuildVersion: options.build ?? "5", applicationId: policy.ANDROID_PACKAGE },
@@ -148,4 +156,34 @@ test("adiamento persistido recusa popup; nova consulta é permitida após cinco 
   harness.render(); await flush(); assert.equal(harness.render().release, null);
   harness.advance(policy.UPDATE_CHECK_INTERVAL_MS - 1); harness.background(); harness.foreground(); await flush(); assert.equal(harness.calls, 1);
   harness.advance(1); harness.background(); harness.foreground(); await flush(); assert.equal(harness.calls, 2); harness.unmount();
+});
+
+test("Atualizar: abre a Play pelo Linking real (método com this); market falha → HTTPS; as duas falham → erro e popup segue", async () => {
+  const MARKET = "market://details?id=br.com.dular.app";
+
+  // Sucesso direto: abre market:// e fecha o popup.
+  const direto = new LinkingFalso();
+  const a = hookHarness({ linking: direto }); a.render(); await flush();
+  await a.render().update(); await flush();
+  assert.deepEqual(direto.abertas, [MARKET]);
+  assert.equal(a.render().release, null);
+  assert.equal(a.render().error, null);
+  a.unmount();
+
+  // Primeiro caminho falha, segundo abre.
+  const fallback = new LinkingFalso(async (url) => { if (url.startsWith("market:")) throw new Error("No Activity found to handle Intent"); });
+  const b = hookHarness({ linking: fallback }); b.render(); await flush();
+  await b.render().update(); await flush();
+  assert.deepEqual(fallback.abertas, [MARKET, policy.PLAY_STORE_URL]);
+  assert.equal(b.render().release, null);
+  b.unmount();
+
+  // As duas falham: mensagem de erro, popup continua para tentar de novo.
+  const nenhum = new LinkingFalso(async () => { throw new Error("No Activity found to handle Intent"); });
+  const c = hookHarness({ linking: nenhum }); c.render(); await flush();
+  await c.render().update(); await flush();
+  assert.deepEqual(nenhum.abertas, [MARKET, policy.PLAY_STORE_URL]);
+  assert.equal(c.render().release.versionCode, 6);
+  assert.equal(c.render().error, "Não foi possível abrir a Google Play. Tente novamente.");
+  c.unmount();
 });

@@ -21,6 +21,9 @@ import { colors, spacing, typography } from "@/theme/tokens";
 
 type Props = {
   title?: string;
+  backgroundColor?: string;
+  titleColor?: string;
+  compactHeader?: boolean;
   children: React.ReactNode;
   scroll?: boolean;
   contentStyle?: ViewStyle;
@@ -41,6 +44,9 @@ type Props = {
 
 export function Screen({
   title,
+  backgroundColor = colors.background,
+  titleColor,
+  compactHeader = false,
   children,
   scroll = true,
   contentStyle,
@@ -98,14 +104,14 @@ export function Screen({
   );
 
   return (
-    <SafeAreaView edges={["top", "left", "right"]} style={styles.safe}>
+    <SafeAreaView edges={["top", "left", "right"]} style={[styles.safe, { backgroundColor }]}>
       {title ? (
-        <View style={[styles.header, { paddingHorizontal: horizontalPadding }]}>
+        <View style={[styles.header, { paddingHorizontal: horizontalPadding, backgroundColor }, compactHeader && styles.compactHeader]}>
           {/* Espaçador do tamanho do botão quando não há ação daquele lado:
               sem ele o título centraliza no espaço QUE SOBRA e fica deslocado
               para o lado oposto ao botão, em vez de centralizado na linha. */}
           {leftAction ?? <View style={styles.headerSlot} />}
-          <Text style={[styles.headerTitle, { color: tema.textAccent }]}>{title}</Text>
+          <Text style={[styles.headerTitle, { color: titleColor ?? tema.textAccent }]}>{title}</Text>
           {rightAction ?? <View style={styles.headerSlot} />}
         </View>
       ) : null}
@@ -127,6 +133,7 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
     backgroundColor: colors.background,
   },
+  compactHeader: { paddingTop: 0, paddingBottom: 6 },
   headerTitle: {
     ...typography.h2,
     flex: 1,

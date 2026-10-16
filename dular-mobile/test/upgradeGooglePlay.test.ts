@@ -120,3 +120,9 @@ test("renovação aguardando a loja bloqueia nova compra e avisa sem dizer que e
   assert.match(tela, /const compraBloqueada = [^\n]*\|\| renovacaoPendente;/);
   assert.match(tela, /renovacaoPendente \? \(/);
 });
+
+test("catálogo inicial e de troca listam só o que a Google Play oferece", () => {
+  const tela = readFileSync(join(import.meta.dirname, "..", "src", "screens", "PaywallScreen.tsx"), "utf8");
+  assert.match(tela, /const consultaLoja = exibicao === "catalogo" && Platform\.OS === "android" && lojaDisponivel\(pagamento\);/);
+  assert.match(tela, /const alternativasVisiveis = consultaLoja\s*\? alternativas\.filter\(\(p\) => disponiveisGoogle\?\.includes\(p\.id\)\)/);
+});

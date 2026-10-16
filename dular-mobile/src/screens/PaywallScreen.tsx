@@ -532,7 +532,10 @@ export default function PaywallScreen({ onClose }: Props) {
   const exibicao = exibicaoDosPlanos(assinatura.data, upgrade);
   const mostrarResumo = exibicao === "resumo";
   const alternativas = useMemo(() => alternativasDoPlano(assinatura.data, planos), [assinatura.data, planos]);
-  const consultaLoja = upgrade && Platform.OS === "android" && lojaDisponivel(pagamento);
+  // Comprando pela Google Play, todo catálogo mostrado (o inicial e o de troca)
+  // só lista o que a Play oferece agora: plano do servidor sem produto e plano
+  // base publicados não aparece para depois falhar na compra.
+  const consultaLoja = exibicao === "catalogo" && Platform.OS === "android" && lojaDisponivel(pagamento);
   const alternativasVisiveis = consultaLoja
     ? alternativas.filter((p) => disponiveisGoogle?.includes(p.id))
     : alternativas;

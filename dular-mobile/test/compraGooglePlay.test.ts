@@ -259,7 +259,7 @@ test("fluxo: a compra leva o token da conta vindo do servidor", () => {
 
 // Executa o coordenador real com os adaptadores nativos/HTTP substituídos.
 // O React Native não roda no Node; transpilar não altera as decisões do fluxo.
-async function fluxoComAdaptadores(opcoes: { status?: number; erro?: unknown; pendente?: boolean; restaurar?: boolean; deOutraConta?: number } = {}) {
+async function fluxoComAdaptadores(opcoes: { status?: number; erro?: unknown; pendente?: boolean; restaurar?: boolean; deOutraConta?: number; verificacaoLoja?: string } = {}) {
   const { transpileModule, ModuleKind, ScriptTarget } = await import("typescript");
   const chamadas: string[] = [];
   const compra = { produtoId: PRODUTO, comprovante: "token", pendente: opcoes.pendente ?? false, original: {} };
@@ -269,7 +269,7 @@ async function fluxoComAdaptadores(opcoes: { status?: number; erro?: unknown; pe
   const adapters: Record<string, unknown> = {
     "react-native": { Platform: { OS: "android" }, Linking: { openURL: async () => {} } },
     "@/components/ui/assinaturaPlano": { podeFazerUpgradeGoogle: () => false },
-    "@/lib/api": { api: { get: async () => ({ data: { plan: "FREE", subscription: null } }), post: async () => {
+    "@/lib/api": { api: { get: async () => ({ data: { plan: "FREE", subscription: null, verificacaoLoja: opcoes.verificacaoLoja ?? null } }), post: async () => {
       chamadas.push("servidor");
       if (opcoes.erro) throw opcoes.erro;
       return { status: opcoes.status ?? 200, data: { plan: "PREMIUM" } };
@@ -328,4 +328,10 @@ test("restauração real: compra de outra conta Dular conta como recusada sem ir
   const fluxo = await fluxoComAdaptadores({ restaurar: true, deOutraConta: 1 });
   assert.deepEqual(await fluxo.executar(), { restauradas: 1, recusadas: 1, pendentes: 0, falhas: 0, plano: "PREMIUM" });
   assert.deepEqual(fluxo.chamadas.filter((c) => c === "servidor").length, 1);
+});
+
+test("coordenador real: renovação aguardando a loja não abre nova compra", async () => {
+  const fluxo = await fluxoComAdaptadores({ verificacaoLoja: "pendente" });
+  await assert.rejects(fluxo.executar(), (e: any) => e instanceof ErroCompraLoja && e.codigo === "COMPRA_EM_CONFIRMACAO");
+  assert.deepEqual(fluxo.chamadas, []);
 });

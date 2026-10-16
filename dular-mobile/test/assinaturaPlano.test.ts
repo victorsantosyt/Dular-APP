@@ -129,3 +129,18 @@ test("bloqueia compra duplicada e trocas Google, preserva checkout Stripe de out
   assert.equal(bloqueiaNovaCompra(assinatura("FREE", null), "montador_pro_mensal", true), false);
 });
 
+
+test("renovação aguardando a loja não é apresentada como gratuito confirmado", () => {
+  const pendente: AssinaturaPlano = { plan: "FREE", subscription: null, verificacaoLoja: "pendente" };
+  assert.deepEqual(apresentacaoDoPlano(pendente), { nome: "Confirmando assinatura", icone: "Clock" });
+  assert.deepEqual(apresentacaoDoPlano({ plan: "FREE", subscription: null, verificacaoLoja: null }), { nome: "Gratuito", icone: "Sprout" });
+  assert.deepEqual(apresentacaoDoPlano({ plan: "FREE", subscription: null }), { nome: "Gratuito", icone: "Sprout" });
+});
+
+test("barra de limite não oferece planos durante a renovação pendente", async () => {
+  const { readFileSync } = await import("node:fs");
+  const { join } = await import("node:path");
+  const fonte = readFileSync(join(import.meta.dirname, "..", "src", "components", "ui", "LimitePlanoBarra.tsx"), "utf8");
+  assert.match(fonte, /setPlano\(res\.data\?\.verificacaoLoja === "pendente" \? null : res\.data\?\.plan \?\? "FREE"\)/);
+  assert.match(fonte, /plano !== "FREE"/);
+});

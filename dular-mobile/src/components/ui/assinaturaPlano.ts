@@ -20,6 +20,8 @@ export type AssinaturaPlano = {
 
 export function apresentacaoDoPlano(data: AssinaturaPlano | null): { nome: string; icone: AppIconName } | null {
   if (!data) return null;
+  // Renovação aguardando a loja não é gratuito confirmado.
+  if (data.plan === "FREE" && data.verificacaoLoja === "pendente") return { nome: "Confirmando assinatura", icone: "Clock" };
   if (data.plan === "FREE") return { nome: "Gratuito", icone: "Sprout" };
   const sub = data.subscription;
   if (data.plan === "BASIC") return { nome: sub?.name ?? "Básico", icone: "Zap" };

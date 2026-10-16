@@ -94,6 +94,8 @@ export async function comprarPlano(
     // O estado usado para decidir a troca é relido; o perfil visível pode estar atrasado.
     const atual = (await api.get<AssinaturaPlano>("/api/me/subscription")).data;
     if (!atual || !["FREE", "BASIC", "PREMIUM"].includes(atual.plan)) throw new ErroCompraLoja("UPGRADE_INDISPONIVEL");
+    // Renovação aguardando a loja: outra compra criaria assinatura em paralelo.
+    if (atual.verificacaoLoja === "pendente") throw new ErroCompraLoja("COMPRA_EM_CONFIRMACAO");
     let substituicao: { produtoId: string; validar: (compra: CompraGoogle) => Promise<void> } | undefined;
     if (atual.plan !== "FREE") {
       const catalogo = (await api.get<{ plans: (PlanoParaCompra & { plan: string; interval: string | null })[] }>("/api/billing/plans")).data;

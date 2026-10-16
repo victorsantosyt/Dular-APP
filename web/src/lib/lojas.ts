@@ -292,6 +292,50 @@ export async function consultarAssinaturaGoogle(purchaseToken: string): Promise<
   return situacaoDoGoogle(await res.json(), purchaseToken, Date.now());
 }
 
+/** Assinatura cadastrada no Play Console, como o diagnóstico a mostra: só ids e estados. */
+export type ProdutoNoConsole = {
+  productId: string;
+  arquivado: boolean;
+  planosBase: { basePlanId: string; estado: string; periodo: string | null; regioes: number; brasil: string | null }[];
+  ofertas: { basePlanId: string; offerId: string; estado: string }[] | { erro: DiagnosticoGoogle };
+};
+
+/**
+ * Diagnóstico do catálogo no Play Console (`monetization.subscriptions.list`
+ * e as ofertas de cada produto). Só leitura. Devolve ids, estados, período e a
+ * disponibilidade no Brasil — nunca preço, textos ou o corpo do Google.
+ */
+export async function catalogoGooglePlay(): Promise<{ produtos: ProdutoNoConsole[] } | { erro: DiagnosticoGoogle }> {
+  const res = await chamarGoogle("/subscriptions?pageSize=100");
+  if (!res.ok) return { erro: registrarErroGoogle("catalogo", res.status, await res.json().catch(() => null)) };
+  const corpo = (await res.json().catch(() => ({}))) as { subscriptions?: Record<string, any>[] };
+  const produtos: ProdutoNoConsole[] = [];
+  for (const sub of corpo.subscriptions ?? []) {
+    const productId = String(sub.productId ?? "");
+    const planosBase = (Array.isArray(sub.basePlans) ? sub.basePlans : []).map((b: Record<string, any>) => {
+      const regionais: Record<string, any>[] = Array.isArray(b.regionalConfigs) ? b.regionalConfigs : [];
+      const br = regionais.find((r) => r.regionCode === "BR");
+      return {
+        basePlanId: String(b.basePlanId ?? ""),
+        estado: String(b.state ?? "AUSENTE"),
+        periodo: textoOuNulo(b.autoRenewingBasePlanType?.billingPeriodDuration ?? b.prepaidBasePlanType?.billingPeriodDuration),
+        regioes: regionais.length,
+        brasil: br ? String(br.newSubscriberAvailability ?? "presente") : null,
+      };
+    });
+    const r = await chamarGoogle(`/subscriptions/${encodeURIComponent(productId)}/basePlans/-/offers?pageSize=100`);
+    const ofertas = r.ok
+      ? (((await r.json().catch(() => ({}))) as { subscriptionOffers?: Record<string, any>[] }).subscriptionOffers ?? []).map((o) => ({
+          basePlanId: String(o.basePlanId ?? ""),
+          offerId: String(o.offerId ?? ""),
+          estado: String(o.state ?? "AUSENTE"),
+        }))
+      : { erro: registrarErroGoogle("catalogo", r.status, await r.json().catch(() => null)) };
+    produtos.push({ productId, arquivado: sub.archived === true, planosBase, ofertas });
+  }
+  return { produtos };
+}
+
 /** Reconhece a compra (`purchases.subscriptions.acknowledge`). Sem isso em 3 dias, o Google reembolsa e revoga. */
 export async function reconhecerCompraGoogle(storeProductId: string, purchaseToken: string): Promise<void> {
   const res = await chamarGoogle(
@@ -360,7 +404,7 @@ const MOTIVOS_DO_GOOGLE = new Set([
 ]);
 
 export type DiagnosticoGoogle = {
-  etapa: "oauth" | "consulta" | "reconhecimento";
+  etapa: "oauth" | "consulta" | "reconhecimento" | "catalogo";
   http: number;
   status: string;
   reason: string;

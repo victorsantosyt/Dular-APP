@@ -43,7 +43,8 @@ export function makeSafeScoreStyles(theme: ProfileTheme) {
   return StyleSheet.create({
     content: { gap: 8, paddingTop: 4 },
     card: { borderWidth: 1, borderColor: `${theme.border}66`, borderRadius: 18, padding: 16, backgroundColor: colors.card,
-      ...shadow.soft, shadowColor: theme.primaryDark, shadowOpacity: 0.035, shadowRadius: 10 },
+      // Sombra mais leve que a do app, só nesta tela (referência aprovada).
+      ...shadow.soft, shadowColor: theme.primaryDark, shadowOpacity: 0.02, shadowRadius: 8, elevation: 1 },
     eyebrow: { ...typography.caption, color: colors.sub, letterSpacing: 1, textTransform: "uppercase", marginBottom: -8 },
     hero: { flexDirection: "row", alignItems: "center", gap: 12, minHeight: 146, paddingVertical: 0, paddingLeft: 20, paddingRight: 12 },
     heroStacked: { flexDirection: "column", alignItems: "stretch" },

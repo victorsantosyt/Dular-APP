@@ -3,7 +3,7 @@ import { Pressable, Text, View, useWindowDimensions } from "react-native";
 import { Screen } from "@/components/Screen";
 import { AppIcon, BackCircleButton, type AppIconName } from "@/components/ui";
 import { SafeScoreEmblem, SafeScoreMedal } from "@/assets/icons/SafeScoreEmblem";
-import { getSafeScoreBackground, getSafeScoreEmblemState, IDENTITY_LABELS } from "@/lib/safeScorePresentation";
+import { getSafeScoreBackground, getSafeScoreEmblemState, IDENTITY_LABELS, suavizarTemaSafeScore } from "@/lib/safeScorePresentation";
 import type { ProfileTheme } from "@/theme/profileTheme";
 import type { SafeScoreResource } from "@/hooks/useSafeScoreResource";
 import type { SafeScoreOverview } from "@/api/safeScoreOverviewApi";
@@ -21,7 +21,9 @@ type Props = {
   onGuide: () => void;
 };
 
-export function SafeScoreView({ theme, overview, sos, onBack, onIdentity, onGuide }: Props) {
+export function SafeScoreView({ theme: temaBase, overview, sos, onBack, onIdentity, onGuide }: Props) {
+  // Acentos suavizados só nesta tela (ver lib/safeScorePresentation).
+  const theme = useMemo(() => suavizarTemaSafeScore(temaBase, colors.card), [temaBase]);
   const s = useMemo(() => makeSafeScoreStyles(theme), [theme]);
   const { width, fontScale } = useWindowDimensions();
   const data = overview.data;

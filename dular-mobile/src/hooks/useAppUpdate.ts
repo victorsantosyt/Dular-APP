@@ -89,7 +89,9 @@ export function useAppUpdate(enabled: boolean) {
     openingRef.current = true;
     setOpening(true);
     setError(null);
-    const opened = await openPlayStore(Linking.openURL);
+    // Linking.openURL é método de classe e usa `this`: passado solto, lança
+    // TypeError antes de chegar ao Android e nenhuma das duas URLs abre.
+    const opened = await openPlayStore((url) => Linking.openURL(url));
     openingRef.current = false;
     if (!alive.current) return;
     setOpening(false);

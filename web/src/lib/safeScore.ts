@@ -8,6 +8,7 @@ import {
   type PoliticaAtiva,
   type SafeScoreEventInput,
 } from "@/lib/safeScore/applyEvent";
+import { faixaDoScore } from "../../../shared/safescore/guia";
 
 const SCORE_INICIAL = 500;
 
@@ -391,9 +392,7 @@ export function getFaixa(score: number): {
   cor: string;
   bloqueado: boolean;
 } {
-  if (score >= 800) return { label: "Confiança Máxima", cor: "#22c55e", bloqueado: false };
-  if (score >= 600) return { label: "Confiável", cor: "#3b82f6", bloqueado: false };
-  if (score >= 400) return { label: "Em Observação", cor: "#f59e0b", bloqueado: false };
-  if (score >= 200) return { label: "Risco Alto", cor: "#ef4444", bloqueado: true };
-  return { label: "Suspenso", cor: "#7f1d1d", bloqueado: true };
+  // Limites e rótulos vêm do módulo compartilhado com o app (guia "Como funciona").
+  const { label, cor, bloqueado } = faixaDoScore(score);
+  return { label, cor, bloqueado };
 }

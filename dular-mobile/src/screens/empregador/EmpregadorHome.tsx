@@ -19,6 +19,7 @@ import type { BuscarDiaristasResponse, DiaristaItem } from "@/types/diarista";
 import type { ServicoTipo, ServicoCategoria } from "@/types/servico";
 import { CATEGORIAS, CATEGORIA_BY_KEY } from "@/constants/categorias";
 import { PILOT_MODE, PILOT } from "@/config/pilotConfig";
+import { fetchEnderecos, normalizarBairro, type Endereco } from "@/api/enderecoApi";
 import { useGeoDefaults } from "@/hooks/useGeoDefaults";
 import { useNotificacoes } from "@/hooks/useNotificacoes";
 import { useFavoritos } from "@/hooks/useFavoritos";
@@ -180,6 +181,23 @@ function CategoriaCard({
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
+/** Teto da espera pelo endereço antes da primeira busca no piloto. */
+const ESPERA_ENDERECO_MS = 3000;
+
+/**
+ * Piloto: bairro do endereço cadastrado — residencial antes do empresarial,
+ * só se o endereço for da cidade do piloto. Sem endereço utilizável, "".
+ */
+function bairroDoEnderecoPiloto(lista: Endereco[]): string {
+  const doPiloto = (e: Endereco) =>
+    normalizarBairro(e.cidade) === normalizarBairro(PILOT.cidade) &&
+    normalizarBairro(e.uf) === normalizarBairro(PILOT.uf);
+  const endereco =
+    lista.find((e) => e.tipo === "RESIDENCIAL" && doPiloto(e)) ??
+    lista.find((e) => e.tipo === "EMPRESARIAL" && doPiloto(e));
+  return endereco?.bairro.trim() ?? "";
+}
+
 export default function EmpregadorHome() {
   const bottomContentPadding = getBottomNavContentPadding(useBottomTabBarHeight(), spacing.xl);
   const navigation = useNavigation<Navigation>();
@@ -205,9 +223,14 @@ export default function EmpregadorHome() {
   const [uf, setUf] = useState(
     PILOT_MODE ? PILOT.uf : (user?.estadoAtual || user?.estado || ""),
   );
-  const [bairro, setBairro] = useState(
-    PILOT_MODE ? PILOT.bairros[0] : (user?.bairroAtual || ""),
-  );
+  // Piloto: o bairro inicial vem do endereço cadastrado (efeito abaixo); sem
+  // endereço, fica vazio e a busca cobre a cidade toda. Nunca o primeiro
+  // bairro da lista do piloto nem a região do aparelho.
+  const [bairro, setBairro] = useState(PILOT_MODE ? "" : (user?.bairroAtual || ""));
+  const [enderecoPronto, setEnderecoPronto] = useState(!PILOT_MODE);
+  // Rebusca pedida depois da primeira carga (endereço que chegou após o teto
+  // ou relido ao focar). Executada quando não há busca em andamento.
+  const [rebuscaPendente, setRebuscaPendente] = useState(false);
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
 
 
@@ -235,8 +258,10 @@ export default function EmpregadorHome() {
           setCoords(coordsRef.current);
         }
 
+        // Piloto: a ordenação usa o GPS do aparelho. Geocodificar o bairro só
+        // valeria se o usuário o trocasse à mão — e a Home não tem esse campo.
         const bairroQuery = bairro.trim();
-        if (bairroQuery.length >= 3 && cidadeParam) {
+        if (!PILOT_MODE && bairroQuery.length >= 3 && cidadeParam) {
           try {
             const geoRes = await Location.geocodeAsync(`${bairroQuery}, ${cidadeParam}, ${ufParam}, Brasil`);
             if (geoRes?.[0]?.latitude) {
@@ -295,23 +320,77 @@ export default function EmpregadorHome() {
     setCoords(c);
     if (geo.cidade && !cidade) setCidade(geo.cidade);
     if (geo.uf && !uf) setUf(geo.uf);
-    if (geo.bairro && !bairro) setBairro(geo.bairro);
+    if (!PILOT_MODE && geo.bairro && !bairro) setBairro(geo.bairro);
   }, [bairro, cidade, geo.bairro, geo.cidade, geo.coords, geo.loading, geo.uf, uf]);
 
+  // Piloto: a primeira busca espera o endereço cadastrado por até
+  // ESPERA_ENDERECO_MS. Chegando antes, ele entra na primeira busca (uma só).
+  // Passado o teto, a busca sai sem bairro (cidade toda); se o endereço chegar
+  // depois, o bairro é aplicado e a lista é buscada uma vez mais.
   useEffect(() => {
-    if (geo.loading || initialFetchRef.current) return;
+    if (!PILOT_MODE) return;
+    let vivo = true;
+    let tetoAtingido = false;
+    const teto = setTimeout(() => {
+      tetoAtingido = true;
+      setEnderecoPronto(true);
+    }, ESPERA_ENDERECO_MS);
+    fetchEnderecos()
+      .then((lista) => {
+        if (!vivo) return;
+        const bairroEndereco = bairroDoEnderecoPiloto(lista);
+        if (bairroEndereco) setBairro(bairroEndereco);
+        if (tetoAtingido && bairroEndereco && initialFetchRef.current) setRebuscaPendente(true);
+      })
+      .catch(() => {})
+      .finally(() => {
+        clearTimeout(teto);
+        if (vivo) setEnderecoPronto(true);
+      });
+    return () => {
+      vivo = false;
+      clearTimeout(teto);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (geo.loading || !enderecoPronto || initialFetchRef.current) return;
     initialFetchRef.current = true;
     handleBuscarRef.current();
-  }, [geo.loading]);
+  }, [enderecoPronto, geo.loading]);
+
+  useEffect(() => {
+    if (!rebuscaPendente || geo.loading || loading || refreshing || busyRef.current) return;
+    setRebuscaPendente(false);
+    handleBuscarRef.current();
+  }, [geo.loading, loading, rebuscaPendente, refreshing]);
 
   // Rebusca ao FOCAR (depois da primeira carga). A home monta uma vez e
   // sobrevive à navegação por abas: sem isto a lista de profissionais ficava
   // congelada na primeira busca — quem entrasse na plataforma depois só
   // aparecia no pull-to-refresh ou reiniciando o app.
+  // Piloto: relê o endereço antes de rebuscar (pode ter mudado em outra tela).
+  // Sem endereço utilizável, o bairro fica vazio; se a leitura falhar, a
+  // rebusca segue com o bairro que já estava.
   useFocusEffect(
     useCallback(() => {
       if (geo.loading || !initialFetchRef.current) return;
-      handleBuscarRef.current();
+      if (!PILOT_MODE) {
+        handleBuscarRef.current();
+        return;
+      }
+      let vivo = true;
+      fetchEnderecos()
+        .then((lista) => {
+          if (vivo) setBairro(bairroDoEnderecoPiloto(lista));
+        })
+        .catch(() => {})
+        .finally(() => {
+          if (vivo) setRebuscaPendente(true);
+        });
+      return () => {
+        vivo = false;
+      };
     }, [geo.loading]),
   );
 

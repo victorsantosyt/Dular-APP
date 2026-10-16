@@ -556,6 +556,66 @@ describe("Google Play contra Postgres real (#359)", { skip: EXIGIDO ? false : PU
     assert.equal(await acesso(userId), "FREE");
   });
 
+  it("autoRenewEnabled omitido (como o Google manda): cancelada mantém o acesso até o fim; revogada, anulada e vencida tiram; repetida e fora de ordem não mudam nada", async () => {
+    const semFlag = (r: Recurso) => {
+      delete r.lineItems[0].autoRenewingPlan.autoRenewEnabled;
+      r.lineItems[0].autoRenewingPlan.recurringPrice = { units: "1" };
+    };
+
+    // Cancelada (3), período em curso: renovação desligada, acesso mantido.
+    const cancelada = await usuario("omitido_cancelada");
+    const tkC = compraNoGoogle(token("omitido_cancelada"), recurso(lojas.tokenDaConta(cancelada)));
+    assert.equal((await apresentar(cancelada, tkC)).status, 200);
+    Object.assign(google.assinaturas.get(tkC)!, { subscriptionState: "SUBSCRIPTION_STATE_CANCELED" });
+    semFlag(google.assinaturas.get(tkC)!);
+    const msgC = `${RUN}-omitido-cancelada`;
+    assert.equal((await notificar(notificacaoDeAssinatura(tkC, 3), { messageId: msgC })).status, 200);
+    let linha = await linhaDaCompra(tkC);
+    assert.deepEqual([linha.vigente, linha.renova, linha.encerradaEm], [true, false, null]);
+    assert.equal(await acesso(cancelada), "PREMIUM", "cancelar a renovação não encerra o período pago");
+    assert.equal((await prisma.notificacaoLoja.findFirst({ where: { mensagemId: msgC } })).erro, null);
+
+    // Mesma mensagem de novo: repetida, sem nova consulta.
+    const antes = gets(tkC);
+    const rep = await notificar(notificacaoDeAssinatura(tkC, 3), { messageId: msgC });
+    assert.deepEqual([rep.status, rep.corpo.resultado], [200, "repetida"]);
+    assert.equal(gets(tkC), antes);
+
+    // Vencida (13): sem acesso, encerrada de vez.
+    const r = google.assinaturas.get(tkC)!;
+    r.subscriptionState = "SUBSCRIPTION_STATE_EXPIRED";
+    r.lineItems[0].expiryTime = new Date(Date.now() - 1000).toISOString();
+    await notificar(notificacaoDeAssinatura(tkC, 13));
+    linha = await linhaDaCompra(tkC);
+    assert.ok(linha.encerradaEm);
+    assert.equal(await acesso(cancelada), "FREE");
+
+    // Fora de ordem: uma "compra" (4) atrasada chega depois — relê o Google e nada volta.
+    assert.equal((await notificar(notificacaoDeAssinatura(tkC, 4))).status, 200);
+    assert.equal(await acesso(cancelada), "FREE");
+    assert.ok((await linhaDaCompra(tkC)).encerradaEm);
+
+    // Revogada (12): o Google devolve EXPIRED ainda com fim no futuro — acesso sai na hora.
+    const revogada = await usuario("omitido_revogada");
+    const tkR = compraNoGoogle(token("omitido_revogada"), recurso(lojas.tokenDaConta(revogada)));
+    assert.equal((await apresentar(revogada, tkR)).status, 200);
+    Object.assign(google.assinaturas.get(tkR)!, { subscriptionState: "SUBSCRIPTION_STATE_EXPIRED" });
+    semFlag(google.assinaturas.get(tkR)!);
+    assert.equal((await notificar(notificacaoDeAssinatura(tkR, 12))).status, 200);
+    assert.equal(await acesso(revogada), "FREE");
+    assert.ok((await linhaDaCompra(tkR)).encerradaEm);
+
+    // Anulada (reembolso): relê o Google (EXPIRED) — acesso sai.
+    const anulada = await usuario("omitido_anulada");
+    const tkA = compraNoGoogle(token("omitido_anulada"), recurso(lojas.tokenDaConta(anulada)));
+    assert.equal((await apresentar(anulada, tkA)).status, 200);
+    Object.assign(google.assinaturas.get(tkA)!, { subscriptionState: "SUBSCRIPTION_STATE_EXPIRED" });
+    semFlag(google.assinaturas.get(tkA)!);
+    const v = await notificar({ version: "1.0", packageName: PACOTE, eventTimeMillis: String(Date.now()), voidedPurchaseNotification: { purchaseToken: tkA, orderId: "GPA.2", productType: 1, refundType: 1 } });
+    assert.equal(v.status, 200);
+    assert.equal(await acesso(anulada), "FREE");
+  });
+
   it("Google fora do ar ao processar: 500 (o Pub/Sub reenvia) e a reentrega processa", async () => {
     const userId = await usuario("reentrega");
     await compras.garantirTokenDaConta(userId);

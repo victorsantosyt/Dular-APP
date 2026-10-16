@@ -99,7 +99,7 @@ test("plano base ausente no produto, ou sem plano base no catálogo: PRODUTO_IND
 
 test("sem o módulo nativo (Expo Go): IAP_INDISPONIVEL", async () => {
   await assert.rejects(comprarAssinaturaGoogle(pedido, null), (e: any) => e.codigo === "IAP_INDISPONIVEL");
-  await assert.rejects(comprasParaRestaurarGoogle(null), (e: any) => e.codigo === "IAP_INDISPONIVEL");
+  await assert.rejects(comprasParaRestaurarGoogle(TOKEN_CONTA, null), (e: any) => e.codigo === "IAP_INDISPONIVEL");
 });
 
 test("usuário cancelou na folha da Google Play: COMPRA_CANCELADA; outro erro sobe como veio", async () => {
@@ -179,8 +179,51 @@ test("restaurar: só compras pagas e com comprovante", async () => {
       { productId: PRODUTO, purchaseToken: null, purchaseState: "purchased" },
     ],
   });
-  const compras = await comprasParaRestaurarGoogle(iap);
+  const { compras } = await comprasParaRestaurarGoogle(TOKEN_CONTA, iap);
   assert.deepEqual(compras.map((c) => c.comprovante), ["paga"]);
+});
+
+const OUTRA_CONTA = "9b8a7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d";
+const MONTADOR = "br.com.dular.montador.pro.mensal";
+
+test("outra conta Dular na mesma conta Google: compra dela não bloqueia nem é usada na compra desta conta", async () => {
+  const { iap, pedidos } = lojaFalsa({ disponiveis: [
+    { productId: MONTADOR, purchaseToken: "do-montador", purchaseState: "purchased", obfuscatedAccountIdAndroid: OUTRA_CONTA },
+    { productId: PRODUTO, purchaseToken: "mesmo-produto-outra-conta", purchaseState: "purchased", obfuscatedAccountIdAndroid: OUTRA_CONTA },
+  ] });
+  const compra = await comprarAssinaturaGoogle(pedido, iap);
+  assert.equal(compra.comprovante, "comprovante-1", "abre a compra desta conta");
+  assert.equal(pedidos().length, 1);
+  assert.equal(pedidos()[0].args.request.google.obfuscatedAccountId, TOKEN_CONTA);
+});
+
+test("compra desta conta, ou sem token gravado, continua impedindo assinatura em paralelo", async () => {
+  for (const conta of [TOKEN_CONTA, null, undefined]) {
+    const { iap, pedidos } = lojaFalsa({ disponiveis: [
+      { productId: MONTADOR, purchaseToken: "outra-assinatura", purchaseState: "purchased", obfuscatedAccountIdAndroid: conta },
+    ] });
+    await assert.rejects(comprarAssinaturaGoogle(pedido, iap), (e: any) => e.codigo === "COMPRA_JA_EXISTENTE");
+    assert.equal(pedidos().length, 0);
+  }
+});
+
+test("já possuído de outra conta Dular não é apresentado como compra desta", async () => {
+  const { iap } = lojaFalsa({
+    erro: { code: "already-owned" },
+    disponiveis: [{ productId: PRODUTO, purchaseToken: "alheia", purchaseState: "purchased", obfuscatedAccountIdAndroid: OUTRA_CONTA }],
+  });
+  await assert.rejects(comprarAssinaturaGoogle(pedido, iap), (e: any) => e.codigo === "COMPRA_JA_EXISTENTE");
+});
+
+test("restaurar: compra de outra conta Dular é só contada; o comprovante dela não sai do aparelho", async () => {
+  const { iap } = lojaFalsa({ disponiveis: [
+    { productId: PRODUTO, purchaseToken: "desta", purchaseState: "purchased", obfuscatedAccountIdAndroid: TOKEN_CONTA },
+    { productId: MONTADOR, purchaseToken: "alheia", purchaseState: "purchased", obfuscatedAccountIdAndroid: OUTRA_CONTA },
+    { productId: PRODUTO, purchaseToken: "sem-token", purchaseState: "purchased" },
+  ] });
+  const r = await comprasParaRestaurarGoogle(TOKEN_CONTA, iap);
+  assert.deepEqual(r.compras.map((c) => c.comprovante), ["desta", "sem-token"]);
+  assert.equal(r.deOutraConta, 1);
 });
 
 test("concluir: reconhecimento de assinatura (não consumível)", async () => {
@@ -216,7 +259,7 @@ test("fluxo: a compra leva o token da conta vindo do servidor", () => {
 
 // Executa o coordenador real com os adaptadores nativos/HTTP substituídos.
 // O React Native não roda no Node; transpilar não altera as decisões do fluxo.
-async function fluxoComAdaptadores(opcoes: { status?: number; erro?: unknown; pendente?: boolean; restaurar?: boolean } = {}) {
+async function fluxoComAdaptadores(opcoes: { status?: number; erro?: unknown; pendente?: boolean; restaurar?: boolean; deOutraConta?: number } = {}) {
   const { transpileModule, ModuleKind, ScriptTarget } = await import("typescript");
   const chamadas: string[] = [];
   const compra = { produtoId: PRODUTO, comprovante: "token", pendente: opcoes.pendente ?? false, original: {} };
@@ -234,7 +277,10 @@ async function fluxoComAdaptadores(opcoes: { status?: number; erro?: unknown; pe
     "@/lib/lojaGoogle": {
       ErroCompraLoja,
       comprarAssinaturaGoogle: async () => { chamadas.push("comprar"); return compra; },
-      comprasParaRestaurarGoogle: async () => [compra],
+      comprasParaRestaurarGoogle: async (token: string) => {
+        chamadas.push(`restaurar:${token === TOKEN_CONTA ? "token-da-conta" : "sem-token"}`);
+        return { compras: [compra], deOutraConta: opcoes.deOutraConta ?? 0 };
+      },
       concluirCompraGoogle: async () => { chamadas.push("concluir"); },
     },
   };
@@ -274,6 +320,12 @@ test("restauração real: distingue recusa da conta e indisponibilidade transit�
   for (const status of [403, 503]) {
     const fluxo = await fluxoComAdaptadores({ restaurar: true, erro: { response: { status } } });
     assert.deepEqual(await fluxo.executar(), { restauradas: 0, recusadas: status === 403 ? 1 : 0, pendentes: 0, falhas: status === 503 ? 1 : 0, plano: null });
-    assert.deepEqual(fluxo.chamadas, ["servidor"]);
+    assert.deepEqual(fluxo.chamadas, ["restaurar:token-da-conta", "servidor"]);
   }
+});
+
+test("restauração real: compra de outra conta Dular conta como recusada sem ir ao servidor", async () => {
+  const fluxo = await fluxoComAdaptadores({ restaurar: true, deOutraConta: 1 });
+  assert.deepEqual(await fluxo.executar(), { restauradas: 1, recusadas: 1, pendentes: 0, falhas: 0, plano: "PREMIUM" });
+  assert.deepEqual(fluxo.chamadas.filter((c) => c === "servidor").length, 1);
 });

@@ -14,6 +14,8 @@ export type AssinaturaPlano = {
     canceledAt: string | null;
   } | null;
   usage?: { solicitacoesMes?: { used: number; limit: number | null } };
+  /** "pendente": a loja ainda não confirmou uma renovação. Não é expiração. */
+  verificacaoLoja?: "pendente" | null;
 };
 
 export function apresentacaoDoPlano(data: AssinaturaPlano | null): { nome: string; icone: AppIconName } | null {

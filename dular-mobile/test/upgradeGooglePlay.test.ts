@@ -104,3 +104,19 @@ test("disponibilidade exige produto e base publicados sem oferta promocional", a
 test("falha nativa não vira lista vazia nem ausência de plano", async () => {
   await assert.rejects(consultarDisponibilidadeGoogle([plano], nativa({ falha: true }).iap));
 });
+
+test("upgrade: compra antiga de outra conta Dular não é substituída", async () => {
+  const { iap, chamadas } = nativa({ compras: [{ ...compraAntiga, obfuscatedAccountIdAndroid: "token-de-outra-conta" }] });
+  await assert.rejects(comprarAssinaturaGoogle({
+    produtoId: novo, planoBase: "mensal", tokenDaConta: "token-desta-conta",
+    substituicao: { produtoId: antigo, validar: async () => {} },
+  }, iap as any), (e: any) => e instanceof ErroCompraLoja && e.codigo === "UPGRADE_INDISPONIVEL");
+  assert.equal(chamadas.length, 0);
+});
+
+test("renovação aguardando a loja bloqueia nova compra e avisa sem dizer que expirou", () => {
+  const tela = readFileSync(join(import.meta.dirname, "..", "src", "screens", "PaywallScreen.tsx"), "utf8");
+  assert.match(tela, /const renovacaoPendente = assinatura\.data\?\.verificacaoLoja === "pendente";/);
+  assert.match(tela, /const compraBloqueada = [^\n]*\|\| renovacaoPendente;/);
+  assert.match(tela, /renovacaoPendente \? \(/);
+});

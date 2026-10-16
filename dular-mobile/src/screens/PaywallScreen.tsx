@@ -441,6 +441,9 @@ function BotaoAssinar({
   );
 }
 
+const MSG_RENOVACAO_PENDENTE =
+  "A Google Play ainda não confirmou a renovação da sua assinatura. Não assine novamente; atualize o status em instantes.";
+
 const MSG_PENDENTE =
   "A Google Play ainda está confirmando o pagamento. Assim que ele for aprovado, o plano é liberado automaticamente.";
 
@@ -562,7 +565,8 @@ export default function PaywallScreen({ onClose }: Props) {
   const operando = assinando || restaurando;
   const upgradeGoogle = Boolean(planoEscolhido && lojaDisponivel(pagamento) && podeFazerUpgradeGoogle(assinatura.data, planoEscolhido));
   const bloqueioPlano = Boolean(planoEscolhido && bloqueiaNovaCompra(assinatura.data, planoEscolhido.id, lojaDisponivel(pagamento)) && !upgradeGoogle);
-  const compraBloqueada = assinatura.carregando || !pagamento || !assinatura.data || bloqueioPlano || requerVerificacao || retornoCompra?.tipo === "pendente";
+  const renovacaoPendente = assinatura.data?.verificacaoLoja === "pendente";
+  const compraBloqueada = assinatura.carregando || !pagamento || !assinatura.data || bloqueioPlano || requerVerificacao || retornoCompra?.tipo === "pendente" || renovacaoPendente;
   const economiaDoAnual =
     planoEscolhido && planoEscolhido.interval === "year"
       ? economiaAnual(planoEscolhido, planos)
@@ -696,6 +700,14 @@ export default function PaywallScreen({ onClose }: Props) {
               <View style={{ flex: 1, gap: 4 }}>
                 <Text style={s.atualNome}>{retornoCompra.tipo === "sucesso" ? "Assinatura confirmada" : retornoCompra.tipo === "erro" ? "Não foi possível confirmar" : "Aguardando confirmação"}</Text>
                 <Text style={s.atualDesc}>{retornoCompra.texto}</Text>
+              </View>
+            </View>
+          ) : renovacaoPendente ? (
+            <View style={[s.aviso, { backgroundColor: colors.warningSoft }]} accessibilityLiveRegion="polite">
+              <AppIcon name="Clock" size={20} color={tema.primary} />
+              <View style={{ flex: 1, gap: 4 }}>
+                <Text style={s.atualNome}>Aguardando confirmação</Text>
+                <Text style={s.atualDesc}>{MSG_RENOVACAO_PENDENTE}</Text>
               </View>
             </View>
           ) : null}

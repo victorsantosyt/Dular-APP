@@ -149,7 +149,9 @@ export type ResultadoRestauracao = {
 export async function restaurarCompras(caminho: CaminhoDePagamento | null | undefined): Promise<ResultadoRestauracao> {
   if (Platform.OS !== "android" || !lojaDisponivel(caminho)) throw new ErroCompraLoja("IAP_INDISPONIVEL");
   const resultado: ResultadoRestauracao = { restauradas: 0, recusadas: 0, pendentes: 0, falhas: 0, plano: null };
-  for (const compra of await comprasParaRestaurarGoogle()) {
+  const { compras, deOutraConta } = await comprasParaRestaurarGoogle(caminho?.tokenLoja);
+  resultado.recusadas += deOutraConta;
+  for (const compra of compras) {
     try {
       const r = await apresentarCompraGoogle(compra);
       if ("plano" in r) {

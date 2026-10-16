@@ -74,8 +74,12 @@ function resumoDaCompra(externalId: string): string {
   return createHash("sha256").update(externalId).digest("hex").slice(0, 8);
 }
 
-/** Intervalo mínimo entre duas releituras da mesma compra atrasada. */
-const RELEITURA_MINIMA_MS = 30_000;
+/**
+ * Intervalo mínimo entre duas tentativas de releitura da mesma compra
+ * atrasada, com sucesso ou falha. Vale entre instâncias: a tentativa é
+ * reservada no banco (`updatedAt`) antes de chamar o Google.
+ */
+export const RELEITURA_MINIMA_MS = 30_000;
 
 /**
  * Renovação que a loja ainda não confirmou: a compra diz que renova, não foi
@@ -102,13 +106,18 @@ export async function sincronizarRenovacoesAtrasadas(
     expiraEm: { lte: new Date(agora) },
     ...(filtro.userId ? { userId: filtro.userId } : {}),
   };
+  const livre = { ...atrasada, updatedAt: { lte: new Date(agora - RELEITURA_MINIMA_MS) } };
   const compras = await prisma.assinaturaLoja.findMany({
-    where: { ...atrasada, verificadaEm: { lte: new Date(agora - RELEITURA_MINIMA_MS) } },
+    where: livre,
     orderBy: { expiraEm: "asc" },
     take: limite,
-    select: { externalId: true },
+    select: { id: true, externalId: true },
   });
-  for (const { externalId } of compras) {
+  for (const { id, externalId } of compras) {
+    // Reserva atômica: entre consultas simultâneas, em qualquer instância, só
+    // uma relê esta compra por intervalo — inclusive quando o Google falha.
+    const { count } = await prisma.assinaturaLoja.updateMany({ where: { ...livre, id }, data: { updatedAt: new Date() } });
+    if (count === 0) continue;
     try {
       await sincronizarCompraGoogle(externalId);
       resultado.sincronizadas += 1;

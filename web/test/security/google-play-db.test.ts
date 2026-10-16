@@ -52,6 +52,8 @@ describe("Google Play contra Postgres real (#359)", { skip: EXIGIDO ? false : PU
   const google = {
     assinaturas: new Map<string, Recurso>(),
     chamadas: [] as string[],
+    /** Toda chamada ao subscriptionsv2.get, inclusive as que falham. */
+    tentativas: [] as string[],
     reconhecidas: [] as string[],
     foraDoAr: false,
     reconhecimentoFora: false,
@@ -169,6 +171,8 @@ describe("Google Play contra Postgres real (#359)", { skip: EXIGIDO ? false : PU
       // Pacote diferente do configurado: o Google simulado nem responde a ele.
       assert.ok(url.startsWith(prefixo), `chamada fora do pacote configurado: ${url}`);
       assert.equal((init.headers as Record<string, string>).authorization, "Bearer acesso-ficticio");
+      const tentativa = /subscriptionsv2\/tokens\/(.+)$/.exec(decodeURIComponent(url));
+      if (tentativa) google.tentativas.push(tentativa[1]);
       if (google.foraDoAr) return new Response("indisponível", { status: 503 });
       const resto = decodeURIComponent(url.slice(prefixo.length));
       const ack = /^subscriptions\/([^/]+)\/tokens\/(.+):acknowledge$/.exec(resto);
@@ -641,8 +645,9 @@ describe("Google Play contra Postgres real (#359)", { skip: EXIGIDO ? false : PU
     const vencerLocalmente = (tk: string) =>
       prisma.assinaturaLoja.update({
         where: { provider_externalId: { provider: "GOOGLE", externalId: tk } },
-        data: { expiraEm: new Date(Date.now() - 5_000), verificadaEm: new Date(Date.now() - 60_000) },
+        data: { expiraEm: new Date(Date.now() - 5_000), updatedAt: new Date(Date.now() - 60_000) },
       });
+    const tentativas = (tk: string) => google.tentativas.filter((t) => t === tk).length;
 
     const userId = await usuario("renovacao_atrasada");
     const tk = compraNoGoogle(token("renovacao_atrasada"), recurso(lojas.tokenDaConta(userId), { fim: Date.now() + 300_000 }));
@@ -654,10 +659,26 @@ describe("Google Play contra Postgres real (#359)", { skip: EXIGIDO ? false : PU
     await vencerLocalmente(tk);
     google.foraDoAr = true;
     assert.deepEqual(await consultar(userId), { plano: "FREE", verificacao: "pendente" });
-    // Releitura limitada: a próxima consulta logo em seguida não chama o Google de novo.
-    const chamadas = gets(tk);
+    // Releitura limitada também na falha: a próxima consulta não chama o Google de novo.
+    const chamadas = tentativas(tk);
+    assert.ok(chamadas >= 1);
     assert.deepEqual(await consultar(userId), { plano: "FREE", verificacao: "pendente" });
-    assert.equal(gets(tk), chamadas);
+    assert.equal(tentativas(tk), chamadas);
+
+    // Consultas simultâneas: uma só releitura; todas respondem pendente, nenhuma concede.
+    await vencerLocalmente(tk);
+    const antesDasSimultaneas = tentativas(tk);
+    const respostas = await Promise.all(Array.from({ length: 6 }, () => consultar(userId)));
+    assert.equal(tentativas(tk) - antesDasSimultaneas, 1);
+    for (const resposta of respostas) assert.deepEqual(resposta, { plano: "FREE", verificacao: "pendente" });
+
+    // A reserva está no banco, não no processo: gravada por "outra instância"
+    // (escrita direta no banco), esta não chama o Google.
+    await vencerLocalmente(tk);
+    await prisma.$executeRawUnsafe(`UPDATE "AssinaturaLoja" SET "updatedAt" = (now() AT TIME ZONE 'UTC') WHERE "externalId" = $1`, tk);
+    const antesDaOutra = tentativas(tk);
+    assert.deepEqual(await consultar(userId), { plano: "FREE", verificacao: "pendente" });
+    assert.equal(tentativas(tk), antesDaOutra);
 
     // Renovação ainda em processamento: ACTIVE com o fim já passado.
     google.foraDoAr = false;
@@ -704,14 +725,14 @@ describe("Google Play contra Postgres real (#359)", { skip: EXIGIDO ? false : PU
     assert.equal((await apresentar(a, tkA)).status, 200);
     await prisma.assinaturaLoja.update({
       where: { provider_externalId: { provider: "GOOGLE", externalId: tkA } },
-      data: { expiraEm: new Date(Date.now() - 5_000), verificadaEm: new Date(Date.now() - 60_000) },
+      data: { expiraEm: new Date(Date.now() - 5_000), updatedAt: new Date(Date.now() - 60_000) },
     });
     google.foraDoAr = true;
     const falhou = await compras.sincronizarRenovacoesAtrasadas();
     assert.ok(falhou.falhas >= 1 && falhou.pendente);
     assert.equal(await acesso(a), "FREE");
     google.foraDoAr = false;
-    await prisma.assinaturaLoja.update({ where: { provider_externalId: { provider: "GOOGLE", externalId: tkA } }, data: { verificadaEm: new Date(Date.now() - 60_000) } });
+    await prisma.assinaturaLoja.update({ where: { provider_externalId: { provider: "GOOGLE", externalId: tkA } }, data: { updatedAt: new Date(Date.now() - 60_000) } });
     const ok = await compras.sincronizarRenovacoesAtrasadas();
     assert.ok(ok.sincronizadas >= 1);
     assert.equal(await acesso(a), "PREMIUM");

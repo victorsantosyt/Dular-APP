@@ -76,7 +76,7 @@ export function SafeScoreView({ theme, overview, sos, onBack, onIdentity, onGuid
           {metric("Award", "Nível atual", "Sua jornada na plataforma", (
             <View style={s.tierValue}>
               {reputation && <SafeScoreMedal tier={reputation.tier} />}
-              <Text style={s.value}>{reputation?.nivel ?? "Ainda não calculado"}</Text>
+              <Text style={reputation ? s.value : s.valuePending}>{reputation?.nivel ?? "Ainda não calculado"}</Text>
             </View>
           ))}
           {metric("ClipboardCheck", "Serviços concluídos", "Histórico de atendimentos", <Text style={s.value}>{data.totalServicos}</Text>)}

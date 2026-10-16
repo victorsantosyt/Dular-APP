@@ -3,6 +3,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-nati
 import { AppIcon } from "@/components/ui";
 import type { ProfileTheme } from "@/theme/profileTheme";
 import { colors, shadow, typography } from "@/theme/tokens";
+import { FAMILIA_POR_PESO } from "@/theme/fonte";
 import type { SafeScoreResource } from "@/hooks/useSafeScoreResource";
 
 export function ResourceFeedback({ resource, theme, label }: {
@@ -52,7 +53,11 @@ export function makeSafeScoreStyles(theme: ProfileTheme) {
     heroStatus: { flexDirection: "row", alignItems: "center", alignSelf: "flex-start", gap: 8,
       borderRadius: 20, paddingHorizontal: 12, paddingVertical: 7, maxWidth: "100%" },
     statusDot: { width: 9, height: 9, borderRadius: 5 },
-    statusText: { ...typography.bodySmMedium, color: colors.ink, flexShrink: 1, fontWeight: "700" },
+    // Família Bold explícita e sem fontWeight: com os dois, o Android mede o
+    // texto com outra largura e, com fonte ampliada, reserva uma segunda linha
+    // vazia (a pílula cresce e o ponto desce).
+    statusText: { fontSize: typography.bodySmMedium.fontSize, lineHeight: typography.bodySmMedium.lineHeight,
+      fontFamily: FAMILIA_POR_PESO["700"], color: colors.ink, flexShrink: 1 },
     caption: { ...typography.bodySm, color: colors.sub, textAlign: "center", paddingHorizontal: 4 },
     section: { ...typography.h3, fontWeight: "700", color: colors.ink, marginTop: 4 },
     sectionRow: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 6 },
@@ -68,6 +73,9 @@ export function makeSafeScoreStyles(theme: ProfileTheme) {
     rowValue: { flexShrink: 1, maxWidth: "34%", alignItems: "flex-end", justifyContent: "center" },
     tierValue: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 8, flexWrap: "wrap" },
     value: { ...typography.bodyMedium, fontWeight: "700", color: colors.ink, textAlign: "right", flexShrink: 1 },
+    // Sem cálculo: texto discreto e estreito (duas linhas curtas), sem
+    // espremer o subtítulo da linha.
+    valuePending: { ...typography.bodySm, fontWeight: "600", color: colors.sub, textAlign: "right", maxWidth: 88 },
     identityBadge: { paddingHorizontal: 10, paddingVertical: 7, borderRadius: 14 },
     identityValue: { ...typography.bodySmMedium, fontWeight: "600", textAlign: "right" },
     identityAction: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: theme.primarySoft, minHeight: 72, paddingVertical: 10 },

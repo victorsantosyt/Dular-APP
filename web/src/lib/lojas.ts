@@ -296,7 +296,8 @@ export async function consultarAssinaturaGoogle(purchaseToken: string): Promise<
 export type ProdutoNoConsole = {
   productId: string;
   arquivado: boolean;
-  planosBase: { basePlanId: string; estado: string; periodo: string | null; regioes: number; brasil: string | null }[];
+  planosBase: { basePlanId: string; estado: string; periodo: string | null; regioes: number; brasil: string | null; detalhes: Record<string, unknown> }[];
+  idiomas: string[];
   ofertas: { basePlanId: string; offerId: string; estado: string }[] | { erro: DiagnosticoGoogle };
 };
 
@@ -321,6 +322,15 @@ export async function catalogoGooglePlay(): Promise<{ produtos: ProdutoNoConsole
         periodo: textoOuNulo(b.autoRenewingBasePlanType?.billingPeriodDuration ?? b.prepaidBasePlanType?.billingPeriodDuration),
         regioes: regionais.length,
         brasil: br ? String(br.newSubscriberAvailability ?? "presente") : null,
+        detalhes: {
+          precoBrasil: br?.price ? { moeda: br.price.currencyCode ?? null, unidades: br.price.units ?? null, nanos: br.price.nanos ?? null } : null,
+          carencia: b.autoRenewingBasePlanType?.gracePeriodDuration ?? null,
+          suspensao: b.autoRenewingBasePlanType?.accountHoldDuration ?? null,
+          reassinatura: b.autoRenewingBasePlanType?.resubscribeState ?? null,
+          troca: b.autoRenewingBasePlanType?.prorationMode ?? null,
+          compativelLegado: b.autoRenewingBasePlanType?.legacyCompatible ?? null,
+          outrasRegioes: b.otherRegionsConfig ? { novos: b.otherRegionsConfig.newSubscriberAvailability ?? null } : null,
+        },
       };
     });
     const r = await chamarGoogle(`/subscriptions/${encodeURIComponent(productId)}/basePlans/-/offers?pageSize=100`);
@@ -331,7 +341,8 @@ export async function catalogoGooglePlay(): Promise<{ produtos: ProdutoNoConsole
           estado: String(o.state ?? "AUSENTE"),
         }))
       : { erro: registrarErroGoogle("catalogo", r.status, await r.json().catch(() => null)) };
-    produtos.push({ productId, arquivado: sub.archived === true, planosBase, ofertas });
+    const idiomas = (Array.isArray(sub.listings) ? sub.listings : []).map((l: Record<string, any>) => String(l.languageCode ?? ""));
+    produtos.push({ productId, arquivado: sub.archived === true, planosBase, idiomas, ofertas });
   }
   return { produtos };
 }

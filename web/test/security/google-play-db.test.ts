@@ -775,11 +775,14 @@ describe("Google Play contra Postgres real (#359)", { skip: EXIGIDO ? false : PU
       const res = await pedir({ "x-diagnostico": segredo });
       assert.equal(res.status, 200);
       const texto = await res.text();
-      assert.doesNotMatch(texto, /359|BRL|Pro Anual"/, "nem preço nem textos do Console");
+      assert.doesNotMatch(texto, /Pro Anual"/, "nem textos do Console");
       const corpo = JSON.parse(texto);
       assert.deepEqual(corpo.console.produtos, [{
         productId: "br.com.dular.montador.pro.anual", arquivado: false,
-        planosBase: [{ basePlanId: "anual", estado: "DRAFT", periodo: "P1Y", regioes: 1, brasil: "true" }],
+        planosBase: [{ basePlanId: "anual", estado: "DRAFT", periodo: "P1Y", regioes: 1, brasil: "true", detalhes: {
+          precoBrasil: { moeda: "BRL", unidades: "359", nanos: null }, carencia: null, suspensao: null, reassinatura: null, troca: null, compativelLegado: null, outrasRegioes: null,
+        } }],
+        idiomas: [""],
         ofertas: [{ basePlanId: "anual", offerId: "promo", estado: "ACTIVE" }],
       }]);
       assert.ok(corpo.dular.some((p: any) => p.id === "montador_pro_anual" && p.storeBasePlanId === "anual"));

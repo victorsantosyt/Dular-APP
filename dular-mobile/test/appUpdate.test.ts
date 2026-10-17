@@ -221,3 +221,47 @@ test("adiamento continua valendo para a instalação inteira, em qualquer perfil
   assert.equal(harness.render(true).release, null, "Agora não vale para todos os perfis por 24h");
   harness.unmount();
 });
+
+test("durante login/bootstrap o aviso preservado não aparece; volta quando o app fica pronto", async () => {
+  const harness = hookHarness();
+  harness.render(true); await flush();
+  assert.equal(harness.render(true).release.versionCode, 6);
+  assert.equal(harness.render(false).release, null, "escondido enquanto o app não está pronto");
+  await flush();
+  assert.equal(harness.render(false).release, null);
+  assert.equal(harness.render(true).release?.versionCode, 6);
+  harness.unmount();
+});
+
+test("resposta tardia de consulta interrompida pela troca de conta não abre o popup no meio do login", async () => {
+  let resolve!: (value: unknown) => void;
+  const harness = hookHarness({ response: () => new Promise((done) => { resolve = done; }) });
+  harness.render(true);
+  harness.render(false);
+  resolve(release); await flush();
+  assert.equal(harness.render(false).release, null);
+  harness.unmount();
+});
+
+test("erro de rede conclui a consulta: sem nova tentativa antes de cinco minutos, mesmo com idas e voltas", async () => {
+  const harness = hookHarness({ response: async () => null });
+  harness.render(true); await flush();
+  for (let i = 0; i < 5; i++) { harness.advance(10_000); harness.background(); harness.foreground(); await flush(); }
+  harness.render(false); harness.render(true); await flush();
+  assert.equal(harness.calls, 1);
+  harness.advance(policy.UPDATE_CHECK_INTERVAL_MS); harness.background(); harness.foreground(); await flush();
+  assert.equal(harness.calls, 2);
+  harness.unmount();
+});
+
+test("adiamento respeitado ao passar pelos três perfis em sequência", async () => {
+  const harness = hookHarness();
+  harness.render(true); await flush();
+  harness.render(true).dismiss(); await flush();
+  for (let perfil = 0; perfil < 3; perfil++) {
+    harness.render(false); harness.advance(policy.UPDATE_CHECK_INTERVAL_MS); harness.render(true);
+    harness.background(); harness.foreground(); await flush();
+    assert.equal(harness.render(true).release, null, `perfil ${perfil + 1}`);
+  }
+  harness.unmount();
+});

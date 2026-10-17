@@ -94,6 +94,8 @@ export async function comprarPlano(
     // O estado usado para decidir a troca é relido; o perfil visível pode estar atrasado.
     const atual = (await api.get<AssinaturaPlano>("/api/me/subscription")).data;
     if (!atual || !["FREE", "BASIC", "PREMIUM"].includes(atual.plan)) throw new ErroCompraLoja("UPGRADE_INDISPONIVEL");
+    // Renovação aguardando a loja: outra compra criaria assinatura em paralelo.
+    if (atual.verificacaoLoja === "pendente") throw new ErroCompraLoja("COMPRA_EM_CONFIRMACAO");
     let substituicao: { produtoId: string; validar: (compra: CompraGoogle) => Promise<void> } | undefined;
     if (atual.plan !== "FREE") {
       const catalogo = (await api.get<{ plans: (PlanoParaCompra & { plan: string; interval: string | null })[] }>("/api/billing/plans")).data;
@@ -149,7 +151,9 @@ export type ResultadoRestauracao = {
 export async function restaurarCompras(caminho: CaminhoDePagamento | null | undefined): Promise<ResultadoRestauracao> {
   if (Platform.OS !== "android" || !lojaDisponivel(caminho)) throw new ErroCompraLoja("IAP_INDISPONIVEL");
   const resultado: ResultadoRestauracao = { restauradas: 0, recusadas: 0, pendentes: 0, falhas: 0, plano: null };
-  for (const compra of await comprasParaRestaurarGoogle()) {
+  const { compras, deOutraConta } = await comprasParaRestaurarGoogle(caminho?.tokenLoja);
+  resultado.recusadas += deOutraConta;
+  for (const compra of compras) {
     try {
       const r = await apresentarCompraGoogle(compra);
       if ("plano" in r) {

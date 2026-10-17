@@ -50,3 +50,31 @@ test("sem cálculo: título, status e nível com os textos aprovados", async () 
   assert.match(fonte, /\{data\.totalServicos\}/);
   assert.match(fonte, /IDENTITY_LABELS\[data\.identidade\]/);
 });
+
+// Acentos suavizados só no SafeScore: saturação menor no roxo e no rosa,
+// verde e neutro intactos, texto de destaque com contraste ≥ 4,5:1 em todos
+// os fundos da tela (cartão, fundo tingido e fundo da tela).
+test("acentos suavizados mantêm contraste e só mexem nos temas saturados", async () => {
+  const { suavizarTemaSafeScore, fundosDoTexto, contraste, saturacao, CONTRASTE_MINIMO } = await import("../src/lib/safeScorePresentation");
+  const { getProfileTheme } = await import("../src/theme/profileTheme");
+  const temas = {
+    lavanda: getProfileTheme({ role: "EMPREGADOR" }),
+    feminino: getProfileTheme({ role: "DIARISTA", genero: "FEMININO" }),
+    masculino: getProfileTheme({ role: "MONTADOR", genero: "MASCULINO" }),
+    neutro: getProfileTheme({ role: "DIARISTA" }),
+  };
+  for (const [nome, base] of Object.entries(temas)) {
+    const suave = suavizarTemaSafeScore(base);
+    for (const fundo of fundosDoTexto(base)) {
+      assert.ok(contraste(suave.textAccent, fundo) >= CONTRASTE_MINIMO, `${nome}: contraste ${contraste(suave.textAccent, fundo).toFixed(2)} sobre ${fundo}`);
+    }
+    assert.equal(suave.background, base.background, `${nome}: fundo não muda`);
+    assert.equal(suave.primarySoft, base.primarySoft, `${nome}: tom claro não muda`);
+  }
+  for (const nome of ["lavanda", "feminino"] as const) {
+    assert.ok(saturacao(suavizarTemaSafeScore(temas[nome]).primary) < saturacao(temas[nome].primary), `${nome}: menos saturado`);
+  }
+  for (const nome of ["masculino", "neutro"] as const) {
+    assert.deepEqual(suavizarTemaSafeScore(temas[nome]), temas[nome], `${nome}: inalterado`);
+  }
+});

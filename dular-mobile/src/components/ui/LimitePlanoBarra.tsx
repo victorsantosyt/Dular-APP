@@ -39,12 +39,13 @@ export function LimitePlanoBarra({ cor, corSuave, concluidos }: Props) {
     useCallback(() => {
       let vivo = true;
       api
-        .get<{ plan?: string; usage?: { solicitacoesMes?: { used: number; limit: number | null } } }>(
+        .get<{ plan?: string; verificacaoLoja?: "pendente" | null; usage?: { solicitacoesMes?: { used: number; limit: number | null } } }>(
           "/api/me/subscription",
         )
         .then((res) => {
           if (!vivo) return;
-          setPlano(res.data?.plan ?? "FREE");
+          // Renovação aguardando a loja: não é gratuito confirmado, e a barra não oferece planos.
+          setPlano(res.data?.verificacaoLoja === "pendente" ? null : res.data?.plan ?? "FREE");
           setUso(res.data?.usage?.solicitacoesMes ?? null);
         })
         .catch(() => undefined); // sem dado, a barra simplesmente não aparece

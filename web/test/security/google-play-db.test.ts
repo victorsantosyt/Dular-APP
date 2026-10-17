@@ -52,6 +52,8 @@ describe("Google Play contra Postgres real (#359)", { skip: EXIGIDO ? false : PU
   const google = {
     assinaturas: new Map<string, Recurso>(),
     chamadas: [] as string[],
+    /** Toda chamada ao subscriptionsv2.get, inclusive as que falham. */
+    tentativas: [] as string[],
     reconhecidas: [] as string[],
     foraDoAr: false,
     reconhecimentoFora: false,
@@ -169,6 +171,8 @@ describe("Google Play contra Postgres real (#359)", { skip: EXIGIDO ? false : PU
       // Pacote diferente do configurado: o Google simulado nem responde a ele.
       assert.ok(url.startsWith(prefixo), `chamada fora do pacote configurado: ${url}`);
       assert.equal((init.headers as Record<string, string>).authorization, "Bearer acesso-ficticio");
+      const tentativa = /subscriptionsv2\/tokens\/(.+)$/.exec(decodeURIComponent(url));
+      if (tentativa) google.tentativas.push(tentativa[1]);
       if (google.foraDoAr) return new Response("indisponível", { status: 503 });
       const resto = decodeURIComponent(url.slice(prefixo.length));
       const ack = /^subscriptions\/([^/]+)\/tokens\/(.+):acknowledge$/.exec(resto);
@@ -628,6 +632,110 @@ describe("Google Play contra Postgres real (#359)", { skip: EXIGIDO ? false : PU
     const r = await notificar(notificacaoDeAssinatura(tk), { messageId });
     assert.deepEqual([r.status, r.corpo.resultado], [200, "processada"]);
     assert.equal((await linhaDaCompra(tk)).userId, userId);
+  });
+
+  it("renovação sem notificação (app fechado, aviso perdido ou atrasado): a consulta relê o Google; falha não vira expiração nem concede", async () => {
+    const getSub = (await import("../../src/app/api/me/subscription/route")).GET;
+    const consultar = async (userId: string) => {
+      const res = await getSub(new Request("http://test/api/me/subscription", { headers: makeAuthHeaders(userId, "DIARISTA") }));
+      const corpo = await res.json();
+      return { plano: corpo.data?.plan ?? corpo.plan, verificacao: corpo.data?.verificacaoLoja ?? corpo.verificacaoLoja };
+    };
+    /** O tempo passa: o fim gravado e a última leitura ficam no passado. */
+    const vencerLocalmente = (tk: string) =>
+      prisma.assinaturaLoja.update({
+        where: { provider_externalId: { provider: "GOOGLE", externalId: tk } },
+        data: { expiraEm: new Date(Date.now() - 5_000), updatedAt: new Date(Date.now() - 60_000) },
+      });
+    const tentativas = (tk: string) => google.tentativas.filter((t) => t === tk).length;
+
+    const userId = await usuario("renovacao_atrasada");
+    const tk = compraNoGoogle(token("renovacao_atrasada"), recurso(lojas.tokenDaConta(userId), { fim: Date.now() + 300_000 }));
+    assert.equal((await apresentar(userId, tk)).status, 200);
+    assert.deepEqual(await consultar(userId), { plano: "PREMIUM", verificacao: null });
+    const r = google.assinaturas.get(tk)!;
+
+    // Google fora do ar: sem acesso (nada comprovado), mas também não "expirou".
+    await vencerLocalmente(tk);
+    google.foraDoAr = true;
+    assert.deepEqual(await consultar(userId), { plano: "FREE", verificacao: "pendente" });
+    // Releitura limitada também na falha: a próxima consulta não chama o Google de novo.
+    const chamadas = tentativas(tk);
+    assert.ok(chamadas >= 1);
+    assert.deepEqual(await consultar(userId), { plano: "FREE", verificacao: "pendente" });
+    assert.equal(tentativas(tk), chamadas);
+
+    // Consultas simultâneas: uma só releitura; todas respondem pendente, nenhuma concede.
+    await vencerLocalmente(tk);
+    const antesDasSimultaneas = tentativas(tk);
+    const respostas = await Promise.all(Array.from({ length: 6 }, () => consultar(userId)));
+    assert.equal(tentativas(tk) - antesDasSimultaneas, 1);
+    for (const resposta of respostas) assert.deepEqual(resposta, { plano: "FREE", verificacao: "pendente" });
+
+    // A reserva está no banco, não no processo: gravada por "outra instância"
+    // (escrita direta no banco), esta não chama o Google.
+    await vencerLocalmente(tk);
+    await prisma.$executeRawUnsafe(`UPDATE "AssinaturaLoja" SET "updatedAt" = (now() AT TIME ZONE 'UTC') WHERE "externalId" = $1`, tk);
+    const antesDaOutra = tentativas(tk);
+    assert.deepEqual(await consultar(userId), { plano: "FREE", verificacao: "pendente" });
+    assert.equal(tentativas(tk), antesDaOutra);
+
+    // Renovação ainda em processamento: ACTIVE com o fim já passado.
+    google.foraDoAr = false;
+    await vencerLocalmente(tk);
+    r.lineItems[0].expiryTime = new Date(Date.now() - 2_000).toISOString();
+    assert.deepEqual(await consultar(userId), { plano: "FREE", verificacao: "pendente" });
+
+    // O Google renovou, sem notificação nenhuma: a consulta recupera o plano.
+    await vencerLocalmente(tk);
+    r.lineItems[0].expiryTime = new Date(Date.now() + 300_000).toISOString();
+    assert.deepEqual(await consultar(userId), { plano: "PREMIUM", verificacao: null });
+    assert.equal((await linhaDaCompra(tk)).userId, userId, "a compra não muda de dono");
+
+    // Notificação atrasada e repetida depois da recuperação: nada muda.
+    const messageId = `${RUN}-renovacao-atrasada`;
+    for (let i = 0; i < 2; i++) assert.equal((await notificar(notificacaoDeAssinatura(tk, 2), { messageId })).status, 200);
+    assert.deepEqual(await consultar(userId), { plano: "PREMIUM", verificacao: null });
+    assert.equal(await prisma.assinaturaLoja.count({ where: { userId } }), 1);
+
+    // Cancelada na loja: mantém até o fim; passado o fim, não relê nem fica pendente.
+    r.subscriptionState = "SUBSCRIPTION_STATE_CANCELED";
+    r.lineItems[0].autoRenewingPlan.autoRenewEnabled = false;
+    await notificar(notificacaoDeAssinatura(tk, 3));
+    assert.deepEqual(await consultar(userId), { plano: "PREMIUM", verificacao: null });
+    await vencerLocalmente(tk);
+    const antes = gets(tk);
+    assert.deepEqual(await consultar(userId), { plano: "FREE", verificacao: null });
+    assert.equal(gets(tk), antes, "sem renovação, o fim do período é a expiração");
+
+    // Vencida no Google (renovação ligada até então): a releitura encerra de vez.
+    const outro = await usuario("renovacao_vencida");
+    const tkV = compraNoGoogle(token("renovacao_vencida"), recurso(lojas.tokenDaConta(outro)));
+    assert.equal((await apresentar(outro, tkV)).status, 200);
+    await vencerLocalmente(tkV);
+    Object.assign(google.assinaturas.get(tkV)!, { subscriptionState: "SUBSCRIPTION_STATE_EXPIRED" });
+    google.assinaturas.get(tkV)!.lineItems[0].expiryTime = new Date(Date.now() - 5_000).toISOString();
+    assert.deepEqual(await consultar(outro), { plano: "FREE", verificacao: null });
+    assert.ok((await linhaDaCompra(tkV)).encerradaEm);
+  });
+
+  it("varredura do cron: renova as atrasadas de todas as contas e conta as falhas", async () => {
+    const a = await usuario("varredura_a");
+    const tkA = compraNoGoogle(token("varredura_a"), recurso(lojas.tokenDaConta(a)));
+    assert.equal((await apresentar(a, tkA)).status, 200);
+    await prisma.assinaturaLoja.update({
+      where: { provider_externalId: { provider: "GOOGLE", externalId: tkA } },
+      data: { expiraEm: new Date(Date.now() - 5_000), updatedAt: new Date(Date.now() - 60_000) },
+    });
+    google.foraDoAr = true;
+    const falhou = await compras.sincronizarRenovacoesAtrasadas();
+    assert.ok(falhou.falhas >= 1 && falhou.pendente);
+    assert.equal(await acesso(a), "FREE");
+    google.foraDoAr = false;
+    await prisma.assinaturaLoja.update({ where: { provider_externalId: { provider: "GOOGLE", externalId: tkA } }, data: { updatedAt: new Date(Date.now() - 60_000) } });
+    const ok = await compras.sincronizarRenovacoesAtrasadas();
+    assert.ok(ok.sincronizadas >= 1);
+    assert.equal(await acesso(a), "PREMIUM");
   });
 
   it("notificação de teste do Play Console: 200, nada consultado", async () => {

@@ -26,7 +26,23 @@ type Iap = Pick<
   "initConnection" | "fetchProducts" | "requestPurchase" | "getAvailablePurchases" | "finishTransaction" | "purchaseUpdatedListener" | "purchaseErrorListener"
 >;
 
-type CompraDaLoja = { productId: string; purchaseToken?: string | null; purchaseState: string };
+type CompraDaLoja = {
+  productId: string;
+  purchaseToken?: string | null;
+  purchaseState: string;
+  /** Token da conta Dular gravado na compra (`obfuscatedAccountId`). */
+  obfuscatedAccountIdAndroid?: string | null;
+};
+
+/**
+ * A mesma conta Google pode ter compras de outras contas Dular (Montador e
+ * Profissional de Casa, por exemplo). Compra marcada com o token de outra conta
+ * não é desta: não bloqueia, não é restaurada nem substituída aqui. Sem token
+ * na compra, a decisão fica com o servidor.
+ */
+export function compraDeOutraConta(c: { obfuscatedAccountIdAndroid?: string | null }, tokenDaConta: string | null | undefined): boolean {
+  return Boolean(tokenDaConta && c.obfuscatedAccountIdAndroid && c.obfuscatedAccountIdAndroid !== tokenDaConta);
+}
 
 export type CompraGoogle = {
   produtoId: string;
@@ -87,7 +103,8 @@ export async function comprarAssinaturaGoogle(
   await iap.initConnection();
   // Recupera uma compra anterior antes de abrir outra cobrança. O servidor ainda
   // precisa validar o comprovante e o vínculo com a conta atual.
-  const anteriores = ((await iap.getAvailablePurchases()) ?? []) as CompraDaLoja[];
+  const anteriores = (((await iap.getAvailablePurchases()) ?? []) as CompraDaLoja[])
+    .filter((c) => !compraDeOutraConta(c, pedido.tokenDaConta));
   const anterior = anteriores.find((c) => c.productId === pedido.produtoId && (
     (c.purchaseState === "purchased" && c.purchaseToken) || c.purchaseState === "pending"
   ));
@@ -138,7 +155,7 @@ export async function comprarAssinaturaGoogle(
       if (codigo === "already-owned") {
         try {
           const compras = (await iap.getAvailablePurchases()) as CompraDaLoja[] | null;
-          const existente = compras?.find((c) => c.productId === pedido.produtoId && c.purchaseToken && c.purchaseState === "purchased");
+          const existente = compras?.find((c) => c.productId === pedido.produtoId && c.purchaseToken && c.purchaseState === "purchased" && !compraDeOutraConta(c, pedido.tokenDaConta));
           if (existente) return terminar(null, existente);
           return terminar(new ErroCompraLoja("COMPRA_JA_EXISTENTE"));
         } catch (e) {
@@ -178,12 +195,20 @@ export async function comprarAssinaturaGoogle(
   });
 }
 
-/** Compras pagas que a Google Play ainda associa a este aparelho, para reapresentar ao servidor. */
-export async function comprasParaRestaurarGoogle(iap: Iap | null = moduloIap()): Promise<CompraGoogle[]> {
+/**
+ * Compras pagas que a Google Play ainda associa a este aparelho, para
+ * reapresentar ao servidor. As de outra conta Dular só são contadas: o
+ * comprovante delas não sai do aparelho.
+ */
+export async function comprasParaRestaurarGoogle(
+  tokenDaConta?: string | null,
+  iap: Iap | null = moduloIap(),
+): Promise<{ compras: CompraGoogle[]; deOutraConta: number }> {
   if (!iap) throw new ErroCompraLoja("IAP_INDISPONIVEL");
   await iap.initConnection();
-  const compras = ((await iap.getAvailablePurchases()) ?? []) as CompraDaLoja[];
-  return compras.filter((c) => c.purchaseToken && c.purchaseState === "purchased").map(paraCompraGoogle);
+  const pagas = (((await iap.getAvailablePurchases()) ?? []) as CompraDaLoja[]).filter((c) => c.purchaseToken && c.purchaseState === "purchased");
+  const desta = pagas.filter((c) => !compraDeOutraConta(c, tokenDaConta));
+  return { compras: desta.map(paraCompraGoogle), deOutraConta: pagas.length - desta.length };
 }
 
 /** Conclui (reconhece) a compra na loja. Só depois que o servidor a concedeu. */

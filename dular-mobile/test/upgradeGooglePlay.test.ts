@@ -137,6 +137,8 @@ test("plano base vem do catálogo da API: anual-v2 aparece só se a Play oferece
 
 test("falha de conexão antes da folha libera nova tentativa e diz que nada foi cobrado", () => {
   const tela = readFileSync(join(import.meta.dirname, "..", "src", "screens", "PaywallScreen.tsx"), "utf8");
-  assert.match(tela, /e\.codigo === "SEM_CONEXAO"\) \{\s*\/\/[^\n]*\n\s*setRequerVerificacao\(false\);/);
-  assert.match(tela, /Nenhuma cobrança foi feita/);
+  assert.match(tela, /e\.codigo === "FALHA_ANTES_DA_FOLHA"\) \{\s*\/\/[^\n]*\n\s*setRequerVerificacao\(false\);/);
+  assert.match(tela, /nada foi cobrado nesta tentativa/);
+  // A frase só existe no ramo FALHA_ANTES_DA_FOLHA.
+  assert.equal(tela.split("nada foi cobrado").length - 1, 1);
 });

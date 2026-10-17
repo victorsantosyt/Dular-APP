@@ -61,11 +61,17 @@ export type CodigoCompraLoja =
   | "COMPRA_EM_CONFIRMACAO"
   | "COMPRA_JA_EXISTENTE"
   | "UPGRADE_INDISPONIVEL"
-  /** Sem conexão com o servidor ANTES da folha da Google: nada foi cobrado. */
-  | "SEM_CONEXAO";
+  /**
+   * Falhou ANTES de pedir a compra à Google (requestPurchase não foi chamado
+   * nesta tentativa): nada foi cobrado agora e dá para tentar de novo.
+   */
+  | "FALHA_ANTES_DA_FOLHA";
+
+/** Por que uma tentativa parou antes da folha da Google. */
+export type MotivoAntesDaFolha = "sem_conexao" | "tempo_esgotado" | "servidor_indisponivel" | "loja_indisponivel" | "erro_inesperado";
 
 export class ErroCompraLoja extends Error {
-  constructor(readonly codigo: CodigoCompraLoja) {
+  constructor(readonly codigo: CodigoCompraLoja, readonly motivo?: MotivoAntesDaFolha) {
     super(codigo);
   }
 }
@@ -95,7 +101,9 @@ function paraCompraGoogle(c: CompraDaLoja): CompraGoogle {
  */
 export async function comprarAssinaturaGoogle(
   pedido: { produtoId: string; planoBase: string | null | undefined; tokenDaConta: string | null | undefined;
-    substituicao?: { produtoId: string; validar: (compra: CompraGoogle) => Promise<void> } },
+    substituicao?: { produtoId: string; validar: (compra: CompraGoogle) => Promise<void> };
+    /** Chamado imediatamente antes de pedir a compra à Google (requestPurchase). */
+    aoPedirCompra?: () => void },
   iap: Iap | null = moduloIap(),
 ): Promise<CompraGoogle> {
   if (!iap) throw new ErroCompraLoja("IAP_INDISPONIVEL");
@@ -174,6 +182,7 @@ export async function comprarAssinaturaGoogle(
         if (compra.purchaseState === "purchased" && compra.purchaseToken) terminar(null, compra);
       }));
       listeners.push(iap.purchaseErrorListener((erro) => { void falhou(erro); }));
+      pedido.aoPedirCompra?.();
       void iap.requestPurchase({
         type: "subs",
         request: {

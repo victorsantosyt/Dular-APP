@@ -134,3 +134,9 @@ test("plano base vem do catálogo da API: anual-v2 aparece só se a Play oferece
   const soAntigo = nativa({ ofertas: [{ id: anualMontador.storeProductId, subscriptionOfferDetailsAndroid: [{ basePlanId: "anual", offerToken: "a" }] }] });
   assert.deepEqual(await consultarDisponibilidadeGoogle([anualMontador], soAntigo.iap as any), []);
 });
+
+test("falha de conexão antes da folha libera nova tentativa e diz que nada foi cobrado", () => {
+  const tela = readFileSync(join(import.meta.dirname, "..", "src", "screens", "PaywallScreen.tsx"), "utf8");
+  assert.match(tela, /e\.codigo === "SEM_CONEXAO"\) \{\s*\/\/[^\n]*\n\s*setRequerVerificacao\(false\);/);
+  assert.match(tela, /Nenhuma cobrança foi feita/);
+});

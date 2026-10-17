@@ -259,7 +259,7 @@ test("fluxo: a compra leva o token da conta vindo do servidor", () => {
 
 // Executa o coordenador real com os adaptadores nativos/HTTP substituídos.
 // O React Native não roda no Node; transpilar não altera as decisões do fluxo.
-async function fluxoComAdaptadores(opcoes: { status?: number; erro?: unknown; pendente?: boolean; restaurar?: boolean; deOutraConta?: number; verificacaoLoja?: string } = {}) {
+async function fluxoComAdaptadores(opcoes: { status?: number; erro?: unknown; pendente?: boolean; restaurar?: boolean; deOutraConta?: number; verificacaoLoja?: string; erroNaConsulta?: unknown } = {}) {
   const { transpileModule, ModuleKind, ScriptTarget } = await import("typescript");
   const chamadas: string[] = [];
   const compra = { produtoId: PRODUTO, comprovante: "token", pendente: opcoes.pendente ?? false, original: {} };
@@ -269,7 +269,7 @@ async function fluxoComAdaptadores(opcoes: { status?: number; erro?: unknown; pe
   const adapters: Record<string, unknown> = {
     "react-native": { Platform: { OS: "android" }, Linking: { openURL: async () => {} } },
     "@/components/ui/assinaturaPlano": { podeFazerUpgradeGoogle: () => false },
-    "@/lib/api": { api: { get: async () => ({ data: { plan: "FREE", subscription: null, verificacaoLoja: opcoes.verificacaoLoja ?? null } }), post: async () => {
+    "@/lib/api": { api: { get: async () => { if (opcoes.erroNaConsulta) throw opcoes.erroNaConsulta; return { data: { plan: "FREE", subscription: null, verificacaoLoja: opcoes.verificacaoLoja ?? null } }; }, post: async () => {
       chamadas.push("servidor");
       if (opcoes.erro) throw opcoes.erro;
       return { status: opcoes.status ?? 200, data: { plan: "PREMIUM" } };
@@ -334,4 +334,23 @@ test("coordenador real: renovação aguardando a loja não abre nova compra", as
   const fluxo = await fluxoComAdaptadores({ verificacaoLoja: "pendente" });
   await assert.rejects(fluxo.executar(), (e: any) => e instanceof ErroCompraLoja && e.codigo === "COMPRA_EM_CONFIRMACAO");
   assert.deepEqual(fluxo.chamadas, []);
+});
+
+test("sem conexão antes da folha da Google: SEM_CONEXAO, nenhuma compra iniciada", async () => {
+  const fluxo = await fluxoComAdaptadores({ erroNaConsulta: { isAxiosError: true, message: "Network Error", code: "ERR_NETWORK" } });
+  await assert.rejects(fluxo.executar(), (e: any) => e instanceof ErroCompraLoja && e.codigo === "SEM_CONEXAO");
+  assert.deepEqual(fluxo.chamadas, []);
+});
+
+test("resposta com status antes da folha não vira SEM_CONEXAO", async () => {
+  const erro = { isAxiosError: true, response: { status: 503 } };
+  const fluxo = await fluxoComAdaptadores({ erroNaConsulta: erro });
+  await assert.rejects(fluxo.executar(), (e) => e === erro);
+});
+
+test("sem conexão DEPOIS da compra na Google não é tratado como \"nada cobrado\"", async () => {
+  const erro = { isAxiosError: true, message: "Network Error" };
+  const fluxo = await fluxoComAdaptadores({ erro });
+  await assert.rejects(fluxo.executar(), (e) => e === erro);
+  assert.deepEqual(fluxo.chamadas, ["comprar", "servidor"]);
 });

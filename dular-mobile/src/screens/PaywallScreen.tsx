@@ -453,6 +453,7 @@ function mensagemDeErroDaCompra(e: unknown): string {
     if (e.codigo === "IAP_INDISPONIVEL") return "A compra pela loja ainda não está disponível nesta versão do app.";
     if (e.codigo === "UPGRADE_INDISPONIVEL") return "Não foi possível preparar a troca. Atualize seu plano e tente novamente.";
     if (e.codigo === "PRODUTO_INDISPONIVEL") return "Este plano ainda não está disponível na Google Play.";
+    if (e.codigo === "SEM_CONEXAO") return "Sem conexão com o Dular. Nenhuma cobrança foi feita: a Google Play nem chegou a abrir. Verifique a internet e tente novamente.";
   }
   const codigo = (e as { response?: { data?: { error?: { code?: string } } } } | null)?.response?.data?.error?.code;
   if (codigo === "COMPRA_DE_OUTRA_CONTA") return "Esta assinatura da Google Play já está vinculada a outra conta.";
@@ -619,6 +620,11 @@ export default function PaywallScreen({ onClose }: Props) {
       if (e instanceof ErroCompraLoja && e.codigo === "COMPRA_CANCELADA") {
         setRequerVerificacao(false);
         planoEmConfirmacao.current = null;
+      } else if (e instanceof ErroCompraLoja && e.codigo === "SEM_CONEXAO") {
+        // Falhou antes da folha da Google: nada a verificar, pode tentar de novo.
+        setRequerVerificacao(false);
+        planoEmConfirmacao.current = null;
+        setRetornoCompra({ tipo: "erro", texto: mensagemDeErroDaCompra(e) });
       } else if (e instanceof ErroCompraLoja && (e.codigo === "COMPRA_EM_CONFIRMACAO" || e.codigo === "COMPRA_JA_EXISTENTE")) {
         setRetornoCompra({ tipo: "pendente", texto: "A Google Play pode já ter concluído esta compra. Atualize o status ou use Restaurar compras para vinculá-la. Não assine novamente." });
         await assinatura.atualizar();

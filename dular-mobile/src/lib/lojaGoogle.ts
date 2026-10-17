@@ -60,7 +60,9 @@ export type CodigoCompraLoja =
   | "COMPRA_NAO_CONCLUIDA"
   | "COMPRA_EM_CONFIRMACAO"
   | "COMPRA_JA_EXISTENTE"
-  | "UPGRADE_INDISPONIVEL";
+  | "UPGRADE_INDISPONIVEL"
+  /** Sem conexão com o servidor ANTES da folha da Google: nada foi cobrado. */
+  | "SEM_CONEXAO";
 
 export class ErroCompraLoja extends Error {
   constructor(readonly codigo: CodigoCompraLoja) {

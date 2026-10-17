@@ -389,3 +389,59 @@ test("consulta do anúncio: sem resposta e 5xx/429/408 são 'não deu para saber
   assert.deepEqual(await policy.consultarVersaoAndroid("https://api.test", signal, com({ ok: true, status: 200, json: async () => ({ android: null }) })), { ok: true, release: null });
   assert.deepEqual(await policy.consultarVersaoAndroid("https://api.test", signal, com({ ok: true, status: 200, json: async () => ({ android: release }) })), { ok: true, release });
 });
+
+test("timer único: idas e voltas, throttling e falhas nunca deixam mais de um agendamento do verificador", async () => {
+  let online = false;
+  const harness = hookHarness({ response: async () => (online ? release : FALHA) });
+  harness.render(true); await flush();
+  for (let i = 0; i < 6; i++) {
+    harness.background(); harness.foreground(); await flush();
+    assert.ok(harness.agendados <= 1, `agendados=${harness.agendados} na volta ${i}`);
+    await harness.avancar(7_000);
+    assert.ok(harness.agendados <= 1, `agendados=${harness.agendados} depois de avançar`);
+  }
+  online = true;
+  await harness.avancar(policy.UPDATE_CHECK_INTERVAL_MS);
+  assert.ok(harness.agendados <= 1);
+  harness.unmount();
+  assert.equal(harness.agendados, 0, "desmontado: nada fica agendado");
+});
+
+test("sem consultas concorrentes: voltar ao app e o timer vencer durante uma consulta em andamento não abrem outra", async () => {
+  let resolver!: (v: unknown) => void;
+  let pendentes = 0;
+  const harness = hookHarness({ response: () => { pendentes++; return new Promise((r) => { resolver = (v) => { pendentes--; r(v); }; }); } });
+  harness.render(true); await flush();
+  assert.equal(harness.calls, 1);
+  harness.foreground(); harness.foreground(); await flush();
+  await harness.avancar(4_000);
+  assert.equal(harness.calls, 1, "nenhuma segunda consulta enquanto a primeira não termina");
+  resolver(release); await flush();
+  assert.equal(pendentes, 0);
+  assert.equal(harness.render(true).release?.versionCode, 6);
+  harness.unmount();
+});
+
+test("resposta antiga descartada: consulta de antes da troca de conta não sobrescreve a mais nova", async () => {
+  const respostas: Array<(v: unknown) => void> = [];
+  const harness = hookHarness({ response: () => new Promise((r) => { respostas.push(r); }) });
+  harness.render(true);                 // consulta 1 (perfil A)
+  harness.render(false);                // troca de conta: consulta 1 descartada
+  await harness.avancar(1_000);
+  harness.render(true); await flush();  // consulta 2 (perfil B)
+  assert.equal(respostas.length, 2);
+  respostas[1](null); await flush();    // a nova diz: sem anúncio
+  respostas[0](release); await flush(); // a antiga chega depois, com anúncio
+  assert.equal(harness.render(true).release, null, "a resposta antiga não reabre o aviso");
+  harness.unmount();
+});
+
+test("adiamento persistido respeitado depois da troca de conta, em processo novo (lido do armazenamento)", async () => {
+  const harness = hookHarness({ storage: async () => String(1000000000 - 60_000) });
+  harness.render(true); await flush();
+  assert.equal(harness.render(true).release, null);
+  harness.render(false); await harness.avancar(policy.UPDATE_CHECK_INTERVAL_MS);
+  harness.render(true); await flush();
+  assert.equal(harness.render(true).release, null, "outro perfil, mesmo adiamento da instalação");
+  harness.unmount();
+});

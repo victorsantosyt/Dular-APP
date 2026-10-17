@@ -33,6 +33,9 @@ export function useAppUpdate(enabled: boolean) {
     if (!eligible || installedBuild === null) return;
     let disposed = false;
     let controller: AbortController | null = null;
+    // Consulta em andamento: marca do intervalo que ela reservou, para devolver
+    // na hora se a troca de conta (ou o fim do efeito) a interromper.
+    let reserva: { em: number; anterior: number | null } | null = null;
     // Reavaliação com o app aberto: depois de consulta concluída, no fim do
     // intervalo (anúncio novo, adiamento vencido); depois de consulta sem
     // resposta, em 30 s, 60 s, 120 s… até o intervalo — sem exigir reinício.
@@ -56,6 +59,7 @@ export function useAppUpdate(enabled: boolean) {
       }
       const anterior = lastCheckRef.current;
       lastCheckRef.current = now;
+      reserva = { em: now, anterior };
       // Consulta interrompida (troca de conta, app em segundo plano) não conta
       // para o intervalo: o próximo perfil ou a volta ao app consultam de novo.
       let concluida = false;
@@ -85,6 +89,7 @@ export function useAppUpdate(enabled: boolean) {
         }
       } finally {
         clearTimeout(timeout);
+        if (reserva?.em === now) reserva = null;
         if (!concluida && lastCheckRef.current === now) lastCheckRef.current = anterior;
         if (controller === current) controller = null;
         if (!disposed && AppState.currentState === "active") {
@@ -109,6 +114,11 @@ export function useAppUpdate(enabled: boolean) {
     });
     return () => {
       disposed = true;
+      // A consulta interrompida não conta para o intervalo: o próximo efeito
+      // (outro perfil, app pronto de novo) consulta já, sem esperar a resposta
+      // antiga — que, quando chegar, é descartada.
+      if (reserva && lastCheckRef.current === reserva.em) lastCheckRef.current = reserva.anterior;
+      reserva = null;
       controller?.abort();
       cancelarAgenda();
       subscription.remove();

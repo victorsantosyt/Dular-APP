@@ -1,24 +1,13 @@
 import { NextResponse } from "next/server";
-import { requireAuth } from "@/lib/requireAuth";
+import { gateAdmin } from "@/lib/adminGate";
 import { listAdminVerificacoes } from "@/lib/adminVerificacoes";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-function requireAdmin(req: Request) {
-  try {
-    const auth = requireAuth(req);
-    if (auth.role !== "ADMIN") {
-      return { error: NextResponse.json({ ok: false, error: "Acesso negado." }, { status: 403 }) };
-    }
-    return { auth };
-  } catch {
-    return { error: NextResponse.json({ ok: false, error: "Não autorizado." }, { status: 401 }) };
-  }
-}
 
 export async function GET(req: Request) {
-  const gate = requireAdmin(req);
+  const gate = await gateAdmin(req);
   if (gate.error) return gate.error;
 
   try {

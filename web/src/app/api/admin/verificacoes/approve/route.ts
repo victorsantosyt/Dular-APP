@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAuth } from "@/lib/requireAuth";
+import { gateAdmin } from "@/lib/adminGate";
 import { rateLimit, cleanupRateLimit } from "@/lib/rateLimit";
 import { getRequestIp } from "@/lib/requestIp";
 import { aplicarEvento } from "@/lib/safeScore";
@@ -28,17 +28,6 @@ async function readPayload(req: Request) {
   };
 }
 
-function adminGate(req: Request) {
-  try {
-    const auth = requireAuth(req);
-    if (auth.role !== "ADMIN") {
-      return { error: NextResponse.json({ ok: false, error: "Acesso negado." }, { status: 403 }) };
-    }
-    return { auth };
-  } catch {
-    return { error: NextResponse.json({ ok: false, error: "Não autorizado." }, { status: 401 }) };
-  }
-}
 
 export async function POST(req: Request) {
   cleanupRateLimit();
@@ -51,7 +40,7 @@ export async function POST(req: Request) {
     );
   }
 
-  const gate = adminGate(req);
+  const gate = await gateAdmin(req);
   if (gate.error) return gate.error;
 
   const payload = await readPayload(req);

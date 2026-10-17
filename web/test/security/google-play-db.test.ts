@@ -322,6 +322,31 @@ describe("Google Play contra Postgres real (#359)", { skip: EXIGIDO ? false : PU
     assert.equal(google.reconhecidas.includes(tk), false);
   });
 
+  it("Montador Pro Anual: só o plano base anual-v2 vale; o anual antigo é recusado; o anual do Profissional de Casa segue \"anual\"", async () => {
+    assert.equal(PLANS.montador_pro_anual.storeBasePlanId, "anual-v2");
+    assert.equal(PLANS.montador_pro_anual.priceInCents, 35900);
+    assert.equal(PLANS.montador_pro_anual.interval, "year");
+    assert.equal(PLANS.pro_anual.storeBasePlanId, "anual", "Profissional de Casa não muda");
+
+    const getPlans = (await import("../../src/app/api/billing/plans/route")).GET;
+    const montador = await usuario("anual_v2", "MONTADOR");
+    const res = await getPlans(new Request("http://test/api/billing/plans", { headers: makeAuthHeaders(montador, "MONTADOR") }));
+    const anual = (await res.json()).plans.find((p: any) => p.id === "montador_pro_anual");
+    assert.deepEqual([anual.storeProductId, anual.storeBasePlanId, anual.interval, anual.priceInCents], ["br.com.dular.montador.pro.anual", "anual-v2", "year", 35900]);
+
+    const produto = PLANS.montador_pro_anual.storeProductId;
+    const nova = compraNoGoogle(token("anual_v2"), recurso(lojas.tokenDaConta(montador), { produto, base: "anual-v2" }));
+    const ok = await apresentar(montador, nova, "MONTADOR");
+    assert.equal(ok.status, 200);
+    assert.equal((await linhaDaCompra(nova)).planoBase, "anual-v2");
+
+    const outro = await usuario("anual_antigo", "MONTADOR");
+    const antiga = compraNoGoogle(token("anual_antigo"), recurso(lojas.tokenDaConta(outro), { produto, base: "anual" }));
+    const recusada = await apresentar(outro, antiga, "MONTADOR");
+    assert.deepEqual([recusada.status, recusada.corpo.error.code], [409, "PRODUTO_DESCONHECIDO"]);
+    assert.equal(await linhaDaCompra(antiga), null);
+  });
+
   it("outro plano base ou produto fora do catálogo: 409, nada gravado nem reconhecido", async () => {
     const userId = await usuario("plano_base");
     const outroBase = compraNoGoogle(token("outro_base"), recurso(lojas.tokenDaConta(userId), { base: "promocional" }));

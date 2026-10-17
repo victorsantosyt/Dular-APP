@@ -47,15 +47,36 @@ export function shouldOfferUpdate(release: AndroidRelease, installedBuild: numbe
   return !Number.isFinite(timestamp) || timestamp <= 0 || timestamp > now || now - timestamp >= UPDATE_SNOOZE_MS;
 }
 
-export async function fetchAndroidRelease(apiUrl: string, signal: AbortSignal, request: typeof fetch = fetch): Promise<AndroidRelease | null> {
+/** Primeira nova tentativa depois de uma consulta sem resposta; dobra até o intervalo normal. */
+export const UPDATE_RETRY_BASE_MS = 30 * 1000;
+
+/**
+ * Resultado da consulta do anúncio. `ok: false` é "não deu para saber" (sem
+ * rede, tempo esgotado, servidor 5xx/429/408): vale tentar de novo logo.
+ * `ok: true` com `release: null` é resposta definitiva sem anúncio válido.
+ */
+export type ConsultaDeVersao = { ok: true; release: AndroidRelease | null } | { ok: false };
+
+export async function consultarVersaoAndroid(apiUrl: string, signal: AbortSignal, request: typeof fetch = fetch): Promise<ConsultaDeVersao> {
+  let response: Response;
   try {
     const url = new URL("/api/app/version", apiUrl);
-    const response = await request(url.toString(), { signal, credentials: "omit", headers: { Accept: "application/json" } });
-    if (!response.ok) return null;
-    return parseAndroidRelease(await response.json());
+    response = await request(url.toString(), { signal, credentials: "omit", headers: { Accept: "application/json" } });
   } catch {
-    return null;
+    return { ok: false };
   }
+  if (response.status >= 500 || response.status === 429 || response.status === 408) return { ok: false };
+  if (!response.ok) return { ok: true, release: null };
+  try {
+    return { ok: true, release: parseAndroidRelease(await response.json()) };
+  } catch {
+    return { ok: true, release: null };
+  }
+}
+
+export async function fetchAndroidRelease(apiUrl: string, signal: AbortSignal, request: typeof fetch = fetch): Promise<AndroidRelease | null> {
+  const r = await consultarVersaoAndroid(apiUrl, signal, request);
+  return r.ok ? r.release : null;
 }
 
 export async function openPlayStore(openURL: (url: string) => Promise<unknown>): Promise<boolean> {

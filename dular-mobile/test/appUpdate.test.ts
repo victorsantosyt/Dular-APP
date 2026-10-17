@@ -64,6 +64,8 @@ class LinkingFalso {
   openURL(url: string) { this._validateURL(url); this.abertas.push(url); return this.abrir(url); }
 }
 
+const FALHA = Symbol("sem resposta");
+
 function hookHarness(options: { build?: string; platform?: string; dev?: boolean; storageFails?: boolean; storage?: () => Promise<string | null>; response?: () => Promise<unknown>; linking?: LinkingFalso } = {}) {
   const require = createRequire(import.meta.url);
   const ts = require("typescript");
@@ -71,6 +73,11 @@ function hookHarness(options: { build?: string; platform?: string; dev?: boolean
   const slots: any[] = [];
   const cleanups: Array<undefined | (() => void)> = [];
   const queued: Array<() => void> = [];
+  // Relógio e temporizadores falsos: `advance` dispara o que vencer.
+  let seqTimer = 0;
+  const timers = new Map<number, { at: number; fn: () => void }>();
+  const fakeSetTimeout = (fn: () => void, ms: number) => { const id = ++seqTimer; timers.set(id, { at: clock + (ms || 0), fn }); return id; };
+  const fakeClearTimeout = (id: number) => { timers.delete(id); };
   let cursor = 0;
   let calls = 0;
   let storageWrites = 0;
@@ -93,16 +100,48 @@ function hookHarness(options: { build?: string; platform?: string; dev?: boolean
     "expo-constants": { default: { executionEnvironment: "standalone" }, ExecutionEnvironment: { StoreClient: "storeClient" }, __esModule: true },
     "expo-application": { nativeBuildVersion: options.build ?? "5", applicationId: policy.ANDROID_PACKAGE },
     "@/config/api": { default: "https://api.test", __esModule: true },
-    "@/lib/appUpdate": { ...policy, fetchAndroidRelease: async () => { calls++; return options.response ? options.response() : release; } },
+    "@/lib/appUpdate": {
+      ...policy,
+      // `FALHA` simula consulta sem resposta (rede, DNS, 5xx); null é "sem anúncio".
+      fetchAndroidRelease: async () => { calls++; const v = options.response ? await options.response() : release; return v === FALHA ? null : v; },
+      consultarVersaoAndroid: async () => { calls++; const v = options.response ? await options.response() : release; return v === FALHA ? { ok: false } : { ok: true, release: v }; },
+    },
   };
   const module = { exports: {} as any };
-  vm.runInNewContext(code, { module, exports: module.exports, require: (id: string) => { assert.ok(id in mocks, id); return mocks[id]; }, __DEV__: options.dev ?? false, AbortController, setTimeout, clearTimeout, Map, Date: { now: () => clock } });
+  vm.runInNewContext(code, { module, exports: module.exports, require: (id: string) => { assert.ok(id in mocks, id); return mocks[id]; }, __DEV__: options.dev ?? false, AbortController, setTimeout: fakeSetTimeout, clearTimeout: fakeClearTimeout, Map, Date: { now: () => clock } });
   return {
     render(enabled = true) { cursor = 0; const value = module.exports.useAppUpdate(enabled); while (queued.length) queued.shift()!(); return value; },
     unmount() { for (const cleanup of cleanups) cleanup?.(); },
     foreground() { appState.currentState = "active"; listener?.("active"); },
     background() { appState.currentState = "background"; listener?.("background"); },
-    advance(ms: number) { clock += ms; },
+    advance(ms: number) {
+      const alvo = clock + ms;
+      for (;;) {
+        const proximos = [...timers.entries()].filter(([, t]) => t.at <= alvo).sort((a, b) => a[1].at - b[1].at);
+        if (!proximos.length) break;
+        const [id, t] = proximos[0];
+        timers.delete(id);
+        clock = Math.max(clock, t.at);
+        t.fn();
+      }
+      clock = alvo;
+    },
+    /** Como `advance`, mas deixa as promessas andarem entre um temporizador e outro (como no app real). */
+    async avancar(ms: number) {
+      const alvo = clock + ms;
+      for (;;) {
+        await new Promise((resolve) => setImmediate(resolve));
+        const proximos = [...timers.entries()].filter(([, t]) => t.at <= alvo).sort((a, b) => a[1].at - b[1].at);
+        if (!proximos.length) break;
+        const [id, t] = proximos[0];
+        timers.delete(id);
+        clock = Math.max(clock, t.at);
+        t.fn();
+      }
+      clock = alvo;
+      await new Promise((resolve) => setImmediate(resolve));
+    },
+    get agendados() { return timers.size; },
     get calls() { return calls; }, get storageWrites() { return storageWrites; },
   };
 }
@@ -141,8 +180,8 @@ test("dispensar invalida consulta que aguardava armazenamento; build nova ignora
   let finishStorage!: (value: string | null) => void;
   const harness = hookHarness({ storage: () => ++count === 1 ? Promise.resolve(null) : new Promise((resolve) => { finishStorage = resolve; }) });
   harness.render(); await flush();
-  harness.advance(policy.UPDATE_CHECK_INTERVAL_MS);
-  harness.background(); harness.foreground(); await flush();
+  // A reavaliação do fim do intervalo dispara a segunda consulta (app aberto).
+  harness.advance(policy.UPDATE_CHECK_INTERVAL_MS); await flush();
   assert.equal(harness.calls, 2);
   harness.render().dismiss(); finishStorage(null); await flush();
   assert.equal(harness.render().release, null);
@@ -264,4 +303,89 @@ test("adiamento respeitado ao passar pelos três perfis em sequência", async ()
     assert.equal(harness.render(true).release, null, `perfil ${perfil + 1}`);
   }
   harness.unmount();
+});
+
+test("rede falha na abertura e volta com o app aberto: nova tentativa em segundos, sem reiniciar", async () => {
+  let online = false;
+  const harness = hookHarness({ response: async () => (online ? release : FALHA) });
+  harness.render(true); await flush();
+  assert.equal(harness.render(true).release, null);
+  online = true;
+  await harness.avancar(30_000); await flush();
+  assert.equal(harness.calls, 2, "tentou de novo sem esperar cinco minutos nem reinício");
+  assert.equal(harness.render(true).release?.versionCode, 6);
+  harness.unmount();
+});
+
+test("falhas seguidas: espera dobra até o intervalo normal (sem rajada)", async () => {
+  const harness = hookHarness({ response: async () => FALHA });
+  harness.render(true); await flush();
+  const tempos: number[] = [];
+  let ultimo = harness.calls;
+  for (let s = 0; s < 1200 && tempos.length < 6; s++) {
+    await harness.avancar(1_000); await flush();
+    if (harness.calls !== ultimo) { tempos.push(s + 1); ultimo = harness.calls; }
+  }
+  const intervalos = tempos.map((t, i) => t - (i ? tempos[i - 1] : 0));
+  assert.deepEqual(intervalos, [30, 60, 120, 240, 300, 300]);
+  harness.unmount();
+});
+
+test("anúncio novo com o app aberto: reavaliado no fim do intervalo, sem reinício", async () => {
+  let atual: unknown = null;
+  const harness = hookHarness({ response: async () => atual });
+  harness.render(true); await flush();
+  assert.equal(harness.render(true).release, null);
+  atual = release;
+  await harness.avancar(policy.UPDATE_CHECK_INTERVAL_MS); await flush();
+  assert.equal(harness.render(true).release?.versionCode, 6);
+  harness.unmount();
+});
+
+test("adiamento vencendo com o app aberto: o aviso volta sem reinício; antes disso não", async () => {
+  const dispensadoEm = 1000000000;
+  const harness = hookHarness({ storage: async () => String(dispensadoEm) });
+  harness.render(true); await flush();
+  assert.equal(harness.render(true).release, null, "adiado");
+  await harness.avancar(policy.UPDATE_SNOOZE_MS - policy.UPDATE_CHECK_INTERVAL_MS); await flush();
+  assert.equal(harness.render(true).release, null, "ainda dentro das 24 h");
+  const antes = harness.calls;
+  await harness.avancar(policy.UPDATE_CHECK_INTERVAL_MS); await flush();
+  assert.ok(harness.calls > antes, `reavaliou (consultas ${antes} → ${harness.calls}, agendados ${harness.agendados})`);
+  assert.equal(harness.render(true).release?.versionCode, 6, "24 h vencidas: volta com o app aberto");
+  harness.unmount();
+});
+
+test("segundo plano cancela a agenda; login não recebe popup nem consulta", async () => {
+  const harness = hookHarness({ response: async () => FALHA });
+  harness.render(true); await flush();
+  harness.background();
+  await harness.avancar(10 * 60_000); await flush();
+  assert.equal(harness.calls, 1, "nada em segundo plano");
+  harness.render(false); harness.foreground(); await flush();
+  assert.equal(harness.calls, 1, "durante login/bootstrap não consulta");
+  assert.equal(harness.render(false).release, null);
+  harness.render(true); await flush();
+  assert.equal(harness.calls, 2, "pronto de novo: consulta");
+  harness.unmount();
+});
+
+test("resposta definitiva sem anúncio (404, payload inválido) não vira rajada de tentativas", async () => {
+  const harness = hookHarness({ response: async () => null });
+  harness.render(true); await flush();
+  await harness.avancar(policy.UPDATE_CHECK_INTERVAL_MS - 1); await flush();
+  assert.equal(harness.calls, 1);
+  await harness.avancar(1); await flush();
+  assert.equal(harness.calls, 2);
+  harness.unmount();
+});
+
+test("consulta do anúncio: sem resposta e 5xx/429/408 são 'não deu para saber'; 404 e payload inválido são definitivos", async () => {
+  const signal = new AbortController().signal;
+  const com = (r: unknown) => (async () => r) as unknown as typeof fetch;
+  assert.deepEqual(await policy.consultarVersaoAndroid("https://api.test", signal, (async () => { throw Error("dns"); }) as unknown as typeof fetch), { ok: false });
+  for (const status of [500, 503, 429, 408]) assert.deepEqual(await policy.consultarVersaoAndroid("https://api.test", signal, com({ ok: false, status })), { ok: false });
+  assert.deepEqual(await policy.consultarVersaoAndroid("https://api.test", signal, com({ ok: false, status: 404 })), { ok: true, release: null });
+  assert.deepEqual(await policy.consultarVersaoAndroid("https://api.test", signal, com({ ok: true, status: 200, json: async () => ({ android: null }) })), { ok: true, release: null });
+  assert.deepEqual(await policy.consultarVersaoAndroid("https://api.test", signal, com({ ok: true, status: 200, json: async () => ({ android: release }) })), { ok: true, release });
 });

@@ -4,7 +4,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import Constants, { ExecutionEnvironment } from "expo-constants";
 import * as Application from "expo-application";
 import API_URL from "@/config/api";
-import { ANDROID_PACKAGE, UPDATE_CHECK_INTERVAL_MS, fetchAndroidRelease, openPlayStore, parseInstalledBuild, shouldOfferUpdate, updateStorageKey, type AndroidRelease } from "@/lib/appUpdate";
+import { ANDROID_PACKAGE, UPDATE_CHECK_INTERVAL_MS, UPDATE_RETRY_BASE_MS, consultarVersaoAndroid, openPlayStore, parseInstalledBuild, shouldOfferUpdate, updateStorageKey, type AndroidRelease } from "@/lib/appUpdate";
 
 export function useAppUpdate(enabled: boolean) {
   const [release, setRelease] = useState<AndroidRelease | null>(null);
@@ -33,22 +33,43 @@ export function useAppUpdate(enabled: boolean) {
     if (!eligible || installedBuild === null) return;
     let disposed = false;
     let controller: AbortController | null = null;
+    // Reavaliação com o app aberto: depois de consulta concluída, no fim do
+    // intervalo (anúncio novo, adiamento vencido); depois de consulta sem
+    // resposta, em 30 s, 60 s, 120 s… até o intervalo — sem exigir reinício.
+    let proxima: ReturnType<typeof setTimeout> | null = null;
+    let falhasSeguidas = 0;
+    const agendar = (ms: number) => {
+      if (proxima) clearTimeout(proxima);
+      proxima = setTimeout(() => { proxima = null; void check(); }, Math.max(0, ms));
+    };
+    const cancelarAgenda = () => {
+      if (proxima) clearTimeout(proxima);
+      proxima = null;
+    };
     setActive(AppState.currentState === "active");
     const check = async () => {
       const now = Date.now();
-      if (disposed || controller || (lastCheckRef.current !== null && now - lastCheckRef.current < UPDATE_CHECK_INTERVAL_MS)) return;
+      if (disposed || controller) return;
+      if (lastCheckRef.current !== null && now - lastCheckRef.current < UPDATE_CHECK_INTERVAL_MS) {
+        if (!proxima && AppState.currentState === "active") agendar(lastCheckRef.current + UPDATE_CHECK_INTERVAL_MS - now);
+        return;
+      }
       const anterior = lastCheckRef.current;
       lastCheckRef.current = now;
       // Consulta interrompida (troca de conta, app em segundo plano) não conta
       // para o intervalo: o próximo perfil ou a volta ao app consultam de novo.
       let concluida = false;
+      let semResposta = false;
+      let tempoEsgotado = false;
       const epoch = dismissalEpoch.current;
       const current = new AbortController();
       controller = current;
-      const timeout = setTimeout(() => current.abort(), 5000);
+      const timeout = setTimeout(() => { tempoEsgotado = true; current.abort(); }, 5000);
       try {
-        const next = await fetchAndroidRelease(API_URL, current.signal);
-        if (disposed || current.signal.aborted) return;
+        const consulta = await consultarVersaoAndroid(API_URL, current.signal);
+        if (disposed || (current.signal.aborted && !tempoEsgotado)) return;
+        if (!consulta.ok || tempoEsgotado) { semResposta = true; return; }
+        const next = consulta.release;
         if (!next) { concluida = true; return; }
         const key = updateStorageKey(API_URL, next.versionCode);
         let saved: string | null = dismissed.current.get(key) ?? null;
@@ -66,17 +87,30 @@ export function useAppUpdate(enabled: boolean) {
         clearTimeout(timeout);
         if (!concluida && lastCheckRef.current === now) lastCheckRef.current = anterior;
         if (controller === current) controller = null;
+        if (!disposed && AppState.currentState === "active") {
+          if (concluida) {
+            falhasSeguidas = 0;
+            agendar(UPDATE_CHECK_INTERVAL_MS);
+          } else if (semResposta) {
+            falhasSeguidas += 1;
+            agendar(Math.min(UPDATE_RETRY_BASE_MS * 2 ** (falhasSeguidas - 1), UPDATE_CHECK_INTERVAL_MS));
+          }
+        }
       }
     };
     if (AppState.currentState === "active") void check();
     const subscription = AppState.addEventListener("change", (state) => {
       setActive(state === "active");
       if (state === "active") void check();
-      else controller?.abort();
+      else {
+        controller?.abort();
+        cancelarAgenda();
+      }
     });
     return () => {
       disposed = true;
       controller?.abort();
+      cancelarAgenda();
       subscription.remove();
     };
   }, [eligible, installedBuild]);

@@ -187,3 +187,37 @@ test("Atualizar: abre a Play pelo Linking real (método com this); market falha 
   assert.equal(c.render().error, "Não foi possível abrir a Google Play. Tente novamente.");
   c.unmount();
 });
+
+test("troca de conta: aviso consultado no perfil anterior continua valendo para o próximo, sem nova consulta", async () => {
+  const harness = hookHarness();
+  harness.render(true); await flush();
+  assert.equal(harness.render(true).release.versionCode, 6);
+  harness.render(false); await flush(); // login/troca de conta: o app sai do estado pronto
+  harness.advance(6_000);
+  assert.equal(harness.render(true).release?.versionCode, 6, "o perfil seguinte recebe o mesmo aviso");
+  assert.equal(harness.calls, 1, "sem consulta extra por troca de conta");
+  harness.unmount();
+});
+
+test("troca de conta no meio da consulta: a consulta interrompida não conta para o intervalo de cinco minutos", async () => {
+  let resolve!: (value: unknown) => void;
+  let primeira = true;
+  const harness = hookHarness({ response: () => primeira ? (primeira = false, new Promise((done) => { resolve = done; })) : Promise.resolve(release) });
+  harness.render(true);
+  harness.render(false); // a troca de conta descarta a consulta em andamento
+  resolve(release); await flush();
+  harness.advance(6_000);
+  harness.render(true); await flush();
+  assert.equal(harness.calls, 2, "o próximo perfil consulta de novo");
+  assert.equal(harness.render(true).release?.versionCode, 6);
+  harness.unmount();
+});
+
+test("adiamento continua valendo para a instalação inteira, em qualquer perfil", async () => {
+  const harness = hookHarness();
+  harness.render(true); await flush();
+  harness.render(true).dismiss(); await flush();
+  harness.render(false); harness.advance(6_000); harness.render(true); await flush();
+  assert.equal(harness.render(true).release, null, "Agora não vale para todos os perfis por 24h");
+  harness.unmount();
+});

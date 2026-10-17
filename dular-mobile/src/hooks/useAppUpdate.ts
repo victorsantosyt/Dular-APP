@@ -27,36 +27,44 @@ export function useAppUpdate(enabled: boolean) {
   }, []);
 
   useEffect(() => {
-    if (!eligible || installedBuild === null) {
-      setRelease(null);
-      return;
-    }
+    // Fora do estado pronto (login, troca de conta, bootstrap) só não consulta:
+    // o aviso já obtido é da versão do app, não da conta, e volta a aparecer
+    // para o perfil seguinte. Quem esconde é `eligible` no retorno.
+    if (!eligible || installedBuild === null) return;
     let disposed = false;
     let controller: AbortController | null = null;
     setActive(AppState.currentState === "active");
     const check = async () => {
       const now = Date.now();
       if (disposed || controller || (lastCheckRef.current !== null && now - lastCheckRef.current < UPDATE_CHECK_INTERVAL_MS)) return;
+      const anterior = lastCheckRef.current;
       lastCheckRef.current = now;
+      // Consulta interrompida (troca de conta, app em segundo plano) não conta
+      // para o intervalo: o próximo perfil ou a volta ao app consultam de novo.
+      let concluida = false;
       const epoch = dismissalEpoch.current;
       const current = new AbortController();
       controller = current;
       const timeout = setTimeout(() => current.abort(), 5000);
       try {
         const next = await fetchAndroidRelease(API_URL, current.signal);
-        if (!next || disposed || current.signal.aborted) return;
+        if (disposed || current.signal.aborted) return;
+        if (!next) { concluida = true; return; }
         const key = updateStorageKey(API_URL, next.versionCode);
         let saved: string | null = dismissed.current.get(key) ?? null;
         if (saved === null) {
           try { saved = await AsyncStorage.getItem(key); } catch { /* A rede e o armazenamento não bloqueiam a abertura. */ }
         }
-        if (disposed || epoch !== dismissalEpoch.current || current.signal.aborted || AppState.currentState !== "active") return;
+        if (epoch !== dismissalEpoch.current) { concluida = true; return; }
+        if (disposed || current.signal.aborted || AppState.currentState !== "active") return;
+        concluida = true;
         if (shouldOfferUpdate(next, installedBuild, saved, Date.now())) {
           setError(null);
           setRelease(next);
         }
       } finally {
         clearTimeout(timeout);
+        if (!concluida && lastCheckRef.current === now) lastCheckRef.current = anterior;
         if (controller === current) controller = null;
       }
     };

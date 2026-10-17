@@ -11,6 +11,7 @@ import { AdminTable } from "@/components/admin-ui/AdminTable";
 import { AdminKpi } from "@/components/admin-ui/AdminKpi";
 import { Badge, type Tone } from "@/design-system/ui";
 import { Signal, ListChecks, MapPinOff, Siren } from "lucide-react";
+import { requireAdminSession } from "@/lib/adminSession";
 
 const SEIS_HORAS_MS = 6 * 60 * 60 * 1000;
 const VINTE_QUATRO_HORAS_MS = 24 * 60 * 60 * 1000;
@@ -37,6 +38,8 @@ function fmtLocal(lat: number | null, lng: number | null) {
 }
 
 export default async function CheckinsPage() {
+  // Antes de qualquer leitura: ADMIN ativo no banco (o layout roda em paralelo).
+  await requireAdminSession();
   const events = await prisma.safetyEvent.findMany({
     where: { type: "CHECKIN_OK" },
     orderBy: { createdAt: "desc" },

@@ -7,6 +7,7 @@ import { AdminCard } from "@/components/admin-ui/AdminCard";
 import { AdminKpi } from "@/components/admin-ui/AdminKpi";
 import { AdminEmpty } from "@/components/admin-ui/AdminEmpty";
 import { ShieldAlert, Inbox, Search, CheckCircle2, Archive } from "lucide-react";
+import { requireAdminSession } from "@/lib/adminSession";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +23,8 @@ export default async function AdminIncidentesPage({
 }: {
   searchParams?: Promise<{ status?: string }>;
 }) {
+  // Antes de qualquer leitura: ADMIN ativo no banco (o layout roda em paralelo).
+  await requireAdminSession();
   const params = (await searchParams) ?? {};
   const pedido = (params.status || "ABERTO").toUpperCase();
   // Só aceita um dos filtros conhecidos: `status` vem da URL e ia direto para

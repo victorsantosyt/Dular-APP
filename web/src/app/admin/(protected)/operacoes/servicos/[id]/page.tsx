@@ -10,6 +10,7 @@ import { AdminGrid } from "@/components/admin-ui/AdminGrid";
 import { AdminCard } from "@/components/admin-ui/AdminCard";
 import { FileText, Users, History, Settings2 } from "lucide-react";
 import { AdminEmpty } from "@/components/admin-ui/AdminEmpty";
+import { requireAdminSession } from "@/lib/adminSession";
 
 type Props = {
   params: Promise<{ id: string }>;
@@ -35,6 +36,8 @@ function fmtDate(dt: Date | null | undefined) {
 }
 
 export default async function ServicoDetalhePage({ params }: Props) {
+  // Antes de qualquer leitura: ADMIN ativo no banco (o layout roda em paralelo).
+  await requireAdminSession();
   const { id } = await params;
 
   const servico = await prisma.servico.findUnique({

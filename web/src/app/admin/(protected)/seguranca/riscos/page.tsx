@@ -18,12 +18,15 @@ import {
 } from "@/design-system/ui";
 import { Siren, AlertTriangle, ListChecks, Radar } from "lucide-react";
 import { SOS_STATUS_TOM, origemDoSos, prioridadeNaFila, statusDoSos } from "@/lib/sosPainel";
+import { requireAdminSession } from "@/lib/adminSession";
 
 function fmt(dt: Date) {
   return new Date(dt).toLocaleString("pt-BR");
 }
 
 export default async function RiscosPage() {
+  // Antes de qualquer leitura: ADMIN ativo no banco (o layout roda em paralelo).
+  await requireAdminSession();
   const [sosEvents, incidents] = await Promise.all([
     prisma.safetyEvent.findMany({
       // Fila de risco: só SOS em aberto. Status nulo é SOS anterior à coluna

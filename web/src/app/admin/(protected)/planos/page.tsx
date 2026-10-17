@@ -36,6 +36,7 @@ import { AdminEmpty } from "@/components/admin-ui/AdminEmpty";
 import { Badge } from "@/design-system/ui";
 import type { Tone } from "@/design-system/ui";
 import { cn } from "@/design-system/utils/cn";
+import { requireAdminSession } from "@/lib/adminSession";
 
 const STATUS_TOM: Record<string, Tone> = {
   ACTIVE: "success",
@@ -135,6 +136,8 @@ type Params = {
 };
 
 export default async function PlanosPage({ searchParams }: Params) {
+  // Antes de qualquer leitura: ADMIN ativo no banco (o layout roda em paralelo).
+  await requireAdminSession();
   const sp = await searchParams;
 
   const STATUS = ["TRIAL", "ACTIVE", "CANCELED", "EXPIRED"] as const;

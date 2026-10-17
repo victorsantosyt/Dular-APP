@@ -18,6 +18,7 @@ import {
   Wrench,
 } from "lucide-react";
 import { PAPEL, contarPorPapel } from "@/lib/adminPerfis";
+import { requireAdminSession } from "@/lib/adminSession";
 
 function Papel({ role }: { role: string | null }) {
   const identidade = role ? PAPEL[role] : undefined;
@@ -36,6 +37,8 @@ function Papel({ role }: { role: string | null }) {
 }
 
 export default async function UsuariosPage() {
+  // Antes de qualquer leitura: ADMIN ativo no banco (o layout roda em paralelo).
+  await requireAdminSession();
   const [contagem, rows] = await Promise.all([
     contarPorPapel(),
     prisma.user.findMany({

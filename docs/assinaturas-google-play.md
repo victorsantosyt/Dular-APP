@@ -85,10 +85,10 @@ e outras instâncias do backend não repetem a chamada dentro do intervalo.
 O app só oferece plano que a Play devolve **agora** (`fetchProducts`) com o produto e o plano base do catálogo, sem
 oferta promocional — no catálogo inicial e na troca de plano. Plano do servidor sem produto publicado não aparece.
 
-Para conferir o Play Console pela integração do staging (só ids e estados, sem preço):
-`GET /api/ops/google-play-catalogo` com o cabeçalho `x-diagnostico` igual a `DULAR_DIAGNOSTICO_GOOGLE` (Preview da
-branch). A rota responde 404 fora do Preview com a integração ligada; deve ser retirada antes de a integração ir para
-produção.
+Conferência do Play Console em 16/10/2026, pela integração do staging (`monetization.subscriptions.list`; a rota
+temporária usada foi retirada): existe **um** produto de assinatura, `br.com.dular.montador.pro.mensal`, plano base
+`mensal` (ACTIVE, P1M, Brasil, R$ 39,90, carência de 7 dias, reassinatura ativa, sem ofertas). Os outros cinco
+planos do catálogo ainda não existem no Console e, por isso, não aparecem no app.
 
 ## Assinatura de teste (testador de licença)
 

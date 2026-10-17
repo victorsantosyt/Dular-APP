@@ -52,9 +52,6 @@ describe("Google Play contra Postgres real (#359)", { skip: EXIGIDO ? false : PU
   const google = {
     assinaturas: new Map<string, Recurso>(),
     chamadas: [] as string[],
-    /** monetization.subscriptions.list e as ofertas de cada produto. */
-    catalogo: [] as Recurso[],
-    ofertas: {} as Record<string, Recurso[]>,
     /** Toda chamada ao subscriptionsv2.get, inclusive as que falham. */
     tentativas: [] as string[],
     reconhecidas: [] as string[],
@@ -169,15 +166,6 @@ describe("Google Play contra Postgres real (#359)", { skip: EXIGIDO ? false : PU
         assert.equal(payload.scope, "https://www.googleapis.com/auth/androidpublisher");
         google.chamadas.push("oauth");
         return Response.json({ access_token: "acesso-ficticio", expires_in: 3600 });
-      }
-      const catalogo = `https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${PACOTE}/subscriptions`;
-      if (url.startsWith(catalogo)) {
-        assert.equal((init.headers as Record<string, string>).authorization, "Bearer acesso-ficticio");
-        google.chamadas.push(`catalogo ${url.slice(catalogo.length)}`);
-        if (url.startsWith(`${catalogo}?`)) return Response.json({ subscriptions: google.catalogo });
-        const ofertas = /^\/([^/]+)\/basePlans\/-\/offers/.exec(decodeURIComponent(url.slice(catalogo.length)));
-        if (ofertas) return Response.json({ subscriptionOffers: google.ofertas[ofertas[1]] ?? [] });
-        return new Response("rota desconhecida", { status: 404 });
       }
       const prefixo = `https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${PACOTE}/purchases/`;
       // Pacote diferente do configurado: o Google simulado nem responde a ele.
@@ -748,48 +736,6 @@ describe("Google Play contra Postgres real (#359)", { skip: EXIGIDO ? false : PU
     const ok = await compras.sincronizarRenovacoesAtrasadas();
     assert.ok(ok.sincronizadas >= 1);
     assert.equal(await acesso(a), "PREMIUM");
-  });
-
-  it("diagnóstico do catálogo: só com integração ligada e cabeçalho certo; devolve ids e estados, sem preço", async () => {
-    const getCatalogo = (await import("../../src/app/api/ops/google-play-catalogo/route")).GET;
-    const pedir = (h: Record<string, string> = {}) => getCatalogo(new Request("http://test/api/ops/google-play-catalogo", { headers: h }));
-    const segredo = "s".repeat(40);
-    google.catalogo = [{
-      productId: "br.com.dular.montador.pro.anual",
-      basePlans: [{ basePlanId: "anual", state: "DRAFT", autoRenewingBasePlanType: { billingPeriodDuration: "P1Y" },
-        regionalConfigs: [{ regionCode: "BR", newSubscriberAvailability: true, price: { currencyCode: "BRL", units: "359" } }] }],
-      listings: [{ title: "Pro Anual" }],
-    }];
-    google.ofertas = { "br.com.dular.montador.pro.anual": [{ basePlanId: "anual", offerId: "promo", state: "ACTIVE" }] };
-
-    delete process.env.DULAR_DIAGNOSTICO_GOOGLE;
-    assert.equal((await pedir({ "x-diagnostico": "" })).status, 404, "sem segredo configurado, a rota não existe");
-    process.env.DULAR_DIAGNOSTICO_GOOGLE = segredo;
-    try {
-      assert.equal((await pedir()).status, 404);
-      assert.equal((await pedir({ "x-diagnostico": "errado" })).status, 404);
-      lojas.loja.implementada.GOOGLE = false;
-      assert.equal((await pedir({ "x-diagnostico": segredo })).status, 404, "integração desligada (produção): não existe");
-      lojas.loja.implementada.GOOGLE = true;
-
-      const res = await pedir({ "x-diagnostico": segredo });
-      assert.equal(res.status, 200);
-      const texto = await res.text();
-      assert.doesNotMatch(texto, /Pro Anual"/, "nem textos do Console");
-      const corpo = JSON.parse(texto);
-      assert.deepEqual(corpo.console.produtos, [{
-        productId: "br.com.dular.montador.pro.anual", arquivado: false,
-        planosBase: [{ basePlanId: "anual", estado: "DRAFT", periodo: "P1Y", regioes: 1, brasil: "true", detalhes: {
-          precoBrasil: { moeda: "BRL", unidades: "359", nanos: null }, carencia: null, suspensao: null, reassinatura: null, troca: null, compativelLegado: null, outrasRegioes: null,
-        } }],
-        idiomas: [""],
-        ofertas: [{ basePlanId: "anual", offerId: "promo", estado: "ACTIVE" }],
-      }]);
-      assert.ok(corpo.dular.some((p: any) => p.id === "montador_pro_anual" && p.storeBasePlanId === "anual"));
-    } finally {
-      delete process.env.DULAR_DIAGNOSTICO_GOOGLE;
-      lojas.loja.implementada.GOOGLE = true;
-    }
   });
 
   it("notificação de teste do Play Console: 200, nada consultado", async () => {

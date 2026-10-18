@@ -107,6 +107,8 @@ enum ScoreEventoTipo {
   CANCELAMENTO
   NO_SHOW
   TEMPO_PLATAFORMA
+  /// Ajuste do KYC de um envio quando a decisão é revisada (delta = alvo − efeito atual).
+  KYC_REVISAO
 }
 
 enum Turno {

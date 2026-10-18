@@ -16,7 +16,9 @@ export async function putObject(key: string, body: Buffer, contentType: string) 
       Key: key,
       Body: body,
       ContentType: contentType,
-      ACL: "private",
+      // Sem ACL: objetos ficam privados pelo padrão do bucket. Em bucket com
+      // ACLs desativadas (padrão da AWS para buckets novos), PUT com ACL que não
+      // seja bucket-owner-full-control é recusado (AccessControlListNotSupported).
     })
   );
 }

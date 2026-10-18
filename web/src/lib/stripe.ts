@@ -146,7 +146,9 @@ export const PLANS: Record<PlanId, PlanDef> = {
     priceInCents: 35900, // R$359,00
     plan: "PREMIUM",
     storeProductId: "br.com.dular.montador.pro.anual",
-    storeBasePlanId: "anual",
+    // O plano base "anual" deste produto foi substituído no Play Console por
+    // "anual-v2". Compra no "anual" antigo é recusada (outro plano base).
+    storeBasePlanId: "anual-v2",
   },
 };
 

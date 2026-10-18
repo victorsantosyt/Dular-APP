@@ -10,6 +10,7 @@ import { AdminCard } from "@/components/admin-ui/AdminCard";
 import { AdminKpi } from "@/components/admin-ui/AdminKpi";
 import { AdminEmpty } from "@/components/admin-ui/AdminEmpty";
 import { Star, MessageSquareText, ThumbsDown } from "lucide-react";
+import { requireAdminSession } from "@/lib/adminSession";
 
 const FILTROS = [
   { key: "todas", label: "Todas" },
@@ -50,6 +51,8 @@ export default async function FeedbacksPage({
 }: {
   searchParams: Promise<{ filtro?: string }>;
 }) {
+  // Antes de qualquer leitura: ADMIN ativo no banco (o layout roda em paralelo).
+  await requireAdminSession();
   const params = await searchParams;
   const filtro = (FILTROS.find((f) => f.key === params.filtro)?.key ?? "todas") as FiltroKey;
 

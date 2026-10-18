@@ -7,11 +7,12 @@ import { listarEventosSeguranca } from "@/api/segurancaApi";
 import { SafeScoreView } from "./SafeScoreView";
 
 const loadSos = () => listarEventosSeguranca("SOS_SILENT", 50);
+const ASSUNTOS_OVERVIEW = ["safescore", "verificacao"] as const;
 
 export default function SafeScoreScreen() {
   const nav = useNavigation<any>();
   const theme = useProfileTheme();
-  const overview = useSafeScoreResource(getSafeScoreOverview);
+  const overview = useSafeScoreResource(getSafeScoreOverview, ASSUNTOS_OVERVIEW);
   const sos = useSafeScoreResource(loadSos);
 
   return <SafeScoreView

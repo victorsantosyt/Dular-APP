@@ -15,6 +15,8 @@ import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 
 import { AppIcon, BackCircleButton, DEmptyState, DErrorState, DLoadingState, DScreen } from "@/components/ui";
 import { fetchServicosMinhas } from "@/api/sharedFetcher";
+import { useAoMudarConta } from "@/hooks/useSincronizacaoConta";
+import { useUltimaLeitura } from "@/hooks/useUltimaLeitura";
 import { useGenderTheme } from "@/hooks/useProfileTheme";
 import type { DiaristaTabParamList } from "@/navigation/DiaristaNavigator";
 import { colors, radius, shadows, spacing, typography } from "@/theme";
@@ -107,13 +109,16 @@ export default function DiaristaCarteira() {
   // Stack real (#103): volta para a tela de origem (push/goBack).
   const voltar = () => navigation.goBack();
 
+  const iniciarLeitura = useUltimaLeitura();
   const load = useCallback(async (isRefresh = false) => {
+    const vale = iniciarLeitura();
     try {
       setError(null);
       if (isRefresh) setRefreshing(true);
       else setLoading(true);
 
       const data = await fetchServicosMinhas();
+      if (!vale()) return;
       const lista = Array.isArray(data?.servicos) ? data.servicos : Array.isArray(data) ? data : [];
 
       const mapped: ServicoCarteira[] = (lista as any[])
@@ -129,14 +134,15 @@ export default function DiaristaCarteira() {
 
       setServicos(mapped);
     } catch (e: any) {
-      setError(e?.message ?? "Falha ao carregar dados.");
+      if (vale()) setError(e?.message ?? "Falha ao carregar dados.");
     } finally {
       if (isRefresh) setRefreshing(false);
       else setLoading(false);
     }
-  }, []);
+  }, [iniciarLeitura]);
 
   useFocusEffect(useCallback(() => { void load(false); }, [load]));
+  useAoMudarConta(["servicos"], () => { void load(true); });
 
   const resumo = useMemo(() => {
     const concluidos = servicos.filter((s) => STATUS_CONCLUIDO.has(s.status));

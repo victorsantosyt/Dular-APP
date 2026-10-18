@@ -25,6 +25,7 @@ import {
   type NichoNoPainel,
 } from "@/lib/adminPerfis";
 import { rotuloDoMotivo } from "@/lib/motivosDoPerfil";
+import { requireAdminSession } from "@/lib/adminSession";
 
 function pct(parte: number, todo: number): string {
   if (todo === 0) return "—";
@@ -101,6 +102,8 @@ function CartaoDeNicho({
 }
 
 export default async function ProfissionaisPorNichoPage() {
+  // Antes de qualquer leitura: ADMIN ativo no banco (o layout roda em paralelo).
+  await requireAdminSession();
   const [resumo, invisiveis] = await Promise.all([
     resumoDosNichos(),
     profissionaisInvisiveis(),

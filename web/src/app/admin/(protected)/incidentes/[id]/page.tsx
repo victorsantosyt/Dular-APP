@@ -5,6 +5,7 @@ import { recomputeRiskForUser } from "@/lib/risk";
 import { revalidatePath } from "next/cache";
 import Link from "next/link";
 import { ResolutionPanel } from "./ResolutionPanel";
+import { requireAdminSession } from "@/lib/adminSession";
 
 export const dynamic = "force-dynamic";
 
@@ -34,6 +35,8 @@ export default async function AdminIncidenteDetalhePage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  // Antes de qualquer leitura: ADMIN ativo no banco (o layout roda em paralelo).
+  await requireAdminSession();
   const { id } = await params;
 
   const incident = await prisma.incidentReport.findUnique({

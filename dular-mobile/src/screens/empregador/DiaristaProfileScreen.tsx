@@ -4,7 +4,7 @@
  * perfil do montador), preenchido com os dados da profissional. Não há mais
  * estruturas de perfil diferentes por categoria.
  */
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Alert, StyleSheet, Text, View } from "react-native";
 import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
@@ -16,6 +16,9 @@ import { AppIcon } from "@/components/ui";
 import { colors, radius, spacing, typography } from "@/theme/tokens";
 import { formatCurrencyBRL, formatDecimalBRL } from "@/api/diaristaApi";
 import { fetchServicosMinhas } from "@/api/sharedFetcher";
+import { useAtualizacaoPeriodica } from "@/hooks/useAtualizacaoPeriodica";
+import { useAoMudarConta } from "@/hooks/useSincronizacaoConta";
+import { useUltimaLeitura } from "@/hooks/useUltimaLeitura";
 import { isStatusEncerrado } from "@/utils/servicoStatus";
 import type { EmpregadorTabParamList } from "@/navigation/EmpregadorNavigator";
 import type { PrecoInfo } from "@/screens/empregador/service-flow/ServiceFlowContext";
@@ -101,7 +104,7 @@ export function DiaristaProfileScreen() {
   const route = useRoute<RouteProps>();
   const { diaristaId, nome: nomeParam, categoriaInicial = "diarista" } = route.params;
 
-  const { diarista, loading, error } = useDiaristaPublico(diaristaId);
+  const { diarista, loading, error, recarregar } = useDiaristaPublico(diaristaId);
   const [activeService, setActiveService] = useState<ServicoAtivoDiarista | null>(null);
   const { isFavorito, toggle: toggleFavorito } = useFavoritos();
 
@@ -118,30 +121,37 @@ export function DiaristaProfileScreen() {
     }
   };
 
-  useEffect(() => {
-    let cancelled = false;
-    async function loadActiveService() {
-      if (!diaristaId) {
-        setActiveService(null);
-        return;
-      }
-      try {
-        const data = (await fetchServicosMinhas()) as MinhasServicosResponse;
-        if (cancelled) return;
-        const servicos = Array.isArray(data?.servicos) ? data.servicos : [];
-        const active = servicos.find(
-          (servico) => servico.diarista?.id === diaristaId && !isStatusEncerrado(servico.status),
-        );
-        setActiveService(active ?? null);
-      } catch {
-        if (!cancelled) setActiveService(null);
-      }
+  const iniciarLeitura = useUltimaLeitura();
+  const loadActiveService = useCallback(async () => {
+    const vale = iniciarLeitura();
+    if (!diaristaId) {
+      setActiveService(null);
+      return;
     }
+    try {
+      const data = (await fetchServicosMinhas()) as MinhasServicosResponse;
+      if (!vale()) return;
+      const servicos = Array.isArray(data?.servicos) ? data.servicos : [];
+      const active = servicos.find(
+        (servico) => servico.diarista?.id === diaristaId && !isStatusEncerrado(servico.status),
+      );
+      setActiveService(active ?? null);
+    } catch {
+      if (vale()) setActiveService(null);
+    }
+  }, [diaristaId, iniciarLeitura]);
+
+  useEffect(() => {
     void loadActiveService();
-    return () => {
-      cancelled = true;
-    };
-  }, [diaristaId]);
+  }, [loadActiveService]);
+
+  // Perfil e portfólio da profissional mudam na conta DELA: relê com a tela em foco.
+  useAtualizacaoPeriodica(() => {
+    recarregar();
+    void loadActiveService();
+  });
+  // Serviço com ela aceito/cancelado/concluído: chega pela sincronização da conta.
+  useAoMudarConta(["servicos"], () => { void loadActiveService(); });
 
   const handleAcompanharServico = () => {
     if (activeService?.id) {

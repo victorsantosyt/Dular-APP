@@ -1,20 +1,14 @@
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
-import { verifyToken } from "@/lib/auth";
+import { adminAtivoNoBanco } from "@/lib/adminSession";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+/** ADMIN ativo no banco (não só no token), antes de montar o CSV. */
 async function requireAdmin() {
   const cookieStore = await cookies();
-  const token = cookieStore.get("dular_token")?.value;
-  if (!token) return false;
-  try {
-    const session = verifyToken(token);
-    return session.role === "ADMIN";
-  } catch {
-    return false;
-  }
+  return adminAtivoNoBanco(cookieStore.get("dular_token")?.value);
 }
 
 function csvCell(value: unknown) {

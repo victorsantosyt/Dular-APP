@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { requireAdminSession } from "@/lib/adminSession";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,6 +23,8 @@ function stars(n: number) {
 }
 
 export default async function AdminAvaliacoesPage() {
+  // Antes de qualquer leitura: ADMIN ativo no banco (o layout roda em paralelo).
+  await requireAdminSession();
   const geral = await prisma.avaliacao.aggregate({
     _avg: { notaGeral: true },
     _count: { notaGeral: true },

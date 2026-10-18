@@ -90,6 +90,11 @@ temporária usada foi retirada): existe **um** produto de assinatura, `br.com.du
 `mensal` (ACTIVE, P1M, Brasil, R$ 39,90, carência de 7 dias, reassinatura ativa, sem ofertas). Os outros cinco
 planos do catálogo ainda não existem no Console e, por isso, não aparecem no app.
 
+Em 17/10/2026 o Montador Pro Anual (`br.com.dular.montador.pro.anual`) foi configurado no Console com o plano base
+**`anual-v2`** (anual, R$ 359,00), informado pelo responsável e não conferido aqui pela API. O catálogo passou a exigir
+`anual-v2`; compra no plano base `anual` desse produto é recusada (`PRODUTO_DESCONHECIDO`). O Pro Anual do
+Profissional de Casa segue com `anual`. O app recebe o plano base pela API (`/api/billing/plans`), sem versão nova.
+
 ## Assinatura de teste (testador de licença)
 
 No teste, o período é de 5 minutos e o Google renova no máximo **6 vezes**: 35 minutos depois da compra a assinatura

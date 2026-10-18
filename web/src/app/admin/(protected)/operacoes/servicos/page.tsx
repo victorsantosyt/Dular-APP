@@ -11,8 +11,11 @@ import { AdminTable } from "@/components/admin-ui/AdminTable";
 import { ClipboardList, FolderOpen, Loader, CheckCheck, Flag, Timer, Percent } from "lucide-react";
 import { Badge, servicoStatusLabel, servicoStatusTone } from "@/design-system/ui";
 import { AdminEmpty } from "@/components/admin-ui/AdminEmpty";
+import { requireAdminSession } from "@/lib/adminSession";
 
 export default async function ServicosPage() {
+  // Antes de qualquer leitura: ADMIN ativo no banco (o layout roda em paralelo).
+  await requireAdminSession();
   const [
     abertos,
     andamento,

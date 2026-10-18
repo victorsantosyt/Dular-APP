@@ -11,6 +11,7 @@ import { getGuardianStatusForUser } from "@/lib/safeScoreGuardian";
 import { cleanupRateLimit, rateLimit, rateLimitRetryAfterMs } from "@/lib/rateLimit";
 import { getRequestIp } from "@/lib/requestIp";
 import { detectImageMime, extensionForMime } from "@/lib/imageMagicBytes";
+import { fotografarDadosCadastrais } from "@/lib/dadosVerificacao";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -143,10 +144,13 @@ export async function POST(req: Request) {
       persistDoc(versoData, `${auth.userId}/verso`),
     ]);
 
+    // Um instante só para a submissão inteira: data dos arquivos, criação do
+    // registro, nota e fotografia dos dados batem entre si.
+    const agora = new Date();
     const docUrl = JSON.stringify({
       frente: frente.key,
       verso: verso.key,
-      uploadedAt: new Date().toISOString(),
+      uploadedAt: agora.toISOString(),
     });
 
     const docType =
@@ -156,36 +160,43 @@ export async function POST(req: Request) {
           ? "EMPREGADOR_KYC"
           : "MONTADOR_KYC";
 
-    let updatedAt: Date = new Date();
-    if (auth.role === "DIARISTA") {
-      const updated = await prisma.diaristaProfile.upsert({
-        where: { userId: auth.userId },
-        update: {
-          verificacao: "PENDENTE",
-          docUrl,
-        },
-        create: {
-          userId: auth.userId,
-          precoLeve: 0,
-          precoPesada: 0,
-          verificacao: "PENDENTE",
-          docUrl,
-        },
-        select: { updatedAt: true },
-      });
-      updatedAt = updated.updatedAt;
-    }
-
-    await prisma.documentVerification
-      .create({
+    // Perfil e registro do envio na MESMA transação: antes, uma falha ao criar
+    // o registro era engolida e a diarista ficava "pendente" com documentos
+    // que o painel nunca mostrava.
+    const updatedAt = await prisma.$transaction(async (tx) => {
+      let atualizado: Date = agora;
+      if (auth.role === "DIARISTA") {
+        const updated = await tx.diaristaProfile.upsert({
+          where: { userId: auth.userId },
+          update: {
+            verificacao: "PENDENTE",
+            docUrl,
+          },
+          create: {
+            userId: auth.userId,
+            precoLeve: 0,
+            precoPesada: 0,
+            verificacao: "PENDENTE",
+            docUrl,
+          },
+          select: { updatedAt: true },
+        });
+        atualizado = updated.updatedAt;
+      }
+      // Fotografia dos dados cadastrais DESTE envio, junto da frente e do verso.
+      const dadosEnviados = await fotografarDadosCadastrais(tx, auth.userId, agora);
+      await tx.documentVerification.create({
         data: {
           userId: auth.userId,
           docType,
           docUrl,
-          reviewNote: `Submetido em ${new Date().toISOString()}`,
+          createdAt: agora,
+          reviewNote: `Submetido em ${agora.toISOString()}`,
+          ...(dadosEnviados ? { dadosEnviados } : {}),
         },
-      })
-      .catch(() => null);
+      });
+      return atualizado;
+    });
 
     // Auto-verificação lateral (silenciosa). Só roda para DIARISTA — o
     // helper de empregador/montador (auto-aprovação por upload) não existe
@@ -230,7 +241,9 @@ export async function POST(req: Request) {
     // nenhuma pista da causa. Nome e mensagem passam a ser registrados em
     // qualquer ambiente (é log de servidor, não vai para o cliente); a stack
     // continua só em DEV para não despejar caminho de arquivo em produção.
-    console.error("[api/verificacoes] POST falhou:", e?.name, e?.message);
+    // Erro do Prisma pode repetir os argumentos (CPF da fotografia): só o código.
+    const doBanco = String(e?.name ?? "").startsWith("PrismaClient");
+    console.error("[api/verificacoes] POST falhou:", e?.name, doBanco ? e?.code ?? "" : e?.message);
     if (process.env.NODE_ENV === "development") {
       console.error(e?.stack);
     }

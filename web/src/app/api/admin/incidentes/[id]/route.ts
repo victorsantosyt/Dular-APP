@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAuth } from "@/lib/requireAuth";
+import { gateAdmin } from "@/lib/adminGate";
 import { signGetUrl } from "@/lib/s3Objects";
 import { recomputeRiskForUser } from "@/lib/risk";
 
@@ -9,10 +9,9 @@ export const dynamic = "force-dynamic";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const auth = requireAuth(_req);
-    if (auth.role !== "ADMIN") {
-      return NextResponse.json({ ok: false, error: "Acesso negado" }, { status: 403 });
-    }
+    // ADMIN ativo no banco antes de ler o incidente ou assinar anexos.
+    const gate = await gateAdmin(_req);
+    if (gate.error) return gate.error;
 
     const { id } = await params;
     const incident = await prisma.incidentReport.findUnique({
@@ -46,10 +45,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const auth = requireAuth(req);
-    if (auth.role !== "ADMIN") {
-      return NextResponse.json({ ok: false, error: "Acesso negado" }, { status: 403 });
-    }
+    const gate = await gateAdmin(req);
+    if (gate.error) return gate.error;
 
     const { id } = await params;
     const body = await req.json();

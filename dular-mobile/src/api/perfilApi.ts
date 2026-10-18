@@ -41,6 +41,11 @@ export type Me = {
   servicosOferecidos?: ServicoOferecido[];
   docEnviado?: boolean;
   verificacao?: VerificacaoInfo;
+  /** Nome como no documento (o `nome` é o de exibição). */
+  nomeCompleto?: string | null;
+  /** Decisão do envio mais recente e o motivo, quando reprovado ou com reenvio pedido. */
+  decisaoVerificacao?: "APROVADO" | "REPROVADO" | "REENVIO" | null;
+  motivoVerificacao?: string | null;
   createdAt?: string | null;
 };
 
@@ -79,9 +84,10 @@ export async function updateGenero(genero: "MASCULINO" | "FEMININO"): Promise<Me
  * já pertence a outra conta. `dataNascimento` vai como "AAAA-MM-DD".
  */
 export async function atualizarDadosPessoais(payload: {
-  cpf: string;
-  dataNascimento: string;
-}): Promise<{ cpf?: string | null; dataNascimento?: string | null }> {
+  cpf?: string;
+  dataNascimento?: string;
+  nomeCompleto?: string;
+}): Promise<{ cpf?: string | null; dataNascimento?: string | null; nomeCompleto?: string | null }> {
   const res = await api.patch("/api/me/profile", payload);
   return res.data?.user ?? res.data;
 }

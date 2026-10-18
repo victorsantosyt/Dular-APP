@@ -76,6 +76,29 @@ async function apresentarCompraGoogle(compra: CompraGoogle): Promise<{ plano: st
 }
 
 /**
+ * Erro de uma tentativa que parou ANTES de pedir a compra à Google. Recusa
+ * explícita (ErroCompraLoja, ou resposta 4xx do servidor) sobe como veio. Sem
+ * resposta, tempo esgotado, servidor indisponível ou falha da loja antes do
+ * pedido viram FALHA_ANTES_DA_FOLHA: nada foi cobrado nesta tentativa.
+ */
+function classificarAntesDaFolha(erro: unknown): unknown {
+  if (erro instanceof ErroCompraLoja) return erro;
+  const e = (erro ?? {}) as { isAxiosError?: boolean; response?: { status?: number }; code?: string; message?: string };
+  if (e.isAxiosError) {
+    const status = e.response?.status;
+    if (status === undefined) {
+      const tempo = e.code === "ECONNABORTED" || e.code === "ETIMEDOUT" || /timeout/i.test(String(e.message ?? ""));
+      return new ErroCompraLoja("FALHA_ANTES_DA_FOLHA", tempo ? "tempo_esgotado" : "sem_conexao");
+    }
+    if (status >= 500 || status === 429 || status === 408) return new ErroCompraLoja("FALHA_ANTES_DA_FOLHA", "servidor_indisponivel");
+    return erro;
+  }
+  // Erro nativo da loja (consulta de compras ou produtos) antes do pedido.
+  if (e.code !== undefined) return new ErroCompraLoja("FALHA_ANTES_DA_FOLHA", "loja_indisponivel");
+  return new ErroCompraLoja("FALHA_ANTES_DA_FOLHA", "erro_inesperado");
+}
+
+/**
  * Inicia a compra do plano.
  *
  * Pela loja, a compra acontece no aparelho e o comprovante é validado no
@@ -91,35 +114,45 @@ export async function comprarPlano(
 ): Promise<ResultadoCompra> {
   if (lojaDisponivel(caminho) && plano.storeProductId) {
     if (Platform.OS !== "android") throw new ErroCompraLoja("IAP_INDISPONIVEL");
-    // O estado usado para decidir a troca é relido; o perfil visível pode estar atrasado.
-    const atual = (await api.get<AssinaturaPlano>("/api/me/subscription")).data;
-    if (!atual || !["FREE", "BASIC", "PREMIUM"].includes(atual.plan)) throw new ErroCompraLoja("UPGRADE_INDISPONIVEL");
-    // Renovação aguardando a loja: outra compra criaria assinatura em paralelo.
-    if (atual.verificacaoLoja === "pendente") throw new ErroCompraLoja("COMPRA_EM_CONFIRMACAO");
-    let substituicao: { produtoId: string; validar: (compra: CompraGoogle) => Promise<void> } | undefined;
-    if (atual.plan !== "FREE") {
-      const catalogo = (await api.get<{ plans: (PlanoParaCompra & { plan: string; interval: string | null })[] }>("/api/billing/plans")).data;
-      const alvo = catalogo.plans?.find((p) => p.id === plano.id && p.storeProductId === plano.storeProductId && p.storeBasePlanId === plano.storeBasePlanId);
-      const sub = atual.subscription;
-      if (!alvo || !sub?.storeProductId || !podeFazerUpgradeGoogle(atual, alvo)) throw new ErroCompraLoja("UPGRADE_INDISPONIVEL");
-      substituicao = {
-        produtoId: sub.storeProductId,
-        validar: async (compraAnterior) => {
-          const validada = await api.post<{ plan?: string; pendente?: boolean }>("/api/billing/loja", {
-            plataforma: "android", produtoId: compraAnterior.produtoId, comprovante: compraAnterior.comprovante,
-          });
-          if (validada.status !== 200 || validada.data.pendente || validada.data.plan !== atual.plan) throw new ErroCompraLoja("UPGRADE_INDISPONIVEL");
-          const confirmada = (await api.get<AssinaturaPlano>("/api/me/subscription")).data;
-          if (!podeFazerUpgradeGoogle(confirmada, alvo) || confirmada.subscription?.planId !== sub.planId || confirmada.subscription?.storeProductId !== sub.storeProductId) throw new ErroCompraLoja("UPGRADE_INDISPONIVEL");
-        },
-      };
+    // Até a Google receber o pedido de compra, nada foi cobrado nesta tentativa.
+    // Depois dele (folha aberta, compra paga ou resultado incerto), o erro sobe
+    // como veio: a orientação é verificar e restaurar, nunca "nada cobrado".
+    let compraPedida = false;
+    let compra: CompraGoogle;
+    try {
+      // O estado usado para decidir a troca é relido; o perfil visível pode estar atrasado.
+      const atual = (await api.get<AssinaturaPlano>("/api/me/subscription")).data;
+      if (!atual || !["FREE", "BASIC", "PREMIUM"].includes(atual.plan)) throw new ErroCompraLoja("UPGRADE_INDISPONIVEL");
+      // Renovação aguardando a loja: outra compra criaria assinatura em paralelo.
+      if (atual.verificacaoLoja === "pendente") throw new ErroCompraLoja("COMPRA_EM_CONFIRMACAO");
+      let substituicao: { produtoId: string; validar: (compra: CompraGoogle) => Promise<void> } | undefined;
+      if (atual.plan !== "FREE") {
+        const catalogo = (await api.get<{ plans: (PlanoParaCompra & { plan: string; interval: string | null })[] }>("/api/billing/plans")).data;
+        const alvo = catalogo.plans?.find((p) => p.id === plano.id && p.storeProductId === plano.storeProductId && p.storeBasePlanId === plano.storeBasePlanId);
+        const sub = atual.subscription;
+        if (!alvo || !sub?.storeProductId || !podeFazerUpgradeGoogle(atual, alvo)) throw new ErroCompraLoja("UPGRADE_INDISPONIVEL");
+        substituicao = {
+          produtoId: sub.storeProductId,
+          validar: async (compraAnterior) => {
+            const validada = await api.post<{ plan?: string; pendente?: boolean }>("/api/billing/loja", {
+              plataforma: "android", produtoId: compraAnterior.produtoId, comprovante: compraAnterior.comprovante,
+            });
+            if (validada.status !== 200 || validada.data.pendente || validada.data.plan !== atual.plan) throw new ErroCompraLoja("UPGRADE_INDISPONIVEL");
+            const confirmada = (await api.get<AssinaturaPlano>("/api/me/subscription")).data;
+            if (!podeFazerUpgradeGoogle(confirmada, alvo) || confirmada.subscription?.planId !== sub.planId || confirmada.subscription?.storeProductId !== sub.storeProductId) throw new ErroCompraLoja("UPGRADE_INDISPONIVEL");
+          },
+        };
+      }
+      compra = await comprarAssinaturaGoogle({
+        produtoId: plano.storeProductId,
+        planoBase: plano.storeBasePlanId,
+        tokenDaConta: caminho?.tokenLoja,
+        substituicao,
+        aoPedirCompra: () => { compraPedida = true; },
+      });
+    } catch (erro) {
+      throw compraPedida ? erro : classificarAntesDaFolha(erro);
     }
-    const compra = await comprarAssinaturaGoogle({
-      produtoId: plano.storeProductId,
-      planoBase: plano.storeBasePlanId,
-      tokenDaConta: caminho?.tokenLoja,
-      substituicao,
-    });
     if (compra.pendente) return { via: "loja", pendente: true };
     const r = await apresentarCompraGoogle(compra);
     return "pendente" in r ? { via: "loja", pendente: true } : { via: "loja", plano: r.plano };

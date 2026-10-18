@@ -216,7 +216,11 @@ enum FavoritoTipo {
 
 model User {
   id             String        @id @default(cuid())
+  /// Nome de exibição (o que aparece no app).
   nome           String
+  /// Nome completo como no documento, para a conferência da verificação.
+  /// Opcional: contas antigas informam só quando enviam documentos.
+  nomeCompleto   String?
   telefone       String?       @unique
   cpf            String?       @unique
   dataNascimento DateTime?
@@ -1325,10 +1329,38 @@ model DocumentVerification {
   status     DocumentVerificationStatus @default(PENDING)
   reviewedBy String?
   reviewNote String?
+  /// Fotografia dos dados cadastrais no momento DESTE envio (mesma submissão
+  /// da frente e do verso em `docUrl`). Nulo nos envios anteriores ao campo:
+  /// não se reconstrói o que não foi gravado.
+  dadosEnviados Json?
+  /// Decisão vigente: APROVADO | REPROVADO | REENVIO. Histórico em DecisaoVerificacao.
+  decisao       String?
+  decididoEm    DateTime?
+  /// Motivo mostrado à pessoa no app (sem id de admin nem nota interna).
+  motivoUsuario String?
   createdAt  DateTime                   @default(now())
   updatedAt  DateTime                   @updatedAt
+  decisoes   DecisaoVerificacao[]
 
   @@index([userId])
+}
+
+/// Cada decisão sobre um envio, inclusive revisões explícitas. Só cresce.
+model DecisaoVerificacao {
+  id            String                     @id @default(cuid())
+  verificacaoId String
+  verificacao   DocumentVerification       @relation(fields: [verificacaoId], references: [id], onDelete: Cascade)
+  adminId       String
+  de            DocumentVerificationStatus
+  para          DocumentVerificationStatus
+  /// APROVADO | REPROVADO | REENVIO
+  decisao       String
+  /// true quando muda uma decisão já concluída (ação "Revisar decisão").
+  revisao       Boolean                    @default(false)
+  motivo        String?
+  createdAt     DateTime                   @default(now())
+
+  @@index([verificacaoId, createdAt])
 }
 
 model UserRestriction {

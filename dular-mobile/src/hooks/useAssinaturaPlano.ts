@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { AppState } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { api } from "@/lib/api";
+import { useAoMudarConta } from "@/hooks/useSincronizacaoConta";
 import { useAuth } from "@/stores/authStore";
 import { apresentacaoDoPlano, type AssinaturaPlano } from "@/components/ui/assinaturaPlano";
 export { apresentacaoDoPlano, planoAtualDoCatalogo } from "@/components/ui/assinaturaPlano";
@@ -64,6 +65,10 @@ export function useAssinaturaPlano() {
       listener.remove();
     };
   }, [atualizar]));
+
+  // Assinatura mudou por fora (loja, painel) ou por compra em outra tela: relê.
+  // "servicos": o uso do mês (limite do gratuito) vem na mesma resposta.
+  useAoMudarConta(["assinatura", "servicos"], () => { void atualizar(); });
 
   const data = resultado?.userId === userId ? resultado.data : null;
   return { data, apresentacao: apresentacaoDoPlano(data), carregando, erro, atualizar };

@@ -14,6 +14,7 @@
  *  - SafeScore e service-flow theme NÃO são alterados.
  */
 
+import { useAoMudarConta } from "@/hooks/useSincronizacaoConta";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -523,6 +524,8 @@ export default function DiaristaPerfil({ onLogout }: Props) {
   }, [applyMe, setServicosOferecidosStore]);
 
   useFocusEffect(useCallback(() => { void loadMe(); }, [loadMe]));
+  // Mudança fora do app (aprovação no painel) ou em outra tela: relê com a tela aberta.
+  useAoMudarConta(["conta", "verificacao", "perfil", "restricoes"], () => { void loadMe(); });
 
   // ── Derivados ────────────────────────────────────────────────────────────
   const displayName = useMemo(

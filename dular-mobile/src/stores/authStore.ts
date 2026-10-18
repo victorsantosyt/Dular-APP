@@ -5,6 +5,7 @@ import { SecureStorage } from "@/services/secureStorage";
 import { useThemeStore } from "@/stores/useThemeStore";
 import { limparCacheMensagens } from "@/hooks/useMensagens";
 import { limparCacheNotificacoes } from "@/hooks/useNotificacoes";
+import { limparCachesCompartilhados } from "@/api/sharedFetcher";
 import { encerrarPushDaSessao } from "@/lib/pushCicloDeVida";
 import { definirSessaoAtual } from "@/lib/sessaoAtual";
 import { limparAgrupamentoDePopups } from "@/lib/pushPrimeiroPlano";
@@ -38,6 +39,8 @@ type User = {
   telefone?: string;
   cpf?: string | null;
   dataNascimento?: string | null;
+  /** Nome como no documento, para a verificação. `nome` é o de exibição. */
+  nomeCompleto?: string | null;
   role: Role;
   genero?: "MASCULINO" | "FEMININO" | null;
   status?: string | null;
@@ -236,6 +239,7 @@ export const useAuth = create<AuthState>((set, get) => ({
     // próxima conta veria os da anterior (e o contador dela) até o 1º fetch.
     limparCacheMensagens();
     limparCacheNotificacoes();
+    limparCachesCompartilhados();
     useNotificacaoPopup.getState().limpar();
     limparAgrupamentoDePopups();
     await setAuthToken(null);
@@ -337,6 +341,9 @@ export const useAuth = create<AuthState>((set, get) => ({
   setUser(next) {
     set((state) => {
       const resolved = typeof next === "function" ? (next as any)(state.user) : next;
+      // Resposta atrasada de outra conta (ou de depois do logout) não altera a
+      // sessão atual: só vale atualização da MESMA conta. Limpar (null) vale.
+      if (resolved && (!state.user || resolved.id !== state.user.id)) return state;
       if (resolved) void SecureStorage.saveUser(resolved);
       return { ...state, user: resolved ?? null };
     });

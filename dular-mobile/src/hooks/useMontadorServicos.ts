@@ -5,6 +5,8 @@ import {
   type MontadorSafeScore,
   type MontadorServico,
 } from "@/api/montadorApi";
+import { useAoMudarConta } from "@/hooks/useSincronizacaoConta";
+import { useUltimaLeitura } from "@/hooks/useUltimaLeitura";
 
 const PENDING_STATUS = new Set(["PENDENTE", "SOLICITADO"]);
 const AGENDA_STATUS = new Set([
@@ -27,14 +29,19 @@ export function useMontadorServicos() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async (mode: "initial" | "refresh" = "initial") => {
+  const iniciarLeitura = useUltimaLeitura();
+
+  const load = useCallback(async (mode: "initial" | "refresh" | "silent" = "initial") => {
+    const vale = iniciarLeitura();
     if (mode === "initial") setLoading(true);
     if (mode === "refresh") setRefreshing(true);
-    setError(null);
+    if (mode !== "silent") setError(null);
 
     try {
       const list = await carregarServicosMontador();
+      if (!vale()) return;
       setServicos(list);
+      setError(null);
 
       const employerIds = Array.from(
         new Set(list.map((item) => item.empregador?.id).filter(Boolean) as string[]),
@@ -43,23 +50,29 @@ export function useMontadorServicos() {
         const entries = await Promise.all(
           employerIds.map(async (id) => [id, await carregarSafeScoreUsuario(id)] as const),
         );
-        setScoreByUser(Object.fromEntries(entries));
+        if (vale()) setScoreByUser(Object.fromEntries(entries));
       } else {
         setScoreByUser({});
       }
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Falha ao carregar serviços do montador.";
-      setError(message);
+      // Falha na releitura automática mantém a lista que já está na tela.
+      if (vale() && mode !== "silent") setError(message);
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (vale()) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
-  }, []);
+  }, [iniciarLeitura]);
 
   useEffect(() => {
     void load("initial");
   }, [load]);
+
+  // Solicitação nova, aceite, cancelamento ou conclusão (por qualquer ponta).
+  useAoMudarConta(["servicos"], () => { void load("silent"); });
 
   const pendentes = useMemo(
     () => servicos.filter((item) => PENDING_STATUS.has(upper(item.status))),

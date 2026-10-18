@@ -11,12 +11,15 @@ import { AdminKpi } from "@/components/admin-ui/AdminKpi";
 import { AdminEmpty } from "@/components/admin-ui/AdminEmpty";
 import ConcluidosSemanaChart from "@/app/admin/(protected)/insights/ConcluidosSemanaChart";
 import { Users, UserPlus, Star, Repeat, TrendingUp, ShieldAlert, Zap } from "lucide-react";
+import { requireAdminSession } from "@/lib/adminSession";
 
 function pct(v: number | null): string {
   return v === null ? "—" : `${v.toFixed(0)}%`;
 }
 
 export default async function AdminHomePage() {
+  // Antes de qualquer leitura: ADMIN ativo no banco (o layout roda em paralelo).
+  await requireAdminSession();
   const trintaDiasAtras = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
   const [

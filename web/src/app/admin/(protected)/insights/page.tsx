@@ -15,12 +15,15 @@ import {
   Target, Droplets, Repeat, Timer, TrendingUp, LayoutList,
   Star, BadgeDollarSign, AlertTriangle, MapPin, Award,
 } from "lucide-react";
+import { requireAdminSession } from "@/lib/adminSession";
 
 function pct(v: number | null): string {
   return v === null ? "—" : `${v.toFixed(0)}%`;
 }
 
 export default async function InsightsPage() {
+  // Antes de qualquer leitura: ADMIN ativo no banco (o layout roda em paralelo).
+  await requireAdminSession();
   const [servicos, eventos, profissionais, avaliacaoAgg, topDiaristasRaw] =
     await Promise.all([
       prisma.servico.findMany({

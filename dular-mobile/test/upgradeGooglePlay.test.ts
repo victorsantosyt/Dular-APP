@@ -126,3 +126,19 @@ test("catálogo inicial e de troca listam só o que a Google Play oferece", () =
   assert.match(tela, /const consultaLoja = exibicao === "catalogo" && Platform\.OS === "android" && lojaDisponivel\(pagamento\);/);
   assert.match(tela, /const alternativasVisiveis = consultaLoja\s*\? alternativas\.filter\(\(p\) => disponiveisGoogle\?\.includes\(p\.id\)\)/);
 });
+
+test("plano base vem do catálogo da API: anual-v2 aparece só se a Play oferecer anual-v2", async () => {
+  const anualMontador = { id: "montador_pro_anual", storeProductId: "br.com.dular.montador.pro.anual", storeBasePlanId: "anual-v2" };
+  const comV2 = nativa({ ofertas: [{ id: anualMontador.storeProductId, subscriptionOfferDetailsAndroid: [{ basePlanId: "anual", offerToken: "a" }, { basePlanId: "anual-v2", offerToken: "b" }] }] });
+  assert.deepEqual(await consultarDisponibilidadeGoogle([anualMontador], comV2.iap as any), ["montador_pro_anual"]);
+  const soAntigo = nativa({ ofertas: [{ id: anualMontador.storeProductId, subscriptionOfferDetailsAndroid: [{ basePlanId: "anual", offerToken: "a" }] }] });
+  assert.deepEqual(await consultarDisponibilidadeGoogle([anualMontador], soAntigo.iap as any), []);
+});
+
+test("falha de conexão antes da folha libera nova tentativa e diz que nada foi cobrado", () => {
+  const tela = readFileSync(join(import.meta.dirname, "..", "src", "screens", "PaywallScreen.tsx"), "utf8");
+  assert.match(tela, /e\.codigo === "FALHA_ANTES_DA_FOLHA"\) \{\s*\/\/[^\n]*\n\s*setRequerVerificacao\(false\);/);
+  assert.match(tela, /nada foi cobrado nesta tentativa/);
+  // A frase só existe no ramo FALHA_ANTES_DA_FOLHA.
+  assert.equal(tela.split("nada foi cobrado").length - 1, 1);
+});

@@ -19,6 +19,7 @@ import {
   indicadoresDeFeedback,
   listarFeedback,
 } from "@/lib/adminFeedback";
+import { requireAdminSession } from "@/lib/adminSession";
 
 const TIPOS = ["SUGESTAO", "PROBLEMA", "ELOGIO", "OUTRO"] as const;
 
@@ -51,6 +52,8 @@ type Params = {
 };
 
 export default async function SugestoesPage({ searchParams }: Params) {
+  // Antes de qualquer leitura: ADMIN ativo no banco (o layout roda em paralelo).
+  await requireAdminSession();
   const sp = await searchParams;
   const tipo = TIPOS.find((t) => t === sp.tipo);
   const pagina = Math.max(1, Number(sp.pagina ?? "1") || 1);

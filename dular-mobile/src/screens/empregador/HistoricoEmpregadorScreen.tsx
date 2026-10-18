@@ -27,6 +27,8 @@ import {
   DSkeletonCard,
 } from "@/components/ui";
 import { fetchServicosMinhas } from "@/api/sharedFetcher";
+import { useAoMudarConta } from "@/hooks/useSincronizacaoConta";
+import { useUltimaLeitura } from "@/hooks/useUltimaLeitura";
 import { parseDataServico } from "@/utils/formatters";
 import { colors, radius, shadows, spacing, typography } from "@/theme";
 import type { EmpregadorTabParamList } from "@/navigation/EmpregadorNavigator";
@@ -260,13 +262,16 @@ export function HistoricoEmpregadorScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const iniciarLeitura = useUltimaLeitura();
   const carregar = useCallback(async (isRefresh = false) => {
+    const vale = iniciarLeitura();
     try {
       if (isRefresh) setRefreshing(true);
       else setLoading(true);
       setError(null);
 
       const data = (await fetchServicosMinhas()) as MinhasResponse;
+      if (!vale()) return;
       const raw: ServicoRaw[] = Array.isArray(data?.servicos)
         ? data!.servicos!
         : [];
@@ -278,7 +283,7 @@ export function HistoricoEmpregadorScreen() {
       setServicos(filtrados);
     } catch (e: unknown) {
       const err = e as { response?: { data?: { error?: string } }; message?: string };
-      setError(
+      if (vale()) setError(
         err?.response?.data?.error ??
           err?.message ??
           "Não foi possível carregar o histórico.",
@@ -287,11 +292,13 @@ export function HistoricoEmpregadorScreen() {
       if (isRefresh) setRefreshing(false);
       else setLoading(false);
     }
-  }, []);
+  }, [iniciarLeitura]);
 
   useEffect(() => {
     carregar();
   }, [carregar]);
+
+  useAoMudarConta(["servicos"], () => { void carregar(true); });
 
   const content = useMemo(() => {
     if (loading && !refreshing) {

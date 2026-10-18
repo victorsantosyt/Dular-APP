@@ -23,6 +23,15 @@ const schema = z.object({
     .max(15, "Telefone inválido")
     .optional(),
   genero: z.enum(["MASCULINO", "FEMININO"]).optional(),
+  // Nome como no documento, para a conferência da verificação. Formato válido
+  // não prova que o nome é do titular — quem confere é a análise documental.
+  nomeCompleto: z
+    .string()
+    .trim()
+    .max(120, "Nome muito longo")
+    .refine((v) => /^[\p{L}][\p{L}'’.\- ]*$/u.test(v), "Use apenas letras no nome completo")
+    .refine((v) => v.split(/\s+/).filter((p) => p.length >= 2).length >= 2, "Informe nome e sobrenome")
+    .optional(),
 });
 
 /**
@@ -66,7 +75,7 @@ export async function PATCH(req: Request) {
     return fail("bad_request", parsed.error.issues[0].message, 400);
   }
 
-  const { nome, cpf, dataNascimento, telefone, genero } = parsed.data;
+  const { nome, cpf, dataNascimento, telefone, genero, nomeCompleto } = parsed.data;
 
   const data: {
     nome?: string;
@@ -74,12 +83,14 @@ export async function PATCH(req: Request) {
     dataNascimento?: Date;
     telefone?: string;
     genero?: "MASCULINO" | "FEMININO";
+    nomeCompleto?: string;
   } = {};
   if (nome !== undefined) data.nome = nome.trim();
   if (cpf !== undefined) data.cpf = cpf.replace(/\D/g, "");
   if (dataNascimento !== undefined) data.dataNascimento = new Date(dataNascimento);
   if (telefone !== undefined) data.telefone = telefone.replace(/\D/g, "");
   if (genero !== undefined) data.genero = genero;
+  if (nomeCompleto !== undefined) data.nomeCompleto = nomeCompleto.replace(/\s+/g, " ");
 
   if (Object.keys(data).length === 0) {
     return fail("bad_request", "Nada para atualizar", 400);
@@ -89,7 +100,7 @@ export async function PATCH(req: Request) {
     const user = await prisma.user.update({
       where: { id: userId },
       data,
-      select: { id: true, nome: true, role: true, cpf: true, dataNascimento: true },
+      select: { id: true, nome: true, nomeCompleto: true, role: true, cpf: true, dataNascimento: true },
     });
 
     return ok({ user });

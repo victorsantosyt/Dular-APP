@@ -198,3 +198,9 @@ export function dataNascimentoISO(raw: string): string | null {
   if (idade < 16 || idade > 120) return null;
   return `${String(ano).padStart(4, "0")}-${String(mes).padStart(2, "0")}-${String(dia).padStart(2, "0")}`;
 }
+
+/** Nome completo como no documento — mesma regra do servidor (api/me/profile): letras, nome e sobrenome. */
+export function nomeCompletoValido(v: string): boolean {
+  const t = v.trim().replace(/\s+/g, " ");
+  return t.length <= 120 && /^[\p{L}][\p{L}'’.\- ]*$/u.test(t) && t.split(" ").filter((p) => p.length >= 2).length >= 2;
+}

@@ -11,12 +11,15 @@ import { AdminEmpty } from "@/components/admin-ui/AdminEmpty";
 import { AdminTable } from "@/components/admin-ui/AdminTable";
 import { LifeBuoy } from "lucide-react";
 import { Badge, incidenteStatusTone, gravidadeTone, rotuloEnum } from "@/design-system/ui";
+import { requireAdminSession } from "@/lib/adminSession";
 
 function fmt(dt: Date) {
   return new Date(dt).toLocaleString("pt-BR");
 }
 
 export default async function SuportePage() {
+  // Antes de qualquer leitura: ADMIN ativo no banco (o layout roda em paralelo).
+  await requireAdminSession();
   const incidents = await prisma.incidentReport.findMany({
     where: { status: { in: ["ABERTO", "EM_ANALISE"] } },
     orderBy: { createdAt: "desc" },

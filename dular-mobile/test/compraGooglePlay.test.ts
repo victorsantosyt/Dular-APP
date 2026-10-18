@@ -259,7 +259,11 @@ test("fluxo: a compra leva o token da conta vindo do servidor", () => {
 
 // Executa o coordenador real com os adaptadores nativos/HTTP substituídos.
 // O React Native não roda no Node; transpilar não altera as decisões do fluxo.
-async function fluxoComAdaptadores(opcoes: { status?: number; erro?: unknown; pendente?: boolean; restaurar?: boolean; deOutraConta?: number; verificacaoLoja?: string } = {}) {
+async function fluxoComAdaptadores(opcoes: {
+  status?: number; erro?: unknown; pendente?: boolean; restaurar?: boolean; deOutraConta?: number; verificacaoLoja?: string;
+  erroNaConsulta?: unknown; upgrade?: boolean; erroNoCatalogo?: unknown; erroNaValidacao?: unknown;
+  erroAntesDoPedido?: unknown; erroDepoisDoPedido?: unknown;
+} = {}) {
   const { transpileModule, ModuleKind, ScriptTarget } = await import("typescript");
   const chamadas: string[] = [];
   const compra = { produtoId: PRODUTO, comprovante: "token", pendente: opcoes.pendente ?? false, original: {} };
@@ -268,15 +272,34 @@ async function fluxoComAdaptadores(opcoes: { status?: number; erro?: unknown; pe
   }).outputText;
   const adapters: Record<string, unknown> = {
     "react-native": { Platform: { OS: "android" }, Linking: { openURL: async () => {} } },
-    "@/components/ui/assinaturaPlano": { podeFazerUpgradeGoogle: () => false },
-    "@/lib/api": { api: { get: async () => ({ data: { plan: "FREE", subscription: null, verificacaoLoja: opcoes.verificacaoLoja ?? null } }), post: async () => {
-      chamadas.push("servidor");
-      if (opcoes.erro) throw opcoes.erro;
+    "@/components/ui/assinaturaPlano": { podeFazerUpgradeGoogle: () => Boolean(opcoes.upgrade) },
+    "@/lib/api": { api: { get: async (url: string) => {
+      if (url === "/api/billing/plans") {
+        if (opcoes.erroNoCatalogo) throw opcoes.erroNoCatalogo;
+        return { data: { plans: [{ id: "pro_mensal", storeProductId: PRODUTO, storeBasePlanId: "mensal", plan: "PREMIUM", interval: "year" }] } };
+      }
+      if (opcoes.erroNaConsulta) throw opcoes.erroNaConsulta;
+      return { data: opcoes.upgrade
+        ? { plan: "PREMIUM", subscription: { provider: "GOOGLE", plan: "PREMIUM", status: "ACTIVE", planId: "anterior", interval: "month", storeProductId: "produto.anterior", canceledAt: null } }
+        : { plan: "FREE", subscription: null, verificacaoLoja: opcoes.verificacaoLoja ?? null } };
+    }, post: async () => {
+      const validacao = !chamadas.includes("pedido-a-google") && chamadas.includes("comprar");
+      chamadas.push(validacao ? "validacao" : "servidor");
+      if (validacao && opcoes.erroNaValidacao) throw opcoes.erroNaValidacao;
+      if (!validacao && opcoes.erro) throw opcoes.erro;
       return { status: opcoes.status ?? 200, data: { plan: "PREMIUM" } };
     } } },
     "@/lib/lojaGoogle": {
       ErroCompraLoja,
-      comprarAssinaturaGoogle: async () => { chamadas.push("comprar"); return compra; },
+      comprarAssinaturaGoogle: async (pedido: any) => {
+        chamadas.push("comprar");
+        if (pedido.substituicao) await pedido.substituicao.validar(compra);
+        if (opcoes.erroAntesDoPedido) throw opcoes.erroAntesDoPedido;
+        pedido.aoPedirCompra?.();
+        chamadas.push("pedido-a-google");
+        if (opcoes.erroDepoisDoPedido) throw opcoes.erroDepoisDoPedido;
+        return compra;
+      },
       comprasParaRestaurarGoogle: async (token: string) => {
         chamadas.push(`restaurar:${token === TOKEN_CONTA ? "token-da-conta" : "sem-token"}`);
         return { compras: [compra], deOutraConta: opcoes.deOutraConta ?? 0 };
@@ -298,14 +321,14 @@ async function fluxoComAdaptadores(opcoes: { status?: number; erro?: unknown; pe
 test("coordenador real: confirma no servidor antes de concluir a compra e devolver sucesso", async () => {
   const fluxo = await fluxoComAdaptadores();
   assert.deepEqual(await fluxo.executar(), { via: "loja", plano: "PREMIUM" });
-  assert.deepEqual(fluxo.chamadas, ["comprar", "servidor", "concluir"]);
+  assert.deepEqual(fluxo.chamadas, ["comprar", "pedido-a-google", "servidor", "concluir"]);
 });
 
 test("coordenador real: pendência local ou HTTP202 nunca conclui compra nem anuncia sucesso", async () => {
   for (const opcoes of [{ pendente: true }, { status: 202 }]) {
     const fluxo = await fluxoComAdaptadores(opcoes);
     assert.deepEqual(await fluxo.executar(), { via: "loja", pendente: true });
-    assert.deepEqual(fluxo.chamadas, opcoes.pendente ? ["comprar"] : ["comprar", "servidor"]);
+    assert.deepEqual(fluxo.chamadas, opcoes.pendente ? ["comprar", "pedido-a-google"] : ["comprar", "pedido-a-google", "servidor"]);
   }
 });
 
@@ -313,7 +336,7 @@ test("coordenador real: erro de validação não reconhece transação nem devol
   const erro = { response: { status: 403 } };
   const fluxo = await fluxoComAdaptadores({ erro });
   await assert.rejects(fluxo.executar(), (e) => e === erro);
-  assert.deepEqual(fluxo.chamadas, ["comprar", "servidor"]);
+  assert.deepEqual(fluxo.chamadas, ["comprar", "pedido-a-google", "servidor"]);
 });
 
 test("restauração real: distingue recusa da conta e indisponibilidade transitória", async () => {
@@ -334,4 +357,70 @@ test("coordenador real: renovação aguardando a loja não abre nova compra", as
   const fluxo = await fluxoComAdaptadores({ verificacaoLoja: "pendente" });
   await assert.rejects(fluxo.executar(), (e: any) => e instanceof ErroCompraLoja && e.codigo === "COMPRA_EM_CONFIRMACAO");
   assert.deepEqual(fluxo.chamadas, []);
+});
+
+
+const semResposta = { isAxiosError: true, message: "Network Error", code: "ERR_NETWORK" };
+const tempoEsgotado = { isAxiosError: true, message: "timeout of 20000ms exceeded", code: "ECONNABORTED" };
+const indisponivel = { isAxiosError: true, response: { status: 503 } };
+const antesDaFolha = (motivo: string) => (e: any) => e instanceof ErroCompraLoja && e.codigo === "FALHA_ANTES_DA_FOLHA" && e.motivo === motivo;
+
+test("antes da folha, etapa 1 (assinatura atual): sem resposta → nada pedido à Google", async () => {
+  const fluxo = await fluxoComAdaptadores({ erroNaConsulta: semResposta });
+  await assert.rejects(fluxo.executar(), antesDaFolha("sem_conexao"));
+  assert.equal(fluxo.chamadas.includes("pedido-a-google"), false);
+});
+
+test("antes da folha, etapa 2 (catálogo do upgrade): tempo esgotado → nada pedido à Google", async () => {
+  const fluxo = await fluxoComAdaptadores({ upgrade: true, erroNoCatalogo: tempoEsgotado });
+  await assert.rejects(fluxo.executar(), antesDaFolha("tempo_esgotado"));
+  assert.equal(fluxo.chamadas.includes("pedido-a-google"), false);
+});
+
+test("antes da folha, etapa 3 (validação da compra substituída): servidor indisponível → nada pedido à Google", async () => {
+  const fluxo = await fluxoComAdaptadores({ upgrade: true, erroNaValidacao: indisponivel });
+  await assert.rejects(fluxo.executar(), antesDaFolha("servidor_indisponivel"));
+  assert.deepEqual(fluxo.chamadas, ["comprar", "validacao"]);
+});
+
+test("antes da folha: falha nativa da loja (consulta de compras/produtos) → nada pedido à Google", async () => {
+  const fluxo = await fluxoComAdaptadores({ erroAntesDoPedido: { code: "service-unavailable", message: "Billing" } });
+  await assert.rejects(fluxo.executar(), antesDaFolha("loja_indisponivel"));
+});
+
+test("recusa explícita antes da folha sobe como veio (4xx e ErroCompraLoja)", async () => {
+  const recusa = { isAxiosError: true, response: { status: 403, data: { error: { code: "COMPRA_SEM_TITULARIDADE" } } } };
+  const f1 = await fluxoComAdaptadores({ upgrade: true, erroNaValidacao: recusa });
+  await assert.rejects(f1.executar(), (e) => e === recusa);
+  const f2 = await fluxoComAdaptadores({ erroAntesDoPedido: new ErroCompraLoja("PRODUTO_INDISPONIVEL") });
+  await assert.rejects(f2.executar(), (e: any) => e.codigo === "PRODUTO_INDISPONIVEL");
+});
+
+test("cancelamento pelo usuário na folha: COMPRA_CANCELADA, não \"falha antes da folha\"", async () => {
+  const fluxo = await fluxoComAdaptadores({ erroDepoisDoPedido: new ErroCompraLoja("COMPRA_CANCELADA") });
+  await assert.rejects(fluxo.executar(), (e: any) => e instanceof ErroCompraLoja && e.codigo === "COMPRA_CANCELADA");
+});
+
+test("depois do pedido à Google: erro de rede ou resultado incerto sobem como vieram (orientação de restaurar)", async () => {
+  for (const erroDepoisDoPedido of [semResposta, new ErroCompraLoja("COMPRA_EM_CONFIRMACAO"), { code: "service-error" }]) {
+    const fluxo = await fluxoComAdaptadores({ erroDepoisDoPedido });
+    await assert.rejects(fluxo.executar(), (e) => e === erroDepoisDoPedido);
+  }
+  // Compra paga e o servidor sem resposta ao confirmá-la: não é "nada cobrado".
+  const fluxo = await fluxoComAdaptadores({ erro: semResposta });
+  await assert.rejects(fluxo.executar(), (e) => e === semResposta);
+  assert.deepEqual(fluxo.chamadas, ["comprar", "pedido-a-google", "servidor"]);
+});
+
+test("loja real: aoPedirCompra é chamado só imediatamente antes do requestPurchase", async () => {
+  const a = lojaFalsa();
+  const marcas: string[] = [];
+  const iapComMarca = { ...a.iap, requestPurchase: async (args: any) => { marcas.push("requestPurchase"); return a.iap.requestPurchase(args); } };
+  await comprarAssinaturaGoogle({ ...pedido, aoPedirCompra: () => marcas.push("aoPedirCompra") }, iapComMarca);
+  assert.deepEqual(marcas, ["aoPedirCompra", "requestPurchase"]);
+
+  const b = lojaFalsa();
+  let chamado = false;
+  await assert.rejects(comprarAssinaturaGoogle({ ...pedido, planoBase: "trimestral", aoPedirCompra: () => { chamado = true; } }, b.iap), (e: any) => e.codigo === "PRODUTO_INDISPONIVEL");
+  assert.equal(chamado, false, "sem oferta, a compra nem chega a ser pedida");
 });

@@ -23,6 +23,7 @@ import {
   textoDoMeta,
 } from "@/lib/sosPainel";
 import { SosStatusControl } from "./SosStatusControl";
+import { requireAdminSession } from "@/lib/adminSession";
 
 function fmt(dt: Date) {
   return new Date(dt).toLocaleString("pt-BR");
@@ -31,6 +32,8 @@ function fmt(dt: Date) {
 const ORDEM_DO_STATUS = { ACIONADO: 0, EM_ATENDIMENTO: 1, RESOLVIDO: 2 } as const;
 
 export default async function SosPage() {
+  // Antes de qualquer leitura: ADMIN ativo no banco (o layout roda em paralelo).
+  await requireAdminSession();
   const eventos = await prisma.safetyEvent.findMany({
     where: { type: "SOS_SILENT" },
     orderBy: { createdAt: "desc" },

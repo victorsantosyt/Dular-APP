@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { conteudoPublico, dadosPublicos } from "@/lib/pushPublico";
-import { pushRemotoPermitido } from "@/lib/ambientePreview";
+import { createHash } from "node:crypto";
+import { pushBloqueadoNoPreview, pushRemotoPermitido } from "@/lib/ambientePreview";
 
 // ──────────────────────────────────────────────────────────────────────────
 // Notificações in-app + push remoto (best-effort)
@@ -32,7 +33,9 @@ export type NotificationType =
   | "CHAT_NOVA_MENSAGEM"
   | "PAGAMENTO_INFORMADO"
   | "PAGAMENTO_CONFIRMADO"
-  | "PAGAMENTO_CONTESTADO";
+  | "PAGAMENTO_CONTESTADO"
+  | "VERIFICACAO_APROVADA"
+  | "VERIFICACAO_REPROVADA";
 
 type PushMessage = {
   to: string;
@@ -202,8 +205,15 @@ export async function sendPushNotification(
   _corpo: string,
   data?: Record<string, unknown>
 ): Promise<void> {
+  // Marca da conta no log: confere, por conta, que o push NÃO saiu, sem
+  // registrar id nem token.
+  const conta = () => createHash("sha256").update(userId).digest("hex").slice(0, 12);
   if (!pushRemotoPermitido()) {
-    console.log("[push] preview: envio remoto desligado");
+    console.log(`[push] preview: envio remoto desligado conta=${conta()}`);
+    return;
+  }
+  if (pushBloqueadoNoPreview(userId)) {
+    console.log(`[push] preview: conta sem push (teste) conta=${conta()}`);
     return;
   }
   try {
@@ -342,6 +352,22 @@ export async function criarNotificacao(params: CriarNotificacaoParams) {
   }
 
   return notification;
+}
+
+/**
+ * Push de uma notificação JÁ gravada — por exemplo, na mesma transação da
+ * decisão que a originou. Best-effort: nunca lança, e não regrava nada.
+ */
+export async function enviarPushDaNotificacao(n: {
+  id: string;
+  userId: string;
+  type: string;
+  title: string;
+  body: string;
+}): Promise<void> {
+  await sendPushNotification(n.userId, n.title, n.body, { type: n.type, notificationId: n.id }).catch(() => {
+    console.error("[push] falha ao enviar o aviso já gravado.");
+  });
 }
 
 /**

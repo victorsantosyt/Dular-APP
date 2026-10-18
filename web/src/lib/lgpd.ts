@@ -29,12 +29,12 @@ export type ResumoExclusao = {
   arquivosS3: { removidos: number; falharam: number };
 };
 
-/** Extrai as chaves do S3 guardadas no `docUrl` (JSON `{frente, verso}`). */
+/** Extrai as chaves do S3 guardadas no `docUrl` (JSON `{frente, verso, selfie}`). */
 function chavesDoDocUrl(docUrl: string | null | undefined): string[] {
   if (!docUrl) return [];
   try {
     const p = JSON.parse(docUrl) as Record<string, unknown>;
-    return [p.frente, p.verso].filter((v): v is string => typeof v === "string" && v.length > 0);
+    return [p.frente, p.verso, p.selfie].filter((v): v is string => typeof v === "string" && v.length > 0);
   } catch {
     return [];
   }

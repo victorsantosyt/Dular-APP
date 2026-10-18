@@ -47,7 +47,7 @@ describe("conferência documental: dados enviados, cadastro atual e decisão (DB
     return prisma.documentVerification.create({
       data: {
         userId, docType, createdAt: agora,
-        docUrl: JSON.stringify({ frente: `verificacoes/${RUN}/f.jpg`, verso: `verificacoes/${RUN}/v.jpg`, uploadedAt: agora.toISOString() }),
+        docUrl: JSON.stringify({ frente: `verificacoes/${RUN}/f.jpg`, verso: `verificacoes/${RUN}/v.jpg`, selfie: `verificacoes/${RUN}/s.jpg`, uploadedAt: agora.toISOString() }),
         reviewNote: `Submetido em ${agora.toISOString()}`,
         dadosEnviados,
       },
@@ -58,7 +58,7 @@ describe("conferência documental: dados enviados, cadastro atual e decisão (DB
     new Request("http://test/api/admin/verificacoes/x", {
       method: "POST",
       headers: { "content-type": "application/json", "x-forwarded-for": `10.8.0.${++ip}`, ...makeAuthHeaders(admin, "ADMIN") },
-      body: JSON.stringify({ verificationId, ...corpo }),
+      body: JSON.stringify({ verificationId, conferencia: { documentoLegivel: true, dadosConferem: true, selfieCompativel: true }, motivoCategoria: "IMAGEM_ILEGIVEL", ...corpo }),
     });
 
   async function comLog<T>(fn: () => Promise<T>): Promise<{ r: T; log: string }> {
@@ -158,14 +158,16 @@ describe("conferência documental: dados enviados, cadastro atual e decisão (DB
       assert.equal(d2.verification.decisao, "REENVIO");
       assert.equal(d2.verification.decididoPor, "Admin Conferência");
       assert.ok(d2.verification.decididoEm);
-      assert.equal(d2.verification.motivoUsuario, motivo);
+      const motivoNoApp = `Imagem ilegível: ${motivo}`;
+      assert.equal(d2.verification.motivoUsuario, motivoNoApp, "categoria + detalhe");
 
       const me = await (await getMe(new Request("http://test/api/me", { headers: makeAuthHeaders(u, p.role) }))).json();
-      assert.equal(me.user.motivoVerificacao, motivo, "o app recebe o motivo");
+      assert.equal(me.user.motivoVerificacao, motivoNoApp, "o app recebe o motivo");
       assert.equal(me.user.decisaoVerificacao, "REENVIO");
       assert.equal(me.user.nomeCompleto, `Maria ${p.role} Souza`);
       const aviso = await prisma.notification.findFirst({ where: { userId: u, type: "VERIFICACAO_REPROVADA" } });
-      assert.match(aviso.body, /verso ilegível/, "o aviso no app traz o motivo");
+      assert.match(aviso.body, /Imagem ilegível/, "o aviso traz a categoria");
+      assert.doesNotMatch(aviso.body, /verso ilegível/, "e não o texto livre (pode ter dado pessoal)");
     });
   }
 

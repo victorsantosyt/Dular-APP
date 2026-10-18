@@ -6,7 +6,7 @@ import { reconciliarKycDaVerificacao } from "@/lib/safeScore";
 import { enviarPushDaNotificacao } from "@/lib/notifications";
 import { getGuardianStatusForUser } from "@/lib/safeScoreGuardian";
 import { pendenciasDeVisibilidade } from "@/lib/adminPerfis";
-import { decidirVerificacao, lerDecisao } from "@/lib/decisaoVerificacao";
+import { decidirVerificacao, lerCategoria, lerConferencia, lerDecisao } from "@/lib/decisaoVerificacao";
 import { lerPedidoDeDecisao } from "@/lib/pedidoDecisaoVerificacao";
 
 export const runtime = "nodejs";
@@ -43,6 +43,7 @@ export async function POST(req: Request) {
     motivo,
     revisao: pedido.revisao,
     esperado: lerDecisao(pedido.esperado),
+    conferencia: lerConferencia(pedido.conferencia),
   });
   if (r.tipo === "erro") return NextResponse.json({ ok: false, error: r.mensagem }, { status: r.status });
 

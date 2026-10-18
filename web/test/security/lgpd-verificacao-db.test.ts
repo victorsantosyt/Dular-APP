@@ -45,7 +45,7 @@ describe("exclusão de conta: fotografias, histórico de decisões e documentos 
     new Request("http://test/api/admin/verificacoes/x", {
       method: "POST",
       headers: { "content-type": "application/json", "x-forwarded-for": `10.7.0.${++ip}`, ...makeAuthHeaders(admin, "ADMIN") },
-      body: JSON.stringify({ verificationId, ...corpo }),
+      body: JSON.stringify({ verificationId, conferencia: { documentoLegivel: true, dadosConferem: true, selfieCompativel: true }, motivoCategoria: "IMAGEM_ILEGIVEL", ...corpo }),
     });
 
   before(async () => {
@@ -87,18 +87,18 @@ describe("exclusão de conta: fotografias, histórico de decisões e documentos 
   it("dois envios com fotografia, decisões e revisão: nada do titular sobra; arquivos dos dois envios removidos", async () => {
     const u = await usuario("titular", "DIARISTA", { nomeCompleto: NOME_COMPLETO, cpf: CPF, dataNascimento: new Date("1988-02-03T00:00:00Z") });
     await prisma.enderecoUsuario.create({ data: { userId: u, tipo: "RESIDENCIAL", cep: "78000000", rua: RUA, numero: "1", bairro: "Centro", cidade: "Cuiabá", uf: "MT" } });
-    const chaves = [`verificacoes/${RUN}/1f.jpg`, `verificacoes/${RUN}/1v.jpg`, `verificacoes/${RUN}/2f.jpg`, `verificacoes/${RUN}/2v.jpg`];
+    const chaves = [`verificacoes/${RUN}/1f.jpg`, `verificacoes/${RUN}/1v.jpg`, `verificacoes/${RUN}/2f.jpg`, `verificacoes/${RUN}/2v.jpg`, `verificacoes/${RUN}/1s.jpg`, `verificacoes/${RUN}/2s.jpg`];
     await prisma.diaristaProfile.create({ data: { userId: u, precoLeve: 100, precoPesada: 200, docUrl: JSON.stringify({ frente: chaves[2], verso: chaves[3] }) } });
-    const envio = async (f: string, v: string) => {
+    const envio = async (f: string, v: string, selfie: string) => {
       const agora = new Date();
       return prisma.documentVerification.create({
-        data: { userId: u, docType: "KYC_DOCS", createdAt: agora, docUrl: JSON.stringify({ frente: f, verso: v, uploadedAt: agora.toISOString() }), dadosEnviados: await fotografar(prisma, u, agora) },
+        data: { userId: u, docType: "KYC_DOCS", createdAt: agora, docUrl: JSON.stringify({ frente: f, verso: v, selfie, uploadedAt: agora.toISOString() }), dadosEnviados: await fotografar(prisma, u, agora) },
       });
     };
-    const v1 = await envio(chaves[0], chaves[1]);
+    const v1 = await envio(chaves[0], chaves[1], chaves[4]);
     assert.equal((await reprovar(pedido(v1.id, { motivo: `CPF ${CPF} não confere com o documento` }))).status, 200);
     await new Promise((ok) => setTimeout(ok, 5));
-    const v2 = await envio(chaves[2], chaves[3]);
+    const v2 = await envio(chaves[2], chaves[3], chaves[5]);
     assert.equal((await aprovar(pedido(v2.id, { motivo: "ok" }))).status, 200);
     assert.equal((await reprovar(pedido(v2.id, { motivo: `revisão: ${NOME_COMPLETO} diverge`, revisao: true, esperado: "APROVADO" }))).status, 200);
     assert.ok((await prisma.decisaoVerificacao.count({ where: { verificacaoId: { in: [v1.id, v2.id] } } })) >= 3, "controle positivo: há histórico");
@@ -109,7 +109,7 @@ describe("exclusão de conta: fotografias, histórico de decisões e documentos 
     assert.ok(resumo.apagados.decisoesDeVerificacao >= 3);
     assert.equal(await prisma.documentVerification.count({ where: { userId: u } }), 0, "envios (e fotografias) apagados");
     assert.equal(await prisma.decisaoVerificacao.count({ where: { verificacaoId: { in: [v1.id, v2.id] } } }), 0, "histórico de decisões apagado");
-    assert.deepEqual([...removidas].sort(), [...chaves].sort(), "frente e verso de todos os envios");
+    assert.deepEqual([...removidas].sort(), [...chaves].sort(), "frente, verso e selfie de todos os envios");
     assert.equal(await prisma.notification.count({ where: { userId: u } }), 0);
     assert.equal(await prisma.enderecoUsuario.count({ where: { userId: u } }), 0);
 

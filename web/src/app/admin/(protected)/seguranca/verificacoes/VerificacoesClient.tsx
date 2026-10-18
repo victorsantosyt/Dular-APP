@@ -137,6 +137,8 @@ type Detail = {
   decisoes: Array<{
     id: string;
     decisao: Decisao;
+    motivoCategoria: string | null;
+    conferencia: Conferencia | null;
     revisao: boolean;
     motivo: string | null;
     admin: string | null;
@@ -152,6 +154,8 @@ type Detail = {
   documents: {
     frente: { key: string; signedUrl: string } | null;
     verso: { key: string; signedUrl: string } | null;
+    selfie: { key: string; signedUrl: string } | null;
+    selfieColetada: boolean;
     uploadedAt?: string | null;
     registradoEm: string | null;
     datasDivergentes: boolean;
@@ -170,6 +174,17 @@ type Detail = {
     updatedAt: string;
   }>;
 };
+
+type Conferencia = { documentoLegivel: boolean; dadosConferem: boolean; selfieCompativel: boolean };
+const CONFERENCIA_VAZIA: Conferencia = { documentoLegivel: false, dadosConferem: false, selfieCompativel: false };
+
+const CATEGORIAS: Array<{ chave: string; rotulo: string }> = [
+  { chave: "IMAGEM_ILEGIVEL", rotulo: "Imagem ilegível" },
+  { chave: "ROSTO_NAO_VISIVEL", rotulo: "Rosto não visível na selfie" },
+  { chave: "DADOS_DIVERGENTES", rotulo: "Dados não conferem com o documento" },
+  { chave: "CORRESPONDENCIA_NAO_CONFIRMADA", rotulo: "Não foi possível confirmar que a selfie corresponde ao documento" },
+  { chave: "OUTRO", rotulo: "Outro motivo" },
+];
 
 const decisaoLabel: Record<Decisao, string> = {
   APROVADO: "Aprovado",
@@ -353,6 +368,8 @@ export default function VerificacoesClient() {
   const [detail, setDetail] = useState<Detail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [reproveReason, setReproveReason] = useState("");
+  const [conferencia, setConferencia] = useState<Conferencia>(CONFERENCIA_VAZIA);
+  const [categoria, setCategoria] = useState("");
   const [actionLoading, setActionLoading] = useState<"approve" | "reprove" | "resend" | null>(null);
   const actionInFlightRef = useRef(false);
 
@@ -397,6 +414,8 @@ export default function VerificacoesClient() {
       if (!res.ok || !data?.ok) throw new Error(readError(data));
       setDetail(data as Detail);
       setReproveReason("");
+      setConferencia(CONFERENCIA_VAZIA);
+      setCategoria("");
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Erro ao carregar detalhe.");
       setDetail(null);
@@ -416,6 +435,14 @@ export default function VerificacoesClient() {
     if (!detail) return;
     if (actionInFlightRef.current) return;
     const motivo = reason?.trim() ?? "";
+    if (action === "approve" && !(conferencia.documentoLegivel && conferencia.dadosConferem && conferencia.selfieCompativel)) {
+      setMessage("Para aprovar, marque as três conferências.");
+      return;
+    }
+    if (action !== "approve" && !categoria) {
+      setMessage("Escolha o motivo da reprovação ou do reenvio.");
+      return;
+    }
     if (revisao && !motivo) {
       setMessage("Informe o motivo da revisão.");
       return;
@@ -455,6 +482,8 @@ export default function VerificacoesClient() {
           tipo: action === "resend" ? "REENVIO" : action === "reprove" ? "REPROVADO" : undefined,
           revisao,
           esperado: revisao ? detail.verification.decisao : undefined,
+          conferencia: action === "approve" ? conferencia : undefined,
+          motivoCategoria: action === "approve" ? undefined : categoria,
         }),
       });
       const data = await res.json().catch(() => null);
@@ -650,9 +679,14 @@ export default function VerificacoesClient() {
                   <GuardianBlock detail={detail} />
                 </div>
 
-                <div className="grid gap-3 md:grid-cols-2">
+                <div className="grid gap-3 md:grid-cols-3">
                   <DocumentPreview title="Frente do documento" doc={detail.documents.frente} />
                   <DocumentPreview title="Verso do documento" doc={detail.documents.verso} />
+                  <DocumentPreview
+                    title="Selfie"
+                    doc={detail.documents.selfie}
+                    ausente={detail.documents.selfieColetada ? "Selfie não disponível" : "Selfie não coletada nesta versão"}
+                  />
                 </div>
                 <div className="space-y-1 text-xs font-semibold text-fg-subtle">
                   <div>Envio registrado em: {fmtDate(detail.documents.registradoEm)}</div>
@@ -701,6 +735,8 @@ export default function VerificacoesClient() {
                       <div key={d.id} className="text-sm text-fg-muted">
                         <b>{decisaoLabel[d.decisao]}</b>
                         {d.revisao ? " (revisão)" : ""} · {fmtDate(d.createdAt)}
+                        {d.conferencia ? " · conferência manual: documento legível, dados conferem, selfie compatível" : ""}
+                        {d.motivoCategoria ? ` · ${CATEGORIAS.find((c) => c.chave === d.motivoCategoria)?.rotulo ?? d.motivoCategoria}` : ""}
                         {d.admin ? ` · ${d.admin}` : ""}
                         {d.motivo ? ` · ${d.motivo}` : ""}
                       </div>
@@ -712,6 +748,10 @@ export default function VerificacoesClient() {
                   detail={detail}
                   motivo={reproveReason}
                   setMotivo={setReproveReason}
+                  conferencia={conferencia}
+                  setConferencia={setConferencia}
+                  categoria={categoria}
+                  setCategoria={setCategoria}
                   actionLoading={actionLoading}
                   onReview={review}
                 />
@@ -864,7 +904,7 @@ function AdvancedProfileDetails({ children }: { children: React.ReactNode }) {
   );
 }
 
-function DocumentPreview({ title, doc }: { title: string; doc: { key: string; signedUrl: string } | null }) {
+function DocumentPreview({ title, doc, ausente = "Documento não disponível" }: { title: string; doc: { key: string; signedUrl: string } | null; ausente?: string }) {
   const [aberto, setAberto] = useState(false);
   const [zoom, setZoom] = useState(1);
   const [giro, setGiro] = useState(0);
@@ -888,7 +928,7 @@ function DocumentPreview({ title, doc }: { title: string; doc: { key: string; si
         />
       ) : (
         <div className="flex h-44 items-center justify-center rounded-xl border border-dashed border-border bg-surface text-sm font-semibold text-fg-subtle">
-          Documento não disponível
+          {ausente}
         </div>
       )}
       {aberto && doc?.signedUrl ? (
@@ -1005,12 +1045,20 @@ function AcoesDeDecisao({
   detail,
   motivo,
   setMotivo,
+  conferencia,
+  setConferencia,
+  categoria,
+  setCategoria,
   actionLoading,
   onReview,
 }: {
   detail: Detail;
   motivo: string;
   setMotivo: (v: string) => void;
+  conferencia: Conferencia;
+  setConferencia: (v: Conferencia) => void;
+  categoria: string;
+  setCategoria: (v: string) => void;
   actionLoading: "approve" | "reprove" | "resend" | null;
   onReview: (action: "approve" | "reprove" | "resend", reason?: string, revisao?: boolean) => void;
 }) {
@@ -1023,6 +1071,54 @@ function AcoesDeDecisao({
       </div>
     );
   }
+  const conferido = conferencia.documentoLegivel && conferencia.dadosConferem && conferencia.selfieCompativel;
+  const semSelfie = !detail.documents.selfieColetada;
+  const marcacoes = (
+    <fieldset className="space-y-2 rounded-xl border border-border bg-surface p-3" disabled={ocupado}>
+      <legend className="px-1 text-xs font-bold text-fg-muted">Conferência manual (obrigatória para aprovar)</legend>
+      {(
+        [
+          ["documentoLegivel", "Documento legível (frente e verso)"],
+          ["dadosConferem", "Dados enviados conferem com o documento"],
+          ["selfieCompativel", "Selfie compatível com a foto do documento"],
+        ] as const
+      ).map(([chave, rotulo]) => (
+        <label key={chave} className="flex items-center gap-2 text-sm font-semibold text-fg">
+          <input
+            type="checkbox"
+            checked={conferencia[chave]}
+            disabled={chave === "selfieCompativel" && semSelfie}
+            onChange={(e) => setConferencia({ ...conferencia, [chave]: e.target.checked })}
+          />
+          {rotulo}
+        </label>
+      ))}
+      <p className="text-xs text-fg-subtle">
+        Marcações da sua análise visual. Não há reconhecimento facial automático: a decisão é humana.
+      </p>
+      {semSelfie ? (
+        <p className="text-xs font-semibold text-warning-dark">
+          Selfie não coletada nesta versão: o envio não pode ser aprovado. Solicite reenvio.
+        </p>
+      ) : null}
+    </fieldset>
+  );
+  const seletorDeMotivo = (
+    <div className="mt-3">
+      <label className="text-xs font-bold text-fg-muted">Motivo (para reprovar ou pedir reenvio; a pessoa vê no app)</label>
+      <select
+        value={categoria}
+        disabled={ocupado}
+        onChange={(e) => setCategoria(e.target.value)}
+        className="mt-2 w-full rounded-xl border border-border bg-surface px-3 py-2 text-sm"
+      >
+        <option value="">Escolha o motivo</option>
+        {CATEGORIAS.map((c) => (
+          <option key={c.chave} value={c.chave}>{c.rotulo}</option>
+        ))}
+      </select>
+    </div>
+  );
   const campoMotivo = (rotulo: string, placeholder: string) => (
     <>
       <label className="text-xs font-bold text-fg-muted">{rotulo}</label>
@@ -1040,10 +1136,14 @@ function AcoesDeDecisao({
   if (v.status === "PENDING") {
     return (
       <div className="rounded-2xl border border-border bg-surface-secondary p-4">
-        {campoMotivo("Motivo (obrigatório para reprovar ou pedir reenvio; a pessoa vê no app)", "Ex.: Documento ilegível. Envie novamente.")}
+        {marcacoes}
+        {seletorDeMotivo}
+        <div className="mt-3">
+          {campoMotivo("Detalhe do motivo (a pessoa vê no app)", "Ex.: O verso está desfocado. Fotografe em local iluminado.")}
+        </div>
         <div className="mt-3 flex flex-wrap gap-2">
           <button
-            disabled={ocupado}
+            disabled={ocupado || !conferido || semSelfie}
             onClick={() => onReview("approve")}
             className="rounded-lg bg-success px-4 py-2 text-sm font-bold text-white hover:bg-success-dark disabled:opacity-50"
           >
@@ -1075,11 +1175,13 @@ function AcoesDeDecisao({
       <p className="mt-2 text-xs font-semibold text-fg-subtle">
         A decisão atual ({v.decisao ? decisaoLabel[v.decisao] : v.status}) fica no histórico. O motivo é obrigatório.
       </p>
+      <div className="mt-3">{marcacoes}</div>
+      {seletorDeMotivo}
       <div className="mt-3">{campoMotivo("Motivo da revisão", "Ex.: Documento conferido de novo; dados conferem.")}</div>
       <div className="mt-3 flex flex-wrap gap-2">
         {v.decisao !== "APROVADO" ? (
           <button
-            disabled={ocupado}
+            disabled={ocupado || !conferido || semSelfie}
             onClick={() => onReview("approve", motivo, true)}
             className="rounded-lg bg-success px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
           >

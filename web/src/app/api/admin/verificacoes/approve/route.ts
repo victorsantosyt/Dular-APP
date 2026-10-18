@@ -1,34 +1,16 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { gateAdmin } from "@/lib/adminGate";
 import { rateLimit, cleanupRateLimit } from "@/lib/rateLimit";
 import { getRequestIp } from "@/lib/requestIp";
 import { aplicarEvento } from "@/lib/safeScore";
 import { enviarPushDaNotificacao } from "@/lib/notifications";
-import { ensureUserRoleProfile } from "@/lib/userProfiles";
 import { getGuardianStatusForUser } from "@/lib/safeScoreGuardian";
 import { pendenciasDeVisibilidade } from "@/lib/adminPerfis";
+import { decidirVerificacao, lerDecisao } from "@/lib/decisaoVerificacao";
+import { lerPedidoDeDecisao } from "@/lib/pedidoDecisaoVerificacao";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-async function readPayload(req: Request) {
-  const contentType = req.headers.get("content-type") ?? "";
-  if (contentType.includes("application/json")) {
-    const body = await req.json().catch(() => ({}));
-    return {
-      id: typeof body.verificationId === "string" ? body.verificationId : typeof body.id === "string" ? body.id : "",
-      motivo: typeof body.motivo === "string" ? body.motivo : "",
-    };
-  }
-
-  const data = await req.formData().catch(() => null);
-  return {
-    id: (data?.get("verificationId") as string | null) ?? (data?.get("id") as string | null) ?? "",
-    motivo: (data?.get("motivo") as string | null) ?? "",
-  };
-}
-
 
 export async function POST(req: Request) {
   cleanupRateLimit();
@@ -44,97 +26,34 @@ export async function POST(req: Request) {
   const gate = await gateAdmin(req);
   if (gate.error) return gate.error;
 
-  const payload = await readPayload(req);
-  const id = payload.id.trim();
-  const motivo = payload.motivo.trim() || "Documentos aprovados.";
+  const pedido = await lerPedidoDeDecisao(req);
+  const id = pedido.id;
   if (!id) {
     return NextResponse.json({ ok: false, error: "ID inválido." }, { status: 400 });
   }
-
-  const existing = await prisma.documentVerification.findUnique({
-    where: { id },
-    select: {
-      id: true,
-      userId: true,
-      docType: true,
-      status: true,
-      user: { select: { id: true, role: true } },
-    },
-  });
-
-  if (!existing) {
-    return NextResponse.json({ ok: false, error: "Verificação não encontrada." }, { status: 404 });
+  if (pedido.revisao && !pedido.motivo) {
+    return NextResponse.json({ ok: false, error: "Informe o motivo da revisão." }, { status: 400 });
   }
+  const motivo = pedido.motivo || "Documentos aprovados.";
 
-  if (existing.user.role !== "EMPREGADOR" && existing.user.role !== "DIARISTA" && existing.user.role !== "MONTADOR") {
-    return NextResponse.json({ ok: false, error: "Perfil não suportado para verificação documental." }, { status: 400 });
-  }
-
-  const { verification, aviso } = await prisma.$transaction(async (tx) => {
-    // Decisão atômica: a mudança de estado é um UPDATE condicional. Pedidos
-    // simultâneos para a mesma verificação disputam o lock da linha; o que
-    // chega depois reavalia a condição, não encontra nada para mudar e não
-    // gera aviso. Ler o status antes e decidir fora do banco não basta.
-    const transicao = await tx.documentVerification.updateMany({
-      where: { id, status: { not: "APPROVED" } },
-      data: {
-        status: "APPROVED",
-        reviewedBy: gate.auth.userId,
-        reviewNote: `KYC APROVADO por admin ${gate.auth.userId} em ${new Date().toISOString()} - ${motivo}`,
-      },
-    });
-
-    await ensureUserRoleProfile(tx, existing.userId, existing.user.role);
-
-    if (existing.user.role === "DIARISTA") {
-      await tx.diaristaProfile.update({
-        where: { userId: existing.userId },
-        data: { verificacao: "VERIFICADO" },
-      });
-    }
-
-    if (existing.user.role === "MONTADOR") {
-      await tx.montadorPerfil.update({
-        where: { userId: existing.userId },
-        data: { verificado: true },
-      });
-    }
-
-    // O aviso nasce na MESMA transação da decisão: ou os dois ficam, ou nenhum.
-    const aviso = transicao.count === 1
-      ? await tx.notification.create({
-          data: {
-            userId: existing.userId,
-            type: "VERIFICACAO_APROVADA",
-            title: "Verificação aprovada",
-            body: "Seus documentos foram aprovados.",
-          },
-          select: { id: true, userId: true, type: true, title: true, body: true },
-        })
-      : null;
-
-    const verification = await tx.documentVerification.findUniqueOrThrow({
-      where: { id },
-      select: {
-        id: true,
-        userId: true,
-        docType: true,
-        status: true,
-        reviewedBy: true,
-        reviewNote: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    });
-    return { verification, aviso };
+  const r = await decidirVerificacao({
+    id,
+    adminId: gate.auth.userId,
+    decisao: "APROVADO",
+    motivo,
+    revisao: pedido.revisao,
+    esperado: lerDecisao(pedido.esperado),
   });
+  if (r.tipo === "erro") return NextResponse.json({ ok: false, error: r.mensagem }, { status: r.status });
 
-  await aplicarEvento(existing.userId, "KYC_APROVADO", id, motivo);
+  // Também no repetido: o evento é idempotente por envio, e reaplicar repara
+  // uma aprovação cujo evento falhou depois do commit.
+  await aplicarEvento(r.userId, "KYC_APROVADO", id, motivo);
   // Push do aviso já gravado: acelera a atualização do app (que consulta
   // /api/me/sincronizacao ao recebê-lo). Best-effort — falha aqui não desfaz
   // nem repete a decisão ou o aviso.
-  if (aviso) await enviarPushDaNotificacao(aviso);
-  const guardian = await getGuardianStatusForUser(existing.userId);
+  if (r.tipo === "decidida") await enviarPushDaNotificacao(r.aviso);
+  const guardian = await getGuardianStatusForUser(r.userId);
 
   // A aprovação continua sendo sobre o DOCUMENTO: um KYC válido não deixa de
   // ser válido porque o perfil está pela metade, e nada aqui muda essa regra.
@@ -145,7 +64,7 @@ export async function POST(req: Request) {
   // aprovada, ativa e invisível — sem fila, sem aviso e sem nada que
   // apontasse para ela. Agora a resposta diz o que ainda falta, no mesmo lugar
   // onde a decisão humana acontece.
-  const visibilidade = await pendenciasDeVisibilidade(existing.userId, existing.user.role);
+  const visibilidade = await pendenciasDeVisibilidade(r.userId, r.role as any);
 
-  return NextResponse.json({ ok: true, verification, guardian, visibilidade });
+  return NextResponse.json({ ok: true, verification: r.verification, guardian, visibilidade, jaDecidida: r.tipo === "ja-decidida" });
 }

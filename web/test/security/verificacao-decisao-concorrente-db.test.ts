@@ -46,7 +46,7 @@ describe("decisão de verificação com pedidos simultâneos (DB)", { skip: EXIG
   }
 
   // IP diferente por pedido: o limite de 30/min por IP do painel não entra no teste.
-  const pedido = (verificationId: string, motivo = "teste de concorrência") =>
+  const pedido = (verificationId: string, motivo = "teste de concorrência", extra: Record<string, unknown> = {}) =>
     new Request("http://test/api/admin/verificacoes/x", {
       method: "POST",
       headers: {
@@ -54,13 +54,14 @@ describe("decisão de verificação com pedidos simultâneos (DB)", { skip: EXIG
         "x-forwarded-for": `10.9.${Math.floor(++ip / 250)}.${ip % 250}`,
         ...makeAuthHeaders(admin, "ADMIN"),
       },
-      body: JSON.stringify({ verificationId, motivo }),
+      body: JSON.stringify({ verificationId, motivo, ...extra }),
     });
 
-  async function emParalelo(rota: (r: Request) => Promise<Response>, verificationId: string) {
-    const respostas = await Promise.all(Array.from({ length: PARALELOS }, () => rota(pedido(verificationId))));
-    for (const r of respostas) assert.equal(r.status, 200, "todo pedido conclui");
+  async function emParalelo(rota: (r: Request) => Promise<Response>, verificationId: string, extra: Record<string, unknown> = {}) {
+    const respostas = await Promise.all(Array.from({ length: PARALELOS }, () => rota(pedido(verificationId, "teste de concorrência", extra))));
+    return respostas.map((r) => r.status);
   }
+  const todos200 = (st: number[]) => assert.deepEqual([...new Set(st)], [200], "todo pedido conclui (o repetido é idempotente)");
 
   const avisos = (userId: string, type: string) => prisma.notification.count({ where: { userId, type } });
   const eventosKyc = async (userId: string, tipo: "KYC_APROVADO" | "KYC_REJEITADO") => ({
@@ -101,24 +102,46 @@ describe("decisão de verificação com pedidos simultâneos (DB)", { skip: EXIG
 
   it(`${PARALELOS} aprovações simultâneas: uma transição, um evento KYC, um aviso`, async () => {
     const { u, v } = await diaristaComDocumento("aprova");
-    await emParalelo(aprovar, v);
+    todos200(await emParalelo(aprovar, v));
     assert.equal((await prisma.documentVerification.findUnique({ where: { id: v } })).status, "APPROVED");
     assert.equal((await prisma.diaristaProfile.findUnique({ where: { userId: u } })).verificacao, "VERIFICADO");
     assert.equal(await avisos(u, "VERIFICACAO_APROVADA"), 1, "um aviso");
     assert.deepEqual(await eventosKyc(u, "KYC_APROVADO"), { v2: 1, legado: 1 }, "um evento KYC");
   });
 
-  it("reprovar e aprovar de novo, cada um em paralelo: um aviso por transição; o KYC continua idempotente", async () => {
+  it("decisão concluída: botão comum não muda (409); revisões simultâneas: uma transição; o KYC continua idempotente", async () => {
     const { u, v } = await diaristaComDocumento("vaivem");
-    await emParalelo(aprovar, v);
-    await emParalelo(reprovar, v);
+    todos200(await emParalelo(aprovar, v));
+    // Botão comum sobre decisão concluída: recusado, nada muda.
+    const st = await emParalelo(reprovar, v);
+    assert.deepEqual([...new Set(st)], [409]);
+    assert.equal((await prisma.documentVerification.findUnique({ where: { id: v } })).status, "APPROVED");
+    assert.equal(await avisos(u, "VERIFICACAO_REPROVADA"), 0);
+    // Revisão explícita sem motivo: recusada.
+    assert.equal((await reprovar(pedido(v, "", { revisao: true, esperado: "APROVADO" }))).status, 400);
+    // Revisões simultâneas com a mesma decisão vista: uma vence, as outras 409.
+    const rev = await emParalelo(reprovar, v, { revisao: true, esperado: "APROVADO" });
+    assert.equal(rev.filter((x) => x === 200).length, 1, "uma revisão");
+    assert.equal(rev.filter((x) => x === 409).length, PARALELOS - 1);
     assert.equal((await prisma.documentVerification.findUnique({ where: { id: v } })).status, "REJECTED");
     assert.equal(await avisos(u, "VERIFICACAO_REPROVADA"), 1);
-    await emParalelo(aprovar, v);
+    // Revisão de volta para aprovado.
+    assert.equal((await aprovar(pedido(v, "conferido de novo", { revisao: true, esperado: "REPROVADO" }))).status, 200);
     assert.equal(await avisos(u, "VERIFICACAO_APROVADA"), 2, "nova transição, novo aviso");
-    assert.equal(await avisos(u, "VERIFICACAO_REPROVADA"), 1);
     assert.deepEqual(await eventosKyc(u, "KYC_APROVADO"), { v2: 1, legado: 1 }, "a mesma verificação não pontua duas vezes");
     assert.deepEqual(await eventosKyc(u, "KYC_REJEITADO"), { v2: 1, legado: 1 });
+    const historico = await prisma.decisaoVerificacao.findMany({ where: { verificacaoId: v }, orderBy: { createdAt: "asc" } });
+    assert.deepEqual(historico.map((d: any) => [d.decisao, d.revisao]), [["APROVADO", false], ["REPROVADO", true], ["APROVADO", true]], "histórico preservado");
+  });
+
+  it("envio antigo: decisão recusada quando a conta tem envio mais recente", async () => {
+    const { u, v } = await diaristaComDocumento("antigo");
+    await new Promise((ok) => setTimeout(ok, 5));
+    const novo = await prisma.documentVerification.create({ data: { userId: u, docType: "KYC_DOCS", docUrl: "{}" } });
+    assert.equal((await aprovar(pedido(v))).status, 409);
+    assert.equal((await prisma.documentVerification.findUnique({ where: { id: v } })).status, "PENDING");
+    assert.equal(await avisos(u, "VERIFICACAO_APROVADA"), 0);
+    assert.equal((await aprovar(pedido(novo.id))).status, 200);
   });
 
   it("falha no envio do push: decisão e aviso gravados uma vez; push tentado uma vez; nada do token no log", async () => {
@@ -130,7 +153,7 @@ describe("decisão de verificação com pedidos simultâneos (DB)", { skip: EXIG
     const orig = { log: console.log, warn: console.warn, error: console.error };
     for (const k of Object.keys(orig) as (keyof typeof orig)[]) console[k] = (...a: unknown[]) => { linhas.push(a.map(String).join(" ")); };
     try {
-      await emParalelo(reprovar, v);
+      todos200(await emParalelo(reprovar, v));
     } finally {
       Object.assign(console, orig);
     }

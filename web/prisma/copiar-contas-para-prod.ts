@@ -305,7 +305,8 @@ async function main() {
         await tx.documentVerification.deleteMany({ where: { userId: alvo.id } });
         for (const dv of u.documentVerifications) {
           await tx.documentVerification.create({
-            data: { userId: alvo.id, ...semChaves(dv) },
+            // JSON nulo precisa do marcador do Prisma; o resto vai como está.
+            data: { userId: alvo.id, ...semChaves(dv), dadosEnviados: dv.dadosEnviados ?? Prisma.DbNull },
           });
         }
 

@@ -1,13 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Alert, Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Image, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { Screen } from "@/components/Screen";
 import { AppIcon, BackCircleButton } from "@/components/ui";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 import { apiMsg } from "@/utils/apiMsg";
+import { nomeCompletoValido } from "@/utils/formatters";
 import { api } from "@/lib/api";
-import { getMe, type VerificacaoStatus } from "@/api/perfilApi";
+import { atualizarDadosPessoais, getMe, type VerificacaoStatus } from "@/api/perfilApi";
 import { useAuth } from "@/stores/authStore";
 import { useAoMudarConta } from "@/hooks/useSincronizacaoConta";
 import { sinalizarMudancaLocal } from "@/lib/sincronizacaoConta";
@@ -79,6 +80,12 @@ export default function VerificacaoDocs() {
     currentUser?.verificacao?.status ?? "NAO_ENVIADO"
   );
   const [docEnviado, setDocEnviado] = useState(Boolean(currentUser?.docEnviado));
+  // Motivo da última reprovação ou pedido de reenvio, como o painel registrou.
+  const [motivo, setMotivo] = useState<string | null>(null);
+  const [reenvio, setReenvio] = useState(false);
+  // Só o que falta: o nome completo é pedido apenas se a conta ainda não tem.
+  const faltaNomeCompleto = !currentUser?.nomeCompleto;
+  const [nomeCompleto, setNomeCompleto] = useState("");
   const [toast, setToast] = useState<string | null>(null);
   const busyRef = useRef(false);
   // T-18.7: garante que goBack/navigate só rode uma vez após sucesso,
@@ -105,6 +112,8 @@ export default function VerificacaoDocs() {
       if (!montada.current || !conta || me.id !== conta || useAuth.getState().user?.id !== conta) return;
       setVerificacao(me.verificacao?.status ?? "NAO_ENVIADO");
       setDocEnviado(Boolean(me.docEnviado));
+      setMotivo(me.motivoVerificacao ?? null);
+      setReenvio(me.decisaoVerificacao === "REENVIO");
     } catch {
       // Mantém o estado local atual se não conseguir atualizar agora.
     }
@@ -239,10 +248,19 @@ export default function VerificacaoDocs() {
       Alert.alert("Envio", "Selecione frente e verso do documento.");
       return;
     }
+    if (faltaNomeCompleto && !nomeCompletoValido(nomeCompleto)) {
+      Alert.alert("Nome completo", "Informe seu nome completo como está no documento (nome e sobrenome).");
+      return;
+    }
     busyRef.current = true;
     try {
       setState("enviando");
       setToast(null);
+      if (faltaNomeCompleto) {
+        // Grava antes dos arquivos: o envio fotografa os dados cadastrais.
+        const salvo = await atualizarDadosPessoais({ nomeCompleto: nomeCompleto.trim().replace(/\s+/g, " ") });
+        setUser((prev) => (prev ? { ...prev, nomeCompleto: salvo?.nomeCompleto ?? nomeCompleto.trim() } : prev));
+      }
       const form = new FormData();
       form.append("docFrente", docFrente as any);
       form.append("docVerso", docVerso as any);
@@ -431,6 +449,29 @@ export default function VerificacaoDocs() {
                   : "RG/CNH frente e verso. Usamos isso para manter a comunidade segura."}
             </Text>
 
+            {verificacao === "REPROVADO" && motivo ? (
+              <View style={st.motivoBox}>
+                <Text style={st.motivoTitulo}>{reenvio ? "Precisamos de um novo envio" : "Verificação não aprovada"}</Text>
+                <Text style={st.motivoTexto}>Motivo: {motivo}</Text>
+              </View>
+            ) : null}
+
+            {faltaNomeCompleto ? (
+              <View style={st.nomeBox}>
+                <Text style={st.pickLabel}>Nome completo (como no documento)</Text>
+                <TextInput
+                  value={nomeCompleto}
+                  onChangeText={setNomeCompleto}
+                  placeholder="Nome e sobrenome"
+                  autoCapitalize="words"
+                  autoComplete="name"
+                  textContentType="name"
+                  editable={!saving}
+                  style={st.nomeInput}
+                />
+              </View>
+            ) : null}
+
             {renderPick("Documento (frente)", docFrente, "docFrente")}
             {renderPick("Documento (verso)", docVerso, "docVerso")}
 
@@ -450,6 +491,20 @@ export default function VerificacaoDocs() {
 function makeStyles(theme: ProfileTheme) {
   return StyleSheet.create({
     dimmed: { opacity: 0.65 },
+
+    motivoBox: { padding: 12, borderRadius: radius.md, backgroundColor: "#FEF2F2", borderWidth: 1, borderColor: "#FCA5A5", gap: 4 },
+    motivoTitulo: { color: "#991B1B", ...typography.bodySm, fontWeight: "800" },
+    motivoTexto: { color: "#7F1D1D", ...typography.bodySm, fontWeight: "600" },
+    nomeBox: { borderWidth: 1, borderColor: theme.border, borderRadius: radius.lg, padding: 12, backgroundColor: colors.card, gap: 8 },
+    nomeInput: {
+      borderWidth: 1,
+      borderColor: theme.border,
+      borderRadius: radius.md,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      color: colors.ink,
+      ...typography.bodySm,
+    },
 
     toast: { padding: 12, borderRadius: radius.md, backgroundColor: colors.ink },
     toastText: { color: colors.white, ...typography.bodySm, fontWeight: "700" },

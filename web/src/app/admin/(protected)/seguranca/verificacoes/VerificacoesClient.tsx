@@ -105,6 +105,19 @@ type ProfileDetails = {
   } | null;
 };
 
+type Decisao = "APROVADO" | "REPROVADO" | "REENVIO";
+
+type DadosCadastrais = {
+  perfil: string | null;
+  nomeExibicao: string | null;
+  nomeCompleto: string | null;
+  cpf: string | null;
+  dataNascimento: string | null;
+  email: string | null;
+  telefone: string | null;
+  endereco: string | null;
+};
+
 type Detail = {
   verification: {
     id: string;
@@ -112,12 +125,26 @@ type Detail = {
     docType: string;
     rawDocType?: string;
     status: "PENDING" | "APPROVED" | "REJECTED";
-    reviewedBy?: string | null;
-    reviewNote?: string | null;
     createdAt: string;
     updatedAt: string;
     flowType: "PRIMEIRA_VERIFICACAO" | "RENOVACAO_REENVIO";
+    maisRecente: boolean;
+    decisao: Decisao | null;
+    decididoEm: string | null;
+    decididoPor: string | null;
+    motivoUsuario: string | null;
   };
+  decisoes: Array<{
+    id: string;
+    decisao: Decisao;
+    revisao: boolean;
+    motivo: string | null;
+    admin: string | null;
+    createdAt: string;
+  }>;
+  dadosEnviados: (DadosCadastrais & { capturadoEm: string }) | null;
+  cadastroAtual: DadosCadastrais | null;
+  camposAlterados: Array<keyof DadosCadastrais>;
   user: VerificationItem["user"];
   profileSummary: VerificationItem["profileSummary"];
   profileDetails: ProfileDetails;
@@ -126,18 +153,40 @@ type Detail = {
     frente: { key: string; signedUrl: string } | null;
     verso: { key: string; signedUrl: string } | null;
     uploadedAt?: string | null;
+    registradoEm: string | null;
+    datasDivergentes: boolean;
   };
   history: Array<{
     id: string;
     docType: string;
-    rawDocType?: string;
     status: string;
-    reviewedBy?: string | null;
-    reviewNote?: string | null;
+    decisao: Decisao | null;
+    decididoEm: string | null;
+    decididoPor: string | null;
+    motivoUsuario: string | null;
+    atual: boolean;
+    uploadedAt: string | null;
     createdAt: string;
     updatedAt: string;
   }>;
 };
+
+const decisaoLabel: Record<Decisao, string> = {
+  APROVADO: "Aprovado",
+  REPROVADO: "Reprovado",
+  REENVIO: "Reenvio solicitado",
+};
+
+const CAMPOS_CADASTRAIS: Array<{ chave: keyof DadosCadastrais; rotulo: string }> = [
+  { chave: "nomeCompleto", rotulo: "Nome completo" },
+  { chave: "nomeExibicao", rotulo: "Nome de exibição" },
+  { chave: "cpf", rotulo: "CPF" },
+  { chave: "dataNascimento", rotulo: "Nascimento" },
+  { chave: "email", rotulo: "E-mail" },
+  { chave: "telefone", rotulo: "Telefone" },
+  { chave: "endereco", rotulo: "Endereço" },
+  { chave: "perfil", rotulo: "Perfil" },
+];
 
 const STATUS_TABS: Array<{ key: StatusTab; label: string }> = [
   { key: "PENDING", label: "Pendentes" },
@@ -201,13 +250,6 @@ function maskPhone(value?: string | null) {
   if (!digits) return "Não informado";
   const visible = digits.slice(-5);
   return `***${visible}`;
-}
-
-function cleanReviewNote(value?: string | null) {
-  if (!value?.trim()) return "Sem observação";
-  const afterSeparator = value.match(/\s-\s(.+)$/)?.[1] ?? value;
-  const withoutIso = afterSeparator.replace(/\d{4}-\d{2}-\d{2}T[\d:.]+Z/g, "").trim();
-  return withoutIso || "Com observação";
 }
 
 function readError(data: unknown) {
@@ -370,11 +412,18 @@ export default function VerificacoesClient() {
     return () => clearTimeout(timer);
   }, [loadList]);
 
-  async function review(action: "approve" | "reprove" | "resend", reason?: string) {
+  async function review(action: "approve" | "reprove" | "resend", reason?: string, revisao = false) {
     if (!detail) return;
     if (actionInFlightRef.current) return;
     const motivo = reason?.trim() ?? "";
-    if (action === "approve") {
+    if (revisao && !motivo) {
+      setMessage("Informe o motivo da revisão.");
+      return;
+    }
+    if (revisao) {
+      const ok = confirm("Revisar a decisão já concluída?\n\nA decisão anterior fica no histórico, com o motivo informado.");
+      if (!ok) return;
+    } else if (action === "approve") {
       const ok = confirm(
         "Aprovar verificação?\n\nEsta ação libera as permissões do usuário conforme as regras do SafeScore Guardian.",
       );
@@ -400,13 +449,23 @@ export default function VerificacoesClient() {
       const res = await fetch(`/api/admin/verificacoes/${endpointAction}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ verificationId: detail.verification.id, motivo }),
+        body: JSON.stringify({
+          verificationId: detail.verification.id,
+          motivo,
+          tipo: action === "resend" ? "REENVIO" : action === "reprove" ? "REPROVADO" : undefined,
+          revisao,
+          esperado: revisao ? detail.verification.decisao : undefined,
+        }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => null);
+      // Sucesso só depois da confirmação do servidor; em erro, o painel fica como estava.
       if (!res.ok || !data?.ok) throw new Error(readError(data));
-      await loadList();
-      await loadDetail(detail.verification.id);
-      setMessage(action === "approve" ? "Verificação aprovada." : action === "resend" ? "Reenvio solicitado." : "Verificação reprovada.");
+      await Promise.all([loadList(), loadDetail(detail.verification.id)]);
+      setMessage(
+        data.jaDecidida
+          ? "Esta decisão já estava registrada."
+          : action === "approve" ? "Verificação aprovada." : action === "resend" ? "Reenvio solicitado." : "Verificação reprovada.",
+      );
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Falha ao revisar documentos.");
     } finally {
@@ -581,6 +640,10 @@ export default function VerificacoesClient() {
                   </div>
                 ) : null}
 
+                <DecisaoAtualBlock detail={detail} />
+
+                <DadosConferenciaBlock detail={detail} />
+
                 <div className="grid gap-3 lg:grid-cols-3">
                   <UserSummaryBlock detail={detail} />
                   <RoleProfileBlock detail={detail} />
@@ -591,61 +654,67 @@ export default function VerificacoesClient() {
                   <DocumentPreview title="Frente do documento" doc={detail.documents.frente} />
                   <DocumentPreview title="Verso do documento" doc={detail.documents.verso} />
                 </div>
-                <div className="text-xs font-semibold text-fg-subtle">
-                  Upload: {fmtDate(detail.documents.uploadedAt ?? detail.verification.createdAt)}
+                <div className="space-y-1 text-xs font-semibold text-fg-subtle">
+                  <div>Envio registrado em: {fmtDate(detail.documents.registradoEm)}</div>
+                  <div>Upload dos arquivos: {detail.documents.uploadedAt ? fmtDate(detail.documents.uploadedAt) : "Não registrado"}</div>
+                  {detail.documents.datasDivergentes ? (
+                    <div className="rounded-lg bg-warning-light px-3 py-2 text-warning-dark">
+                      As datas do upload e do registro deste envio divergem. O registro foi criado depois dos arquivos; confira o histórico antes de decidir.
+                    </div>
+                  ) : null}
                 </div>
 
-                <InfoBlock title="Histórico de verificações">
+                <InfoBlock title="Histórico de envios desta conta">
                   <div className="space-y-2">
                     {detail.history.map((item) => (
-                      <div key={item.id} className="rounded-xl bg-surface-secondary p-3 text-sm text-fg-muted ring-1 ring-border">
+                      <div
+                        key={item.id}
+                        className={[
+                          "rounded-xl p-3 text-sm text-fg-muted ring-1",
+                          item.atual ? "bg-accent-subtle ring-accent/40" : "bg-surface-secondary ring-border",
+                        ].join(" ")}
+                      >
                         <div className="flex flex-wrap items-center justify-between gap-2">
-                          <b>{docTypeText(item.docType)}</b>
+                          <b>
+                            {docTypeText(item.docType)}
+                            {item.atual ? " · envio em análise (imagens acima)" : ""}
+                          </b>
                           <span className={["rounded-full px-2 py-1 text-xs font-bold ring-1", pillClass(item.status)].join(" ")}>
-                            {statusLabel[item.status] ?? item.status}
+                            {item.decisao ? decisaoLabel[item.decisao] : statusLabel[item.status] ?? item.status}
                           </span>
                         </div>
-                        <div className="mt-1 text-xs text-fg-subtle">{fmtDate(item.createdAt)} · {cleanReviewNote(item.reviewNote)}</div>
+                        <div className="mt-1 text-xs text-fg-subtle">
+                          Registrado em {fmtDate(item.createdAt)} · upload {item.uploadedAt ? fmtDate(item.uploadedAt) : "não registrado"}
+                          {item.decisao
+                            ? ` · decisão ${item.decididoEm ? `em ${fmtDate(item.decididoEm)}` : "sem data registrada"}${item.decididoPor ? ` por ${item.decididoPor}` : ""}`
+                            : ""}
+                          {item.motivoUsuario ? ` · motivo: ${item.motivoUsuario}` : ""}
+                        </div>
                       </div>
                     ))}
                   </div>
                 </InfoBlock>
 
-                <TechnicalDetails detail={detail} />
+                {detail.decisoes.length ? (
+                  <InfoBlock title="Decisões sobre este envio">
+                    {detail.decisoes.map((d) => (
+                      <div key={d.id} className="text-sm text-fg-muted">
+                        <b>{decisaoLabel[d.decisao]}</b>
+                        {d.revisao ? " (revisão)" : ""} · {fmtDate(d.createdAt)}
+                        {d.admin ? ` · ${d.admin}` : ""}
+                        {d.motivo ? ` · ${d.motivo}` : ""}
+                      </div>
+                    ))}
+                  </InfoBlock>
+                ) : null}
 
-                <div className="rounded-2xl border border-border bg-surface-secondary p-4">
-                  <label className="text-xs font-bold text-fg-muted">Motivo da reprovação</label>
-                  <textarea
-                    value={reproveReason}
-                    onChange={(event) => setReproveReason(event.target.value)}
-                    rows={3}
-                    placeholder="Ex.: Documento ilegível. Envie novamente."
-                    className="mt-2 w-full rounded-xl border border-border bg-surface px-3 py-2 text-sm outline-none ring-1 ring-border"
-                  />
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <button
-                      disabled={Boolean(actionLoading)}
-                      onClick={() => review("approve")}
-                      className="rounded-lg bg-success px-4 py-2 text-sm font-bold text-white hover:bg-success-dark disabled:opacity-50"
-                    >
-                      {actionLoading === "approve" ? "Aprovando..." : "Aprovar"}
-                    </button>
-                    <button
-                      disabled={Boolean(actionLoading)}
-                      onClick={() => review("reprove", reproveReason)}
-                      className="rounded-xl bg-red-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
-                    >
-                      {actionLoading === "reprove" ? "Reprovando..." : "Reprovar"}
-                    </button>
-                    <button
-                      disabled={Boolean(actionLoading)}
-                      onClick={() => review("resend", reproveReason)}
-                      className="rounded-xl border border-border bg-surface px-4 py-2 text-sm font-bold text-fg disabled:opacity-50"
-                    >
-                      {actionLoading === "resend" ? "Solicitando..." : "Solicitar reenvio"}
-                    </button>
-                  </div>
-                </div>
+                <AcoesDeDecisao
+                  detail={detail}
+                  motivo={reproveReason}
+                  setMotivo={setReproveReason}
+                  actionLoading={actionLoading}
+                  onReview={review}
+                />
               </div>
             )}
           </div>
@@ -676,7 +745,7 @@ function Line({ label, value }: { label: string; value: string }) {
 function UserSummaryBlock({ detail }: { detail: Detail }) {
   return (
     <InfoBlock title="Usuário">
-      <Line label="Nome" value={detail.user.nome} />
+      <Line label="Nome de exibição" value={detail.user.nome} />
       <Line label="Email" value={detail.user.email ?? "Não informado"} />
       <Line label="Telefone" value={maskPhone(detail.user.telefone)} />
       <Line label="Perfil" value={roleLabel[detail.user.role]} />
@@ -795,51 +864,247 @@ function AdvancedProfileDetails({ children }: { children: React.ReactNode }) {
   );
 }
 
-function TechnicalDetails({ detail }: { detail: Detail }) {
-  return (
-    <details className="rounded-2xl border border-border bg-surface p-4 ring-1 ring-border">
-      <summary className="cursor-pointer text-sm font-black text-fg">Detalhes técnicos</summary>
-      <div className="mt-3 grid gap-3 md:grid-cols-2">
-        <div className="space-y-2">
-          <Line label="Verificação ID" value={detail.verification.id} />
-          <Line label="Usuário ID" value={detail.user.id} />
-          <Line label="Telefone" value={detail.user.telefone ?? "Não informado"} />
-          <Line label="Doc bruto" value={detail.verification.rawDocType ?? detail.verification.docType} />
-          <Line label="Status bruto" value={detail.verification.status} />
-        </div>
-        <div className="space-y-2">
-          <Line label="Criado ISO" value={detail.verification.createdAt} />
-          <Line label="Atualizado ISO" value={detail.verification.updatedAt} />
-          <Line label="Revisado por" value={detail.verification.reviewedBy ?? "—"} />
-          <Line label="Observação" value={detail.verification.reviewNote ?? "—"} />
-        </div>
-      </div>
-    </details>
-  );
-}
-
 function DocumentPreview({ title, doc }: { title: string; doc: { key: string; signedUrl: string } | null }) {
+  const [aberto, setAberto] = useState(false);
+  const [zoom, setZoom] = useState(1);
+  const [giro, setGiro] = useState(0);
+  const botao = "rounded-lg bg-surface px-3 py-1.5 text-xs font-bold text-fg ring-1 ring-border hover:bg-surface-subtle";
   return (
     <section className="rounded-2xl border border-border bg-surface-secondary p-3">
       <div className="mb-2 flex items-center justify-between gap-3">
         <h3 className="text-sm font-black text-fg">{title}</h3>
         {doc?.signedUrl ? (
-          <a href={doc.signedUrl} target="_blank" rel="noreferrer" className="text-xs font-bold text-accent-strong underline-offset-2 hover:underline">
-            Abrir
-          </a>
+          <button type="button" onClick={() => setAberto(true)} className="text-xs font-bold text-accent-strong underline-offset-2 hover:underline">
+            Ampliar / girar
+          </button>
         ) : null}
       </div>
       {doc?.signedUrl ? (
         <img
           src={doc.signedUrl}
           alt={`Documento - ${title}`}
-          className="max-h-[420px] w-full rounded-xl object-contain ring-1 ring-border"
+          onClick={() => setAberto(true)}
+          className="max-h-[420px] w-full cursor-zoom-in rounded-xl object-contain ring-1 ring-border"
         />
       ) : (
         <div className="flex h-44 items-center justify-center rounded-xl border border-dashed border-border bg-surface text-sm font-semibold text-fg-subtle">
           Documento não disponível
         </div>
       )}
+      {aberto && doc?.signedUrl ? (
+        <div className="fixed inset-0 z-[60] flex flex-col bg-fg/90 p-3" role="dialog" aria-label={`${title} ampliado`}>
+          <div className="flex flex-wrap items-center gap-2">
+            <b className="mr-auto text-sm text-white">{title}</b>
+            <button type="button" className={botao} onClick={() => setZoom((z) => Math.max(0.5, +(z - 0.25).toFixed(2)))}>−</button>
+            <span className="min-w-12 text-center text-xs font-bold text-white">{Math.round(zoom * 100)}%</span>
+            <button type="button" className={botao} onClick={() => setZoom((z) => Math.min(4, +(z + 0.25).toFixed(2)))}>+</button>
+            <button type="button" className={botao} onClick={() => setGiro((g) => (g + 270) % 360)}>Girar ⟲</button>
+            <button type="button" className={botao} onClick={() => setGiro((g) => (g + 90) % 360)}>Girar ⟳</button>
+            <button type="button" className={botao} onClick={() => { setZoom(1); setGiro(0); }}>Restaurar</button>
+            <button type="button" className={botao} onClick={() => setAberto(false)}>Fechar</button>
+          </div>
+          <div className="mt-3 flex-1 overflow-auto">
+            <div className="flex min-h-full min-w-full items-center justify-center p-6">
+              <img
+                src={doc.signedUrl}
+                alt={`Documento - ${title} ampliado`}
+                style={{ transform: `rotate(${giro}deg) scale(${zoom})`, transformOrigin: "center", transition: "transform 120ms" }}
+                className="max-h-[80vh] max-w-full object-contain"
+              />
+            </div>
+          </div>
+        </div>
+      ) : null}
     </section>
+  );
+}
+
+function valorCadastral(chave: keyof DadosCadastrais, valor: string | null) {
+  if (!valor) return "Não informado";
+  if (chave === "perfil") return roleLabel[valor as Role] ?? valor;
+  if (chave === "cpf") return valor.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, "$1.$2.$3-$4");
+  if (chave === "dataNascimento") {
+    const [a, m, d] = valor.split("-");
+    return a && m && d ? `${d}/${m}/${a}` : valor;
+  }
+  if (chave === "telefone") return maskPhone(valor);
+  return valor;
+}
+
+function DadosConferenciaBlock({ detail }: { detail: Detail }) {
+  const enviados = detail.dadosEnviados;
+  const atuais = detail.cadastroAtual;
+  const alterados = new Set(detail.camposAlterados);
+  return (
+    <section className="rounded-2xl border border-border bg-surface p-4 ring-1 ring-border">
+      <h3 className="text-sm font-black text-fg">Dados para conferência</h3>
+      {!enviados ? (
+        <p className="mt-1 text-xs font-semibold text-fg-subtle">
+          Este envio é anterior ao registro dos dados enviados: só o cadastro atual está disponível. Nada foi reconstruído.
+        </p>
+      ) : alterados.size ? (
+        <p className="mt-1 text-xs font-semibold text-warning-dark">
+          {alterados.size === 1 ? "1 campo mudou" : `${alterados.size} campos mudaram`} depois do envio (destacados).
+        </p>
+      ) : null}
+      <div className="mt-3 overflow-x-auto">
+        <table className="w-full min-w-[520px] text-sm">
+          <thead>
+            <tr className="text-left text-xs text-fg-subtle">
+              <th className="py-1 pr-3 font-bold">Campo</th>
+              <th className="py-1 pr-3 font-bold">
+                Dados enviados para análise{enviados ? ` (${fmtDate(enviados.capturadoEm)})` : ""}
+              </th>
+              <th className="py-1 font-bold">Cadastro atual</th>
+            </tr>
+          </thead>
+          <tbody>
+            {CAMPOS_CADASTRAIS.map(({ chave, rotulo }) => {
+              const mudou = alterados.has(chave);
+              return (
+                <tr key={chave} className={mudou ? "bg-warning-light" : undefined}>
+                  <td className="py-1.5 pr-3 font-semibold text-fg-subtle">{rotulo}</td>
+                  <td className="py-1.5 pr-3 font-semibold text-fg">{enviados ? valorCadastral(chave, enviados[chave]) : "Não registrado neste envio"}</td>
+                  <td className="py-1.5 font-semibold text-fg">
+                    {atuais ? valorCadastral(chave, atuais[chave]) : "Não informado"}
+                    {mudou ? <span className="ml-2 text-xs font-bold text-warning-dark">alterado</span> : null}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+function DecisaoAtualBlock({ detail }: { detail: Detail }) {
+  const v = detail.verification;
+  if (!v.decisao) {
+    return (
+      <div className="rounded-2xl border border-border bg-surface-secondary px-4 py-3 text-sm font-bold text-fg">
+        Aguardando análise{v.maisRecente ? "" : " · existe um envio mais recente desta conta"}
+      </div>
+    );
+  }
+  const cor = v.decisao === "APROVADO" ? "border-success/40 bg-success-light text-success-dark" : "border-red-300 bg-red-50 text-red-800";
+  return (
+    <div className={["rounded-2xl border px-4 py-3 text-sm", cor].join(" ")} data-testid="decisao-atual">
+      <div className="text-base font-black">{decisaoLabel[v.decisao]}</div>
+      <div className="mt-1 font-semibold">
+        {v.decididoPor ? `por ${v.decididoPor}` : "responsável não registrado"} ·{" "}
+        {v.decididoEm ? fmtDate(v.decididoEm) : "data da decisão não registrada (decisão anterior ao histórico de decisões)"}
+      </div>
+      {v.motivoUsuario ? <div className="mt-1">Motivo mostrado à pessoa: {v.motivoUsuario}</div> : null}
+    </div>
+  );
+}
+
+function AcoesDeDecisao({
+  detail,
+  motivo,
+  setMotivo,
+  actionLoading,
+  onReview,
+}: {
+  detail: Detail;
+  motivo: string;
+  setMotivo: (v: string) => void;
+  actionLoading: "approve" | "reprove" | "resend" | null;
+  onReview: (action: "approve" | "reprove" | "resend", reason?: string, revisao?: boolean) => void;
+}) {
+  const v = detail.verification;
+  const ocupado = Boolean(actionLoading);
+  if (!v.maisRecente) {
+    return (
+      <div className="rounded-2xl border border-border bg-surface-secondary p-4 text-sm font-semibold text-fg-muted">
+        Há um envio mais recente desta conta. Decisões só valem para o envio atual.
+      </div>
+    );
+  }
+  const campoMotivo = (rotulo: string, placeholder: string) => (
+    <>
+      <label className="text-xs font-bold text-fg-muted">{rotulo}</label>
+      <textarea
+        value={motivo}
+        onChange={(event) => setMotivo(event.target.value)}
+        rows={3}
+        disabled={ocupado}
+        placeholder={placeholder}
+        className="mt-2 w-full rounded-xl border border-border bg-surface px-3 py-2 text-sm outline-none ring-1 ring-border"
+      />
+    </>
+  );
+
+  if (v.status === "PENDING") {
+    return (
+      <div className="rounded-2xl border border-border bg-surface-secondary p-4">
+        {campoMotivo("Motivo (obrigatório para reprovar ou pedir reenvio; a pessoa vê no app)", "Ex.: Documento ilegível. Envie novamente.")}
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button
+            disabled={ocupado}
+            onClick={() => onReview("approve")}
+            className="rounded-lg bg-success px-4 py-2 text-sm font-bold text-white hover:bg-success-dark disabled:opacity-50"
+          >
+            {actionLoading === "approve" ? "Aprovando..." : "Aprovar"}
+          </button>
+          <button
+            disabled={ocupado}
+            onClick={() => onReview("reprove", motivo)}
+            className="rounded-xl bg-red-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
+          >
+            {actionLoading === "reprove" ? "Reprovando..." : "Reprovar"}
+          </button>
+          <button
+            disabled={ocupado}
+            onClick={() => onReview("resend", motivo)}
+            className="rounded-xl border border-border bg-surface px-4 py-2 text-sm font-bold text-fg disabled:opacity-50"
+          >
+            {actionLoading === "resend" ? "Solicitando..." : "Solicitar reenvio"}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Decisão concluída: os botões comuns somem. Mudar só pela revisão explícita.
+  return (
+    <details className="rounded-2xl border border-border bg-surface-secondary p-4">
+      <summary className="cursor-pointer text-sm font-black text-fg">Revisar decisão</summary>
+      <p className="mt-2 text-xs font-semibold text-fg-subtle">
+        A decisão atual ({v.decisao ? decisaoLabel[v.decisao] : v.status}) fica no histórico. O motivo é obrigatório.
+      </p>
+      <div className="mt-3">{campoMotivo("Motivo da revisão", "Ex.: Documento conferido de novo; dados conferem.")}</div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {v.decisao !== "APROVADO" ? (
+          <button
+            disabled={ocupado}
+            onClick={() => onReview("approve", motivo, true)}
+            className="rounded-lg bg-success px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
+          >
+            {actionLoading === "approve" ? "Revisando..." : "Revisar para aprovado"}
+          </button>
+        ) : null}
+        {v.decisao !== "REPROVADO" ? (
+          <button
+            disabled={ocupado}
+            onClick={() => onReview("reprove", motivo, true)}
+            className="rounded-xl bg-red-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
+          >
+            {actionLoading === "reprove" ? "Revisando..." : "Revisar para reprovado"}
+          </button>
+        ) : null}
+        {v.decisao !== "REENVIO" ? (
+          <button
+            disabled={ocupado}
+            onClick={() => onReview("resend", motivo, true)}
+            className="rounded-xl border border-border bg-surface px-4 py-2 text-sm font-bold text-fg disabled:opacity-50"
+          >
+            {actionLoading === "resend" ? "Revisando..." : "Revisar para reenvio"}
+          </button>
+        ) : null}
+      </div>
+    </details>
   );
 }

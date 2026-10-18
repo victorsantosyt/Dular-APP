@@ -1,34 +1,17 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { gateAdmin } from "@/lib/adminGate";
 import { rateLimit, cleanupRateLimit } from "@/lib/rateLimit";
 import { getRequestIp } from "@/lib/requestIp";
 import { aplicarEvento } from "@/lib/safeScore";
 import { enviarPushDaNotificacao } from "@/lib/notifications";
-import { ensureUserRoleProfile } from "@/lib/userProfiles";
 import { getGuardianStatusForUser } from "@/lib/safeScoreGuardian";
+import { decidirVerificacao, lerDecisao } from "@/lib/decisaoVerificacao";
+import { lerPedidoDeDecisao } from "@/lib/pedidoDecisaoVerificacao";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-async function readPayload(req: Request) {
-  const contentType = req.headers.get("content-type") ?? "";
-  if (contentType.includes("application/json")) {
-    const body = await req.json().catch(() => ({}));
-    return {
-      id: typeof body.verificationId === "string" ? body.verificationId : typeof body.id === "string" ? body.id : "",
-      motivo: typeof body.motivo === "string" ? body.motivo : "",
-    };
-  }
-
-  const data = await req.formData().catch(() => null);
-  return {
-    id: (data?.get("verificationId") as string | null) ?? (data?.get("id") as string | null) ?? "",
-    motivo: (data?.get("motivo") as string | null) ?? "",
-  };
-}
-
-
+/** Reprovação e pedido de reenvio: os dois exigem motivo, que a pessoa vê no app. */
 export async function POST(req: Request) {
   cleanupRateLimit();
   const ip = getRequestIp(req);
@@ -43,102 +26,35 @@ export async function POST(req: Request) {
   const gate = await gateAdmin(req);
   if (gate.error) return gate.error;
 
-  const payload = await readPayload(req);
-  const id = payload.id.trim();
-  const motivo = payload.motivo.trim();
+  const pedido = await lerPedidoDeDecisao(req);
+  const id = pedido.id;
   if (!id) {
     return NextResponse.json({ ok: false, error: "ID inválido." }, { status: 400 });
   }
+  const motivo = pedido.motivo;
   if (!motivo) {
     return NextResponse.json({ ok: false, error: "Informe o motivo da reprovação." }, { status: 400 });
   }
+  const decisao = pedido.tipo === "REENVIO" ? "REENVIO" : "REPROVADO";
 
-  const existing = await prisma.documentVerification.findUnique({
-    where: { id },
-    select: {
-      id: true,
-      userId: true,
-      docType: true,
-      status: true,
-      user: { select: { id: true, role: true } },
-    },
+  const r = await decidirVerificacao({
+    id,
+    adminId: gate.auth.userId,
+    decisao,
+    motivo,
+    revisao: pedido.revisao,
+    esperado: lerDecisao(pedido.esperado),
   });
-
-  if (!existing) {
-    return NextResponse.json({ ok: false, error: "Verificação não encontrada." }, { status: 404 });
-  }
-
-  if (existing.user.role !== "EMPREGADOR" && existing.user.role !== "DIARISTA" && existing.user.role !== "MONTADOR") {
-    return NextResponse.json({ ok: false, error: "Perfil não suportado para verificação documental." }, { status: 400 });
-  }
-
-  const { verification, aviso } = await prisma.$transaction(async (tx) => {
-    // Decisão atômica: a mudança de estado é um UPDATE condicional. Pedidos
-    // simultâneos para a mesma verificação disputam o lock da linha; o que
-    // chega depois reavalia a condição, não encontra nada para mudar e não
-    // gera aviso. Ler o status antes e decidir fora do banco não basta.
-    const transicao = await tx.documentVerification.updateMany({
-      where: { id, status: { not: "REJECTED" } },
-      data: {
-        status: "REJECTED",
-        reviewedBy: gate.auth.userId,
-        reviewNote: `KYC REPROVADO por admin ${gate.auth.userId} em ${new Date().toISOString()} - ${motivo}`,
-      },
-    });
-
-    await ensureUserRoleProfile(tx, existing.userId, existing.user.role);
-
-    if (existing.user.role === "DIARISTA") {
-      await tx.diaristaProfile.update({
-        where: { userId: existing.userId },
-        data: { verificacao: "REPROVADO" },
-      });
-    }
-
-    if (existing.user.role === "MONTADOR") {
-      await tx.montadorPerfil.update({
-        where: { userId: existing.userId },
-        data: { verificado: false },
-      });
-    }
-
-    // O aviso nasce na MESMA transação da decisão: ou os dois ficam, ou nenhum.
-    const aviso = transicao.count === 1
-      ? await tx.notification.create({
-          data: {
-            userId: existing.userId,
-            type: "VERIFICACAO_REPROVADA",
-            title: "Verificação não aprovada",
-            body: "Seus documentos não foram aprovados. Veja o motivo e envie novamente.",
-          },
-          select: { id: true, userId: true, type: true, title: true, body: true },
-        })
-      : null;
-
-    const verification = await tx.documentVerification.findUniqueOrThrow({
-      where: { id },
-      select: {
-        id: true,
-        userId: true,
-        docType: true,
-        status: true,
-        reviewedBy: true,
-        reviewNote: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    });
-    return { verification, aviso };
-  });
+  if (r.tipo === "erro") return NextResponse.json({ ok: false, error: r.mensagem }, { status: r.status });
 
   // A reprovação já está gravada: falha no score não a desfaz, mas não pode
   // sumir em silêncio.
-  await aplicarEvento(existing.userId, "KYC_REJEITADO", id, motivo).catch((err) => {
-    console.error("[safeScore] KYC_REJEITADO não registrado — a reprovação segue:", { userId: existing.userId, verificacaoId: id }, err);
+  await aplicarEvento(r.userId, "KYC_REJEITADO", id, motivo).catch((err) => {
+    console.error("[safeScore] KYC_REJEITADO não registrado — a reprovação segue:", { userId: r.userId, verificacaoId: id }, err);
   });
   // Push do aviso já gravado (best-effort; não desfaz nem repete nada).
-  if (aviso) await enviarPushDaNotificacao(aviso);
-  const guardian = await getGuardianStatusForUser(existing.userId);
+  if (r.tipo === "decidida") await enviarPushDaNotificacao(r.aviso);
+  const guardian = await getGuardianStatusForUser(r.userId);
 
-  return NextResponse.json({ ok: true, verification, guardian });
+  return NextResponse.json({ ok: true, verification: r.verification, guardian, jaDecidida: r.tipo === "ja-decidida" });
 }

@@ -39,6 +39,8 @@ type User = {
   telefone?: string;
   cpf?: string | null;
   dataNascimento?: string | null;
+  /** Nome como no documento, para a verificação. `nome` é o de exibição. */
+  nomeCompleto?: string | null;
   role: Role;
   genero?: "MASCULINO" | "FEMININO" | null;
   status?: string | null;

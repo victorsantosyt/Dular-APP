@@ -145,7 +145,7 @@ export async function anonimizarUsuario(userId: string): Promise<ResumoExclusao>
       where: { id: userId },
       data: {
         nome: NOME_ANONIMO,
-        telefone: null, cpf: null, email: null,
+        telefone: null, cpf: null, email: null, nomeCompleto: null,
         dataNascimento: null, genero: null,
         senhaHash: null, avatarUrl: null, pushToken: null, lastSeenAt: null,
         status: "REMOVIDO",

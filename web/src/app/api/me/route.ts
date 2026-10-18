@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { decisaoVigente } from "@/lib/decisaoVerificacao";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/requireAuth";
@@ -50,6 +51,7 @@ export async function GET(req: Request) {
       select: {
         id: true,
         nome: true,
+        nomeCompleto: true,
         telefone: true,
         cpf: true,
         dataNascimento: true,
@@ -61,10 +63,24 @@ export async function GET(req: Request) {
         createdAt: true,
       },
     });
+    // Decisão do envio mais recente: o app mostra o motivo de reprovação ou
+    // reenvio. Campos novos, aditivos — versões anteriores do app os ignoram.
+    const decisaoP = prisma.documentVerification
+      .findFirst({
+        where: { userId: auth.userId },
+        orderBy: { createdAt: "desc" },
+        select: { status: true, decisao: true, motivoUsuario: true },
+      })
+      .then((d) => ({
+        decisaoVerificacao: d && d.status !== "PENDING" ? decisaoVigente(d.status, d.decisao) : null,
+        motivoVerificacao: d?.status === "REJECTED" ? d.motivoUsuario ?? null : null,
+      }))
+      // Auxiliar: falha aqui não derruba /api/me (e o caminho sem papel nem a espera).
+      .catch(() => ({ decisaoVerificacao: null, motivoVerificacao: null }));
 
     if (auth.role === "DIARISTA") {
       const tQuery = Date.now();
-      const [user, profile] = await Promise.all([
+      const [user, profile, decisao] = await Promise.all([
         userP,
         prisma.diaristaProfile.findUnique({
           where: { userId: auth.userId },
@@ -79,6 +95,7 @@ export async function GET(req: Request) {
             precoPesada: true,
           },
         }),
+        decisaoP,
       ]);
       if (isDev) console.log(`[me GET DIARISTA] queries: ${Date.now() - tQuery}ms`);
 
@@ -95,6 +112,7 @@ export async function GET(req: Request) {
           avatarUrl: profile?.fotoUrl ?? user.avatarUrl ?? null,
           verificacao: { status: mapVerificacao(profile?.verificacao) },
           docEnviado: Boolean(profile?.docUrl),
+          ...decisao,
           // Sem isto o gate "Quais serviços você oferece" reaparecia a cada login
           // (o app recebia servicosOferecidos vazio e reabria o gate).
           servicosOferecidos: profile?.servicosOferecidos ?? [],
@@ -108,7 +126,7 @@ export async function GET(req: Request) {
 
     if (auth.role === "MONTADOR") {
       const tQuery = Date.now();
-      const [user, profile] = await Promise.all([
+      const [user, profile, decisao] = await Promise.all([
         userP,
         prisma.montadorPerfil.findUnique({
           where: { userId: auth.userId },
@@ -131,6 +149,7 @@ export async function GET(req: Request) {
             localizacaoAtualizadaEm: true,
           },
         }),
+        decisaoP,
       ]);
       if (isDev) console.log(`[me GET MONTADOR] queries: ${Date.now() - tQuery}ms`);
 
@@ -151,6 +170,7 @@ export async function GET(req: Request) {
           verificado: Boolean(profile?.verificado),
           docEnviado: hasDocs,
           verificacao: { status: verificationStatus === "VERIFICADO" ? "APROVADO" : verificationStatus },
+          ...decisao,
           notaMedia: profile?.rating ?? 0,
           totalServicos: profile?.totalServicos ?? 0,
           especialidades: profile?.especialidades ?? [],
@@ -167,7 +187,7 @@ export async function GET(req: Request) {
 
     if (auth.role === "EMPREGADOR") {
       const tQuery = Date.now();
-      const [user, profile, documentVerification] = await Promise.all([
+      const [user, profile, documentVerification, decisao] = await Promise.all([
         userP,
         prisma.empregadorPerfil.findUnique({
           where: { userId: auth.userId },
@@ -192,6 +212,7 @@ export async function GET(req: Request) {
             updatedAt: true,
           },
         }),
+        decisaoP,
       ]);
       if (isDev) console.log(`[me GET EMPREGADOR] queries: ${Date.now() - tQuery}ms`);
 
@@ -220,6 +241,7 @@ export async function GET(req: Request) {
           avatarUrl: profile?.fotoPerfil ?? user.avatarUrl ?? null,
           verificado: verificacaoStatus === "APROVADO",
           docEnviado: Boolean(documentVerification?.docUrl),
+          ...decisao,
           verificacao: verificacaoStatus
             ? {
                 status: verificacaoStatus,

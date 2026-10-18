@@ -4,6 +4,8 @@ import { signGetUrl } from "@/lib/s3Objects";
 import { getGuardianStatusForUser } from "@/lib/safeScoreGuardian";
 import { getDiaristaProfileCompleteness } from "@/lib/diaristaProfile";
 import { getMontadorProfileCompleteness } from "@/lib/montadorProfile";
+import { camposAlterados, dadosCadastraisAtuais, lerDadosEnviados } from "@/lib/dadosVerificacao";
+import { decisaoVigente } from "@/lib/decisaoVerificacao";
 
 export type VerificationFlowType = "PRIMEIRA_VERIFICACAO" | "RENOVACAO_REENVIO";
 export type AdminVerificationStatus = DocumentVerificationStatus | "ALL";
@@ -367,9 +369,14 @@ export async function getAdminVerificacaoDetail(id: string) {
       status: true,
       reviewedBy: true,
       reviewNote: true,
+      dadosEnviados: true,
+      decisao: true,
+      decididoEm: true,
+      motivoUsuario: true,
       createdAt: true,
       updatedAt: true,
       user: { select: userSelect() },
+      decisoes: { orderBy: { createdAt: "asc" }, select: { id: true, adminId: true, de: true, para: true, decisao: true, revisao: true, motivo: true, createdAt: true } },
     },
   });
 
@@ -383,7 +390,11 @@ export async function getAdminVerificacaoDetail(id: string) {
       select: {
         id: true,
         docType: true,
+        docUrl: true,
         status: true,
+        decisao: true,
+        decididoEm: true,
+        motivoUsuario: true,
         reviewedBy: true,
         reviewNote: true,
         createdAt: true,
@@ -391,6 +402,14 @@ export async function getAdminVerificacaoDetail(id: string) {
       },
     }),
   ]);
+  const cadastroAtual = await dadosCadastraisAtuais(prisma, verification.userId);
+  const dadosEnviados = lerDadosEnviados(verification.dadosEnviados);
+  // Nomes de quem decidiu (só nome: o painel não precisa de mais nada do admin).
+  const adminIds = Array.from(new Set([verification.reviewedBy, ...verification.decisoes.map((d) => d.adminId), ...history.map((h) => h.reviewedBy)].filter(Boolean) as string[]));
+  const admins = new Map(
+    (await prisma.user.findMany({ where: { id: { in: adminIds } }, select: { id: true, nome: true } })).map((a) => [a.id, a.nome]),
+  );
+  const nomeAdmin = (id: string | null | undefined) => (id ? admins.get(id) ?? "Admin não encontrado" : null);
 
   const flowTypes = await getFlowTypes([
     {
@@ -401,6 +420,12 @@ export async function getAdminVerificacaoDetail(id: string) {
     },
   ]);
   const docs = parseDocUrl(verification.docUrl);
+  const vigente = decisaoVigente(verification.status, verification.decisao);
+  const maisRecente = history[0]?.id === verification.id;
+  // Upload dos arquivos x criação do registro: na mesma submissão diferem em
+  // segundos. Diferença grande indica registro criado depois (cópia, migração)
+  // — o painel avisa, sem atribuir causa.
+  const divergenciaS = docs.uploadedAt ? Math.round((verification.createdAt.getTime() - new Date(docs.uploadedAt).getTime()) / 1000) : null;
   const [frente, verso] = await Promise.all([signDocument(docs.frente), signDocument(docs.verso)]);
 
   return {
@@ -410,12 +435,29 @@ export async function getAdminVerificacaoDetail(id: string) {
       docType: normalizeDocType(verification.docType, verification.user.role),
       rawDocType: verification.docType,
       status: verification.status,
-      reviewedBy: verification.reviewedBy,
-      reviewNote: verification.reviewNote,
       createdAt: dateIso(verification.createdAt),
       updatedAt: dateIso(verification.updatedAt),
       flowType: flowTypes.get(verification.id) ?? "PRIMEIRA_VERIFICACAO",
+      maisRecente,
+      decisao: vigente,
+      // Envios decididos antes do registro de decisões não têm data própria.
+      decididoEm: dateIso(verification.decididoEm),
+      decididoPor: nomeAdmin(verification.reviewedBy),
+      motivoUsuario: verification.motivoUsuario,
     },
+    decisoes: verification.decisoes.map((d) => ({
+      id: d.id,
+      decisao: d.decisao,
+      de: d.de,
+      para: d.para,
+      revisao: d.revisao,
+      motivo: d.motivo,
+      admin: nomeAdmin(d.adminId),
+      createdAt: dateIso(d.createdAt),
+    })),
+    dadosEnviados,
+    cadastroAtual,
+    camposAlterados: camposAlterados(dadosEnviados, cadastroAtual),
     user: {
       id: verification.user.id,
       nome: verification.user.nome,
@@ -436,11 +478,19 @@ export async function getAdminVerificacaoDetail(id: string) {
       frente,
       verso,
       uploadedAt: docs.uploadedAt,
+      registradoEm: dateIso(verification.createdAt),
+      datasDivergentes: divergenciaS !== null && Math.abs(divergenciaS) > 300,
     },
     history: history.map((item) => ({
-      ...item,
+      id: item.id,
+      status: item.status,
+      decisao: decisaoVigente(item.status, item.decisao),
+      decididoEm: dateIso(item.decididoEm),
+      decididoPor: nomeAdmin(item.reviewedBy),
+      motivoUsuario: item.motivoUsuario,
+      atual: item.id === verification.id,
       docType: normalizeDocType(item.docType, verification.user.role),
-      rawDocType: item.docType,
+      uploadedAt: parseDocUrl(item.docUrl).uploadedAt,
       createdAt: dateIso(item.createdAt),
       updatedAt: dateIso(item.updatedAt),
     })),

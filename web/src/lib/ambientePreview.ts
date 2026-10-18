@@ -65,6 +65,22 @@ export function pushRemotoPermitido(env: Env = process.env): boolean {
 }
 
 /**
+ * Contas sem push remoto no preview, mesmo com o push liberado: serve para
+ * provar que o app se atualiza SEM push para a conta testadora, enquanto o
+ * aviso continua sendo gravado no banco. Lista de ids em
+ * `DULAR_PUSH_PREVIEW_BLOQUEADOS` (separados por vírgula). Fora do Preview
+ * a lista é ignorada — produção nunca deixa de enviar por causa dela.
+ */
+export function pushBloqueadoNoPreview(userId: string, env: Env = process.env): boolean {
+  if (env.VERCEL_ENV !== "preview") return false;
+  return (env.DULAR_PUSH_PREVIEW_BLOQUEADOS ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .includes(userId);
+}
+
+/**
  * Tempo real (Ably) no preview só com liberação explícita: não há como
  * provar que a ABLY_API_KEY do Preview é de um app separado do de produção.
  * Desligado, o app cai no polling, que já é o caminho de reserva do chat.

@@ -19,6 +19,32 @@ export const dynamic = "force-dynamic";
  * `User.updatedAt` fica de fora de propósito: o batimento de presença mexe nele
  * o tempo todo e faria o app reler tudo sem motivo.
  */
+type Linha = {
+  temUser: boolean;
+  role: string | null;
+  status: string | null;
+  dVerificacao: string | null;
+  dDoc: boolean;
+  dAt: Date | null;
+  mVerificado: boolean | null;
+  mAt: Date | null;
+  eAt: Date | null;
+  docId: string | null;
+  docStatus: string | null;
+  docAt: Date | null;
+  scoreAt: Date | null;
+  assAt: Date | null;
+  lojasN: number;
+  lojasAt: Date | null;
+  restN: number;
+  restCriada: Date | null;
+  restRevogada: Date | null;
+  servN: number;
+  servAt: Date | null;
+  avisosN: number;
+  avisosAt: Date | null;
+};
+
 export async function GET(req: Request) {
   let auth;
   try {
@@ -29,38 +55,61 @@ export async function GET(req: Request) {
     return NextResponse.json({ ok: false, error: "Não autenticado" }, { status: 401 });
   }
   const userId = auth.userId;
-  const [user, diarista, montador, empregador, documento, score, assinatura, lojas, restricoes, servicos, avisos] = await Promise.all([
-    prisma.user.findUnique({ where: { id: userId }, select: { role: true, status: true } }),
-    prisma.diaristaProfile.findUnique({ where: { userId }, select: { verificacao: true, docUrl: true, updatedAt: true } }),
-    prisma.montadorPerfil.findUnique({ where: { userId }, select: { verificado: true, updatedAt: true } }),
-    prisma.empregadorPerfil.findUnique({ where: { userId }, select: { updatedAt: true } }),
-    prisma.documentVerification.findFirst({ where: { userId }, orderBy: { updatedAt: "desc" }, select: { id: true, status: true, updatedAt: true } }),
-    prisma.safeScoreProfile.findUnique({ where: { userId }, select: { updatedAt: true } }),
-    prisma.subscription.findUnique({ where: { userId }, select: { updatedAt: true } }),
-    prisma.assinaturaLoja.aggregate({ where: { userId }, _max: { updatedAt: true }, _count: true }),
-    prisma.userRestriction.aggregate({ where: { userId }, _max: { createdAt: true, revokedAt: true }, _count: true }),
-    // Solicitações e agenda: todo serviço em que a conta é cliente ou profissional
-    // (índices em clientId, diaristaId e montadorId). Mudança de status de um
-    // serviço muda a versão das DUAS pontas.
-    prisma.servico.aggregate({
-      where: { OR: [{ clientId: userId }, { diaristaId: userId }, { montadorId: userId }] },
-      _max: { updatedAt: true },
-      _count: true,
-    }),
-    // Contadores: avisos não lidos e o mais recente (índice userId+readAt).
-    prisma.notification.aggregate({ where: { userId, readAt: null }, _max: { createdAt: true }, _count: true }),
-  ]);
+  // UMA consulta (antes eram 11, mais a da sessão): cada assunto vem de um
+  // índice próprio (chave única por userId, índices de Servico por ponta e de
+  // Notification por userId+readAt). Em produção o custo é de ida e volta ao
+  // banco, não de execução — por isso tudo numa ida só.
+  const [l] = await prisma.$queryRaw<Linha[]>`
+    SELECT
+      (u.id IS NOT NULL) AS "temUser", u.role::text AS "role", u.status::text AS "status",
+      dp.verificacao::text AS "dVerificacao", (COALESCE(dp."docUrl", '') <> '') AS "dDoc", dp."updatedAt" AS "dAt",
+      mp.verificado AS "mVerificado", mp."updatedAt" AS "mAt",
+      ep."updatedAt" AS "eAt",
+      dv.id AS "docId", dv.status::text AS "docStatus", dv."updatedAt" AS "docAt",
+      sp."updatedAt" AS "scoreAt",
+      sub."updatedAt" AS "assAt",
+      lj.n AS "lojasN", lj.at AS "lojasAt",
+      rs.n AS "restN", rs.criada AS "restCriada", rs.revogada AS "restRevogada",
+      sv.n AS "servN", sv.at AS "servAt",
+      av.n AS "avisosN", av.at AS "avisosAt"
+    FROM (SELECT ${userId}::text AS id) k
+    LEFT JOIN "User" u ON u.id = k.id
+    LEFT JOIN "DiaristaProfile" dp ON dp."userId" = k.id
+    LEFT JOIN "MontadorPerfil" mp ON mp."userId" = k.id
+    LEFT JOIN "EmpregadorPerfil" ep ON ep."userId" = k.id
+    LEFT JOIN "SafeScoreProfile" sp ON sp."userId" = k.id
+    LEFT JOIN "Subscription" sub ON sub."userId" = k.id
+    LEFT JOIN LATERAL (
+      SELECT id, status, "updatedAt" FROM "DocumentVerification" WHERE "userId" = k.id ORDER BY "updatedAt" DESC LIMIT 1
+    ) dv ON true
+    CROSS JOIN LATERAL (SELECT count(*)::int AS n, max("updatedAt") AS at FROM "AssinaturaLoja" WHERE "userId" = k.id) lj
+    CROSS JOIN LATERAL (
+      SELECT count(*)::int AS n, max("createdAt") AS criada, max("revokedAt") AS revogada FROM "UserRestriction" WHERE "userId" = k.id
+    ) rs
+    -- Solicitações e agenda: todo serviço em que a conta é cliente ou
+    -- profissional. Mudança de status de um serviço muda a versão das DUAS pontas.
+    CROSS JOIN LATERAL (
+      SELECT count(*)::int AS n, max("updatedAt") AS at FROM "Servico"
+      WHERE "clientId" = k.id OR "diaristaId" = k.id OR "montadorId" = k.id
+    ) sv
+    -- Contadores: avisos não lidos e o mais recente.
+    CROSS JOIN LATERAL (
+      SELECT count(*)::int AS n, max("createdAt") AS at FROM "Notification" WHERE "userId" = k.id AND "readAt" IS NULL
+    ) av
+  `;
   const t = (d: Date | null | undefined) => d?.getTime() ?? null;
-  // Uma versão por assunto: a tela relê só o que mudou.
+  // Uma versão por assunto: a tela relê só o que mudou. Mesma representação da
+  // versão anterior desta rota (com Prisma por tabela): o deploy não muda as
+  // versões já entregues ao app.
   const assuntos = {
-    conta: user ? [user.role, user.status] : null,
-    verificacao: [diarista?.verificacao ?? null, Boolean(diarista?.docUrl), montador?.verificado ?? null, documento ? [documento.id, documento.status, t(documento.updatedAt)] : null],
-    perfil: [t(diarista?.updatedAt), t(montador?.updatedAt), t(empregador?.updatedAt)],
-    safescore: t(score?.updatedAt),
-    assinatura: [t(assinatura?.updatedAt), lojas._count, t(lojas._max.updatedAt)],
-    restricoes: [restricoes._count, t(restricoes._max.createdAt), t(restricoes._max.revokedAt)],
-    servicos: [servicos._count, t(servicos._max.updatedAt)],
-    avisos: [avisos._count, t(avisos._max.createdAt)],
+    conta: l.temUser ? [l.role, l.status] : null,
+    verificacao: [l.dVerificacao, l.dDoc, l.mVerificado, l.docId ? [l.docId, l.docStatus, t(l.docAt)] : null],
+    perfil: [t(l.dAt), t(l.mAt), t(l.eAt)],
+    safescore: t(l.scoreAt),
+    assinatura: [t(l.assAt), l.lojasN, t(l.lojasAt)],
+    restricoes: [l.restN, t(l.restCriada), t(l.restRevogada)],
+    servicos: [l.servN, t(l.servAt)],
+    avisos: [l.avisosN, t(l.avisosAt)],
   };
   const resumo = (v: unknown) => createHash("sha256").update(JSON.stringify(v)).digest("hex").slice(0, 12);
   const versoes = Object.fromEntries(Object.entries(assuntos).map(([k, v]) => [k, resumo(v)]));

@@ -14,6 +14,7 @@ const PULAR = !URL_BANCO
     ? "SAFESCORE_DB_URL não aponta para localhost — recusado"
     : false;
 const EXIGIDO = process.env.SAFESCORE_DB_REQUIRED === "1";
+const TIPO_RESTRICAO = "LIMIT_BOOKINGS";
 
 describe("versão de sincronização da conta (DB)", { skip: EXIGIDO ? false : PULAR }, () => {
   let prisma: any;
@@ -33,6 +34,7 @@ describe("versão de sincronização da conta (DB)", { skip: EXIGIDO ? false : P
 
   after(async () => {
     if (!prisma) return;
+    await prisma.userRestriction.deleteMany({ where: { userId: { in: ids } } });
     await prisma.notification.deleteMany({ where: { userId: { in: ids } } });
     await prisma.servico.deleteMany({ where: { id: { in: servicosCriados } } });
     await prisma.documentVerification.deleteMany({ where: { userId: { in: ids } } });
@@ -57,9 +59,44 @@ describe("versão de sincronização da conta (DB)", { skip: EXIGIDO ? false : P
     assert.match(r.headers.get("cache-control") ?? "", /no-store/);
     const corpo = await r.json();
     assert.equal(corpo.userId, userId, "a resposta diz de que conta é");
+    // A consulta única tem que dar EXATAMENTE as versões da implementação
+    // anterior (uma consulta Prisma por tabela): mesma detecção, e o deploy
+    // não faz o app reler tudo.
+    assert.deepEqual(corpo.versoes, await versoesDeReferencia(userId), "mesmas versões da implementação por tabela");
     return corpo as { versao: string; versoes: Record<string, string> };
   };
   const versao = async (userId: string, role: string) => (await consulta(userId, role)).versao;
+
+  /** Implementação anterior da rota (11 consultas Prisma), mantida aqui como referência. */
+  async function versoesDeReferencia(userId: string) {
+    const { createHash } = await import("node:crypto");
+    const [user, diarista, montador, empregador, documento, score, assinatura, lojas, restricoes, servicos, avisos] = await Promise.all([
+      prisma.user.findUnique({ where: { id: userId }, select: { role: true, status: true } }),
+      prisma.diaristaProfile.findUnique({ where: { userId }, select: { verificacao: true, docUrl: true, updatedAt: true } }),
+      prisma.montadorPerfil.findUnique({ where: { userId }, select: { verificado: true, updatedAt: true } }),
+      prisma.empregadorPerfil.findUnique({ where: { userId }, select: { updatedAt: true } }),
+      prisma.documentVerification.findFirst({ where: { userId }, orderBy: { updatedAt: "desc" }, select: { id: true, status: true, updatedAt: true } }),
+      prisma.safeScoreProfile.findUnique({ where: { userId }, select: { updatedAt: true } }),
+      prisma.subscription.findUnique({ where: { userId }, select: { updatedAt: true } }),
+      prisma.assinaturaLoja.aggregate({ where: { userId }, _max: { updatedAt: true }, _count: true }),
+      prisma.userRestriction.aggregate({ where: { userId }, _max: { createdAt: true, revokedAt: true }, _count: true }),
+      prisma.servico.aggregate({ where: { OR: [{ clientId: userId }, { diaristaId: userId }, { montadorId: userId }] }, _max: { updatedAt: true }, _count: true }),
+      prisma.notification.aggregate({ where: { userId, readAt: null }, _max: { createdAt: true }, _count: true }),
+    ]);
+    const t = (d: Date | null | undefined) => d?.getTime() ?? null;
+    const assuntos = {
+      conta: user ? [user.role, user.status] : null,
+      verificacao: [diarista?.verificacao ?? null, Boolean(diarista?.docUrl), montador?.verificado ?? null, documento ? [documento.id, documento.status, t(documento.updatedAt)] : null],
+      perfil: [t(diarista?.updatedAt), t(montador?.updatedAt), t(empregador?.updatedAt)],
+      safescore: t(score?.updatedAt),
+      assinatura: [t(assinatura?.updatedAt), lojas._count, t(lojas._max.updatedAt)],
+      restricoes: [restricoes._count, t(restricoes._max.createdAt), t(restricoes._max.revokedAt)],
+      servicos: [servicos._count, t(servicos._max.updatedAt)],
+      avisos: [avisos._count, t(avisos._max.createdAt)],
+    };
+    const resumo = (v: unknown) => createHash("sha256").update(JSON.stringify(v)).digest("hex").slice(0, 12);
+    return Object.fromEntries(Object.entries(assuntos).map(([k, v]) => [k, resumo(v)]));
+  }
 
   it("Profissional de Casa: envio, aprovação e reprovação mudam a versão; presença não", async () => {
     const u = await usuario("diarista", "DIARISTA");
@@ -123,6 +160,45 @@ describe("versão de sincronização da conta (DB)", { skip: EXIGIDO ? false : P
     const a1 = await consulta(pro, "DIARISTA");
     assert.notEqual(a1.versoes.avisos, a0.versoes.avisos, "aviso novo muda o contador");
     assert.equal(a1.versoes.servicos, a0.versoes.servicos);
+  });
+
+  it("Montador como prestador: serviço muda 'servicos'; aviso lido muda 'avisos'", async () => {
+    const cliente = await usuario("cliente_m", "EMPREGADOR");
+    const m = await usuario("montador_srv", "MONTADOR");
+    await prisma.montadorPerfil.create({ data: { userId: m, especialidades: [], bairros: [], portfolioFotos: [] } });
+    const aviso = await prisma.notification.create({ data: { userId: m, type: "VERIFICACAO_APROVADA", title: "t", body: "b" } });
+    const s0 = await consulta(m, "MONTADOR");
+    const servico = await prisma.servico.create({
+      data: { clientId: cliente, montadorId: m, tipo: "MONTAGEM", data: new Date(Date.now() + 86_400_000), turno: "MANHA", cidade: "Teste", uf: "MT", bairro: "Centro", precoFinal: 100 },
+    }).catch(async () => prisma.servico.create({
+      data: { clientId: cliente, montadorId: m, tipo: "FAXINA", data: new Date(Date.now() + 86_400_000), turno: "MANHA", cidade: "Teste", uf: "MT", bairro: "Centro", precoFinal: 100 },
+    }));
+    servicosCriados.push(servico.id);
+    const s1 = await consulta(m, "MONTADOR");
+    assert.notEqual(s1.versoes.servicos, s0.versoes.servicos, "montador vê a solicitação nova");
+    await prisma.notification.update({ where: { id: aviso.id }, data: { readAt: new Date() } });
+    const s2 = await consulta(m, "MONTADOR");
+    assert.notEqual(s2.versoes.avisos, s1.versoes.avisos, "aviso lido muda o contador");
+    assert.equal(s2.versoes.servicos, s1.versoes.servicos);
+  });
+
+  it("restrição criada e revogada, documento reenviado e docUrl vazio: muda o assunto certo", async () => {
+    const u = await usuario("restricao", "DIARISTA");
+    await prisma.diaristaProfile.create({ data: { userId: u, precoLeve: 100, precoPesada: 200, docUrl: "" } });
+    const v0 = await consulta(u, "DIARISTA");
+    const r = await prisma.userRestriction.create({ data: { userId: u, type: TIPO_RESTRICAO, reason: "teste", createdBy: u } });
+    const v1 = await consulta(u, "DIARISTA");
+    assert.notEqual(v1.versoes.restricoes, v0.versoes.restricoes, "restrição criada");
+    assert.equal(v1.versoes.verificacao, v0.versoes.verificacao);
+    await prisma.userRestriction.update({ where: { id: r.id }, data: { revokedAt: new Date() } });
+    const v2 = await consulta(u, "DIARISTA");
+    assert.notEqual(v2.versoes.restricoes, v1.versoes.restricoes, "restrição revogada");
+    await prisma.documentVerification.create({ data: { userId: u, docType: "KYC_DOCS", docUrl: "{}" } });
+    await new Promise((ok) => setTimeout(ok, 5));
+    await prisma.documentVerification.create({ data: { userId: u, docType: "KYC_DOCS", docUrl: "{}" } });
+    const v3 = await consulta(u, "DIARISTA");
+    assert.notEqual(v3.versoes.verificacao, v2.versoes.verificacao, "reenvio de documento");
+    await prisma.userRestriction.deleteMany({ where: { userId: u } });
   });
 
   it("custo: consulta abaixo de 150 ms no banco local (mediana)", () => {

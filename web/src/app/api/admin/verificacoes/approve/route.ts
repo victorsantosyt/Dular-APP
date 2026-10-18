@@ -4,7 +4,7 @@ import { gateAdmin } from "@/lib/adminGate";
 import { rateLimit, cleanupRateLimit } from "@/lib/rateLimit";
 import { getRequestIp } from "@/lib/requestIp";
 import { aplicarEvento } from "@/lib/safeScore";
-import { criarNotificacao } from "@/lib/notifications";
+import { enviarPushDaNotificacao } from "@/lib/notifications";
 import { ensureUserRoleProfile } from "@/lib/userProfiles";
 import { getGuardianStatusForUser } from "@/lib/safeScoreGuardian";
 import { pendenciasDeVisibilidade } from "@/lib/adminPerfis";
@@ -70,7 +70,20 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: "Perfil não suportado para verificação documental." }, { status: 400 });
   }
 
-  const verification = await prisma.$transaction(async (tx) => {
+  const { verification, aviso } = await prisma.$transaction(async (tx) => {
+    // Decisão atômica: a mudança de estado é um UPDATE condicional. Pedidos
+    // simultâneos para a mesma verificação disputam o lock da linha; o que
+    // chega depois reavalia a condição, não encontra nada para mudar e não
+    // gera aviso. Ler o status antes e decidir fora do banco não basta.
+    const transicao = await tx.documentVerification.updateMany({
+      where: { id, status: { not: "APPROVED" } },
+      data: {
+        status: "APPROVED",
+        reviewedBy: gate.auth.userId,
+        reviewNote: `KYC APROVADO por admin ${gate.auth.userId} em ${new Date().toISOString()} - ${motivo}`,
+      },
+    });
+
     await ensureUserRoleProfile(tx, existing.userId, existing.user.role);
 
     if (existing.user.role === "DIARISTA") {
@@ -87,13 +100,21 @@ export async function POST(req: Request) {
       });
     }
 
-    return tx.documentVerification.update({
+    // O aviso nasce na MESMA transação da decisão: ou os dois ficam, ou nenhum.
+    const aviso = transicao.count === 1
+      ? await tx.notification.create({
+          data: {
+            userId: existing.userId,
+            type: "VERIFICACAO_APROVADA",
+            title: "Verificação aprovada",
+            body: "Seus documentos foram aprovados.",
+          },
+          select: { id: true, userId: true, type: true, title: true, body: true },
+        })
+      : null;
+
+    const verification = await tx.documentVerification.findUniqueOrThrow({
       where: { id },
-      data: {
-        status: "APPROVED",
-        reviewedBy: gate.auth.userId,
-        reviewNote: `KYC APROVADO por admin ${gate.auth.userId} em ${new Date().toISOString()} - ${motivo}`,
-      },
       select: {
         id: true,
         userId: true,
@@ -105,21 +126,14 @@ export async function POST(req: Request) {
         updatedAt: true,
       },
     });
+    return { verification, aviso };
   });
 
   await aplicarEvento(existing.userId, "KYC_APROVADO", id, motivo);
-  // Aviso à pessoa: acelera a atualização do app (a notificação faz o app
-  // consultar /api/me/sincronizacao na hora). Só na mudança de estado — um
-  // segundo clique em "aprovar" não repete o aviso. Falha no aviso não desfaz nada.
-  if (existing.status !== "APPROVED") {
-    await criarNotificacao({
-      userId: existing.userId,
-      type: "VERIFICACAO_APROVADA",
-      title: "Verificação aprovada",
-      body: "Seus documentos foram aprovados.",
-      pushData: {},
-    });
-  }
+  // Push do aviso já gravado: acelera a atualização do app (que consulta
+  // /api/me/sincronizacao ao recebê-lo). Best-effort — falha aqui não desfaz
+  // nem repete a decisão ou o aviso.
+  if (aviso) await enviarPushDaNotificacao(aviso);
   const guardian = await getGuardianStatusForUser(existing.userId);
 
   // A aprovação continua sendo sobre o DOCUMENTO: um KYC válido não deixa de

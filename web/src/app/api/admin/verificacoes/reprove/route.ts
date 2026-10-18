@@ -4,7 +4,7 @@ import { gateAdmin } from "@/lib/adminGate";
 import { rateLimit, cleanupRateLimit } from "@/lib/rateLimit";
 import { getRequestIp } from "@/lib/requestIp";
 import { aplicarEvento } from "@/lib/safeScore";
-import { criarNotificacao } from "@/lib/notifications";
+import { enviarPushDaNotificacao } from "@/lib/notifications";
 import { ensureUserRoleProfile } from "@/lib/userProfiles";
 import { getGuardianStatusForUser } from "@/lib/safeScoreGuardian";
 
@@ -72,7 +72,20 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: "Perfil não suportado para verificação documental." }, { status: 400 });
   }
 
-  const verification = await prisma.$transaction(async (tx) => {
+  const { verification, aviso } = await prisma.$transaction(async (tx) => {
+    // Decisão atômica: a mudança de estado é um UPDATE condicional. Pedidos
+    // simultâneos para a mesma verificação disputam o lock da linha; o que
+    // chega depois reavalia a condição, não encontra nada para mudar e não
+    // gera aviso. Ler o status antes e decidir fora do banco não basta.
+    const transicao = await tx.documentVerification.updateMany({
+      where: { id, status: { not: "REJECTED" } },
+      data: {
+        status: "REJECTED",
+        reviewedBy: gate.auth.userId,
+        reviewNote: `KYC REPROVADO por admin ${gate.auth.userId} em ${new Date().toISOString()} - ${motivo}`,
+      },
+    });
+
     await ensureUserRoleProfile(tx, existing.userId, existing.user.role);
 
     if (existing.user.role === "DIARISTA") {
@@ -89,13 +102,21 @@ export async function POST(req: Request) {
       });
     }
 
-    return tx.documentVerification.update({
+    // O aviso nasce na MESMA transação da decisão: ou os dois ficam, ou nenhum.
+    const aviso = transicao.count === 1
+      ? await tx.notification.create({
+          data: {
+            userId: existing.userId,
+            type: "VERIFICACAO_REPROVADA",
+            title: "Verificação não aprovada",
+            body: "Seus documentos não foram aprovados. Veja o motivo e envie novamente.",
+          },
+          select: { id: true, userId: true, type: true, title: true, body: true },
+        })
+      : null;
+
+    const verification = await tx.documentVerification.findUniqueOrThrow({
       where: { id },
-      data: {
-        status: "REJECTED",
-        reviewedBy: gate.auth.userId,
-        reviewNote: `KYC REPROVADO por admin ${gate.auth.userId} em ${new Date().toISOString()} - ${motivo}`,
-      },
       select: {
         id: true,
         userId: true,
@@ -107,6 +128,7 @@ export async function POST(req: Request) {
         updatedAt: true,
       },
     });
+    return { verification, aviso };
   });
 
   // A reprovação já está gravada: falha no score não a desfaz, mas não pode
@@ -114,16 +136,8 @@ export async function POST(req: Request) {
   await aplicarEvento(existing.userId, "KYC_REJEITADO", id, motivo).catch((err) => {
     console.error("[safeScore] KYC_REJEITADO não registrado — a reprovação segue:", { userId: existing.userId, verificacaoId: id }, err);
   });
-  // Aviso à pessoa (acelera a atualização do app). Só na mudança de estado.
-  if (existing.status !== "REJECTED") {
-    await criarNotificacao({
-      userId: existing.userId,
-      type: "VERIFICACAO_REPROVADA",
-      title: "Verificação não aprovada",
-      body: "Seus documentos não foram aprovados. Veja o motivo e envie novamente.",
-      pushData: {},
-    });
-  }
+  // Push do aviso já gravado (best-effort; não desfaz nem repete nada).
+  if (aviso) await enviarPushDaNotificacao(aviso);
   const guardian = await getGuardianStatusForUser(existing.userId);
 
   return NextResponse.json({ ok: true, verification, guardian });

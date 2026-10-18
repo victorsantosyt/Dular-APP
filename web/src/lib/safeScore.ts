@@ -5,6 +5,7 @@ import {
   applyEvent,
   aplicarEventoV2,
   buscarPoliticaAtiva,
+  pesoDaPolitica,
   type PoliticaAtiva,
   type SafeScoreEventInput,
 } from "@/lib/safeScore/applyEvent";
@@ -145,6 +146,7 @@ export const EVENT_TYPE_V2: Record<ScoreEventoTipo, string> = {
   CANCELAMENTO: "cancelamento_tardio",
   NO_SHOW: "no_show",
   TEMPO_PLATAFORMA: "tempo_plataforma",
+  KYC_REVISAO: "kyc_revisao",
 };
 
 /**
@@ -395,4 +397,107 @@ export function getFaixa(score: number): {
   // Limites e rótulos vêm do módulo compartilhado com o app (guia "Como funciona").
   const { label, cor, bloqueado } = faixaDoScore(score);
   return { label, cor, bloqueado };
+}
+
+const KYC_TIPOS: ScoreEventoTipo[] = ["KYC_APROVADO", "KYC_REJEITADO", "KYC_REVISAO"];
+
+/**
+ * Efeito do KYC de UM envio no score, conforme a decisão VIGENTE do envio.
+ *
+ * Por que não basta "evento único por envio": aprovar (+50) e depois revisar
+ * para reprovado deixava os +50 de pé — a idempotência da chave impedia a
+ * correção. E uma reaprovação não pode somar outros +50.
+ *
+ * Regra: o efeito devido é o peso da decisão vigente (aprovado = peso de
+ * `kyc_aprovado`, reprovado/reenvio = peso de `kyc_rejeitado`, pendente = 0).
+ * A primeira decisão grava o evento de sempre, com a chave de sempre; cada
+ * revisão grava um AJUSTE `KYC_REVISAO` com delta = devido − soma já gravada
+ * para o envio. Assim, aprovar → reprovar → aprovar soma exatamente um +50.
+ *
+ * Pelo estado, não pela ação: rodar de novo (retentativa, clique repetido,
+ * duas decisões fora de ordem) dá delta 0. Cada ledger trava a linha do score
+ * da conta durante o cálculo, e a chave do ajuste leva a quantidade de eventos
+ * já gravados — uma corrida não grava o mesmo ajuste duas vezes.
+ */
+export async function reconciliarKycDaVerificacao(verificacaoId: string, descricao?: string): Promise<void> {
+  const v = await prisma.documentVerification.findUnique({ where: { id: verificacaoId }, select: { userId: true } });
+  if (!v) return;
+  const userId = v.userId;
+  const tipoDoStatus = (status: string): ScoreEventoTipo | null =>
+    status === "APPROVED" ? "KYC_APROVADO" : status === "REJECTED" ? "KYC_REJEITADO" : null;
+  const payload = descricao ? { descricao } : undefined;
+
+  // ── 1. V2 — autoritativo ──────────────────────────────────────────────
+  await prisma.$transaction(async (tx) => {
+    await tx.safeScoreProfile.createMany({ data: [{ userId, currentScore: SCORE_INICIAL }], skipDuplicates: true });
+    await tx.$queryRaw`SELECT 1 FROM "SafeScoreProfile" WHERE "userId" = ${userId} FOR UPDATE`;
+    const atual = await tx.documentVerification.findUniqueOrThrow({ where: { id: verificacaoId }, select: { status: true } });
+    const tipo = tipoDoStatus(atual.status);
+    const politica = await buscarPoliticaAtiva(tx);
+    const eventos = await tx.safeScoreEvent.findMany({
+      where: { userId, sourceId: verificacaoId, eventType: { in: KYC_TIPOS.map((t) => EVENT_TYPE_V2[t]) } },
+      select: { delta: true },
+    });
+    if (eventos.length === 0) {
+      if (!tipo) return;
+      await aplicarEventoV2(tx, { userId, eventType: EVENT_TYPE_V2[tipo], source: tipo, sourceId: verificacaoId, idempotencyKey: `${userId}:${tipo}:${verificacaoId}`, payload }, politica);
+      return;
+    }
+    const devido = tipo ? pesoDaPolitica(politica.weights, EVENT_TYPE_V2[tipo]) : 0;
+    const delta = devido - eventos.reduce((soma, e) => soma + e.delta, 0);
+    if (delta === 0) return;
+    await aplicarEventoV2(
+      tx,
+      {
+        userId,
+        eventType: EVENT_TYPE_V2.KYC_REVISAO,
+        source: "KYC_REVISAO",
+        sourceId: verificacaoId,
+        idempotencyKey: `${userId}:KYC_REVISAO:${verificacaoId}:${eventos.length}`,
+        deltaFixo: delta,
+        payload: { ...(payload ?? {}), decisao: tipo ?? "PENDENTE" },
+      },
+      politica,
+    );
+  });
+
+  // ── 2. Legado + suspensão — mesma regra, pesos do legado ──────────────
+  const legado = await prisma.$transaction(async (tx) => {
+    // INSERT ... ON CONFLICT DO NOTHING: pedidos simultâneos não colidem ao criar.
+    await tx.safeScore.createMany({ data: [{ userId, score: SCORE_INICIAL }], skipDuplicates: true });
+    await tx.$queryRaw`SELECT 1 FROM "SafeScore" WHERE "userId" = ${userId} FOR UPDATE`;
+    const ss = await tx.safeScore.findUniqueOrThrow({ where: { userId } });
+    const atual = await tx.documentVerification.findUniqueOrThrow({ where: { id: verificacaoId }, select: { status: true } });
+    const tipo = tipoDoStatus(atual.status);
+    const eventos = await tx.scoreEvento.findMany({
+      where: { safeScoreId: ss.id, referenciaId: verificacaoId, tipo: { in: KYC_TIPOS } },
+      select: { peso: true },
+    });
+    if (eventos.length === 0) {
+      if (!tipo) return null;
+      const evento = await prepararEvento(userId, tipo, verificacaoId, descricao);
+      return aplicarNoLegado(tx, evento);
+    }
+    const devido = tipo ? PESOS_FIXOS[tipo] ?? 0 : 0;
+    const delta = devido - eventos.reduce((soma, e) => soma + e.peso, 0);
+    if (delta === 0) return null;
+    const lido = await tx.safeScore.findUniqueOrThrow({ where: { id: ss.id } });
+    const score = clampScore(lido.score + delta);
+    const safeScore = await tx.safeScore.update({ where: { id: ss.id }, data: { score } });
+    await tx.scoreEvento.create({
+      data: {
+        safeScoreId: ss.id,
+        tipo: "KYC_REVISAO",
+        peso: delta,
+        referenciaId: verificacaoId,
+        descricao,
+        chaveIdempotencia: `KYC_REVISAO:${verificacaoId}:${eventos.length}`,
+      },
+    });
+    if (score < 400) await tx.user.update({ where: { id: userId }, data: { emObservacao: true } });
+    return { safeScore, jaContado: false };
+  });
+  if (legado && !legado.jaContado && legado.safeScore.score < 200) {
+    await suspenderUsuario(userId);
+  }
 }

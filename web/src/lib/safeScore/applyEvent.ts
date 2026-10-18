@@ -14,6 +14,12 @@ export type SafeScoreEventInput = {
    * gravidade ("BAIXA".."CRITICA"). Ignorado quando a chave tem peso fixo.
    */
   parametro?: string
+  /**
+   * Delta explícito, fora da política. Só para AJUSTE de um efeito já gravado
+   * (revisão de decisão KYC): o valor é a diferença entre o efeito devido e o
+   * que o ledger já soma, nunca um peso de negócio novo.
+   */
+  deltaFixo?: number
 }
 
 export type ApplyEventResult =
@@ -76,7 +82,7 @@ export async function aplicarEventoV2(
   })
   if (jaAplicado) return { status: 'already_applied' }
 
-  const delta = pesoDaPolitica(policy.weights, input.eventType, input.parametro)
+  const delta = input.deltaFixo ?? pesoDaPolitica(policy.weights, input.eventType, input.parametro)
 
   // INSERT ... ON CONFLICT DO NOTHING: duas transações criando o perfil ao
   // mesmo tempo não colidem — a segunda espera a primeira e não faz nada.

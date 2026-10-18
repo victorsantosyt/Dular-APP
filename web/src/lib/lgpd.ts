@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { deleteObject } from "@/lib/s3Objects";
 
@@ -39,6 +40,11 @@ function chavesDoDocUrl(docUrl: string | null | undefined): string[] {
   }
 }
 
+/** Chave de objeto no S3 (não URL externa nem imagem embutida). */
+function chaveS3(v: string | null | undefined): string | null {
+  return v && v.trim() && !v.includes("://") && !v.startsWith("data:") ? v.trim() : null;
+}
+
 /**
  * Anonimiza o usuário e apaga os dados pessoais que não precisamos manter.
  *
@@ -57,6 +63,7 @@ export async function anonimizarUsuario(userId: string): Promise<ResumoExclusao>
       id: true,
       status: true,
       diaristaProfile: { select: { docUrl: true } },
+      montadorPerfil: { select: { documentoFrente: true, documentoVerso: true, selfieDoc: true } },
       documentVerifications: { select: { docUrl: true } },
     },
   });
@@ -69,6 +76,10 @@ export async function anonimizarUsuario(userId: string): Promise<ResumoExclusao>
   const chaves = new Set<string>([
     ...chavesDoDocUrl(usuario.diaristaProfile?.docUrl),
     ...usuario.documentVerifications.flatMap((d) => chavesDoDocUrl(d.docUrl)),
+    // Campos antigos de documento do montador (fluxo anterior ao DocumentVerification).
+    ...[usuario.montadorPerfil?.documentoFrente, usuario.montadorPerfil?.documentoVerso, usuario.montadorPerfil?.selfieDoc]
+      .map(chaveS3)
+      .filter((c): c is string => Boolean(c)),
   ]);
   const arquivosS3 = { removidos: 0, falharam: 0 };
   for (const chave of chaves) {
@@ -91,6 +102,12 @@ export async function anonimizarUsuario(userId: string): Promise<ResumoExclusao>
     apagados.dadosPagamento = (await tx.paymentInfo.deleteMany({ where: { userId } })).count;
     apagados.contasOAuth = (await tx.oAuthAccount.deleteMany({ where: { userId } })).count;
     apagados.notificacoes = (await tx.notification.deleteMany({ where: { userId } })).count;
+    // Cada envio leva junto a fotografia dos dados enviados (CPF, nascimento,
+    // endereço, nomes) e, em cascata, o histórico de decisões com os motivos.
+    apagados.fotografiasDeEnvio = await tx.documentVerification.count({
+      where: { userId, dadosEnviados: { not: Prisma.DbNull } },
+    });
+    apagados.decisoesDeVerificacao = await tx.decisaoVerificacao.count({ where: { verificacao: { userId } } });
     apagados.verificacoes = (await tx.documentVerification.deleteMany({ where: { userId } })).count;
     apagados.favoritos = (
       await tx.empregadorFavorito.deleteMany({
@@ -133,9 +150,27 @@ export async function anonimizarUsuario(userId: string): Promise<ResumoExclusao>
       await tx.montadorPerfil.updateMany({
         where: { userId },
         data: {
-          bio: null, cidade: null, estado: null, latitude: null, longitude: null,
+          ativo: false, bio: null, fotoPerfil: null,
+          documentoFrente: null, documentoVerso: null, selfieDoc: null,
+          cidade: null, estado: null, latitude: null, longitude: null,
           cidadeAtual: null, estadoAtual: null, bairroAtual: null,
         },
+      })
+    ).count;
+
+    // 4b) O ledger do SafeScore é preservado (desvinculado), mas o texto livre
+    //     dos eventos de KYC é o motivo escrito sobre os documentos da pessoa:
+    //     sai. Ficam tipo, peso e data.
+    anonimizados.eventosKycLegado = (
+      await tx.scoreEvento.updateMany({
+        where: { safeScore: { userId }, tipo: { in: ["KYC_APROVADO", "KYC_REJEITADO", "KYC_REVISAO"] } },
+        data: { descricao: null },
+      })
+    ).count;
+    anonimizados.eventosKyc = (
+      await tx.safeScoreEvent.updateMany({
+        where: { userId, eventType: { in: ["kyc_aprovado", "kyc_rejeitado", "kyc_revisao"] } },
+        data: { payload: Prisma.DbNull },
       })
     ).count;
 

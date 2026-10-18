@@ -109,14 +109,21 @@ describe("decisão de verificação com pedidos simultâneos (DB)", { skip: EXIG
     assert.deepEqual(await eventosKyc(u, "KYC_APROVADO"), { v2: 1, legado: 1 }, "um evento KYC");
   });
 
-  it("decisão concluída: botão comum não muda (409); revisões simultâneas: uma transição; o KYC continua idempotente", async () => {
+  const pontuacao = async (u: string) => ({
+    v2: (await prisma.safeScoreProfile.findUnique({ where: { userId: u } }))?.currentScore ?? null,
+    legado: (await prisma.safeScore.findUnique({ where: { userId: u } }))?.score ?? null,
+  });
+
+  it("decisão concluída: botão comum não muda (409); revisões simultâneas: uma transição; a pontuação acompanha a decisão vigente", async () => {
     const { u, v } = await diaristaComDocumento("vaivem");
     todos200(await emParalelo(aprovar, v));
+    assert.deepEqual(await pontuacao(u), { v2: 550, legado: 550 }, "aprovação: +50");
     // Botão comum sobre decisão concluída: recusado, nada muda.
     const st = await emParalelo(reprovar, v);
     assert.deepEqual([...new Set(st)], [409]);
     assert.equal((await prisma.documentVerification.findUnique({ where: { id: v } })).status, "APPROVED");
     assert.equal(await avisos(u, "VERIFICACAO_REPROVADA"), 0);
+    assert.deepEqual(await pontuacao(u), { v2: 550, legado: 550 });
     // Revisão explícita sem motivo: recusada.
     assert.equal((await reprovar(pedido(v, "", { revisao: true, esperado: "APROVADO" }))).status, 400);
     // Revisões simultâneas com a mesma decisão vista: uma vence, as outras 409.
@@ -125,14 +132,46 @@ describe("decisão de verificação com pedidos simultâneos (DB)", { skip: EXIG
     assert.equal(rev.filter((x) => x === 409).length, PARALELOS - 1);
     assert.equal((await prisma.documentVerification.findUnique({ where: { id: v } })).status, "REJECTED");
     assert.equal(await avisos(u, "VERIFICACAO_REPROVADA"), 1);
-    // Revisão de volta para aprovado.
+    assert.deepEqual(await pontuacao(u), { v2: 480, legado: 480 }, "revisão para reprovado: sai o +50 e entra o −20");
+    // Reaprovação: volta a exatamente um +50, nunca dois.
     assert.equal((await aprovar(pedido(v, "conferido de novo", { revisao: true, esperado: "REPROVADO" }))).status, 200);
+    assert.deepEqual(await pontuacao(u), { v2: 550, legado: 550 }, "reaprovação não soma outro +50");
     assert.equal(await avisos(u, "VERIFICACAO_APROVADA"), 2, "nova transição, novo aviso");
-    assert.deepEqual(await eventosKyc(u, "KYC_APROVADO"), { v2: 1, legado: 1 }, "a mesma verificação não pontua duas vezes");
-    assert.deepEqual(await eventosKyc(u, "KYC_REJEITADO"), { v2: 1, legado: 1 });
+    // Clique repetido na decisão vigente: nada muda.
+    assert.equal((await aprovar(pedido(v))).status, 200);
+    assert.deepEqual(await pontuacao(u), { v2: 550, legado: 550 });
+    // Revisão para reenvio: mesmo efeito da reprovação.
+    assert.equal((await reprovar(pedido(v, "verso ilegível", { tipo: "REENVIO", revisao: true, esperado: "APROVADO" }))).status, 200);
+    assert.deepEqual(await pontuacao(u), { v2: 480, legado: 480 });
+    // Ledger auditável: soma dos deltas do envio = efeito vigente.
+    const v2 = await prisma.safeScoreEvent.findMany({ where: { userId: u, sourceId: v }, orderBy: { createdAt: "asc" } });
+    assert.deepEqual(v2.map((e: any) => [e.eventType, e.delta]), [["kyc_aprovado", 50], ["kyc_revisao", -70], ["kyc_revisao", 70], ["kyc_revisao", -70]]);
     const historico = await prisma.decisaoVerificacao.findMany({ where: { verificacaoId: v }, orderBy: { createdAt: "asc" } });
-    assert.deepEqual(historico.map((d: any) => [d.decisao, d.revisao]), [["APROVADO", false], ["REPROVADO", true], ["APROVADO", true]], "histórico preservado");
+    assert.deepEqual(historico.map((d: any) => [d.decisao, d.revisao]), [["APROVADO", false], ["REPROVADO", true], ["APROVADO", true], ["REENVIO", true]], "histórico preservado");
   });
+
+  for (const role of ["EMPREGADOR", "DIARISTA", "MONTADOR"] as const) {
+    it(`${role}: revisar aprovado → reprovado tira a verificação e as permissões; reaprovar devolve`, async () => {
+      const { getGuardianStatusForUser } = await import("../../src/lib/safeScoreGuardian");
+      const u = await usuario(`rev_${role.toLowerCase()}`, role);
+      if (role === "DIARISTA") await prisma.diaristaProfile.create({ data: { userId: u, precoLeve: 100, precoPesada: 200 } });
+      if (role === "MONTADOR") await prisma.montadorPerfil.create({ data: { userId: u, especialidades: [], bairros: [], portfolioFotos: [] } });
+      const v = (await prisma.documentVerification.create({ data: { userId: u, docType: `${role}_KYC`, docUrl: "{}" } })).id;
+      assert.equal((await aprovar(pedido(v))).status, 200);
+      const g1 = await getGuardianStatusForUser(u);
+      assert.equal(g1.verificationStatus, "VERIFICADO");
+      assert.equal((await reprovar(pedido(v, "documento de outra pessoa", { revisao: true, esperado: "APROVADO" }))).status, 200);
+      const g2 = await getGuardianStatusForUser(u);
+      assert.notEqual(g2.verificationStatus, "VERIFICADO", "revisão tira a verificação");
+      assert.equal(g2.canReceiveServico || g2.canCreateServico || g2.canAppearInSearch, false, "e as permissões que dependem dela");
+      if (role === "DIARISTA") assert.equal((await prisma.diaristaProfile.findUnique({ where: { userId: u } })).verificacao, "REPROVADO");
+      if (role === "MONTADOR") assert.equal((await prisma.montadorPerfil.findUnique({ where: { userId: u } })).verificado, false);
+      assert.deepEqual(await pontuacao(u), { v2: 480, legado: 480 });
+      assert.equal((await aprovar(pedido(v, "revisto", { revisao: true, esperado: "REPROVADO" }))).status, 200);
+      assert.equal((await getGuardianStatusForUser(u)).verificationStatus, "VERIFICADO");
+      assert.deepEqual(await pontuacao(u), { v2: 550, legado: 550 });
+    });
+  }
 
   it("envio antigo: decisão recusada quando a conta tem envio mais recente", async () => {
     const { u, v } = await diaristaComDocumento("antigo");

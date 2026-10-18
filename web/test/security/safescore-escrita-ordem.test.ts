@@ -37,7 +37,13 @@ const CALL_SITES: Record<string, Tratamento> = {
 };
 
 const LIBS_DO_LEDGER = new Set(["lib/safeScore.ts", "lib/safeScore/applyEvent.ts"]);
-const QUALQUER_ESCRITA = /\b(aplicarEvento|aplicarEventoNaTransacao|aplicarEventoV2NaTransacao|applyEvent|aplicarEventoV2)\s*\(/;
+const QUALQUER_ESCRITA = /\b(aplicarEvento|aplicarEventoNaTransacao|aplicarEventoV2NaTransacao|applyEvent|aplicarEventoV2|reconciliarKycDaVerificacao)\s*\(/;
+
+/** Função de escrita de cada call-site (as rotas de KYC reconciliam pela decisão vigente). */
+const FUNCAO_DE_ESCRITA: Record<string, string> = {
+  "app/api/admin/verificacoes/approve/route.ts": "reconciliarKycDaVerificacao",
+  "app/api/admin/verificacoes/reprove/route.ts": "reconciliarKycDaVerificacao",
+};
 
 /** Cada chamada `nome(` até o `;` que fecha a instrução. */
 function instrucoes(texto: string, nome: string): string[] {
@@ -78,18 +84,18 @@ describe("escrita dupla — call-sites", () => {
       const t = ler(rel);
       // Só as instruções de score importam: `req.json().catch(() => null)` para
       // ler o corpo da requisição é outra coisa e continua legítimo.
-      for (const c of instrucoes(t, "aplicarEvento")) {
+      for (const c of instrucoes(t, FUNCAO_DE_ESCRITA[rel] ?? "aplicarEvento")) {
         assert.doesNotMatch(c, /\.catch\(\s*\(\)\s*=>\s*null\s*\)/, `\`.catch(() => null)\` esconde a falha: ${c.slice(0, 80)}`);
       }
 
       if (tratamento === "propaga") {
-        const chamadas = instrucoes(t, "aplicarEvento");
+        const chamadas = instrucoes(t, FUNCAO_DE_ESCRITA[rel] ?? "aplicarEvento");
         assert.ok(chamadas.length > 0);
         for (const c of chamadas) assert.doesNotMatch(c, /\.catch\(/, `não pode engolir: ${c.slice(0, 80)}`);
       }
 
       if (tratamento === "loga-e-segue") {
-        const chamadas = instrucoes(t, "aplicarEvento");
+        const chamadas = instrucoes(t, FUNCAO_DE_ESCRITA[rel] ?? "aplicarEvento");
         assert.ok(chamadas.length > 0);
         for (const c of chamadas) {
           assert.match(c, /\.catch\(\s*\(\s*err\s*\)\s*=>\s*\{/, `precisa de catch com o erro: ${c.slice(0, 80)}`);

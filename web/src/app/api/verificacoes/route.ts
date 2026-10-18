@@ -165,7 +165,9 @@ export async function POST(req: Request) {
     const faltando = await dadosFaltantes(auth.userId);
     if (faltando.length) {
       return NextResponse.json(
-        { ok: false, error: "Complete seus dados (nome completo, CPF e data de nascimento) antes de enviar os documentos.", codigo: "DADOS_OBRIGATORIOS", faltando },
+        // Versões anteriores do app não têm o campo de nome completo: a mensagem
+        // (exibida por elas como veio) já orienta a atualizar.
+        { ok: false, error: "Para enviar seus documentos, atualize o Dular e complete nome completo, CPF e data de nascimento.", codigo: "DADOS_OBRIGATORIOS", faltando },
         { status: 400 },
       );
     }

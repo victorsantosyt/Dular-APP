@@ -237,3 +237,11 @@ describe("decisão de verificação com pedidos simultâneos (DB)", { skip: EXIG
     assert.equal(pushBloqueadoNoPreview("u1", { VERCEL_ENV: "preview" }), false);
   });
 });
+
+// Encerra o pool do Prisma ao fim do arquivo. Sem isto, as conexões ociosas
+// seguram o processo por ~10 s (pg-pool: idleTimeoutMillis = 10 s,
+// allowExitOnIdle = false) — e sem prazo se uma conexão ficar presa numa
+// transação de um teste que falhou.
+after(async () => {
+  await (globalThis as { prisma?: { $disconnect(): Promise<void> } }).prisma?.$disconnect();
+});

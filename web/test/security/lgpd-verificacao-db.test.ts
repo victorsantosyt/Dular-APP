@@ -145,3 +145,11 @@ describe("exclusão de conta: fotografias, histórico de decisões e documentos 
     assert.deepEqual([p.documentoFrente, p.documentoVerso, p.selfieDoc, p.fotoPerfil, p.ativo], [null, null, null, null, false]);
   });
 });
+
+// Encerra o pool do Prisma ao fim do arquivo. Sem isto, as conexões ociosas
+// seguram o processo por ~10 s (pg-pool: idleTimeoutMillis = 10 s,
+// allowExitOnIdle = false) — e sem prazo se uma conexão ficar presa numa
+// transação de um teste que falhou.
+after(async () => {
+  await (globalThis as { prisma?: { $disconnect(): Promise<void> } }).prisma?.$disconnect();
+});

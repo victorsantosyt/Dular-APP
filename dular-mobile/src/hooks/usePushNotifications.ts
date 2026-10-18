@@ -1,3 +1,4 @@
+import { pedirSincronizacao } from "@/lib/sincronizacaoConta";
 import { useEffect, useRef } from "react";
 import { AppState } from "react-native";
 import * as Notifications from "expo-notifications";
@@ -92,6 +93,9 @@ export function usePushNotifications() {
     // Chegou com o app aberto: mostra o aviso do próprio app (se for desta
     // sessão) e atualiza lista/contador/sino — lib/pushPrimeiroPlano.
     notificationListener.current = Notifications.addNotificationReceivedListener((n) => {
+      // Toda notificação recebida é sinal para conferir a conta no backend
+      // (aprovação, assinatura, restrição): a fonte continua sendo o servidor.
+      pedirSincronizacao();
       void tratarPushRecebido(n.request.content as never, {
         usuario: sessaoAtual,
         chatAberto: chatAbertoAtual,

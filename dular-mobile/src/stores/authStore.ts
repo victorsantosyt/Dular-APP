@@ -337,6 +337,9 @@ export const useAuth = create<AuthState>((set, get) => ({
   setUser(next) {
     set((state) => {
       const resolved = typeof next === "function" ? (next as any)(state.user) : next;
+      // Resposta atrasada de outra conta (ou de depois do logout) não altera a
+      // sessão atual: só vale atualização da MESMA conta. Limpar (null) vale.
+      if (resolved && (!state.user || resolved.id !== state.user.id)) return state;
       if (resolved) void SecureStorage.saveUser(resolved);
       return { ...state, user: resolved ?? null };
     });

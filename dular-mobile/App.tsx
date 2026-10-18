@@ -16,6 +16,7 @@ import * as ExpoSplashScreen from "expo-splash-screen";
 import { navRef } from "@/navigation/nav";
 import RootNavigator from "@/navigation/RootNavigator";
 import { AppUpdatePrompt } from "@/components/ui/AppUpdatePrompt";
+import { SincronizacaoConta } from "@/components/SincronizacaoConta";
 import { NotificacaoPopup } from "@/components/ui/NotificacaoPopup";
 import { SystemNavigationBarSurface } from "@/components/ui/SystemNavigationBarSurface";
 import { colors } from "@/theme/tokens";
@@ -68,6 +69,7 @@ export default function App() {
       <NavigationContainer theme={navTheme} ref={navRef}>
         <RootNavigator fontsReady={fontesProntas} onReadyChange={setAppReady} />
         <AppUpdatePrompt enabled={appReady} />
+        <SincronizacaoConta />
         {/* Dentro do NavigationContainer (usa navRef para abrir a tela ao
             toque) e depois do navegador, para ficar por cima de tudo. */}
         <NotificacaoPopup />

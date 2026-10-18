@@ -1,3 +1,4 @@
+import { useAoMudarConta } from "@/hooks/useSincronizacaoConta";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigation } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
@@ -588,6 +589,9 @@ export default function MontadorPerfil() {
   useEffect(() => {
     void loadProfile("initial");
   }, []);
+
+  // Mudança fora do app (aprovação no painel) ou em outra tela: relê com a tela aberta.
+  useAoMudarConta(() => { void loadProfile("silent"); });
 
   // Re-busca o perfil sempre que a tela ganha foco (voltar de VerificacaoDocs,
   // troca de aba ou após aprovação no backend), evitando status defasado — ex.:

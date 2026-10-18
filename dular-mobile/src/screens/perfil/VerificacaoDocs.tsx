@@ -9,6 +9,8 @@ import { apiMsg } from "@/utils/apiMsg";
 import { api } from "@/lib/api";
 import { getMe, type VerificacaoStatus } from "@/api/perfilApi";
 import { useAuth } from "@/stores/authStore";
+import { useAoMudarConta } from "@/hooks/useSincronizacaoConta";
+import { sinalizarMudancaLocal } from "@/lib/sincronizacaoConta";
 import { useProfileTheme } from "@/hooks/useProfileTheme";
 import type { ProfileTheme } from "@/theme/profileTheme";
 import { colors, radius, shadow, typography } from "@/theme/tokens";
@@ -92,25 +94,28 @@ export default function VerificacaoDocs() {
     return () => clearTimeout(t);
   }, [toast]);
 
-  useEffect(() => {
-    let alive = true;
+  const montada = useRef(true);
+  useEffect(() => () => { montada.current = false; }, []);
 
-    async function loadStatus() {
-      try {
-        const me = await getMe();
-        if (!alive) return;
-        setVerificacao(me.verificacao?.status ?? "NAO_ENVIADO");
-        setDocEnviado(Boolean(me.docEnviado));
-      } catch {
-        // Mantém o estado local atual se não conseguir atualizar agora.
-      }
+  const loadStatus = useCallback(async () => {
+    const conta = useAuth.getState().user?.id;
+    try {
+      const me = await getMe();
+      // Desmontada ou outra conta: a resposta não vale para esta tela.
+      if (!montada.current || !conta || me.id !== conta || useAuth.getState().user?.id !== conta) return;
+      setVerificacao(me.verificacao?.status ?? "NAO_ENVIADO");
+      setDocEnviado(Boolean(me.docEnviado));
+    } catch {
+      // Mantém o estado local atual se não conseguir atualizar agora.
     }
-
-    loadStatus();
-    return () => {
-      alive = false;
-    };
   }, []);
+
+  useEffect(() => {
+    void loadStatus();
+  }, [loadStatus]);
+
+  // Aprovação/reprovação no painel com esta tela aberta: relê o status.
+  useAoMudarConta(() => { void loadStatus(); });
 
   const setPickedFile = useCallback((field: FileField, file: PickedFile) => {
     if (!ALLOWED_IMAGE_MIMES.has(file.type)) {
@@ -256,6 +261,8 @@ export default function VerificacaoDocs() {
       setState("sucesso");
       setVerificacao(nextStatus);
       setDocEnviado(true);
+      // Outras telas (Home, perfil, selo) relêem já; o backend confirma.
+      sinalizarMudancaLocal();
       setUser((prev) =>
         prev
           ? {

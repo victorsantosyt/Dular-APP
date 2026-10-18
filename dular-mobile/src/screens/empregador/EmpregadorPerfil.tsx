@@ -1,3 +1,4 @@
+import { useAoMudarConta } from "@/hooks/useSincronizacaoConta";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -174,6 +175,8 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
   const setUser = useAuth((state) => state.setUser);
   const user = useAuth((state) => state.user);
   const { perfil, loading, saving, error, atualizar, refetch } = usePerfil();
+  // Mudança fora do app (aprovação no painel) ou em outra tela: relê com a tela aberta.
+  useAoMudarConta(refetch);
   const { requestRegion } = useCurrentRegion();
   const busyRef = useRef(false);
   const prevAprovadoRef = useRef<boolean | null>(null);

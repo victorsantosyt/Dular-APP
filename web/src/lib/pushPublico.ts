@@ -44,6 +44,8 @@ export const CONTEUDO_PUBLICO: Record<NotificationType, ConteudoPublico> = {
   PAGAMENTO_INFORMADO: { title: "Pagamento informado", body: "Um pagamento foi informado. Abra o Dular para conferir." },
   PAGAMENTO_CONFIRMADO: { title: "Recebimento confirmado", body: "Um recebimento foi confirmado. Abra o Dular para ver." },
   PAGAMENTO_CONTESTADO: { title: "Pagamento não recebido", body: "Há um aviso sobre um pagamento. Abra o Dular para ver." },
+  VERIFICACAO_APROVADA: { title: "Verificação aprovada", body: "Seus documentos foram aprovados. Abra o Dular para ver." },
+  VERIFICACAO_REPROVADA: { title: "Verificação não aprovada", body: "Há uma atualização sobre seus documentos. Abra o Dular para ver." },
 };
 
 export const CONTEUDO_GENERICO: ConteudoPublico = {

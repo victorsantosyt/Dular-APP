@@ -591,7 +591,7 @@ export default function MontadorPerfil() {
   }, []);
 
   // Mudança fora do app (aprovação no painel) ou em outra tela: relê com a tela aberta.
-  useAoMudarConta(() => { void loadProfile("silent"); });
+  useAoMudarConta(["conta", "verificacao", "perfil", "restricoes", "safescore"], () => { void loadProfile("silent"); });
 
   // Re-busca o perfil sempre que a tela ganha foco (voltar de VerificacaoDocs,
   // troca de aba ou após aprovação no backend), evitando status defasado — ex.:

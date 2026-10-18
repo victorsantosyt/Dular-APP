@@ -176,7 +176,7 @@ export default function EmpregadorPerfil({ onLogout }: Props) {
   const user = useAuth((state) => state.user);
   const { perfil, loading, saving, error, atualizar, refetch } = usePerfil();
   // Mudança fora do app (aprovação no painel) ou em outra tela: relê com a tela aberta.
-  useAoMudarConta(refetch);
+  useAoMudarConta(["conta", "verificacao", "perfil", "restricoes"], refetch);
   const { requestRegion } = useCurrentRegion();
   const busyRef = useRef(false);
   const prevAprovadoRef = useRef<boolean | null>(null);

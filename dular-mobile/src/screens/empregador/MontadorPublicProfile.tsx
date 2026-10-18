@@ -4,11 +4,14 @@
  * de todos os perfis públicos), preenchido com os dados do montador. Tema
  * sempre EMPREGADOR (roxo lavanda).
  */
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Alert, StyleSheet, Text, View } from "react-native";
 import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import { api } from "@/lib/api";
+import { useAtualizacaoPeriodica } from "@/hooks/useAtualizacaoPeriodica";
+import { useAoMudarConta } from "@/hooks/useSincronizacaoConta";
+import { useUltimaLeitura } from "@/hooks/useUltimaLeitura";
 import { AppIcon, DButton } from "@/components/ui";
 import { getProfileTheme } from "@/theme/profileTheme";
 import { colors, radius, shadows, typography } from "@/theme";
@@ -73,26 +76,30 @@ export default function MontadorPublicProfile() {
     status?: string | null;
   } | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
+  const iniciarLeituraPerfil = useUltimaLeitura();
+  const carregarPerfil = useCallback(async (silencioso: boolean) => {
+    const vale = iniciarLeituraPerfil();
+    try {
+      if (!silencioso) {
         setLoading(true);
         setError(null);
-        const res = await api.get<DetalheResponse>(`/api/montadores/${montadorId}`).catch(() => null);
-        if (cancelled) return;
-        setMontador(res?.data?.montador ?? null);
-      } catch (err) {
-        if (cancelled) return;
-        setError(err instanceof Error ? err.message : "Falha ao carregar perfil");
-      } finally {
-        if (!cancelled) setLoading(false);
       }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [montadorId]);
+      const res = await api.get<DetalheResponse>(`/api/montadores/${montadorId}`).catch(() => null);
+      if (!vale()) return;
+      // Releitura silenciosa sem resposta mantém o perfil já mostrado.
+      if (silencioso && !res?.data?.montador) return;
+      setMontador(res?.data?.montador ?? null);
+    } catch (err) {
+      if (!vale() || silencioso) return;
+      setError(err instanceof Error ? err.message : "Falha ao carregar perfil");
+    } finally {
+      if (vale()) setLoading(false);
+    }
+  }, [montadorId, iniciarLeituraPerfil]);
+
+  useEffect(() => {
+    void carregarPerfil(false);
+  }, [carregarPerfil]);
 
   const { isFavorito, toggle: toggleFavorito } = useFavoritos();
 
@@ -120,34 +127,40 @@ export default function MontadorPublicProfile() {
   const portfolioFotos = montador?.portfolioFotos ?? [];
   const safeScore = montador?.safeScore;
 
-  useEffect(() => {
-    let cancelled = false;
+  const iniciarLeituraServico = useUltimaLeitura();
+  const carregarServicoAtivo = useCallback(async (silencioso: boolean) => {
+    const vale = iniciarLeituraServico();
     if (!profissionalId) {
       setActiveService(null);
-      return () => {
-        cancelled = true;
-      };
+      return;
     }
-    (async () => {
-      try {
-        setActiveService(null);
-        const res = await api.get<ServicoAtivoResponse>(`/api/montadores/${profissionalId}/servico-ativo`);
-        if (cancelled) return;
-        const servico = res.data?.servico ?? res.data?.activeService ?? null;
-        const hasActiveService = Boolean(res.data?.hasActiveService ?? servico) && !isStatusEncerrado(servico?.status);
-        setActiveService({
-          hasActiveService,
-          id: hasActiveService ? servico?.id : undefined,
-          status: hasActiveService ? servico?.status : undefined,
-        });
-      } catch {
-        if (!cancelled) setActiveService({ hasActiveService: false });
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [profissionalId]);
+    try {
+      if (!silencioso) setActiveService(null);
+      const res = await api.get<ServicoAtivoResponse>(`/api/montadores/${profissionalId}/servico-ativo`);
+      if (!vale()) return;
+      const servico = res.data?.servico ?? res.data?.activeService ?? null;
+      const hasActiveService = Boolean(res.data?.hasActiveService ?? servico) && !isStatusEncerrado(servico?.status);
+      setActiveService({
+        hasActiveService,
+        id: hasActiveService ? servico?.id : undefined,
+        status: hasActiveService ? servico?.status : undefined,
+      });
+    } catch {
+      if (vale() && !silencioso) setActiveService({ hasActiveService: false });
+    }
+  }, [profissionalId, iniciarLeituraServico]);
+
+  useEffect(() => {
+    void carregarServicoAtivo(false);
+  }, [carregarServicoAtivo]);
+
+  // Perfil e portfólio do montador mudam na conta DELE: relê com a tela em foco.
+  useAtualizacaoPeriodica(() => {
+    void carregarPerfil(true);
+    void carregarServicoAtivo(true);
+  });
+  // Serviço com ele aceito/cancelado/concluído: chega pela sincronização da conta.
+  useAoMudarConta(["servicos"], () => { void carregarServicoAtivo(true); });
 
   const handleContratar = () => {
     if (montador && montador.profileCompleto === false) {

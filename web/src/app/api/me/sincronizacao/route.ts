@@ -11,9 +11,10 @@ export const dynamic = "force-dynamic";
  * O app consulta com a tela aberta (e ao voltar do segundo plano, ao recuperar
  * a rede ou ao receber uma notificação). A resposta traz o `userId` — o app
  * descarta a de outra conta — e uma `versao` que muda quando muda qualquer dado
- * compartilhado entre telas: papel/status da conta, verificação documental,
- * perfil profissional, SafeScore, assinaturas e restrições. Só quando a versão
- * muda o app relê os dados completos.
+ * compartilhado entre telas — conta, verificação documental, perfil
+ * profissional, SafeScore, assinatura, restrições, serviços (solicitações e
+ * agenda, das duas pontas) e avisos não lidos —, com uma versão por assunto:
+ * o app relê só as telas do assunto que mudou.
  *
  * `User.updatedAt` fica de fora de propósito: o batimento de presença mexe nele
  * o tempo todo e faria o app reler tudo sem motivo.
@@ -28,7 +29,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ ok: false, error: "Não autenticado" }, { status: 401 });
   }
   const userId = auth.userId;
-  const [user, diarista, montador, empregador, documento, score, assinatura, lojas, restricoes] = await Promise.all([
+  const [user, diarista, montador, empregador, documento, score, assinatura, lojas, restricoes, servicos, avisos] = await Promise.all([
     prisma.user.findUnique({ where: { id: userId }, select: { role: true, status: true } }),
     prisma.diaristaProfile.findUnique({ where: { userId }, select: { verificacao: true, docUrl: true, updatedAt: true } }),
     prisma.montadorPerfil.findUnique({ where: { userId }, select: { verificado: true, updatedAt: true } }),
@@ -38,21 +39,34 @@ export async function GET(req: Request) {
     prisma.subscription.findUnique({ where: { userId }, select: { updatedAt: true } }),
     prisma.assinaturaLoja.aggregate({ where: { userId }, _max: { updatedAt: true }, _count: true }),
     prisma.userRestriction.aggregate({ where: { userId }, _max: { createdAt: true, revokedAt: true }, _count: true }),
+    // Solicitações e agenda: todo serviço em que a conta é cliente ou profissional
+    // (índices em clientId, diaristaId e montadorId). Mudança de status de um
+    // serviço muda a versão das DUAS pontas.
+    prisma.servico.aggregate({
+      where: { OR: [{ clientId: userId }, { diaristaId: userId }, { montadorId: userId }] },
+      _max: { updatedAt: true },
+      _count: true,
+    }),
+    // Contadores: avisos não lidos e o mais recente (índice userId+readAt).
+    prisma.notification.aggregate({ where: { userId, readAt: null }, _max: { createdAt: true }, _count: true }),
   ]);
-  const estado = {
+  const t = (d: Date | null | undefined) => d?.getTime() ?? null;
+  // Uma versão por assunto: a tela relê só o que mudou.
+  const assuntos = {
     conta: user ? [user.role, user.status] : null,
-    diarista: diarista ? [diarista.verificacao, Boolean(diarista.docUrl), diarista.updatedAt.getTime()] : null,
-    montador: montador ? [montador.verificado, montador.updatedAt.getTime()] : null,
-    empregador: empregador?.updatedAt.getTime() ?? null,
-    documento: documento ? [documento.id, documento.status, documento.updatedAt.getTime()] : null,
-    score: score?.updatedAt.getTime() ?? null,
-    assinatura: assinatura?.updatedAt.getTime() ?? null,
-    lojas: [lojas._count, lojas._max.updatedAt?.getTime() ?? null],
-    restricoes: [restricoes._count, restricoes._max.createdAt?.getTime() ?? null, restricoes._max.revokedAt?.getTime() ?? null],
+    verificacao: [diarista?.verificacao ?? null, Boolean(diarista?.docUrl), montador?.verificado ?? null, documento ? [documento.id, documento.status, t(documento.updatedAt)] : null],
+    perfil: [t(diarista?.updatedAt), t(montador?.updatedAt), t(empregador?.updatedAt)],
+    safescore: t(score?.updatedAt),
+    assinatura: [t(assinatura?.updatedAt), lojas._count, t(lojas._max.updatedAt)],
+    restricoes: [restricoes._count, t(restricoes._max.createdAt), t(restricoes._max.revokedAt)],
+    servicos: [servicos._count, t(servicos._max.updatedAt)],
+    avisos: [avisos._count, t(avisos._max.createdAt)],
   };
-  const versao = createHash("sha256").update(JSON.stringify(estado)).digest("hex").slice(0, 24);
+  const resumo = (v: unknown) => createHash("sha256").update(JSON.stringify(v)).digest("hex").slice(0, 12);
+  const versoes = Object.fromEntries(Object.entries(assuntos).map(([k, v]) => [k, resumo(v)]));
   return NextResponse.json(
-    { ok: true, userId, versao },
-    { headers: { "cache-control": "no-store" } },
+    { ok: true, userId, versao: resumo(versoes), versoes },
+    // Resposta por pessoa: nunca em cache compartilhado (CDN, proxy).
+    { headers: { "cache-control": "private, no-store, max-age=0", vary: "Authorization" } },
   );
 }

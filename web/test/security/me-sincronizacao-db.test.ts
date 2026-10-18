@@ -21,6 +21,7 @@ describe("versão de sincronização da conta (DB)", { skip: EXIGIDO ? false : P
   let makeAuthHeaders: (u: string, r: any) => Record<string, string>;
   const RUN = `t_sinc_${Date.now().toString(36)}`;
   const ids: string[] = [];
+  const servicosCriados: string[] = [];
 
   before(async () => {
     if (PULAR) throw new Error(`SAFESCORE_DB_REQUIRED=1, mas ${PULAR}`);
@@ -32,6 +33,8 @@ describe("versão de sincronização da conta (DB)", { skip: EXIGIDO ? false : P
 
   after(async () => {
     if (!prisma) return;
+    await prisma.notification.deleteMany({ where: { userId: { in: ids } } });
+    await prisma.servico.deleteMany({ where: { id: { in: servicosCriados } } });
     await prisma.documentVerification.deleteMany({ where: { userId: { in: ids } } });
     await prisma.diaristaProfile.deleteMany({ where: { userId: { in: ids } } });
     await prisma.montadorPerfil.deleteMany({ where: { userId: { in: ids } } });
@@ -44,13 +47,19 @@ describe("versão de sincronização da conta (DB)", { skip: EXIGIDO ? false : P
     ids.push(id);
     return id;
   }
-  const versao = async (userId: string, role: string) => {
+  const tempos: number[] = [];
+  const consulta = async (userId: string, role: string) => {
+    const t0 = performance.now();
     const r = await GET(new Request("http://test/api/me/sincronizacao", { headers: makeAuthHeaders(userId, role) }));
+    tempos.push(performance.now() - t0);
     assert.equal(r.status, 200);
+    assert.match(r.headers.get("cache-control") ?? "", /private/);
+    assert.match(r.headers.get("cache-control") ?? "", /no-store/);
     const corpo = await r.json();
     assert.equal(corpo.userId, userId, "a resposta diz de que conta é");
-    return corpo.versao as string;
+    return corpo as { versao: string; versoes: Record<string, string> };
   };
+  const versao = async (userId: string, role: string) => (await consulta(userId, role)).versao;
 
   it("Profissional de Casa: envio, aprovação e reprovação mudam a versão; presença não", async () => {
     const u = await usuario("diarista", "DIARISTA");
@@ -86,6 +95,41 @@ describe("versão de sincronização da conta (DB)", { skip: EXIGIDO ? false : P
     const ve = await versao(e, "EMPREGADOR");
     await prisma.documentVerification.update({ where: { id: doc.id }, data: { status: "APPROVED" } });
     assert.notEqual(await versao(e, "EMPREGADOR"), ve);
+  });
+
+  it("uma versão por assunto: serviço muda só 'servicos' das duas pontas; aviso só 'avisos'; score só 'safescore'", async () => {
+    const cliente = await usuario("cliente", "EMPREGADOR");
+    const pro = await usuario("pro", "DIARISTA");
+    await prisma.diaristaProfile.create({ data: { userId: pro, precoLeve: 100, precoPesada: 200 } });
+    const c0 = await consulta(cliente, "EMPREGADOR");
+    const p0 = await consulta(pro, "DIARISTA");
+    const servico = await prisma.servico.create({
+      data: { clientId: cliente, diaristaId: pro, tipo: "FAXINA", data: new Date(Date.now() + 86_400_000), turno: "MANHA", cidade: "Teste", uf: "MT", bairro: "Centro", precoFinal: 100 },
+    });
+    servicosCriados.push(servico.id);
+    const c1 = await consulta(cliente, "EMPREGADOR");
+    const p1 = await consulta(pro, "DIARISTA");
+    assert.notEqual(c1.versoes.servicos, c0.versoes.servicos, "cliente vê a solicitação nova");
+    assert.notEqual(p1.versoes.servicos, p0.versoes.servicos, "profissional vê a solicitação nova");
+    assert.equal(p1.versoes.verificacao, p0.versoes.verificacao, "serviço não mexe na verificação");
+
+    await prisma.servico.update({ where: { id: servico.id }, data: { status: "ACEITO" } }).catch(async () => {
+      await prisma.servico.update({ where: { id: servico.id }, data: { bairro: "Centro (aceito)" } });
+    });
+    assert.notEqual((await consulta(cliente, "EMPREGADOR")).versoes.servicos, c1.versoes.servicos, "mudança de status chega ao cliente");
+
+    const a0 = await consulta(pro, "DIARISTA");
+    await prisma.notification.create({ data: { userId: pro, type: "VERIFICACAO_APROVADA", title: "t", body: "b" } });
+    const a1 = await consulta(pro, "DIARISTA");
+    assert.notEqual(a1.versoes.avisos, a0.versoes.avisos, "aviso novo muda o contador");
+    assert.equal(a1.versoes.servicos, a0.versoes.servicos);
+  });
+
+  it("custo: consulta abaixo de 150 ms no banco local (mediana)", () => {
+    const ordenados = [...tempos].sort((x, y) => x - y);
+    const mediana = ordenados[Math.floor(ordenados.length / 2)];
+    console.log(`[me/sincronizacao] ${tempos.length} consultas, mediana ${mediana.toFixed(1)} ms, máx ${ordenados.at(-1)!.toFixed(1)} ms`);
+    assert.ok(mediana < 150, `mediana ${mediana} ms`);
   });
 
   it("sem sessão: 401", async () => {

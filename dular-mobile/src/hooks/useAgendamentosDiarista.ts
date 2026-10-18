@@ -4,6 +4,8 @@ import { apiService } from "@/services/api";
 import { useAuth } from "@/stores/authStore";
 import { formatDate, formatHorario, mapStatus } from "@/utils/formatters";
 import { conflitosDoPedido } from "@/lib/conflitoAgenda";
+import { useAoMudarConta } from "@/hooks/useSincronizacaoConta";
+import { useUltimaLeitura } from "@/hooks/useUltimaLeitura";
 
 export type StatusDiarista =
   | "pendente"
@@ -106,12 +108,18 @@ export function useAgendamentosDiarista() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchAgendamentos = useCallback(async () => {
+  const iniciarLeitura = useUltimaLeitura();
+
+  const fetchAgendamentos = useCallback(async (silencioso = false) => {
     if (!token) return;
-    setLoading(true);
-    setError(null);
+    const vale = iniciarLeitura();
+    if (!silencioso) {
+      setLoading(true);
+      setError(null);
+    }
     try {
       const res = await apiService.get<ServicosResponse>("/api/servicos/minhas", token);
+      if (!vale()) return;
       const brutos = res.data?.servicos ?? [];
       const mapped = brutos.map((raw: any) => {
         const item = mapServico(raw);
@@ -127,12 +135,14 @@ export function useAgendamentosDiarista() {
         };
       });
       setAgendamentos(mapped);
+      setError(null);
     } catch {
-      setError("Erro ao carregar agendamentos");
+      // Falha na releitura automática mantém a lista que já está na tela.
+      if (vale() && !silencioso) setError("Erro ao carregar agendamentos");
     } finally {
-      setLoading(false);
+      if (vale()) setLoading(false);
     }
-  }, [token]);
+  }, [token, iniciarLeitura]);
 
   // Ao FOCAR, não só na montagem. A home monta uma vez e sobrevive à navegação
   // por abas: sem isto, aceitar/concluir um serviço em outra tela não se
@@ -144,5 +154,9 @@ export function useAgendamentosDiarista() {
     }, [fetchAgendamentos]),
   );
 
-  return { agendamentos, loading, error, refetch: fetchAgendamentos };
+  // Solicitação nova, aceite, cancelamento ou conclusão (por qualquer ponta).
+  useAoMudarConta(["servicos"], () => { void fetchAgendamentos(true); });
+
+  const refetch = useCallback(() => fetchAgendamentos(), [fetchAgendamentos]);
+  return { agendamentos, loading, error, refetch };
 }

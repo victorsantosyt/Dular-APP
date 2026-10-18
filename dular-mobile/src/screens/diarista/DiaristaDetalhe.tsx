@@ -13,6 +13,8 @@ import * as Clipboard from "expo-clipboard";
 
 import { api } from "@/lib/api";
 import { fetchServicosMinhas, fetchUserScore } from "@/api/sharedFetcher";
+import { useAoMudarConta } from "@/hooks/useSincronizacaoConta";
+import { useUltimaLeitura } from "@/hooks/useUltimaLeitura";
 import type { ServicoListItem as Servico } from "../../../../shared/types/servico";
 import {
   cancelarServicoDiarista,
@@ -159,9 +161,12 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
     }
   }, [checkInRealizado]);
 
+  const iniciarLeitura = useUltimaLeitura();
   async function reloadFromList() {
+    const vale = iniciarLeitura();
     try {
       const data = await fetchServicosMinhas();
+      if (!vale()) return;
       setAgenda(data?.servicos ?? []);
       const found = data?.servicos?.find((s: Servico) => s.id === servicoId);
       if (found) setSvc(found);
@@ -177,6 +182,9 @@ export default function DiaristaDetalhe({ route, navigation }: any) {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Cancelamento, reagendamento ou confirmação pelo cliente com a tela aberta.
+  useAoMudarConta(["servicos"], () => { void reloadFromList(); });
 
   async function action(name: string, body?: unknown) {
     if (!svc) return;

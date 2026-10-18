@@ -23,23 +23,32 @@ export function esperaAposFalha(falhasSeguidas: number): number {
   return ESPERAS_APOS_FALHA_MS[falhasSeguidas - 1] ?? INTERVALO_MS;
 }
 
+/** Assuntos com versão própria no backend (/api/me/sincronizacao). A tela relê só o seu. */
+export const ASSUNTOS = ["conta", "verificacao", "perfil", "safescore", "assinatura", "restricoes", "servicos", "avisos"] as const;
+export type Assunto = (typeof ASSUNTOS)[number];
+/** Assuntos que mudam a conta canônica (/api/me): Home, avisos de cadastro, selo. */
+export const ASSUNTOS_DA_CONTA: readonly Assunto[] = ["conta", "verificacao", "perfil", "restricoes"];
+
+const revisoesZeradas = (): Record<Assunto, number> => Object.fromEntries(ASSUNTOS.map((a) => [a, 0])) as Record<Assunto, number>;
+
 type Estado = {
-  /** Conta a que `versao` e `revisao` se referem. Outra conta zera tudo. */
+  /** Conta a que as versões e revisões se referem. Outra conta zera tudo. */
   userId: string | null;
   versao: string | null;
-  /** Aumenta a cada mudança confirmada (externa ou local). As telas relêem quando muda. */
-  revisao: number;
+  versoes: Partial<Record<Assunto, string>> | null;
+  /** Aumenta a cada mudança confirmada (externa ou local), por assunto. As telas relêem quando o seu muda. */
+  revisoes: Record<Assunto, number>;
   /** Última consulta bem-sucedida (ms). */
   confirmadoEm: number | null;
   /** Pedido de consulta imediata (notificação, volta do segundo plano, ação local). */
   pedido: number;
 };
 
-export const useSincronizacao = create<Estado>(() => ({ userId: null, versao: null, revisao: 0, confirmadoEm: null, pedido: 0 }));
+export const useSincronizacao = create<Estado>(() => ({ userId: null, versao: null, versoes: null, revisoes: revisoesZeradas(), confirmadoEm: null, pedido: 0 }));
 
 /** Troca de conta ou logout: nada da conta anterior vale para a seguinte. */
 export function reiniciarSincronizacao(userId: string | null): void {
-  useSincronizacao.setState({ userId, versao: null, revisao: 0, confirmadoEm: null, pedido: 0 });
+  useSincronizacao.setState({ userId, versao: null, versoes: null, revisoes: revisoesZeradas(), confirmadoEm: null, pedido: 0 });
 }
 
 /** Pede uma consulta já (notificação recebida, app de volta ao primeiro plano). */
@@ -51,24 +60,33 @@ export function pedirSincronizacao(): void {
  * Ação local concluída (salvou perfil, enviou documento, comprou plano): as
  * outras telas relêem já, e o backend é consultado para confirmar.
  */
-export function sinalizarMudancaLocal(): void {
-  useSincronizacao.setState((s) => ({ revisao: s.revisao + 1, pedido: s.pedido + 1 }));
+export function sinalizarMudancaLocal(assuntos: readonly Assunto[]): void {
+  useSincronizacao.setState((s) => ({ revisoes: somar(s.revisoes, assuntos), pedido: s.pedido + 1 }));
 }
 
-export type RespostaSincronizacao = { userId?: unknown; versao?: unknown };
+export function somar(revisoes: Record<Assunto, number>, assuntos: readonly Assunto[]): Record<Assunto, number> {
+  const novo = { ...revisoes };
+  for (const a of assuntos) novo[a] = (novo[a] ?? 0) + 1;
+  return novo;
+}
+
+export type RespostaSincronizacao = { userId?: unknown; versao?: unknown; versoes?: unknown };
 
 /**
  * Aplica a resposta da consulta. Devolve se a versão mudou (quem chama relê a
  * conta e avisa as telas). Resposta de outra conta, ou que chegou depois da
  * troca de conta, é descartada.
  */
-export function aplicarResposta(contaDaConsulta: string, contaAtual: string | null, resposta: RespostaSincronizacao, agora: number): "mudou" | "igual" | "descartada" {
+export function aplicarResposta(contaDaConsulta: string, contaAtual: string | null, resposta: RespostaSincronizacao, agora: number): Assunto[] | "descartada" {
   if (!contaAtual || contaDaConsulta !== contaAtual || resposta.userId !== contaAtual || typeof resposta.versao !== "string") return "descartada";
   const s = useSincronizacao.getState();
   if (s.userId !== contaAtual) return "descartada";
-  const mudou = s.versao !== null && s.versao !== resposta.versao;
-  useSincronizacao.setState({ versao: resposta.versao, confirmadoEm: agora });
-  return mudou ? "mudou" : "igual";
+  const versoes = (typeof resposta.versoes === "object" && resposta.versoes !== null ? resposta.versoes : {}) as Partial<Record<Assunto, string>>;
+  // Primeira resposta da sessão só registra; depois, mudam os assuntos cuja versão mudou.
+  const anteriores = s.versoes;
+  const mudaram = anteriores === null ? [] : ASSUNTOS.filter((a) => versoes[a] !== anteriores[a]);
+  useSincronizacao.setState({ versao: resposta.versao, versoes, confirmadoEm: agora });
+  return mudaram;
 }
 
 export type DependenciasDoMotor = {
@@ -107,12 +125,13 @@ export function criarMotorDeSincronizacao(d: DependenciasDoMotor) {
     try {
       const r = aplicarResposta(conta, d.contaAtual(), await d.consultar(), d.agora());
       ok = r !== "descartada";
-      if (r === "mudou") {
-        // Conta canônica primeiro (Home, avisos, selo); depois as telas relêem.
+      if (r !== "descartada" && r.length) {
+        // Conta canônica primeiro (Home, avisos, selo), só se mudou algo dela;
+        // depois relêem só as telas dos assuntos que mudaram.
         try {
-          await d.aoMudar(conta);
+          if (r.some((a) => ASSUNTOS_DA_CONTA.includes(a))) await d.aoMudar(conta);
         } finally {
-          if (d.contaAtual() === conta) useSincronizacao.setState((s) => ({ revisao: s.revisao + 1 }));
+          if (d.contaAtual() === conta) useSincronizacao.setState((s) => ({ revisoes: somar(s.revisoes, r) }));
         }
       }
     } catch {

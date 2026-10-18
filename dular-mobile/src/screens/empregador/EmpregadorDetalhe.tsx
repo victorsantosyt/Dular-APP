@@ -13,6 +13,8 @@ import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 
 import { fetchServicosMinhas } from "@/api/sharedFetcher";
+import { useAoMudarConta } from "@/hooks/useSincronizacaoConta";
+import { useUltimaLeitura } from "@/hooks/useUltimaLeitura";
 import type { ServicoListItem as Servico } from "../../../../shared/types/servico";
 import {
   aprovarServicoConcluido,
@@ -72,10 +74,13 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
   const [decidindoReag, setDecidindoReag] = useState(false);
   const busyRef = useRef(false);
 
+  const iniciarLeitura = useUltimaLeitura();
   const fetchAtual = useCallback(async (silent = true) => {
+    const vale = iniciarLeitura();
     try {
       if (!silent) setRefreshing(true);
       const data = await fetchServicosMinhas();
+      if (!vale()) return;
       const found = Array.isArray(data?.servicos)
         ? data.servicos.find((s: Servico) => s.id === servicoId)
         : null;
@@ -83,7 +88,10 @@ export default function EmpregadorDetalhe({ route, navigation }: any) {
     } catch { /* silencioso */ } finally {
       if (!silent) setRefreshing(false);
     }
-  }, [servicoId]);
+  }, [servicoId, iniciarLeitura]);
+
+  // Aceite, cancelamento ou conclusão pela outra ponta: não espera o próximo POLL_MS.
+  useAoMudarConta(["servicos"], () => { void fetchAtual(); });
 
   useEffect(() => {
     if (!params.servico && servicoId) {

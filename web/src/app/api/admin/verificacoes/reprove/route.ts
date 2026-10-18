@@ -4,6 +4,7 @@ import { gateAdmin } from "@/lib/adminGate";
 import { rateLimit, cleanupRateLimit } from "@/lib/rateLimit";
 import { getRequestIp } from "@/lib/requestIp";
 import { aplicarEvento } from "@/lib/safeScore";
+import { criarNotificacao } from "@/lib/notifications";
 import { ensureUserRoleProfile } from "@/lib/userProfiles";
 import { getGuardianStatusForUser } from "@/lib/safeScoreGuardian";
 
@@ -113,6 +114,16 @@ export async function POST(req: Request) {
   await aplicarEvento(existing.userId, "KYC_REJEITADO", id, motivo).catch((err) => {
     console.error("[safeScore] KYC_REJEITADO não registrado — a reprovação segue:", { userId: existing.userId, verificacaoId: id }, err);
   });
+  // Aviso à pessoa (acelera a atualização do app). Só na mudança de estado.
+  if (existing.status !== "REJECTED") {
+    await criarNotificacao({
+      userId: existing.userId,
+      type: "VERIFICACAO_REPROVADA",
+      title: "Verificação não aprovada",
+      body: "Seus documentos não foram aprovados. Veja o motivo e envie novamente.",
+      pushData: {},
+    });
+  }
   const guardian = await getGuardianStatusForUser(existing.userId);
 
   return NextResponse.json({ ok: true, verification, guardian });

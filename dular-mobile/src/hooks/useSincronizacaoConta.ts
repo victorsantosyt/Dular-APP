@@ -2,7 +2,8 @@ import { useEffect, useRef } from "react";
 import { AppState } from "react-native";
 import { api } from "@/lib/api";
 import { useAuth } from "@/stores/authStore";
-import { criarMotorDeSincronizacao, useSincronizacao, type RespostaSincronizacao } from "@/lib/sincronizacaoConta";
+import { invalidarNotificacoes } from "@/hooks/useNotificacoes";
+import { criarMotorDeSincronizacao, useSincronizacao, type Assunto, type RespostaSincronizacao } from "@/lib/sincronizacaoConta";
 
 function contaPronta(): string | null {
   const s = useAuth.getState();
@@ -40,6 +41,10 @@ export function useSincronizacaoConta(): void {
     });
   }
 
+  // Contador de avisos (sino, badge): um único refetch do cache compartilhado,
+  // não um por tela montada.
+  useAoMudarConta(["avisos"], invalidarNotificacoes);
+
   // Troca de conta ou logout: zera a sincronização e o que estava agendado.
   useEffect(() => { motor.current?.iniciar(userId); }, [userId]);
 
@@ -55,9 +60,13 @@ export function useSincronizacaoConta(): void {
   }, []);
 }
 
-/** Para telas: roda `recarregar` quando a conta muda por fora (ou por ação local em outra tela). */
-export function useAoMudarConta(recarregar: () => void): void {
-  const revisao = useSincronizacao((s) => s.revisao);
+/**
+ * Para telas: roda `recarregar` quando muda, por fora ou por ação local em
+ * outra tela, algum dos `assuntos` que a tela mostra — e só eles.
+ */
+export function useAoMudarConta(assuntos: readonly Assunto[], recarregar: () => void): void {
+  const chave = assuntos.join(",");
+  const revisao = useSincronizacao((s) => assuntos.reduce((soma, a) => soma + (s.revisoes[a] ?? 0), 0));
   const ultima = useRef(revisao);
   const fn = useRef(recarregar);
   fn.current = recarregar;
@@ -65,5 +74,5 @@ export function useAoMudarConta(recarregar: () => void): void {
     if (revisao === ultima.current) return;
     ultima.current = revisao;
     fn.current();
-  }, [revisao]);
+  }, [revisao, chave]);
 }

@@ -67,7 +67,8 @@ export function useAssinaturaPlano() {
   }, [atualizar]));
 
   // Assinatura mudou por fora (loja, painel) ou por compra em outra tela: relê.
-  useAoMudarConta(() => { void atualizar(); });
+  // "servicos": o uso do mês (limite do gratuito) vem na mesma resposta.
+  useAoMudarConta(["assinatura", "servicos"], () => { void atualizar(); });
 
   const data = resultado?.userId === userId ? resultado.data : null;
   return { data, apresentacao: apresentacaoDoPlano(data), carregando, erro, atualizar };

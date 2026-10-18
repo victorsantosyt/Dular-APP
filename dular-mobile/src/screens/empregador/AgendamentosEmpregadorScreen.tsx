@@ -5,6 +5,8 @@ import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { useBottomTabBarHeight, type BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import { AppIcon } from "@/components/ui";
 import { fetchServicosMinhas } from "@/api/sharedFetcher";
+import { useAoMudarConta } from "@/hooks/useSincronizacaoConta";
+import { useUltimaLeitura } from "@/hooks/useUltimaLeitura";
 import type { EmpregadorTabParamList } from "@/navigation/EmpregadorNavigator";
 import { colors, radius, shadows, spacing, typography } from "@/theme";
 import { useGenderTheme } from "@/hooks/useProfileTheme";
@@ -169,22 +171,29 @@ export function AgendamentosEmpregadorScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const iniciarLeitura = useUltimaLeitura();
   const load = useCallback(async (mode: "initial" | "refresh" = "initial") => {
+    const vale = iniciarLeitura();
     try {
       setError(null);
       if (mode === "initial") setLoading(true);
       if (mode === "refresh") setRefreshing(true);
       const data = (await fetchServicosMinhas()) as MinhasServicosResponse;
+      if (!vale()) return;
       const servicos = Array.isArray(data?.servicos) ? data.servicos : [];
       setAgendamentos(servicos.map(mapServicoToAgendamento));
     } catch (err) {
       const message = err instanceof Error ? err.message : "Falha ao carregar solicitações.";
-      setError(message);
+      if (vale()) setError(message);
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (vale()) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
-  }, []);
+  }, [iniciarLeitura]);
+
+  useAoMudarConta(["servicos"], () => { void load("refresh"); });
 
   useEffect(() => {
     void load("initial");

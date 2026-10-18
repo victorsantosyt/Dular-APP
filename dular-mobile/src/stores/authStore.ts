@@ -5,6 +5,7 @@ import { SecureStorage } from "@/services/secureStorage";
 import { useThemeStore } from "@/stores/useThemeStore";
 import { limparCacheMensagens } from "@/hooks/useMensagens";
 import { limparCacheNotificacoes } from "@/hooks/useNotificacoes";
+import { limparCachesCompartilhados } from "@/api/sharedFetcher";
 import { encerrarPushDaSessao } from "@/lib/pushCicloDeVida";
 import { definirSessaoAtual } from "@/lib/sessaoAtual";
 import { limparAgrupamentoDePopups } from "@/lib/pushPrimeiroPlano";
@@ -236,6 +237,7 @@ export const useAuth = create<AuthState>((set, get) => ({
     // próxima conta veria os da anterior (e o contador dela) até o 1º fetch.
     limparCacheMensagens();
     limparCacheNotificacoes();
+    limparCachesCompartilhados();
     useNotificacaoPopup.getState().limpar();
     limparAgrupamentoDePopups();
     await setAuthToken(null);

@@ -115,7 +115,7 @@ export default function VerificacaoDocs() {
   }, [loadStatus]);
 
   // Aprovação/reprovação no painel com esta tela aberta: relê o status.
-  useAoMudarConta(() => { void loadStatus(); });
+  useAoMudarConta(["verificacao"], () => { void loadStatus(); });
 
   const setPickedFile = useCallback((field: FileField, file: PickedFile) => {
     if (!ALLOWED_IMAGE_MIMES.has(file.type)) {
@@ -262,7 +262,7 @@ export default function VerificacaoDocs() {
       setVerificacao(nextStatus);
       setDocEnviado(true);
       // Outras telas (Home, perfil, selo) relêem já; o backend confirma.
-      sinalizarMudancaLocal();
+      sinalizarMudancaLocal(["verificacao"]);
       setUser((prev) =>
         prev
           ? {

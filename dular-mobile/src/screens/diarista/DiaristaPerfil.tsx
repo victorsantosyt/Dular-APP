@@ -525,7 +525,7 @@ export default function DiaristaPerfil({ onLogout }: Props) {
 
   useFocusEffect(useCallback(() => { void loadMe(); }, [loadMe]));
   // Mudança fora do app (aprovação no painel) ou em outra tela: relê com a tela aberta.
-  useAoMudarConta(() => { void loadMe(); });
+  useAoMudarConta(["conta", "verificacao", "perfil", "restricoes"], () => { void loadMe(); });
 
   // ── Derivados ────────────────────────────────────────────────────────────
   const displayName = useMemo(

@@ -32,7 +32,9 @@ export type NotificationType =
   | "CHAT_NOVA_MENSAGEM"
   | "PAGAMENTO_INFORMADO"
   | "PAGAMENTO_CONFIRMADO"
-  | "PAGAMENTO_CONTESTADO";
+  | "PAGAMENTO_CONTESTADO"
+  | "VERIFICACAO_APROVADA"
+  | "VERIFICACAO_REPROVADA";
 
 type PushMessage = {
   to: string;

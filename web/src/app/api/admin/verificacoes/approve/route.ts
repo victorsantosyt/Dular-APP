@@ -4,6 +4,7 @@ import { gateAdmin } from "@/lib/adminGate";
 import { rateLimit, cleanupRateLimit } from "@/lib/rateLimit";
 import { getRequestIp } from "@/lib/requestIp";
 import { aplicarEvento } from "@/lib/safeScore";
+import { criarNotificacao } from "@/lib/notifications";
 import { ensureUserRoleProfile } from "@/lib/userProfiles";
 import { getGuardianStatusForUser } from "@/lib/safeScoreGuardian";
 import { pendenciasDeVisibilidade } from "@/lib/adminPerfis";
@@ -107,6 +108,18 @@ export async function POST(req: Request) {
   });
 
   await aplicarEvento(existing.userId, "KYC_APROVADO", id, motivo);
+  // Aviso à pessoa: acelera a atualização do app (a notificação faz o app
+  // consultar /api/me/sincronizacao na hora). Só na mudança de estado — um
+  // segundo clique em "aprovar" não repete o aviso. Falha no aviso não desfaz nada.
+  if (existing.status !== "APPROVED") {
+    await criarNotificacao({
+      userId: existing.userId,
+      type: "VERIFICACAO_APROVADA",
+      title: "Verificação aprovada",
+      body: "Seus documentos foram aprovados.",
+      pushData: {},
+    });
+  }
   const guardian = await getGuardianStatusForUser(existing.userId);
 
   // A aprovação continua sendo sobre o DOCUMENTO: um KYC válido não deixa de

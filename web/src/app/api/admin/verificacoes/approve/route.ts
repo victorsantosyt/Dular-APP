@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { gateAdmin } from "@/lib/adminGate";
 import { rateLimit, cleanupRateLimit } from "@/lib/rateLimit";
 import { getRequestIp } from "@/lib/requestIp";
-import { aplicarEvento } from "@/lib/safeScore";
+import { reconciliarKycDaVerificacao } from "@/lib/safeScore";
 import { enviarPushDaNotificacao } from "@/lib/notifications";
 import { getGuardianStatusForUser } from "@/lib/safeScoreGuardian";
 import { pendenciasDeVisibilidade } from "@/lib/adminPerfis";
@@ -46,9 +46,10 @@ export async function POST(req: Request) {
   });
   if (r.tipo === "erro") return NextResponse.json({ ok: false, error: r.mensagem }, { status: r.status });
 
-  // Também no repetido: o evento é idempotente por envio, e reaplicar repara
-  // uma aprovação cujo evento falhou depois do commit.
-  await aplicarEvento(r.userId, "KYC_APROVADO", id, motivo);
+  // SafeScore acompanha a decisão VIGENTE do envio (primeira decisão ou
+  // revisão). Também no repetido: pelo estado, rodar de novo dá delta 0, e
+  // repara um ajuste que tenha falhado depois do commit.
+  await reconciliarKycDaVerificacao(id, motivo);
   // Push do aviso já gravado: acelera a atualização do app (que consulta
   // /api/me/sincronizacao ao recebê-lo). Best-effort — falha aqui não desfaz
   // nem repete a decisão ou o aviso.

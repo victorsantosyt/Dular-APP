@@ -50,8 +50,11 @@ describe("política 1.1.0 — conteúdo", () => {
   });
 
   it("todo tipo do enum legado tem chave própria na política", () => {
+    // KYC_REVISAO não é peso de negócio: é o AJUSTE de uma revisão de decisão,
+    // com delta explícito (devido − já somado; lib/safeScore reconciliarKyc...).
+    const AJUSTES = new Set<string>([EVENT_TYPE_V2.KYC_REVISAO]);
     const chaves = Object.values(ScoreEventoTipo).map((t) => EVENT_TYPE_V2[t]);
-    for (const chave of chaves) assert.ok(chave in POLITICA, `sem chave na política: ${chave}`);
+    for (const chave of chaves) assert.ok(AJUSTES.has(chave) || chave in POLITICA, `sem chave na política: ${chave}`);
     // Sem colisão: antes NO_SHOW caía em cancelamento_tardio e TEMPO_PLATAFORMA
     // em servico_concluido, com o peso do outro evento.
     assert.equal(new Set(chaves).size, chaves.length, "dois tipos legados na mesma chave");

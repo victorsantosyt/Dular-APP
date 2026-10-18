@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { gateAdmin } from "@/lib/adminGate";
 import { rateLimit, cleanupRateLimit } from "@/lib/rateLimit";
 import { getRequestIp } from "@/lib/requestIp";
-import { aplicarEvento } from "@/lib/safeScore";
+import { reconciliarKycDaVerificacao } from "@/lib/safeScore";
 import { enviarPushDaNotificacao } from "@/lib/notifications";
 import { getGuardianStatusForUser } from "@/lib/safeScoreGuardian";
 import { decidirVerificacao, lerDecisao } from "@/lib/decisaoVerificacao";
@@ -49,8 +49,8 @@ export async function POST(req: Request) {
 
   // A reprovação já está gravada: falha no score não a desfaz, mas não pode
   // sumir em silêncio.
-  await aplicarEvento(r.userId, "KYC_REJEITADO", id, motivo).catch((err) => {
-    console.error("[safeScore] KYC_REJEITADO não registrado — a reprovação segue:", { userId: r.userId, verificacaoId: id }, err);
+  await reconciliarKycDaVerificacao(id, motivo).catch((err) => {
+    console.error("[safeScore] KYC da reprovação não reconciliado — a reprovação segue:", { userId: r.userId, verificacaoId: id }, err);
   });
   // Push do aviso já gravado (best-effort; não desfaz nem repete nada).
   if (r.tipo === "decidida") await enviarPushDaNotificacao(r.aviso);

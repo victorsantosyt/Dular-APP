@@ -10,6 +10,10 @@ export function useAppUpdate(enabled: boolean) {
   const [release, setRelease] = useState<AndroidRelease | null>(null);
   const [opening, setOpening] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Loja já aberta por "Atualizar" para esta versão nesta sessão: o popup não
+  // volta a cada retorno ao app; fica uma faixa discreta para tentar de novo.
+  // Só em memória — nada de adiamento gravado.
+  const [lojaAbertaPara, setLojaAbertaPara] = useState<number | null>(null);
   const [active, setActive] = useState(AppState.currentState === "active");
   const alive = useRef(true);
   const openingRef = useRef(false);
@@ -125,6 +129,7 @@ export function useAppUpdate(enabled: boolean) {
     };
   }, [eligible, installedBuild]);
 
+  // "Agora não" (no popup ou na faixa): o único caminho que grava 24 h de adiamento.
   const dismiss = useCallback(() => {
     if (!release) return;
     const key = updateStorageKey(API_URL, release.versionCode);
@@ -133,6 +138,7 @@ export function useAppUpdate(enabled: boolean) {
     dismissed.current.set(key, timestamp);
     setRelease(null);
     setError(null);
+    setLojaAbertaPara(null);
     void AsyncStorage.setItem(key, timestamp).catch(() => {});
   }, [release]);
 
@@ -147,9 +153,23 @@ export function useAppUpdate(enabled: boolean) {
     openingRef.current = false;
     if (!alive.current) return;
     setOpening(false);
-    if (opened) dismiss();
+    // openURL concluir só diz que o Android entregou o link a alguém — não que
+    // a página da loja carregou nem que a pessoa atualizou. Por isso NÃO grava
+    // adiamento: o popup só recolhe para a faixa, e quem voltou sem atualizar
+    // pode tentar de novo. Se atualizou, o app reinicia com a build nova e o
+    // aviso some sozinho (versão anunciada ≤ instalada).
+    if (opened) setLojaAbertaPara(release.versionCode);
     else setError("Não foi possível abrir a Google Play. Tente novamente.");
-  }, [dismiss, release]);
+  }, [release]);
 
-  return { release: eligible && active ? release : null, opening, error, dismiss, update };
+  const visivel = eligible && active ? release : null;
+  return {
+    release: visivel,
+    /** Popup recolhido em faixa: a loja já foi aberta para esta versão nesta sessão. */
+    recolhido: visivel !== null && lojaAbertaPara === visivel.versionCode,
+    opening,
+    error,
+    dismiss,
+    update,
+  };
 }

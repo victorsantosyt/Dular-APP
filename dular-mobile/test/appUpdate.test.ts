@@ -200,13 +200,15 @@ test("adiamento persistido recusa popup; nova consulta é permitida após cinco 
 test("Atualizar: abre a Play pelo Linking real (método com this); market falha → HTTPS; as duas falham → erro e popup segue", async () => {
   const MARKET = "market://details?id=br.com.dular.app";
 
-  // Sucesso direto: abre market:// e fecha o popup.
+  // Sucesso direto: abre market:// e o popup recolhe em faixa (sem adiamento gravado).
   const direto = new LinkingFalso();
   const a = hookHarness({ linking: direto }); a.render(); await flush();
   await a.render().update(); await flush();
   assert.deepEqual(direto.abertas, [MARKET]);
-  assert.equal(a.render().release, null);
+  assert.equal(a.render().release.versionCode, 6, "o aviso continua disponível");
+  assert.equal(a.render().recolhido, true, "sem popup; faixa para tentar de novo");
   assert.equal(a.render().error, null);
+  assert.equal(a.storageWrites, 0, "Atualizar não grava adiamento");
   a.unmount();
 
   // Primeiro caminho falha, segundo abre.
@@ -214,7 +216,8 @@ test("Atualizar: abre a Play pelo Linking real (método com this); market falha 
   const b = hookHarness({ linking: fallback }); b.render(); await flush();
   await b.render().update(); await flush();
   assert.deepEqual(fallback.abertas, [MARKET, policy.PLAY_STORE_URL]);
-  assert.equal(b.render().release, null);
+  assert.equal(b.render().recolhido, true);
+  assert.equal(b.storageWrites, 0);
   b.unmount();
 
   // As duas falham: mensagem de erro, popup continua para tentar de novo.
@@ -224,7 +227,55 @@ test("Atualizar: abre a Play pelo Linking real (método com this); market falha 
   assert.deepEqual(nenhum.abertas, [MARKET, policy.PLAY_STORE_URL]);
   assert.equal(c.render().release.versionCode, 6);
   assert.equal(c.render().error, "Não foi possível abrir a Google Play. Tente novamente.");
+  assert.equal(c.render().recolhido, false, "abertura recusada: o popup continua");
+  assert.equal(c.storageWrites, 0, "e nada é adiado");
   c.unmount();
+});
+
+test("loja aberta e volta sem atualizar: sem popup a cada retorno, faixa permite abrir de novo; 'Agora não' é o único adiamento", async () => {
+  const MARKET = "market://details?id=br.com.dular.app";
+  const linking = new LinkingFalso();
+  const h = hookHarness({ linking }); h.render(); await flush();
+  await h.render().update(); await flush();
+  // Ida e volta da loja várias vezes, inclusive depois do intervalo de consulta.
+  for (let i = 0; i < 3; i++) {
+    h.background(); h.render();
+    h.foreground(); h.render(); await flush();
+    assert.equal(h.render().release?.versionCode, 6);
+    assert.equal(h.render().recolhido, true, `retorno ${i + 1}: só a faixa`);
+  }
+  await h.avancar(policy.UPDATE_CHECK_INTERVAL_MS + 1000); h.foreground(); await flush();
+  assert.equal(h.render().recolhido, true, "nova consulta não reabre o popup");
+  // Ação acessível: abre a loja de novo.
+  await h.render().update(); await flush();
+  assert.deepEqual(linking.abertas, [MARKET, MARKET]);
+  assert.equal(h.storageWrites, 0);
+  // "Agora não" na faixa: adia 24 h e some.
+  h.render().dismiss(); await flush();
+  assert.equal(h.render().release, null);
+  assert.equal(h.storageWrites, 1);
+  h.unmount();
+});
+
+test("retorno com a versão atualizada: build instalada igual ou maior que a anunciada não mostra popup nem faixa", async () => {
+  const atualizado = hookHarness({ build: "6" }); atualizado.render(); await flush();
+  assert.equal(atualizado.render().release, null);
+  assert.equal(atualizado.render().recolhido, false);
+  atualizado.unmount();
+  const maisNovo = hookHarness({ build: "7" }); maisNovo.render(); await flush();
+  assert.equal(maisNovo.render().release, null);
+  maisNovo.unmount();
+});
+
+test("faixa da loja: só em memória — processo novo sem adiamento mostra o popup outra vez", async () => {
+  const a = hookHarness(); a.render(); await flush();
+  await a.render().update(); await flush();
+  assert.equal(a.render().recolhido, true);
+  a.unmount();
+  const b = hookHarness(); b.render(); await flush();
+  assert.equal(b.render().release?.versionCode, 6);
+  assert.equal(b.render().recolhido, false, "nada foi gravado: na próxima abertura o popup volta");
+  b.unmount();
 });
 
 test("troca de conta: aviso consultado no perfil anterior continua valendo para o próximo, sem nova consulta", async () => {

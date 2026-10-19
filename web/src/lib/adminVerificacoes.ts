@@ -6,6 +6,7 @@ import { getDiaristaProfileCompleteness } from "@/lib/diaristaProfile";
 import { getMontadorProfileCompleteness } from "@/lib/montadorProfile";
 import { camposAlterados, dadosCadastraisAtuais, lerDadosEnviados } from "@/lib/dadosVerificacao";
 import { decisaoVigente } from "@/lib/decisaoVerificacao";
+import { selfieExigida } from "@/lib/verificacaoSelfie";
 
 export type VerificationFlowType = "PRIMEIRA_VERIFICACAO" | "RENOVACAO_REENVIO";
 export type AdminVerificationStatus = DocumentVerificationStatus | "ALL";
@@ -459,6 +460,8 @@ export async function getAdminVerificacaoDetail(id: string) {
       admin: nomeAdmin(d.adminId),
       createdAt: dateIso(d.createdAt),
     })),
+    // O painel exige conferência e categoria só com o controle ligado.
+    exigeConferencia: selfieExigida(),
     dadosEnviados,
     cadastroAtual,
     camposAlterados: camposAlterados(dadosEnviados, cadastroAtual),

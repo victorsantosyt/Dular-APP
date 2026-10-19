@@ -12,6 +12,7 @@ import { cleanupRateLimit, rateLimit, rateLimitRetryAfterMs } from "@/lib/rateLi
 import { getRequestIp } from "@/lib/requestIp";
 import { detectImageMime, extensionForMime } from "@/lib/imageMagicBytes";
 import { fotografarDadosCadastrais } from "@/lib/dadosVerificacao";
+import { selfieExigida } from "@/lib/verificacaoSelfie";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -161,8 +162,10 @@ export async function POST(req: Request) {
       }
     }
 
+    // Exigência nova só com o controle do servidor ligado (nunca pelo pedido).
+    const exigente = selfieExigida();
     // Dados obrigatórios conferidos no servidor antes de receber arquivos.
-    const faltando = await dadosFaltantes(auth.userId);
+    const faltando = exigente ? await dadosFaltantes(auth.userId) : [];
     if (faltando.length) {
       return NextResponse.json(
         // Versões anteriores do app não têm o campo de nome completo: a mensagem
@@ -182,7 +185,7 @@ export async function POST(req: Request) {
     }
     // Versões anteriores do app não mandam selfie: a exigência é do servidor,
     // então omitir o arquivo não contorna a conferência.
-    if (!selfie) {
+    if (exigente && !selfie) {
       return NextResponse.json(
         { ok: false, error: "Atualize o Dular para enviar seus documentos: agora também pedimos uma selfie.", codigo: "SELFIE_OBRIGATORIA" },
         { status: 400 },
@@ -191,16 +194,18 @@ export async function POST(req: Request) {
 
     // Valida OS TRÊS antes de qualquer upload no S3 — evita upload parcial
     // (vazamento do arquivo válido) quando outro arquivo é inválido.
+    // Selfie enviada (app novo) é validada e guardada mesmo com a exigência
+    // desligada: o envio fica completo para quando ela for ligada.
     const [frenteData, versoData, selfieData] = await Promise.all([
       validateDoc(docFrente),
       validateDoc(docVerso),
-      validateDoc(selfie),
+      selfie ? validateDoc(selfie) : Promise.resolve(null),
     ]);
 
-    const [frenteKey, versoKey, selfieKey] = await persistirEnvio([
+    const [frenteKey, versoKey, selfieKey = null] = await persistirEnvio([
       { doc: frenteData, prefixo: `${auth.userId}/frente` },
       { doc: versoData, prefixo: `${auth.userId}/verso` },
-      { doc: selfieData, prefixo: `${auth.userId}/selfie` },
+      ...(selfieData ? [{ doc: selfieData, prefixo: `${auth.userId}/selfie` }] : []),
     ]);
 
     // Um instante só para a submissão inteira: data dos arquivos, criação do
@@ -209,7 +214,7 @@ export async function POST(req: Request) {
     const docUrl = JSON.stringify({
       frente: frenteKey,
       verso: versoKey,
-      selfie: selfieKey,
+      ...(selfieKey ? { selfie: selfieKey } : {}),
       uploadedAt: agora.toISOString(),
     });
 
@@ -222,7 +227,7 @@ export async function POST(req: Request) {
 
     // Banco falhou depois do upload: os três arquivos não pertencem a envio
     // nenhum e são removidos (sem log de chave nem imagem).
-    const chavesDoEnvio = [frenteKey, versoKey, selfieKey];
+    const chavesDoEnvio = [frenteKey, versoKey, ...(selfieKey ? [selfieKey] : [])];
     // Perfil e registro do envio na MESMA transação: antes, uma falha ao criar
     // o registro era engolida e a diarista ficava "pendente" com documentos
     // que o painel nunca mostrava.

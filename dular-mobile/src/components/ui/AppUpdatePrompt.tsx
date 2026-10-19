@@ -9,7 +9,7 @@ import { useDularColors } from "@/hooks/useDularColors";
 import { radius, spacing } from "@/theme";
 
 export function AppUpdatePrompt({ enabled }: { enabled: boolean }) {
-  const { release, opening, error, dismiss, update } = useAppUpdate(enabled);
+  const { release, recolhido, opening, error, dismiss, update } = useAppUpdate(enabled);
   const palette = useProfileTheme();
   const colors = useDularColors();
   const insets = useSafeAreaInsets();
@@ -35,6 +35,25 @@ export function AppUpdatePrompt({ enabled }: { enabled: boolean }) {
   }, [progress, reduceMotion, release]);
 
   if (!release || reduceMotion === null) return null;
+
+  // Depois de "Atualizar": sem popup a cada retorno da loja, mas com uma ação
+  // acessível para abrir a loja de novo (e "Agora não" para adiar 24 h).
+  if (recolhido) {
+    return (
+      <View pointerEvents="box-none" style={[styles.faixaArea, { top: insets.top + spacing.sm }]}>
+        <View accessibilityRole="summary" style={[styles.faixa, { backgroundColor: colors.surface, borderColor: palette.primarySoft }]}>
+          <Text style={[styles.faixaTexto, { color: colors.textPrimary }]} numberOfLines={2}>Nova versão do Dular disponível</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel="Abrir a Google Play de novo para atualizar" accessibilityState={{ disabled: opening, busy: opening }} disabled={opening} onPress={() => { void update(); }} style={[styles.faixaBotao, { backgroundColor: palette.primaryDark }]}>
+            <Text style={[styles.faixaBotaoTexto, { color: colors.white }]}>{opening ? "Abrindo…" : "Atualizar"}</Text>
+          </Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel="Agora não" onPress={dismiss} style={styles.faixaBotao}>
+            <Text style={[styles.faixaBotaoTexto, { color: colors.textSecondary }]}>Agora não</Text>
+          </Pressable>
+        </View>
+        {error && <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={[styles.faixaErro, { color: colors.danger, backgroundColor: colors.surface }]}>{error}</Text>}
+      </View>
+    );
+  }
   const versionLabel = release.versionName === Application.nativeApplicationVersion
     ? `${release.versionName} · versão ${release.versionCode}`
     : release.versionName;
@@ -77,4 +96,10 @@ const styles = StyleSheet.create({
   notesTitle: { fontSize: 17, fontWeight: "600" },
   button: { minHeight: 52, padding: spacing.md, borderRadius: radius.lg, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm },
   buttonText: { fontSize: 16, fontWeight: "700", flexShrink: 1, textAlign: "center" },
+  faixaArea: { position: "absolute", left: spacing.md, right: spacing.md, alignItems: "center", gap: spacing.xs },
+  faixa: { width: "100%", maxWidth: 440, flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingVertical: spacing.sm, paddingHorizontal: spacing.md, borderRadius: radius.lg, borderWidth: 1, elevation: 6, shadowColor: "#000", shadowOpacity: 0.12, shadowRadius: 8, shadowOffset: { width: 0, height: 2 } },
+  faixaTexto: { flex: 1, fontSize: 14, fontWeight: "600" },
+  faixaBotao: { minHeight: 44, paddingHorizontal: spacing.md, borderRadius: radius.md, alignItems: "center", justifyContent: "center" },
+  faixaBotaoTexto: { fontSize: 14, fontWeight: "700" },
+  faixaErro: { fontSize: 13, paddingHorizontal: spacing.sm, borderRadius: radius.sm },
 });

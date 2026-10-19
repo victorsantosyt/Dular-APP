@@ -152,3 +152,11 @@ describe("ADMIN ativo no banco: sessão do painel, downloads e anexos de inciden
     assert.doesNotMatch(bl.corpo, /X-Amz-|ANEXO-DE-TESTE|INCIDENTE DE TESTE/);
   });
 });
+
+// Encerra o pool do Prisma ao fim do arquivo. Sem isto, as conexões ociosas
+// seguram o processo por ~10 s (pg-pool: idleTimeoutMillis = 10 s,
+// allowExitOnIdle = false) — e sem prazo se uma conexão ficar presa numa
+// transação de um teste que falhou.
+after(async () => {
+  await (globalThis as { prisma?: { $disconnect(): Promise<void> } }).prisma?.$disconnect();
+});

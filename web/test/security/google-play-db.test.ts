@@ -770,3 +770,11 @@ describe("Google Play contra Postgres real (#359)", { skip: EXIGIDO ? false : PU
     assert.equal(google.chamadas.filter((c) => c !== "oauth").length, google.chamadas.slice(0, antes).filter((c) => c !== "oauth").length);
   });
 });
+
+// Encerra o pool do Prisma ao fim do arquivo. Sem isto, as conexões ociosas
+// seguram o processo por ~10 s (pg-pool: idleTimeoutMillis = 10 s,
+// allowExitOnIdle = false) — e sem prazo se uma conexão ficar presa numa
+// transação de um teste que falhou.
+after(async () => {
+  await (globalThis as { prisma?: { $disconnect(): Promise<void> } }).prisma?.$disconnect();
+});

@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/requireAuth";
 import { requireAuthAtivo, respostaDeSessao } from "@/lib/contaAtiva";
 import { parseMultipart } from "@/lib/parseMultipart";
-import { makeKey, putObject } from "@/lib/s3Objects";
+import { deleteObject, makeKey, putObject } from "@/lib/s3Objects";
 import { autoVerificarDiaristaSePossivel } from "@/lib/autoVerificacao";
 import { getGuardianStatusForUser } from "@/lib/safeScoreGuardian";
 import { cleanupRateLimit, rateLimit, rateLimitRetryAfterMs } from "@/lib/rateLimit";
@@ -59,6 +59,43 @@ async function persistDoc(doc: ValidatedDoc, prefix: string) {
   const key = makeKey(`verificacoes/${prefix}`, ext);
   await putObject(key, doc.buffer, doc.mime);
   return { key, mime: doc.mime, size: doc.size };
+}
+
+/**
+ * Sobe os três arquivos do envio. Se qualquer um falhar, apaga os que subiram:
+ * um envio pela metade nunca fica no bucket. Devolve as chaves na ordem.
+ */
+async function persistirEnvio(docs: Array<{ doc: ValidatedDoc; prefixo: string }>): Promise<string[]> {
+  const resultados = await Promise.allSettled(docs.map(({ doc, prefixo }) => persistDoc(doc, prefixo)));
+  const subiram = resultados.flatMap((r) => (r.status === "fulfilled" ? [r.value.key] : []));
+  if (subiram.length !== docs.length) {
+    await removerOrfaos(subiram);
+    throw new UploadIncompletoError();
+  }
+  return subiram;
+}
+
+/** Remove arquivos de um envio que não chegou ao banco. Só contagem no log. */
+async function removerOrfaos(chaves: string[]) {
+  const r = await Promise.allSettled(chaves.map((k) => deleteObject(k)));
+  const falharam = r.filter((x) => x.status === "rejected").length;
+  if (falharam) console.error(`[api/verificacoes] ${falharam} arquivo(s) órfão(s) não removido(s) do bucket.`);
+}
+
+class UploadIncompletoError extends Error {
+  constructor() {
+    super("UploadIncompletoError");
+  }
+}
+
+/** Dados exigidos no servidor para uma submissão nova (não basta a tela pedir). */
+async function dadosFaltantes(userId: string): Promise<string[]> {
+  const u = await prisma.user.findUnique({ where: { id: userId }, select: { nomeCompleto: true, cpf: true, dataNascimento: true } });
+  const faltando: string[] = [];
+  if (!u?.nomeCompleto?.trim()) faltando.push("nomeCompleto");
+  if (!u?.cpf?.trim()) faltando.push("cpf");
+  if (!u?.dataNascimento) faltando.push("dataNascimento");
+  return faltando;
 }
 
 export async function POST(req: Request) {
@@ -124,32 +161,55 @@ export async function POST(req: Request) {
       }
     }
 
-    const { files } = await parseMultipart(req, { maxFileSize: MAX_FILE_SIZE, maxFiles: 2 });
+    // Dados obrigatórios conferidos no servidor antes de receber arquivos.
+    const faltando = await dadosFaltantes(auth.userId);
+    if (faltando.length) {
+      return NextResponse.json(
+        // Versões anteriores do app não têm o campo de nome completo: a mensagem
+        // (exibida por elas como veio) já orienta a atualizar.
+        { ok: false, error: "Para enviar seus documentos, atualize o Dular e complete nome completo, CPF e data de nascimento.", codigo: "DADOS_OBRIGATORIOS", faltando },
+        { status: 400 },
+      );
+    }
+
+    const { files } = await parseMultipart(req, { maxFileSize: MAX_FILE_SIZE, maxFiles: 3 });
     const docFrente = firstFile(files.docFrente as formidable.File | formidable.File[] | undefined);
     const docVerso = firstFile(files.docVerso as formidable.File | formidable.File[] | undefined);
+    const selfie = firstFile(files.selfie as formidable.File | formidable.File[] | undefined);
 
     if (!docFrente || !docVerso) {
       return NextResponse.json({ ok: false, error: "Envie frente e verso do documento." }, { status: 400 });
     }
+    // Versões anteriores do app não mandam selfie: a exigência é do servidor,
+    // então omitir o arquivo não contorna a conferência.
+    if (!selfie) {
+      return NextResponse.json(
+        { ok: false, error: "Atualize o Dular para enviar seus documentos: agora também pedimos uma selfie.", codigo: "SELFIE_OBRIGATORIA" },
+        { status: 400 },
+      );
+    }
 
-    // Valida AMBOS antes de qualquer upload no S3 — evita upload parcial
-    // (vazamento do arquivo válido) quando o outro arquivo é inválido.
-    const [frenteData, versoData] = await Promise.all([
+    // Valida OS TRÊS antes de qualquer upload no S3 — evita upload parcial
+    // (vazamento do arquivo válido) quando outro arquivo é inválido.
+    const [frenteData, versoData, selfieData] = await Promise.all([
       validateDoc(docFrente),
       validateDoc(docVerso),
+      validateDoc(selfie),
     ]);
 
-    const [frente, verso] = await Promise.all([
-      persistDoc(frenteData, `${auth.userId}/frente`),
-      persistDoc(versoData, `${auth.userId}/verso`),
+    const [frenteKey, versoKey, selfieKey] = await persistirEnvio([
+      { doc: frenteData, prefixo: `${auth.userId}/frente` },
+      { doc: versoData, prefixo: `${auth.userId}/verso` },
+      { doc: selfieData, prefixo: `${auth.userId}/selfie` },
     ]);
 
     // Um instante só para a submissão inteira: data dos arquivos, criação do
     // registro, nota e fotografia dos dados batem entre si.
     const agora = new Date();
     const docUrl = JSON.stringify({
-      frente: frente.key,
-      verso: verso.key,
+      frente: frenteKey,
+      verso: versoKey,
+      selfie: selfieKey,
       uploadedAt: agora.toISOString(),
     });
 
@@ -160,6 +220,9 @@ export async function POST(req: Request) {
           ? "EMPREGADOR_KYC"
           : "MONTADOR_KYC";
 
+    // Banco falhou depois do upload: os três arquivos não pertencem a envio
+    // nenhum e são removidos (sem log de chave nem imagem).
+    const chavesDoEnvio = [frenteKey, versoKey, selfieKey];
     // Perfil e registro do envio na MESMA transação: antes, uma falha ao criar
     // o registro era engolida e a diarista ficava "pendente" com documentos
     // que o painel nunca mostrava.
@@ -196,6 +259,9 @@ export async function POST(req: Request) {
         },
       });
       return atualizado;
+    }).catch(async (e) => {
+      await removerOrfaos(chavesDoEnvio);
+      throw e;
     });
 
     // Auto-verificação lateral (silenciosa). Só roda para DIARISTA — o
@@ -228,6 +294,10 @@ export async function POST(req: Request) {
   } catch (e: any) {
     const sessao = respostaDeSessao(e);
     if (sessao) return sessao;
+    if (e instanceof UploadIncompletoError) {
+      console.error("[api/verificacoes] envio não concluído: falha ao subir arquivos.");
+      return NextResponse.json({ ok: false, error: "Não foi possível enviar os arquivos. Tente de novo." }, { status: 502 });
+    }
     if (e instanceof UploadValidationError) {
       console.warn("[api/verificacoes] upload recusado:", e.publicMessage);
       return NextResponse.json({ ok: false, error: e.publicMessage }, { status: 400 });
@@ -242,8 +312,15 @@ export async function POST(req: Request) {
     // qualquer ambiente (é log de servidor, não vai para o cliente); a stack
     // continua só em DEV para não despejar caminho de arquivo em produção.
     // Erro do Prisma pode repetir os argumentos (CPF da fotografia): só o código.
+    // Nos demais, a mensagem vai sem números longos (CPF, telefone) nem chaves
+    // ou URLs de arquivo.
     const doBanco = String(e?.name ?? "").startsWith("PrismaClient");
-    console.error("[api/verificacoes] POST falhou:", e?.name, doBanco ? e?.code ?? "" : e?.message);
+    const semDados = (m: unknown) =>
+      String(m ?? "")
+        .replace(/https?:\/\/\S+/g, "<url>")
+        .replace(/verificacoes\/\S+/g, "<arquivo>")
+        .replace(/\d[\d.\-]{5,}\d/g, "<número>");
+    console.error("[api/verificacoes] POST falhou:", e?.name, doBanco ? e?.code ?? "" : semDados(e?.message));
     if (process.env.NODE_ENV === "development") {
       console.error(e?.stack);
     }

@@ -1360,6 +1360,13 @@ model DecisaoVerificacao {
   /// true quando muda uma decisão já concluída (ação "Revisar decisão").
   revisao       Boolean                    @default(false)
   motivo        String?
+  /// Categoria do motivo (reprovação/reenvio): IMAGEM_ILEGIVEL, ROSTO_NAO_VISIVEL,
+  /// DADOS_DIVERGENTES, CORRESPONDENCIA_NAO_CONFIRMADA, OUTRO.
+  motivoCategoria String?
+  /// Conferência manual marcada pelo admin ao aprovar: documento legível, dados
+  /// conferem, selfie compatível com a foto do documento. Auxilia a análise
+  /// humana — não é reconhecimento facial.
+  conferencia   Json?
   createdAt     DateTime                   @default(now())
 
   @@index([verificacaoId, createdAt])

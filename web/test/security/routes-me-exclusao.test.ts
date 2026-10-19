@@ -43,6 +43,12 @@ function stubTabelasDaExclusao(registro: Record<string, unknown>) {
   (m.paymentInfo as Record<string, unknown>).deleteMany = async () => ({ count: 1 });
   (m.notification as Record<string, unknown>).deleteMany = async () => ({ count: 3 });
   (m.documentVerification as Record<string, unknown>).deleteMany = async () => ({ count: 1 });
+  (m.documentVerification as Record<string, unknown>).count = async () => 1;
+  // Envios levam junto fotografias e histórico de decisões; o ledger do score
+  // perde o texto dos eventos de KYC (cobertura real em lgpd-verificacao-db).
+  m.decisaoVerificacao = { count: async () => 2 };
+  m.scoreEvento = { updateMany: async () => ({ count: 0 }) };
+  m.safeScoreEvent = { updateMany: async () => ({ count: 0 }) };
   (m.empregadorFavorito as Record<string, unknown>).deleteMany = async () => ({ count: 0 });
   (m.diaristaProfile as Record<string, unknown>).updateMany = async () => ({ count: 0 });
   (m.montadorPerfil as Record<string, unknown>).updateMany = async () => ({ count: 0 });

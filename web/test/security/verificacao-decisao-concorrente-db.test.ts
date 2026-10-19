@@ -41,7 +41,7 @@ describe("decisão de verificação com pedidos simultâneos (DB)", { skip: EXIG
   async function diaristaComDocumento(sufixo: string, extra: Record<string, unknown> = {}) {
     const u = await usuario(sufixo, "DIARISTA", extra);
     await prisma.diaristaProfile.create({ data: { userId: u, precoLeve: 100, precoPesada: 200 } });
-    const v = await prisma.documentVerification.create({ data: { userId: u, docType: "KYC_DOCS", docUrl: "{}" } });
+    const v = await prisma.documentVerification.create({ data: { userId: u, docType: "KYC_DOCS", docUrl: JSON.stringify({ frente: "verificacoes/t/f.jpg", verso: "verificacoes/t/v.jpg", selfie: "verificacoes/t/s.jpg" }) } });
     return { u, v: v.id };
   }
 
@@ -54,7 +54,8 @@ describe("decisão de verificação com pedidos simultâneos (DB)", { skip: EXIG
         "x-forwarded-for": `10.9.${Math.floor(++ip / 250)}.${ip % 250}`,
         ...makeAuthHeaders(admin, "ADMIN"),
       },
-      body: JSON.stringify({ verificationId, motivo, ...extra }),
+      // Conferência manual e categoria do motivo: exigidas pelas regras novas.
+      body: JSON.stringify({ verificationId, motivo, conferencia: { documentoLegivel: true, dadosConferem: true, selfieCompativel: true }, motivoCategoria: "IMAGEM_ILEGIVEL", ...extra }),
     });
 
   async function emParalelo(rota: (r: Request) => Promise<Response>, verificationId: string, extra: Record<string, unknown> = {}) {
@@ -156,7 +157,7 @@ describe("decisão de verificação com pedidos simultâneos (DB)", { skip: EXIG
       const u = await usuario(`rev_${role.toLowerCase()}`, role);
       if (role === "DIARISTA") await prisma.diaristaProfile.create({ data: { userId: u, precoLeve: 100, precoPesada: 200 } });
       if (role === "MONTADOR") await prisma.montadorPerfil.create({ data: { userId: u, especialidades: [], bairros: [], portfolioFotos: [] } });
-      const v = (await prisma.documentVerification.create({ data: { userId: u, docType: `${role}_KYC`, docUrl: "{}" } })).id;
+      const v = (await prisma.documentVerification.create({ data: { userId: u, docType: `${role}_KYC`, docUrl: JSON.stringify({ frente: "verificacoes/t/f.jpg", verso: "verificacoes/t/v.jpg", selfie: "verificacoes/t/s.jpg" }) } })).id;
       assert.equal((await aprovar(pedido(v))).status, 200);
       const g1 = await getGuardianStatusForUser(u);
       assert.equal(g1.verificationStatus, "VERIFICADO");
@@ -176,7 +177,7 @@ describe("decisão de verificação com pedidos simultâneos (DB)", { skip: EXIG
   it("envio antigo: decisão recusada quando a conta tem envio mais recente", async () => {
     const { u, v } = await diaristaComDocumento("antigo");
     await new Promise((ok) => setTimeout(ok, 5));
-    const novo = await prisma.documentVerification.create({ data: { userId: u, docType: "KYC_DOCS", docUrl: "{}" } });
+    const novo = await prisma.documentVerification.create({ data: { userId: u, docType: "KYC_DOCS", docUrl: JSON.stringify({ frente: "verificacoes/t/f.jpg", verso: "verificacoes/t/v.jpg", selfie: "verificacoes/t/s.jpg" }) } });
     assert.equal((await aprovar(pedido(v))).status, 409);
     assert.equal((await prisma.documentVerification.findUnique({ where: { id: v } })).status, "PENDING");
     assert.equal(await avisos(u, "VERIFICACAO_APROVADA"), 0);
@@ -235,4 +236,12 @@ describe("decisão de verificação com pedidos simultâneos (DB)", { skip: EXIG
     assert.equal(pushBloqueadoNoPreview("u1", { VERCEL_ENV: "preview", DULAR_PUSH_PREVIEW_BLOQUEADOS: "u2,u1" }), true);
     assert.equal(pushBloqueadoNoPreview("u1", { VERCEL_ENV: "preview" }), false);
   });
+});
+
+// Encerra o pool do Prisma ao fim do arquivo. Sem isto, as conexões ociosas
+// seguram o processo por ~10 s (pg-pool: idleTimeoutMillis = 10 s,
+// allowExitOnIdle = false) — e sem prazo se uma conexão ficar presa numa
+// transação de um teste que falhou.
+after(async () => {
+  await (globalThis as { prisma?: { $disconnect(): Promise<void> } }).prisma?.$disconnect();
 });

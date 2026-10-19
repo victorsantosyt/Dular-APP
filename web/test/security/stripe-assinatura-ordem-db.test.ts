@@ -1012,3 +1012,11 @@ describe("ordem dos eventos de assinatura Stripe contra Postgres real", { skip: 
     assert.deepEqual(await fotoDaTestemunha(), testemunhaAntes);
   });
 });
+
+// Encerra o pool do Prisma ao fim do arquivo. Sem isto, as conexões ociosas
+// seguram o processo por ~10 s (pg-pool: idleTimeoutMillis = 10 s,
+// allowExitOnIdle = false) — e sem prazo se uma conexão ficar presa numa
+// transação de um teste que falhou.
+after(async () => {
+  await (globalThis as { prisma?: { $disconnect(): Promise<void> } }).prisma?.$disconnect();
+});

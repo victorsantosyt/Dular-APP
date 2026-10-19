@@ -339,17 +339,18 @@ export async function listAdminVerificacoes(input: {
 
 function parseDocUrl(docUrl: string | null | undefined) {
   const value = docUrl?.trim();
-  if (!value) return { frente: null as string | null, verso: null as string | null, uploadedAt: null as string | null };
+  if (!value) return { frente: null as string | null, verso: null as string | null, selfie: null as string | null, uploadedAt: null as string | null };
 
   try {
-    const parsed = JSON.parse(value) as { frente?: unknown; verso?: unknown; uploadedAt?: unknown };
+    const parsed = JSON.parse(value) as { frente?: unknown; verso?: unknown; selfie?: unknown; uploadedAt?: unknown };
     return {
       frente: typeof parsed.frente === "string" ? parsed.frente : null,
       verso: typeof parsed.verso === "string" ? parsed.verso : null,
+      selfie: typeof parsed.selfie === "string" ? parsed.selfie : null,
       uploadedAt: typeof parsed.uploadedAt === "string" ? parsed.uploadedAt : null,
     };
   } catch {
-    return { frente: value, verso: null as string | null, uploadedAt: null as string | null };
+    return { frente: value, verso: null as string | null, selfie: null as string | null, uploadedAt: null as string | null };
   }
 }
 
@@ -376,7 +377,7 @@ export async function getAdminVerificacaoDetail(id: string) {
       createdAt: true,
       updatedAt: true,
       user: { select: userSelect() },
-      decisoes: { orderBy: { createdAt: "asc" }, select: { id: true, adminId: true, de: true, para: true, decisao: true, revisao: true, motivo: true, createdAt: true } },
+      decisoes: { orderBy: { createdAt: "asc" }, select: { id: true, adminId: true, de: true, para: true, decisao: true, revisao: true, motivo: true, motivoCategoria: true, conferencia: true, createdAt: true } },
     },
   });
 
@@ -426,7 +427,8 @@ export async function getAdminVerificacaoDetail(id: string) {
   // segundos. Diferença grande indica registro criado depois (cópia, migração)
   // — o painel avisa, sem atribuir causa.
   const divergenciaS = docs.uploadedAt ? Math.round((verification.createdAt.getTime() - new Date(docs.uploadedAt).getTime()) / 1000) : null;
-  const [frente, verso] = await Promise.all([signDocument(docs.frente), signDocument(docs.verso)]);
+  // Links temporários (5 min) só para o admin que passou pelo gate; nunca no log.
+  const [frente, verso, selfie] = await Promise.all([signDocument(docs.frente), signDocument(docs.verso), signDocument(docs.selfie)]);
 
   return {
     verification: {
@@ -446,6 +448,8 @@ export async function getAdminVerificacaoDetail(id: string) {
       motivoUsuario: verification.motivoUsuario,
     },
     decisoes: verification.decisoes.map((d) => ({
+      motivoCategoria: d.motivoCategoria,
+      conferencia: d.conferencia,
       id: d.id,
       decisao: d.decisao,
       de: d.de,
@@ -477,6 +481,9 @@ export async function getAdminVerificacaoDetail(id: string) {
     documents: {
       frente,
       verso,
+      selfie,
+      // Envios anteriores à selfie: o painel mostra "Selfie não coletada nesta versão".
+      selfieColetada: Boolean(docs.selfie),
       uploadedAt: docs.uploadedAt,
       registradoEm: dateIso(verification.createdAt),
       datasDivergentes: divergenciaS !== null && Math.abs(divergenciaS) > 300,

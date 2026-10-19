@@ -25,3 +25,23 @@ test("verificação: motivo da reprovação ou do reenvio aparece na tela", () =
   assert.match(tela, /Motivo: \{motivo\}/);
   assert.match(tela, /Precisamos de um novo envio/);
 });
+
+test("selfie: só pela câmera frontal, com orientação, refazer e envio junto dos documentos", () => {
+  const selfie = tela.slice(tela.indexOf("const tirarSelfie"), tela.indexOf("const pickFromGallery"));
+  assert.match(selfie, /launchCameraAsync\(/);
+  assert.match(selfie, /CameraType\.front/);
+  assert.doesNotMatch(selfie, /launchImageLibraryAsync|DocumentPicker/, "nunca da galeria nem de arquivos");
+  assert.match(selfie, /Linking\.openSettings\(\)/, "permissão negada tem caminho de saída");
+  assert.match(tela, /Em lugar iluminado, com o rosto inteiro visível e a imagem nítida\. Sem filtros, sem óculos escuros e sem outras pessoas na foto\./);
+  assert.match(tela, /Refazer selfie/);
+  assert.match(tela, /form\.append\("selfie", selfie as any\)/);
+  const envio = tela.slice(tela.indexOf("const enviar = async"));
+  assert.ok(envio.indexOf("if (!selfie)") < envio.indexOf('api.post("/api/verificacoes"'), "sem selfie não envia");
+});
+
+test("selfie: finalidade, acesso e retenção explicados; nunca chamada de prova de vida na tela", () => {
+  assert.match(tela, /Para que serve: .*Quem vê: .*Por quanto tempo: /);
+  assert.match(tela, /Não usamos reconhecimento facial automático/);
+  const semComentarios = tela.replace(/\/\/[^\n]*/g, "").replace(/\/\*[\s\S]*?\*\//g, "");
+  assert.doesNotMatch(semComentarios, /prova de vida/i);
+});

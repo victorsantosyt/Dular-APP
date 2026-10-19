@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Alert, Image, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, Image, Linking, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { Screen } from "@/components/Screen";
 import { AppIcon, BackCircleButton } from "@/components/ui";
@@ -75,6 +75,9 @@ export default function VerificacaoDocs() {
   const voltarPerfil = () => nav.goBack();
   const [docFrente, setDocFrente] = useState<PickedFile | null>(null);
   const [docVerso, setDocVerso] = useState<PickedFile | null>(null);
+  // Selfie para conferência MANUAL de identidade (não é "prova de vida": a
+  // câmera sozinha não garante presença real nem impede fraude).
+  const [selfie, setSelfie] = useState<PickedFile | null>(null);
   const [state, setState] = useState<UploadState>("idle");
   const [verificacao, setVerificacao] = useState<VerificacaoStatus>(
     currentUser?.verificacao?.status ?? "NAO_ENVIADO"
@@ -169,6 +172,41 @@ export default function VerificacaoDocs() {
     }
   }, [locked, setPickedFile]);
 
+  // Só câmera (frontal), nunca galeria. Permissão negada e câmera indisponível
+  // têm mensagem própria; nada do que já foi preenchido se perde.
+  const tirarSelfie = useCallback(async () => {
+    if (locked) return;
+    const { status, canAskAgain } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert(
+        "Câmera bloqueada",
+        "Para tirar a selfie, permita o uso da câmera pelo Dular nas configurações do aparelho.",
+        canAskAgain
+          ? [{ text: "OK" }]
+          : [{ text: "Agora não", style: "cancel" }, { text: "Abrir configurações", onPress: () => void Linking.openSettings() }],
+      );
+      return;
+    }
+    try {
+      setState("selecionando");
+      const res = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        cameraType: ImagePicker.CameraType.front,
+        allowsEditing: false,
+        quality: 0.85,
+      });
+      if (!res.canceled && res.assets?.[0]?.uri) {
+        const file = makeFile(res.assets[0], "selfie");
+        if (!ALLOWED_IMAGE_MIMES.has(file.type)) setToast("Formato inválido. Tire a selfie de novo.");
+        else setSelfie(file);
+      }
+      setState("idle");
+    } catch {
+      setState("erro");
+      setToast("Não foi possível abrir a câmera. Verifique se outro app está usando a câmera e tente de novo.");
+    }
+  }, [locked]);
+
   const pickFromGallery = useCallback(async (field: FileField) => {
     if (locked) return;
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -248,6 +286,10 @@ export default function VerificacaoDocs() {
       Alert.alert("Envio", "Selecione frente e verso do documento.");
       return;
     }
+    if (!selfie) {
+      Alert.alert("Selfie", "Tire a selfie para conferência de identidade.");
+      return;
+    }
     if (faltaNomeCompleto && !nomeCompletoValido(nomeCompleto)) {
       Alert.alert("Nome completo", "Informe seu nome completo como está no documento (nome e sobrenome).");
       return;
@@ -264,6 +306,7 @@ export default function VerificacaoDocs() {
       const form = new FormData();
       form.append("docFrente", docFrente as any);
       form.append("docVerso", docVerso as any);
+      form.append("selfie", selfie as any);
 
       const res = await api.post("/api/verificacoes", form, {
         headers: { "Content-Type": "multipart/form-data" },
@@ -475,6 +518,27 @@ export default function VerificacaoDocs() {
             {renderPick("Documento (frente)", docFrente, "docFrente")}
             {renderPick("Documento (verso)", docVerso, "docVerso")}
 
+            <View style={[st.pickCard, locked && st.pickCardLocked]}>
+              <Text style={st.pickLabel}>Selfie para conferência de identidade</Text>
+              <Text style={st.pickHint}>
+                Em lugar iluminado, com o rosto inteiro visível e a imagem nítida. Sem filtros, sem óculos escuros e sem outras pessoas na foto.
+              </Text>
+              {selfie ? (
+                <Image source={{ uri: selfie.uri }} resizeMode="contain" style={st.pickPreview} accessibilityLabel="Selfie tirada" />
+              ) : null}
+              <Pressable
+                onPress={tirarSelfie}
+                disabled={locked || saving || selecting}
+                style={[st.pickBtnPrimary, (locked || saving || selecting) && st.dimmed]}
+              >
+                <AppIcon name="Camera" size={18} color={colors.white} strokeWidth={2.2} />
+                <Text numberOfLines={1} style={st.pickBtnPrimaryText}>{selfie ? "Refazer selfie" : "Tirar selfie"}</Text>
+              </Pressable>
+              <Text style={st.privacidadeTexto}>
+                Para que serve: a equipe de análise do Dular compara, a olho, a selfie com a foto do documento para confirmar que é você. Não usamos reconhecimento facial automático. Quem vê: só a equipe de análise autorizada. Por quanto tempo: enquanto sua conta existir; ao excluir a conta, a selfie e os documentos são apagados.
+              </Text>
+            </View>
+
             <Pressable onPress={enviar} disabled={saving || selecting} style={[st.submitBtn, (saving || selecting) && st.dimmed]}>
               {saving || selecting ? (
                 <ActivityIndicator color={colors.white} />
@@ -495,6 +559,7 @@ function makeStyles(theme: ProfileTheme) {
     motivoBox: { padding: 12, borderRadius: radius.md, backgroundColor: "#FEF2F2", borderWidth: 1, borderColor: "#FCA5A5", gap: 4 },
     motivoTitulo: { color: "#991B1B", ...typography.bodySm, fontWeight: "800" },
     motivoTexto: { color: "#7F1D1D", ...typography.bodySm, fontWeight: "600" },
+    privacidadeTexto: { color: colors.sub, fontSize: 12, fontWeight: "500", lineHeight: 17 },
     nomeBox: { borderWidth: 1, borderColor: theme.border, borderRadius: radius.lg, padding: 12, backgroundColor: colors.card, gap: 8 },
     nomeInput: {
       borderWidth: 1,

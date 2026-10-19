@@ -1378,3 +1378,11 @@ describe("troca de plano Stripe contra Postgres real", { skip: EXIGIDO ? false :
     }
   });
 });
+
+// Encerra o pool do Prisma ao fim do arquivo. Sem isto, as conexões ociosas
+// seguram o processo por ~10 s (pg-pool: idleTimeoutMillis = 10 s,
+// allowExitOnIdle = false) — e sem prazo se uma conexão ficar presa numa
+// transação de um teste que falhou.
+after(async () => {
+  await (globalThis as { prisma?: { $disconnect(): Promise<void> } }).prisma?.$disconnect();
+});

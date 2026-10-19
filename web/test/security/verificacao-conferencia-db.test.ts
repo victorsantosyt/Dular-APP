@@ -82,6 +82,7 @@ describe("conferência documental: dados enviados, cadastro atual e decisão (DB
       S3_SECRET_ACCESS_KEY: "segredo-ficticio-de-teste",
     });
     delete process.env.VERCEL_ENV;
+    process.env.DULAR_VERIFICACAO_SELFIE = "ligado";
     ({ prisma } = await import("../../src/lib/prisma"));
     detalhe = (await import("../../src/lib/adminVerificacoes")).getAdminVerificacaoDetail;
     fotografar = (await import("../../src/lib/dadosVerificacao")).fotografarDadosCadastrais;

@@ -144,6 +144,8 @@ type Detail = {
     admin: string | null;
     createdAt: string;
   }>;
+  /** Controle do servidor: conferência manual e categoria do motivo obrigatórias. */
+  exigeConferencia: boolean;
   dadosEnviados: (DadosCadastrais & { capturadoEm: string }) | null;
   cadastroAtual: DadosCadastrais | null;
   camposAlterados: Array<keyof DadosCadastrais>;
@@ -435,11 +437,11 @@ export default function VerificacoesClient() {
     if (!detail) return;
     if (actionInFlightRef.current) return;
     const motivo = reason?.trim() ?? "";
-    if (action === "approve" && !(conferencia.documentoLegivel && conferencia.dadosConferem && conferencia.selfieCompativel)) {
+    if (detail.exigeConferencia && action === "approve" && !(conferencia.documentoLegivel && conferencia.dadosConferem && conferencia.selfieCompativel)) {
       setMessage("Para aprovar, marque as três conferências.");
       return;
     }
-    if (action !== "approve" && !categoria) {
+    if (detail.exigeConferencia && action !== "approve" && !categoria) {
       setMessage("Escolha o motivo da reprovação ou do reenvio.");
       return;
     }
@@ -483,7 +485,7 @@ export default function VerificacoesClient() {
           revisao,
           esperado: revisao ? detail.verification.decisao : undefined,
           conferencia: action === "approve" ? conferencia : undefined,
-          motivoCategoria: action === "approve" ? undefined : categoria,
+          motivoCategoria: action === "approve" ? undefined : categoria || undefined,
         }),
       });
       const data = await res.json().catch(() => null);
@@ -1071,9 +1073,11 @@ function AcoesDeDecisao({
       </div>
     );
   }
-  const conferido = conferencia.documentoLegivel && conferencia.dadosConferem && conferencia.selfieCompativel;
-  const semSelfie = !detail.documents.selfieColetada;
-  const marcacoes = (
+  const exige = detail.exigeConferencia;
+  // Sem a exigência ligada no servidor, vale o fluxo de produção de hoje.
+  const conferido = !exige || (conferencia.documentoLegivel && conferencia.dadosConferem && conferencia.selfieCompativel);
+  const semSelfie = exige && !detail.documents.selfieColetada;
+  const marcacoes = !exige ? null : (
     <fieldset className="space-y-2 rounded-xl border border-border bg-surface p-3" disabled={ocupado}>
       <legend className="px-1 text-xs font-bold text-fg-muted">Conferência manual (obrigatória para aprovar)</legend>
       {(
@@ -1105,7 +1109,9 @@ function AcoesDeDecisao({
   );
   const seletorDeMotivo = (
     <div className="mt-3">
-      <label className="text-xs font-bold text-fg-muted">Motivo (para reprovar ou pedir reenvio; a pessoa vê no app)</label>
+      <label className="text-xs font-bold text-fg-muted">
+        Motivo {exige ? "(obrigatório para reprovar ou pedir reenvio; a pessoa vê no app)" : "(opcional)"}
+      </label>
       <select
         value={categoria}
         disabled={ocupado}
@@ -1175,7 +1181,7 @@ function AcoesDeDecisao({
       <p className="mt-2 text-xs font-semibold text-fg-subtle">
         A decisão atual ({v.decisao ? decisaoLabel[v.decisao] : v.status}) fica no histórico. O motivo é obrigatório.
       </p>
-      <div className="mt-3">{marcacoes}</div>
+      {marcacoes ? <div className="mt-3">{marcacoes}</div> : null}
       {seletorDeMotivo}
       <div className="mt-3">{campoMotivo("Motivo da revisão", "Ex.: Documento conferido de novo; dados conferem.")}</div>
       <div className="mt-3 flex flex-wrap gap-2">

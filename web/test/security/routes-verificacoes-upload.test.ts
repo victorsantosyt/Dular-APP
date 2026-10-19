@@ -204,6 +204,7 @@ describe("POST /api/verificacoes — selfie, dados obrigatórios e arquivos órf
 
   beforeEach(() => {
     resetMockPrisma();
+    process.env.DULAR_VERIFICACAO_SELFIE = "ligado";
     mockPrisma.diaristaProfile.findUnique = async () => null;
     mockPrisma.documentVerification.findFirst = async () => null;
     mockPrisma.user.findUnique = async () => DADOS_COMPLETOS;
@@ -217,7 +218,10 @@ describe("POST /api/verificacoes — selfie, dados obrigatórios e arquivos órf
       return { $metadata: {} };
     }) as never);
   });
-  after(() => restoreS3Send());
+  after(() => {
+    restoreS3Send();
+    delete process.env.DULAR_VERIFICACAO_SELFIE;
+  });
 
   // Conta e IP próprios por pedido: o limite de envios por hora não entra aqui.
   let seq = 0;
@@ -298,5 +302,32 @@ describe("POST /api/verificacoes — selfie, dados obrigatórios e arquivos órf
     assert.ok(doc.frente && doc.verso && doc.selfie, "frente, verso e selfie na mesma submissão");
     assert.ok(String(doc.selfie).startsWith("verificacoes/u-conta-b/selfie/"));
     assert.ok(gravado.dadosEnviados, "com a fotografia dos dados");
+  });
+
+  it("modo DESLIGADO: app sem selfie e sem nome completo envia como hoje (frente e verso); com selfie, guarda os três", async () => {
+    delete process.env.DULAR_VERIFICACAO_SELFIE;
+    mockPrisma.user.findUnique = async () => ({ ...DADOS_COMPLETOS, nomeCompleto: null });
+    const capturado: { docUrl: string[] } = { docUrl: [] };
+    (mockPrisma as unknown as { $transaction: unknown }).$transaction = async (cb: (tx: unknown) => unknown) =>
+      cb({
+        diaristaProfile: { upsert: async () => ({ updatedAt: new Date() }) },
+        user: { findUnique: async () => ({ ...DADOS_COMPLETOS, nomeCompleto: null, role: "DIARISTA", enderecos: [], diaristaProfile: null, montadorPerfil: null, empregadorPerfil: null }) },
+        documentVerification: { create: async (args: { data: { docUrl: string } }) => { capturado.docUrl.push(args.data.docUrl); return { id: "dv" }; } },
+      });
+    const semSelfie = await (await getPost())(envio([FRENTE, VERSO]));
+    assert.notEqual(semSelfie.status, 400, "sem selfie e sem nome completo: aceito");
+    assert.equal(chamadas.filter((c) => c.tipo === "PutObjectCommand").length, 2);
+    assert.equal(JSON.parse(capturado.docUrl[0]).selfie, undefined);
+    chamadas.length = 0;
+    const comSelfie = await (await getPost())(envio([FRENTE, VERSO, SELFIE]));
+    assert.notEqual(comSelfie.status, 400);
+    assert.equal(chamadas.filter((c) => c.tipo === "PutObjectCommand").length, 3);
+    assert.ok(JSON.parse(capturado.docUrl[1]).selfie);
+  });
+
+  it("o pedido não liga nem desliga a exigência: campo de formulário é ignorado", async () => {
+    const res = await (await getPost())(envio([FRENTE, VERSO, { kind: "field", name: "exigeSelfie", value: "false" }]));
+    assert.equal(res.status, 400);
+    assert.equal((await res.json()).codigo, "SELFIE_OBRIGATORIA");
   });
 });

@@ -1,6 +1,7 @@
 import type { DocumentVerificationStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { ensureUserRoleProfile } from "@/lib/userProfiles";
+import { selfieExigida } from "@/lib/verificacaoSelfie";
 
 /**
  * Decisão sobre um envio de documentos (aprovar, reprovar, pedir reenvio).
@@ -69,8 +70,15 @@ export function envioTemSelfie(docUrl: string | null | undefined): boolean {
   }
 }
 
-// O aviso (lista do app e push) leva só o rótulo fixo: o texto livre do admin
-// pode conter dado pessoal e fica só na tela de verificação do próprio titular.
+// Com a exigência ligada, o aviso (lista do app e push) leva só o rótulo fixo:
+// o texto livre do admin pode conter dado pessoal e fica só na tela de
+// verificação do titular (app novo). Desligada, vale o aviso de produção de
+// hoje, com o motivo — o app de produção não tem outra tela que o mostre.
+const AVISO_SEM_EXIGENCIA: Record<Decisao, { type: "VERIFICACAO_APROVADA" | "VERIFICACAO_REPROVADA"; title: string; body: (motivo: string) => string }> = {
+  APROVADO: { type: "VERIFICACAO_APROVADA", title: "Verificação aprovada", body: () => "Seus documentos foram aprovados." },
+  REPROVADO: { type: "VERIFICACAO_REPROVADA", title: "Verificação não aprovada", body: (m) => `Seus documentos não foram aprovados. Motivo: ${m}` },
+  REENVIO: { type: "VERIFICACAO_REPROVADA", title: "Envie os documentos novamente", body: (m) => `Precisamos de um novo envio dos seus documentos. Motivo: ${m}` },
+};
 const AVISO: Record<Decisao, { type: "VERIFICACAO_APROVADA" | "VERIFICACAO_REPROVADA"; title: string; body: (rotulo: string) => string }> = {
   APROVADO: { type: "VERIFICACAO_APROVADA", title: "Verificação aprovada", body: () => "Seus documentos foram aprovados." },
   REPROVADO: {
@@ -124,13 +132,15 @@ export async function decidirVerificacao(input: {
   const alvo = STATUS_DA_DECISAO[decisao];
   const conferencia = input.conferencia ?? null;
   const categoria = input.motivoCategoria ?? null;
-  if (decisao === "APROVADO" && !(conferencia?.documentoLegivel && conferencia.dadosConferem && conferencia.selfieCompativel)) {
+  // Lido do servidor, nunca do pedido.
+  const exigente = selfieExigida();
+  if (exigente && decisao === "APROVADO" && !(conferencia?.documentoLegivel && conferencia.dadosConferem && conferencia.selfieCompativel)) {
     return { tipo: "erro", status: 400, mensagem: "Para aprovar, confirme as três conferências: documento legível, dados conferem e selfie compatível com a foto do documento." };
   }
-  if (decisao !== "APROVADO" && !categoria) {
+  if (exigente && decisao !== "APROVADO" && !categoria) {
     return { tipo: "erro", status: 400, mensagem: "Escolha o motivo da reprovação ou do pedido de reenvio." };
   }
-  const motivoUsuario = categoria ? `${CATEGORIAS_DE_MOTIVO[categoria]}${motivo ? `: ${motivo}` : ""}` : null;
+  const motivoUsuario = categoria ? `${CATEGORIAS_DE_MOTIVO[categoria]}${motivo ? `: ${motivo}` : ""}` : motivo || null;
 
   return prisma.$transaction(async (tx) => {
     const [linha] = await tx.$queryRaw<Array<{ id: string; userId: string; status: DocumentVerificationStatus; decisao: string | null; docUrl: string | null; createdAt: Date }>>`
@@ -175,7 +185,7 @@ export async function decidirVerificacao(input: {
     // Sem selfie não há como conferir a correspondência: o envio não pode ser
     // aprovado (nem por revisão). Contas já aprovadas não são revogadas — isto
     // só vale para uma nova aprovação.
-    if (decisao === "APROVADO" && !envioTemSelfie(linha.docUrl)) {
+    if (exigente && decisao === "APROVADO" && !envioTemSelfie(linha.docUrl)) {
       return { tipo: "erro", status: 409, mensagem: "Este envio não tem selfie (versão anterior do app). Solicite reenvio para conferir a identidade." };
     }
 
@@ -195,7 +205,7 @@ export async function decidirVerificacao(input: {
       data: {
         verificacaoId: id, adminId, de: linha.status, para: alvo, decisao, revisao, motivo: motivo || null,
         motivoCategoria: categoria,
-        conferencia: decisao === "APROVADO" && conferencia ? conferencia : undefined,
+        conferencia: decisao === "APROVADO" && conferencia?.documentoLegivel && conferencia.dadosConferem && conferencia.selfieCompativel ? conferencia : undefined,
       },
     });
 
@@ -208,9 +218,10 @@ export async function decidirVerificacao(input: {
     }
 
     // O aviso nasce na MESMA transação da decisão: ou os dois ficam, ou nenhum.
-    const a = AVISO[decisao];
+    const a = exigente ? AVISO[decisao] : AVISO_SEM_EXIGENCIA[decisao];
+    const textoDoAviso = exigente ? (categoria ? CATEGORIAS_DE_MOTIVO[categoria] : "") : motivoUsuario ?? motivo;
     const aviso = await tx.notification.create({
-      data: { userId: linha.userId, type: a.type, title: a.title, body: a.body(categoria ? CATEGORIAS_DE_MOTIVO[categoria] : "") },
+      data: { userId: linha.userId, type: a.type, title: a.title, body: a.body(textoDoAviso) },
       select: { id: true, userId: true, type: true, title: true, body: true },
     });
     const verification = await tx.documentVerification.findUniqueOrThrow({ where: { id }, select: SELECT_VERIFICACAO });

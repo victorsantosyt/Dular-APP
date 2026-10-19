@@ -68,6 +68,7 @@ describe("selfie na verificação: aprovação, compatibilidade e acesso (DB)", 
       S3_SECRET_ACCESS_KEY: "segredo-ficticio-de-teste",
     });
     delete process.env.VERCEL_ENV;
+    process.env.DULAR_VERIFICACAO_SELFIE = "ligado";
     ({ prisma } = await import("../../src/lib/prisma"));
     aprovar = (await import("../../src/app/api/admin/verificacoes/approve/route")).POST;
     reprovar = (await import("../../src/app/api/admin/verificacoes/reprove/route")).POST;
@@ -105,6 +106,39 @@ describe("selfie na verificação: aprovação, compatibilidade e acesso (DB)", 
       assert.deepEqual(d.conferencia, CONFERIDO, "marcações registradas no histórico");
     });
   }
+
+  it("o pedido não dispensa a exigência: campos inventados no corpo não liberam aprovação sem conferência", async () => {
+    const u = await conta("EMPREGADOR", "parametro");
+    const v = (await envio(u, "EMPREGADOR", false)).id;
+    const r = await aprovar(pedido(v, { exigeSelfie: false, selfieExigida: false, DULAR_VERIFICACAO_SELFIE: "desligado" }));
+    assert.equal(r.status, 400);
+    assert.equal((await prisma.documentVerification.findUnique({ where: { id: v } })).status, "PENDING");
+  });
+
+  it("modo DESLIGADO (padrão de produção): fluxo atual preservado, inclusive pendentes antigos", async () => {
+    delete process.env.DULAR_VERIFICACAO_SELFIE;
+    try {
+      for (const role of ["EMPREGADOR", "DIARISTA", "MONTADOR"] as const) {
+        const u = await conta(role, `off_${role.toLowerCase()}`);
+        const antigo = (await envio(u, role, false)).id;
+        const r = await aprovar(pedido(antigo, {}));
+        assert.equal(r.status, 200, `${role}: aprova sem selfie e sem conferência`);
+        assert.equal((await guardian(u)).verificationStatus, "VERIFICADO");
+      }
+      const u = await conta("DIARISTA", "off_reprova");
+      const v = (await envio(u, "DIARISTA", false)).id;
+      assert.equal((await reprovar(pedido(v, { motivo: "Foto do verso ilegível" }))).status, 200, "reprova sem categoria");
+      const linha = await prisma.documentVerification.findUnique({ where: { id: v } });
+      assert.equal(linha.motivoUsuario, "Foto do verso ilegível");
+      const aviso = await prisma.notification.findFirst({ where: { userId: u, type: "VERIFICACAO_REPROVADA" } });
+      assert.match(aviso.body, /Motivo: Foto do verso ilegível/, "aviso como em produção hoje");
+      assert.equal((await reprovar(pedido((await envio(await conta("EMPREGADOR", "off_sem_motivo"), "EMPREGADOR", false)).id, { motivo: "" }))).status, 400, "motivo continua obrigatório");
+      const res = await detalheRota(new Request(`http://test/api/admin/verificacoes/${v}`, { headers: makeAuthHeaders(admin, "ADMIN") }), { params: Promise.resolve({ id: v }) });
+      assert.equal((await res.json()).exigeConferencia, false, "painel no fluxo atual");
+    } finally {
+      process.env.DULAR_VERIFICACAO_SELFIE = "ligado";
+    }
+  });
 
   it("reprovar ou pedir reenvio exige categoria; o app recebe categoria + detalhe", async () => {
     const u = await conta("EMPREGADOR", "categoria");

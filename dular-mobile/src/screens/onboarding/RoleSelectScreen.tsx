@@ -16,6 +16,7 @@ import { useAuthStore } from "@/stores/authStore";
 import type { OnboardingStackParamList } from "@/navigation/OnboardingNavigator";
 import { PageDots } from "@/components/onboarding/PageDots";
 import { colors as tc, typography } from "@/theme/tokens";
+import { useTipografia } from "@/hooks/useTipografia";
 
 type Role = "EMPREGADOR" | "DIARISTA" | "MONTADOR";
 
@@ -192,6 +193,8 @@ function RoleCard({
 // ─── Screen ──────────────────────────────────────────────────────────────────
 
 export function RoleSelectScreen() {
+  // Tamanho do título pela largura ATUAL (muda com o app aberto).
+  const tipo = useTipografia();
   const navigation = useNavigation<Navigation>();
 
   const chooseRole = (role: ChosenRole) => {
@@ -217,13 +220,13 @@ export function RoleSelectScreen() {
           {/* Sem o "\n" fixo: a quebra era cravada no texto e não tinha
               como caber em uma linha. Encurtado para seguir a regra das
               telas anteriores — o subtítulo abaixo já explica o resto. */}
-          <Text allowFontScaling={false} style={styles.title} numberOfLines={1}>
+          <Text style={[styles.title, tipo.onboardingTitleWrap]}>
             Escolha seu <Text style={styles.titleAccent}>perfil</Text>
           </Text>
 
           <View style={styles.subtitleRow}>
             <Text style={styles.subtitleDecL}>✦</Text>
-            <Text allowFontScaling={false} style={styles.subtitle}>
+            <Text style={styles.subtitle}>
               {"Selecione o perfil que melhor descreve você.\nVocê pode alterar isso depois."}
             </Text>
             <Text style={styles.subtitleDecR}>♥</Text>

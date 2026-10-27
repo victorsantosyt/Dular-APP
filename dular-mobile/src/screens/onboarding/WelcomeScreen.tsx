@@ -6,6 +6,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { AppIcon, type AppIconName, DButton } from "@/components/ui";
 import { onboardingAssets } from "@/assets/onboardingAssets";
 import { colors, radius, spacing, typography } from "@/theme";
+import { useTipografia } from "@/hooks/useTipografia";
 import { PageDots } from "@/components/onboarding/PageDots";
 import type { OnboardingStackParamList } from "@/navigation/OnboardingNavigator";
 
@@ -13,6 +14,8 @@ type Navigation = NativeStackNavigationProp<OnboardingStackParamList>;
 const LAVENDER_ICON = "#A98AEF";
 
 export function WelcomeScreen() {
+  // Tamanho do título pela largura ATUAL (muda com o app aberto).
+  const tipo = useTipografia();
   const navigation = useNavigation<Navigation>();
 
   return (
@@ -39,7 +42,7 @@ export function WelcomeScreen() {
           </View>
 
           <View style={styles.titleBlock}>
-            <Text style={styles.title} numberOfLines={1}>
+            <Text style={[styles.title, tipo.onboardingTitleWrap]}>
               Boas-vindas ao <Text style={styles.titleAccent}>Dular!</Text>
             </Text>
             <Text style={styles.subtitle}>

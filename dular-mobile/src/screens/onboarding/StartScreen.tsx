@@ -7,6 +7,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { AppIcon, BackCircleButton } from "@/components/ui";
 import { onboardingAssets } from "@/assets/onboardingAssets";
 import { colors, radius, spacing, typography } from "@/theme";
+import { useTipografia } from "@/hooks/useTipografia";
 import { PageDots } from "@/components/onboarding/PageDots";
 import { markOnboardingSeen } from "@/lib/onboarding";
 import type { OnboardingStackParamList } from "@/navigation/OnboardingNavigator";
@@ -15,6 +16,8 @@ type Navigation = NativeStackNavigationProp<OnboardingStackParamList>;
 const LAVENDER_ICON = "#A98AEF";
 
 export function StartScreen() {
+  // Tamanho do título pela largura ATUAL (muda com o app aberto).
+  const tipo = useTipografia();
   const navigation = useNavigation<Navigation>();
 
   const start = async () => {
@@ -41,7 +44,7 @@ export function StartScreen() {
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <View style={styles.titleBlock}>
-          <Text style={styles.title}>
+          <Text style={[styles.title, tipo.onboardingTitleWrap]}>
             Hora de ter mais <Text style={styles.titleAccent}>liberdade</Text>
           </Text>
           <Text style={styles.subtitle}>

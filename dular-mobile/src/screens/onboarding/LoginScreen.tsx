@@ -9,6 +9,7 @@ import { AppIcon, BackCircleButton, DCard } from "@/components/ui";
 import { DularLogo } from "@/assets/brand";
 import { PageDots } from "@/components/onboarding/PageDots";
 import { colors, radius, shadows, spacing, typography } from "@/theme";
+import { useTipografia } from "@/hooks/useTipografia";
 import { api, API_BASE_URL } from "@/lib/api";
 import { markOnboardingSeen } from "@/lib/onboarding";
 import { useAuthStore } from "@/stores/authStore";
@@ -178,6 +179,8 @@ function LoginLogo() {
 }
 
 export function LoginScreen() {
+  // Tamanho do título pela largura ATUAL (muda com o app aberto).
+  const tipo = useTipografia();
   const navigation = useNavigation<Navigation>();
   const preLoginRole = useAuthStore((state) => state.selectedRole);
   const servicosOferecidos = useAuthStore((state) => state.servicosOferecidos);
@@ -302,7 +305,7 @@ export function LoginScreen() {
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <View style={styles.titleBlock}>
-          <Text style={styles.title} numberOfLines={1}>
+          <Text style={[styles.title, tipo.onboardingTitleWrap]}>
             Faça seu <Text style={styles.titleAccent}>login</Text>
           </Text>
           <Text style={styles.subtitle}>

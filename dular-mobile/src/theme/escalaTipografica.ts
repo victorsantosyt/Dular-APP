@@ -32,13 +32,6 @@ export const LARGURA_BASE = 390; // iPhone 14/15 — referência do design
 const FATOR = 0.5;
 const LIMITE = 0.12;
 
-/** Altura de linha mínima dos títulos, em múltiplos do corpo (ver onboardingTitleWrap). */
-export const ALTURA_LINHA_TITULO = 1.32;
-
-export function alturaDeLinhaDeTitulo(corpo: number): number {
-  return Math.ceil(corpo * ALTURA_LINHA_TITULO);
-}
-
 function escalar(tamanho: number, largura: number, arredondar: (v: number) => number): number {
   const proporcao = largura / LARGURA_BASE;
   const ajustado = tamanho + (tamanho * proporcao - tamanho) * FATOR;
@@ -96,33 +89,13 @@ export function criarTipografia(largura: number, arredondar: (v: number) => numb
 
     /**
      * Título das telas de onboarding. Existe como token porque as quatro telas
-     * têm StyleSheets separadas e os tamanhos tinham divergido.
-     *
-     * Mantido como estava porque os gates (nichos, gênero, especialidades)
-     * também o usam; as seis telas de entrada usam `onboardingTitleWrap`.
+     * têm StyleSheets separadas e os tamanhos tinham divergido. O corpo é o da
+     * PRIMEIRA tela (28), referência do fluxo. Também usado pelos gates.
      */
     onboardingTitle: {
       ...base,
       fontSize: e(28),
       lineHeight: e(34),
-      fontWeight: "700" as const,
-      letterSpacing: -0.4,
-    } satisfies TextStyle,
-
-    /**
-     * Título das seis telas de entrada (boas-vindas, três slides, login e
-     * perfil). QUEBRA em quantas linhas precisar (sem `numberOfLines`, sem
-     * encolher a fonte): fonte ampliada ou tela estreita viram mais linhas, e
-     * o conteúdo rola.
-     *
-     * A altura de linha é proporcional ao corpo e fica acima da métrica
-     * vertical da Plus Jakarta Sans Bold (1,26×). Não é garantia para
-     * qualquer fonte: no Android o título sai na fonte do sistema (#401).
-     */
-    onboardingTitleWrap: {
-      ...base,
-      fontSize: e(28),
-      lineHeight: alturaDeLinhaDeTitulo(e(28)),
       fontWeight: "700" as const,
       letterSpacing: -0.4,
     } satisfies TextStyle,

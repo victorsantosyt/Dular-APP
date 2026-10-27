@@ -1,7 +1,7 @@
 import { Dimensions, PixelRatio } from "react-native";
 import { criarTipografia } from "./escalaTipografica";
 
-export { ALTURA_LINHA_TITULO, LARGURA_BASE, alturaDeLinhaDeTitulo, criarTipografia } from "./escalaTipografica";
+export { LARGURA_BASE, criarTipografia } from "./escalaTipografica";
 
 /** Tokens para uma largura de janela, arredondados ao pixel do aparelho. */
 export function tipografiaPara(largura: number) {

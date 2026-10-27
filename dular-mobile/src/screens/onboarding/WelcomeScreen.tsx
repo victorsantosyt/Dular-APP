@@ -42,7 +42,7 @@ export function WelcomeScreen() {
           </View>
 
           <View style={styles.titleBlock}>
-            <Text style={[styles.title, tipo.onboardingTitleWrap]}>
+            <Text style={[styles.title, tipo.onboardingTitle]}>
               Boas-vindas ao <Text style={styles.titleAccent}>Dular!</Text>
             </Text>
             <Text style={styles.subtitle}>

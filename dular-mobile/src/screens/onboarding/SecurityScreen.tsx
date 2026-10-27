@@ -37,7 +37,7 @@ export function SecurityScreen() {
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <View style={styles.titleBlock}>
-          <Text style={[styles.title, tipo.onboardingTitleWrap]}>
+          <Text style={[styles.title, tipo.onboardingTitle]}>
             <Text style={styles.titleAccent}>Segurança</Text> em um só lugar
           </Text>
           <Text style={styles.subtitle}>

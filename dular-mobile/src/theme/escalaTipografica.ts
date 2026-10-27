@@ -116,8 +116,8 @@ export function criarTipografia(largura: number, arredondar: (v: number) => numb
      * o conteúdo rola.
      *
      * A altura de linha é proporcional ao corpo e fica acima da métrica
-     * vertical da Plus Jakarta Sans Bold (1,26×). Folga calculada, não
-     * comprovada na tela: o texto pode estar saindo na fonte do sistema.
+     * vertical da Plus Jakarta Sans Bold (1,26×). Não é garantia para
+     * qualquer fonte: no Android o título sai na fonte do sistema (#401).
      */
     onboardingTitleWrap: {
       ...base,

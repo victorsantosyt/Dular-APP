@@ -87,4 +87,18 @@ describe("featureGate — limite do PROFISSIONAL (quem paga)", () => {
     assert.equal(r.allowed, true);
     assert.equal(r.limit, null);
   });
+
+  it("devolve a janela da contagem, igual à usada no count (o app não fixa período)", async () => {
+    mockPrisma.user.findUnique = async () => ({ id: "u-dia", role: "DIARISTA" });
+    mockPrisma.subscription.findUnique = async () => null;
+    mockPrisma.featureLimit.findUnique = async () => ({ limit: 5, enabled: true });
+    const escopo = capturarEscopo(1);
+
+    const check = await getGate();
+    const r = await check("u-dia", "SOLICITACOES_MES");
+    const criado = (escopo() as any)?.createdAt;
+    assert.ok(r.periodo, "periodo presente");
+    assert.equal(r.periodo!.inicio, criado.gte.toISOString());
+    assert.equal(r.periodo!.fim, criado.lt.toISOString());
+  });
 });

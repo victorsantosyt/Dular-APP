@@ -44,6 +44,23 @@ export function invalidarNotificacoes(): void {
   cacheNotificacoes.invalidar();
 }
 
+/**
+ * Marca UMA notificação como lida, fora de qualquer tela (toque no push com o
+ * app fechado). Otimista no cache compartilhado — lista, abas e sino de todas
+ * as telas atualizam juntos; se o servidor recusar, relê.
+ */
+export async function marcarNotificacaoComoLida(id: string): Promise<void> {
+  const nowIso = new Date().toISOString();
+  cacheNotificacoes.alterar((list) =>
+    list.map((item) => (item.id === id && !item.readAt ? { ...item, readAt: nowIso } : item)),
+  );
+  try {
+    await apiMarcarComoLida(id);
+  } catch {
+    void cacheNotificacoes.obter(true);
+  }
+}
+
 /** Troca de conta: os avisos da conta anterior não podem aparecer na próxima. */
 export function limparCacheNotificacoes(): void {
   cacheNotificacoes.limpar();
@@ -88,18 +105,7 @@ export function useNotificacoes(): UseNotificacoesReturn {
     void triggerFetch(true);
   }, [triggerFetch]);
 
-  const marcarComoLida = useCallback(async (id: string) => {
-    const nowIso = new Date().toISOString();
-    // optimistic: atualiza cache compartilhado → notifica todos os consumidores
-    cacheNotificacoes.alterar((list) =>
-      list.map((item) => (item.id === id && !item.readAt ? { ...item, readAt: nowIso } : item)),
-    );
-    try {
-      await apiMarcarComoLida(id);
-    } catch {
-      void triggerFetch(true);
-    }
-  }, [triggerFetch]);
+  const marcarComoLida = useCallback((id: string) => marcarNotificacaoComoLida(id), []);
 
   const marcarTodasComoLidas = useCallback(async () => {
     const nowIso = new Date().toISOString();

@@ -23,6 +23,8 @@ export type PopupNotificacao = {
   /** Para onde levar ao tocar. Sem isto, o popup só informa. */
   servicoId?: string | null;
   chatRoomId?: string | null;
+  /** Id da Notification no backend (toque marca só ela como lida). */
+  notificationId?: string | null;
   /**
    * Agrupamento (ex.: `chat:<servicoId>`). Um aviso com a mesma chave de outro
    * que ainda ESPERA na fila substitui o conteúdo dele no mesmo lugar — a fila

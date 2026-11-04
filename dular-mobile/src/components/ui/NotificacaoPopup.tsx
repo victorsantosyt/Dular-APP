@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AppIcon } from "@/components/ui/AppIcon";
 import { metaDoTipo, tonePalette } from "@/constants/notificacoes";
 import { destinoDaNotificacao } from "@/lib/destinoNotificacao";
-import { navRef } from "@/navigation/nav";
+import { abrirNotificacao } from "@/lib/abrirNotificacaoNoApp";
 import { useAuth } from "@/stores/authStore";
 import { useNotificacaoPopup } from "@/stores/notificacaoPopupStore";
 import { getProfileTheme } from "@/theme/profileTheme";
@@ -96,16 +96,15 @@ export function NotificacaoPopup() {
   const meta = metaDoTipo(String(atual.tipo));
   const { accent: cor, soft: fundo } = tonePalette(meta.tone, tema);
   const destino = destinoDaNotificacao(
-    { tipo: String(atual.tipo), titulo: atual.titulo, servicoId: atual.servicoId },
+    { tipo: String(atual.tipo), titulo: atual.titulo, servicoId: atual.servicoId, id: atual.notificationId ?? null },
     papel,
   );
 
   const abrir = () => {
     if (!destino) return sair();
+    const toque = { tipo: String(atual.tipo), titulo: atual.titulo, servicoId: atual.servicoId, id: atual.notificationId ?? null };
     sair(() => {
-      if (!navRef.isReady()) return;
-      const [rota, params] = destino;
-      (navRef.navigate as unknown as (n: string, p?: object) => void)(rota, params);
+      abrirNotificacao(toque);
     });
   };
 

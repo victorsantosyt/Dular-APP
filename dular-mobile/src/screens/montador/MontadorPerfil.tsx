@@ -41,7 +41,8 @@ import { useMontadorServicos } from "@/hooks/useMontadorServicos";
 import { useCurrentRegion, type CurrentRegion } from "@/hooks/useCurrentRegion";
 import { useProfileTheme } from "@/hooks/useProfileTheme";
 import { useAuth } from "@/stores/authStore";
-import { requestLocationWithAddress } from "@/lib/location";
+import { obterMunicipioAtual } from "@/lib/location";
+import { mensagemSemMunicipio } from "@/lib/municipioAtual";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { colors, radius, shadows, spacing, typography } from "@/theme";
 import type { ProfileTheme } from "@/theme/profileTheme";
@@ -50,6 +51,7 @@ import { VerifiedBadge } from "@/components/ui/VerifiedBadge";
 import { firstName, formatMoneyFromCents, upperStatus } from "./montadorUtils";
 import { plural } from "@/utils/formatters";
 import { useAssinaturaPlano } from "@/hooks/useAssinaturaPlano";
+import { subtituloMeuPlano } from "@/lib/franquiaPlano";
 import { MotivoPaywall } from "@/lib/paywall";
 import { deveMostrarProgresso, estadoDaCompletude } from "@/lib/profileProgress";
 import { calcularImeInsetAndroid } from "@/lib/keyboardInset";
@@ -925,16 +927,15 @@ export default function MontadorPerfil() {
     setGeoEnabled(value);
     AsyncStorage.setItem(GEO_KEY, value ? "1" : "0").catch(() => undefined);
     if (!value) return;
-    try {
-      const { address } = await requestLocationWithAddress();
-      const addr = address as
-        | { city?: string | null; subregion?: string | null; region?: string | null; region_code?: string | null }
-        | null;
-      const cidade = addr?.city || addr?.subregion || "Localização";
-      const uf = addr?.region_code || addr?.region || "";
-      Alert.alert("Localização ativada", `${cidade}${uf ? "/" + uf : ""}`);
-    } catch (e) {
-      Alert.alert("Localização", e instanceof Error ? e.message : "Não foi possível obter sua localização.");
+    // Mesma regra do formulário da diarista (lib/municipioAtual): estado só por
+    // correspondência exata, nada de cortar "Mato Grosso" em "MA".
+    const r = await obterMunicipioAtual();
+    if (r.ok) {
+      Alert.alert("Localização ativada", `${r.municipio.cidade}/${r.municipio.uf}`);
+      return;
+    }
+    Alert.alert("Localização", mensagemSemMunicipio(r.motivo));
+    if (r.motivo === "permissao-negada") {
       setGeoEnabled(false);
       AsyncStorage.setItem(GEO_KEY, "0").catch(() => undefined);
     }
@@ -1107,7 +1108,7 @@ export default function MontadorPerfil() {
         <Row icon="CreditCard" title="Carteira/Ganhos" subtitle={formatMoneyFromCents(ganhos)} theme={profileTheme} onPress={() => navigation.navigate("Carteira", { from: "MontadorPerfil" })} />
         {/* Mesma entrada voluntária da diarista: sem isso o paywall só abria
             depois de estourar o limite, e não havia como assinar antes. */}
-        <Row icon={assinatura.apresentacao?.icone ?? "Sparkles"} title="Meu plano" subtitle={assinatura.apresentacao?.nome ?? (assinatura.erro ? "Não foi possível consultar seu plano" : "Consultando seu plano…")} theme={profileTheme} onPress={() => navigation.navigate("Paywall", { motivo: MotivoPaywall.USER_REQUESTED })} />
+        <Row icon={assinatura.apresentacao?.icone ?? "Sparkles"} title="Meu plano" subtitle={subtituloMeuPlano(assinatura.apresentacao?.nome, assinatura.data?.usage?.solicitacoesMes, assinatura.erro)} theme={profileTheme} onPress={() => navigation.navigate("Paywall", { motivo: MotivoPaywall.USER_REQUESTED })} />
         <Row icon="Landmark" title="Recebimentos" subtitle="Receber pelo PIX" theme={profileTheme} onPress={() => navigation.navigate("Recebimentos")} />
       </Section>
 

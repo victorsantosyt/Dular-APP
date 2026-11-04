@@ -15,10 +15,6 @@ export function DiaristaNotificacoes() {
     <NotificacoesView
       theme={theme}
       onVoltar={() => navigation.goBack()}
-      onOpenChat={(servicoId) =>
-        navigation.navigate("ChatAberto", { roomId: servicoId, servicoId, nomeUsuario: "Conversa" })
-      }
-      onOpenServico={(servicoId) => navigation.navigate("DiaristaDetalhe", { servicoId })}
     />
   );
 }

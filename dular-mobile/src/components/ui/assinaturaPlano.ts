@@ -13,7 +13,7 @@ export type AssinaturaPlano = {
     expiresAt: string | null;
     canceledAt: string | null;
   } | null;
-  usage?: { solicitacoesMes?: { used: number; limit: number | null } };
+  usage?: { solicitacoesMes?: { used: number; limit: number | null; periodo?: { inicio: string; fim: string } | null } };
   /** "pendente": a loja ainda não confirmou uma renovação. Não é expiração. */
   verificacaoLoja?: "pendente" | null;
 };

@@ -87,7 +87,7 @@ export type EmpregadorTabParamList = {
   };
   DetalheServico: { id: string };
   EmpregadorDetalhe: { servicoId: string };
-  VerificacaoDocs: undefined;
+  VerificacaoDocs: { notificacaoId?: string } | undefined;
   ReportIncident: ReportIncidentParams | undefined;
   SosFlow: undefined;
   SafeScore: undefined;

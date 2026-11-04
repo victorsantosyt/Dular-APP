@@ -2,14 +2,12 @@ import { pedirSincronizacao } from "@/lib/sincronizacaoConta";
 import { useEffect, useRef } from "react";
 import { AppState } from "react-native";
 import * as Notifications from "expo-notifications";
-import { navRef } from "@/navigation/nav";
-import { useAuth } from "@/stores/authStore";
 import { useNotificacaoPopup } from "@/stores/notificacaoPopupStore";
 import { atualizarMensagensAgora, invalidarMensagens } from "@/hooks/useMensagens";
 import { invalidarNotificacoes } from "@/hooks/useNotificacoes";
 import { chatAbertoAtual } from "@/lib/chatAberto";
-import { CHAT_TYPES, destinoDaNotificacao } from "@/lib/destinoNotificacao";
-import { apresentacaoNoPrimeiroPlano, pertenceASessao, tratarPushRecebido } from "@/lib/pushPrimeiroPlano";
+import { abrirNotificacao } from "@/lib/abrirNotificacaoNoApp";
+import { apresentacaoNoPrimeiroPlano, tratarPushRecebido } from "@/lib/pushPrimeiroPlano";
 import { registroPush as registro } from "@/lib/pushCicloDeVida";
 import { sessaoAtual } from "@/lib/sessaoAtual";
 
@@ -26,6 +24,7 @@ type NotificationData = {
   /** O backend manda `type` em `data`; `tipo` fica por compatibilidade. */
   type?: unknown;
   servicoId?: unknown;
+  notificationId?: unknown;
 };
 
 function tipoDe(data: NotificationData): string {
@@ -33,40 +32,30 @@ function tipoDe(data: NotificationData): string {
   return typeof t === "string" ? t : "";
 }
 
-function navigateWhenReady(routeName: string, params?: object) {
-  const navigate = () => {
-    if (!navRef.isReady()) return;
-    (navRef.navigate as unknown as (name: string, params?: object) => void)(routeName, params);
-  };
+const texto = (v: unknown) => (typeof v === "string" && v ? v : null);
 
-  if (navRef.isReady()) {
-    navigate();
-    return;
-  }
+/**
+ * Respostas a toques já tratadas (pelo identificador do push). O app iniciado
+ * pelo toque pode entregar a mesma resposta pelo listener e por
+ * `getLastNotificationResponseAsync`, e o gate remonta a cada sessão: sem isto
+ * o mesmo toque navegaria duas vezes, ou de novo depois de sair e entrar.
+ */
+const respostasTratadas = new Set<string>();
 
-  setTimeout(navigate, 500);
-}
-
-function handleNotificationResponse(data: NotificationData, titulo: string | null) {
-  // Toque num aviso de outra conta não navega (a conversa seria de outra pessoa).
-  if (!pertenceASessao(data as Record<string, unknown>, sessaoAtual())) return;
-  const { role, user } = useAuth.getState();
-  const activeRole = role ?? user?.role;
-  const tipo = tipoDe(data);
-
-  // Toque num push de mensagem abre a conversa (antes não fazia nada).
-  if (CHAT_TYPES.has(tipo)) {
-    const destino = destinoDaNotificacao(
-      { tipo, titulo, servicoId: typeof data.servicoId === "string" ? data.servicoId : null },
-      activeRole,
-    );
-    if (destino) navigateWhenReady(destino[0], destino[1]);
-    return;
-  }
-
-  if (activeRole === "MONTADOR" && tipo === "NOVA_SOLICITACAO") {
-    navigateWhenReady("MontadorSolicitacoes");
-  }
+function tratarToque(response: Notifications.NotificationResponse) {
+  const id = response.notification.request.identifier;
+  if (respostasTratadas.has(id)) return;
+  respostasTratadas.add(id);
+  const data = (response.notification.request.content.data ?? {}) as NotificationData;
+  // O título do push é neutro ("Nova mensagem"): não serve de cabeçalho da
+  // conversa. A tela usa "Conversa" até o GET trazer o nome.
+  abrirNotificacao({
+    tipo: tipoDe(data),
+    titulo: null,
+    servicoId: texto(data.servicoId),
+    id: texto(data.notificationId),
+    destinatarioId: data.destinatarioId,
+  });
 }
 
 export function usePushNotifications() {
@@ -106,12 +95,14 @@ export function usePushNotifications() {
       });
     });
 
-    responseListener.current = Notifications.addNotificationResponseReceivedListener((response) => {
-      const conteudo = response.notification.request.content;
-      // O título do push agora é neutro ("Nova mensagem"): não serve de
-      // cabeçalho da conversa. A tela usa "Conversa" até o GET trazer o nome.
-      handleNotificationResponse((conteudo.data ?? {}) as NotificationData, null);
-    });
+    // Toque com o app aberto ou em segundo plano.
+    responseListener.current = Notifications.addNotificationResponseReceivedListener(tratarToque);
+    // App iniciado pelo toque: a resposta pode ter chegado antes do listener.
+    void Notifications.getLastNotificationResponseAsync()
+      .then((r) => {
+        if (r) tratarToque(r);
+      })
+      .catch(() => undefined);
 
     return () => {
       appState.remove();

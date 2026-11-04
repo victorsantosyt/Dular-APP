@@ -9,6 +9,8 @@ export type FeatureAccess = {
   limit: number | null;
   used: number;
   plan: string;
+  /** Janela em que `used` é contado (SOLICITACOES_MES: mês corrente do servidor). */
+  periodo?: { inicio: string; fim: string };
 };
 
 export async function checkFeatureAccess(
@@ -48,10 +50,12 @@ export async function checkFeatureAccess(
 
   // 3. Para SOLICITACOES_MES, conta serviços ativos no mês corrente
   let used = 0;
+  let periodo: FeatureAccess["periodo"];
   if (feature === "SOLICITACOES_MES") {
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const startOfNextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    periodo = { inicio: startOfMonth.toISOString(), fim: startOfNextMonth.toISOString() };
 
     const role = user?.role;
 
@@ -102,5 +106,6 @@ export async function checkFeatureAccess(
     limit: featureLimit.limit ?? null,
     used,
     plan,
+    ...(periodo ? { periodo } : {}),
   };
 }

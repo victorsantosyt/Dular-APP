@@ -1,6 +1,12 @@
 import * as Location from "expo-location";
 import { Alert } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import {
+  avaliarPosicao,
+  interpretarGeocodificacao,
+  type MotivoSemMunicipio,
+  type MunicipioResolvido,
+} from "@/lib/municipioAtual";
 
 export type CurrentAddress = {
   coords: { latitude: number; longitude: number };
@@ -117,4 +123,39 @@ export async function startLocationWatcher(
       onUpdate({ coords: { latitude, longitude }, address });
     }
   );
+}
+
+/**
+ * Município e UF da posição atual, para preencher formulários de área. Recusa
+ * (sem preencher nada) posição imprecisa, antiga, fora do Brasil ou com
+ * endereço ambíguo — a decisão fica em lib/municipioAtual. Nada daqui vai para
+ * log: coordenadas e endereço são dado pessoal.
+ */
+export async function obterMunicipioAtual(): Promise<
+  | { ok: true; municipio: MunicipioResolvido; coords: { latitude: number; longitude: number } }
+  | { ok: false; motivo: MotivoSemMunicipio }
+> {
+  try {
+    await ensureLocationPermission();
+  } catch {
+    return { ok: false, motivo: "permissao-negada" };
+  }
+  let pos: Location.LocationObject;
+  try {
+    pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+  } catch {
+    return { ok: false, motivo: "indisponivel" };
+  }
+  const problema = avaliarPosicao(pos, Date.now());
+  if (problema) return { ok: false, motivo: problema };
+
+  const coords = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
+  let resultados: Location.LocationGeocodedAddress[];
+  try {
+    resultados = await Location.reverseGeocodeAsync(coords);
+  } catch {
+    return { ok: false, motivo: "indisponivel" };
+  }
+  const r = interpretarGeocodificacao(resultados);
+  return r.ok ? { ok: true, municipio: r.municipio, coords } : r;
 }

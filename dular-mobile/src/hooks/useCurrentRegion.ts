@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import * as Location from "expo-location";
-import { requestLocationWithAddress } from "@/lib/location";
+import { obterMunicipioAtual } from "@/lib/location";
+import { criarConsultaDescartavel, mensagemSemMunicipio } from "@/lib/municipioAtual";
+import { epocaSessao } from "@/lib/sessaoAtual";
 
 export type CurrentRegion = {
   latitude?: number;
@@ -11,69 +13,6 @@ export type CurrentRegion = {
 };
 
 type PermissionStatus = "unknown" | "granted" | "denied";
-
-const UF_BY_STATE: Record<string, string> = {
-  acre: "AC",
-  alagoas: "AL",
-  amapa: "AP",
-  amapá: "AP",
-  amazonas: "AM",
-  bahia: "BA",
-  ceara: "CE",
-  ceará: "CE",
-  "distrito federal": "DF",
-  "espirito santo": "ES",
-  "espírito santo": "ES",
-  goias: "GO",
-  goiás: "GO",
-  maranhao: "MA",
-  maranhão: "MA",
-  "mato grosso": "MT",
-  "mato grosso do sul": "MS",
-  "minas gerais": "MG",
-  para: "PA",
-  pará: "PA",
-  paraiba: "PB",
-  paraíba: "PB",
-  parana: "PR",
-  paraná: "PR",
-  pernambuco: "PE",
-  piaui: "PI",
-  piauí: "PI",
-  "rio de janeiro": "RJ",
-  "rio grande do norte": "RN",
-  "rio grande do sul": "RS",
-  rondonia: "RO",
-  rondônia: "RO",
-  roraima: "RR",
-  "santa catarina": "SC",
-  "sao paulo": "SP",
-  "são paulo": "SP",
-  sergipe: "SE",
-  tocantins: "TO",
-};
-
-function normalize(value?: string | null) {
-  return String(value ?? "").trim().toLowerCase();
-}
-
-function toUf(address: Location.LocationGeocodedAddress | null) {
-  const raw = (address as any)?.region_code || address?.region || "";
-  const value = String(raw).trim();
-  if (value.length === 2) return value.toUpperCase();
-  return UF_BY_STATE[normalize(value)] ?? value.slice(0, 2).toUpperCase();
-}
-
-function toRegion(data: Awaited<ReturnType<typeof requestLocationWithAddress>>): CurrentRegion {
-  const address = data.address;
-  return {
-    latitude: data.coords.latitude,
-    longitude: data.coords.longitude,
-    cidade: address?.city || address?.subregion || address?.region || "",
-    uf: toUf(address),
-    bairro: address?.district || address?.subregion || "",
-  };
-}
 
 export function useCurrentRegion() {
   const [permissionStatus, setPermissionStatus] = useState<PermissionStatus>("unknown");
@@ -96,23 +35,41 @@ export function useCurrentRegion() {
     };
   }, []);
 
-  const requestRegion = useCallback(async () => {
+  // Só a última consulta vale; desmontar ou trocar de conta descarta a resposta.
+  const consulta = useRef(criarConsultaDescartavel()).current;
+  useEffect(() => () => consulta.invalidar(), [consulta]);
+
+  // Município e UF pela regra única de lib/municipioAtual. Sem resultado
+  // confiável devolve null com a mensagem do motivo — quem chamou mantém os
+  // campos como estavam.
+  const requestRegion = useCallback(async (): Promise<CurrentRegion | null> => {
+    const valida = consulta.iniciar();
+    const epoca = epocaSessao();
+    const vigente = () => valida() && epocaSessao() === epoca;
+    setLoading(true);
+    setError(null);
     try {
-      setLoading(true);
-      setError(null);
-      const next = toRegion(await requestLocationWithAddress());
+      const r = await obterMunicipioAtual();
+      if (!vigente()) return null;
+      if (!r.ok) {
+        setError(mensagemSemMunicipio(r.motivo));
+        if (r.motivo === "permissao-negada") setPermissionStatus("denied");
+        return null;
+      }
+      const next: CurrentRegion = {
+        latitude: r.coords.latitude,
+        longitude: r.coords.longitude,
+        cidade: r.municipio.cidade,
+        uf: r.municipio.uf,
+        bairro: r.municipio.bairro ?? "",
+      };
       setRegion(next);
       setPermissionStatus("granted");
       return next;
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Não foi possível obter sua localização.";
-      setError(message);
-      setPermissionStatus("denied");
-      return null;
     } finally {
-      setLoading(false);
+      if (vigente()) setLoading(false);
     }
-  }, []);
+  }, [consulta]);
 
   return {
     latitude: region?.latitude,

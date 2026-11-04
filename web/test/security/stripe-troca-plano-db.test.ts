@@ -150,7 +150,13 @@ describe("troca de plano Stripe contra Postgres real", { skip: EXIGIDO ? false :
 
   beforeEach(() => {
     falso?.restaurar();
-    falso = criarStripeFalso();
+    // Relógio da Stripe simulada a partir do relógio real (como em
+    // google-play-db e stripe-loja-canais-db). Com o início fixo padrão
+    // (21/09/2026), o período mensal terminava em 21/10/2026 e, depois dessa
+    // data, `assinaturaEfetiva` (que compara com o relógio real) passou a ver
+    // as assinaturas como vencidas: os testes de acesso efetivo falhavam
+    // sem nenhuma mudança de código.
+    falso = criarStripeFalso(Math.floor(Date.now() / 1000) - 3600);
     falso.instalar(stripeCliente);
   });
 

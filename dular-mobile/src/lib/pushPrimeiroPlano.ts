@@ -71,6 +71,8 @@ export type PopupPush = {
   corpo: string;
   servicoId: string | null;
   chatRoomId: string | null;
+  /** Id da Notification no backend: o toque marca só ela como lida. */
+  notificationId?: string | null;
   /** Agrupamento na fila do popup (`chat:<servicoId>`). */
   chave?: string | null;
 };
@@ -224,6 +226,7 @@ export async function tratarPushRecebido(
     corpo: conteudo.body ?? "",
     servicoId: typeof dados.servicoId === "string" ? dados.servicoId : null,
     chatRoomId: typeof dados.chatRoomId === "string" ? dados.chatRoomId : null,
+    notificationId: typeof dados.notificationId === "string" ? dados.notificationId : null,
   };
 
   if (acao.atualizarNotificacoes) deps.invalidarNotificacoes();

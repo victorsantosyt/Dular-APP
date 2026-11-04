@@ -1,10 +1,11 @@
 import React, { useMemo, useState } from "react";
-import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { AppIcon, BackCircleButton, DEmptyState, DErrorState, DLoadingState, DScreen, type AppIconName } from "@/components/ui";
 import { useNotificacoes } from "@/hooks/useNotificacoes";
 import type { Notificacao } from "@/api/notificacoesApi";
 import type { ProfileTheme } from "@/theme/profileTheme";
 import { CHAT_TYPES, metaDoTipo, tonePalette, type NotificationTone } from "@/constants/notificacoes";
+import { abrirNotificacao } from "@/lib/abrirNotificacaoNoApp";
 import { colors, radius, shadows, spacing, typography } from "@/theme";
 
 /**
@@ -187,16 +188,45 @@ function NotificationCard({ item, theme, onPress }: { item: UINotification; them
   );
 }
 
+/**
+ * Aviso sem tela relacionada (novidade, sistema): abre aqui mesmo, no padrão
+ * visual do perfil, em vez do alerta nativo com "OK".
+ */
+function AvisoInformativo({ item, theme, onFechar }: { item: UINotification | null; theme: ProfileTheme; onFechar: () => void }) {
+  const palette = item ? tonePalette(item.tone, theme) : null;
+  return (
+    <Modal visible={item != null} transparent animationType="fade" onRequestClose={onFechar}>
+      <Pressable style={styles.avisoFundo} onPress={onFechar} accessibilityLabel="Fechar aviso">
+        {item && palette ? (
+          <Pressable style={styles.avisoCartao} onPress={() => undefined}>
+            <View style={[styles.iconBubble, { backgroundColor: palette.soft }]}>
+              <AppIcon name={item.icon} size={20} color={palette.accent} strokeWidth={2.2} />
+            </View>
+            <Text style={styles.avisoTitulo}>{item.title}</Text>
+            <Text style={styles.avisoTexto}>{item.text}</Text>
+            <Pressable
+              onPress={onFechar}
+              accessibilityRole="button"
+              style={({ pressed }) => [styles.avisoBotao, { backgroundColor: theme.primary }, pressed && styles.pressed]}
+            >
+              <Text style={styles.avisoBotaoTexto}>Fechar</Text>
+            </Pressable>
+          </Pressable>
+        ) : null}
+      </Pressable>
+    </Modal>
+  );
+}
+
 type Props = {
   theme: ProfileTheme;
   onVoltar: () => void;
-  onOpenChat: (servicoId: string) => void;
-  onOpenServico: (servicoId: string) => void;
 };
 
-export function NotificacoesView({ theme, onVoltar, onOpenChat, onOpenServico }: Props) {
-  const { notificacoes, loading, error, refetch, marcarComoLida, marcarTodasComoLidas } = useNotificacoes();
+export function NotificacoesView({ theme, onVoltar }: Props) {
+  const { notificacoes, loading, error, refetch, marcarTodasComoLidas } = useNotificacoes();
   const [activeTab, setActiveTab] = useState<NotificationTab>("todas");
+  const [informativo, setInformativo] = useState<UINotification | null>(null);
 
   // Mensagens de chat NÃO entram na tela de Notificações — elas aparecem como
   // contagem no card da conversa (tela de Mensagens). Aqui filtramos na origem
@@ -225,24 +255,11 @@ export function NotificacoesView({ theme, onVoltar, onOpenChat, onOpenServico }:
     void marcarTodasComoLidas();
   };
 
+  // Mesmo caminho do push e do aviso do app (lib/abrirNotificacao): marca só
+  // esta como lida, ignora toque repetido e escolhe a tela pelo tipo e papel.
   const openNotification = (item: UINotification) => {
-    if (item.remoteId) void marcarComoLida(item.remoteId);
-
-    if (item.type && CHAT_TYPES.has(item.type)) {
-      if (item.servicoId) {
-        onOpenChat(item.servicoId);
-        return;
-      }
-      Alert.alert(item.title, "Conversa indisponível.");
-      return;
-    }
-
-    if (item.servicoId) {
-      onOpenServico(item.servicoId);
-      return;
-    }
-
-    Alert.alert(item.title, item.text);
+    const r = abrirNotificacao({ tipo: item.type ?? "", titulo: item.title, servicoId: item.servicoId, id: item.remoteId });
+    if (r === "informativo") setInformativo(item);
   };
 
   return (
@@ -317,14 +334,22 @@ export function NotificacoesView({ theme, onVoltar, onOpenChat, onOpenServico }:
           softBg={theme.primarySoft}
         />
       )}
+      <AvisoInformativo item={informativo} theme={theme} onFechar={() => setInformativo(null)} />
     </DScreen>
   );
 }
 
 export default NotificacoesView;
 
+
 const styles = StyleSheet.create({
   scroll: { gap: 14 },
+  avisoFundo: { flex: 1, backgroundColor: "rgba(17,24,39,0.45)", justifyContent: "center", padding: spacing.lg },
+  avisoCartao: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.lg, gap: spacing.sm, ...shadows.floating },
+  avisoTitulo: { ...typography.title, color: colors.textPrimary },
+  avisoTexto: { ...typography.body, color: colors.textSecondary },
+  avisoBotao: { marginTop: spacing.sm, minHeight: 48, borderRadius: radius.md, alignItems: "center", justifyContent: "center" },
+  avisoBotaoTexto: { ...typography.button, color: colors.white },
   header: { minHeight: 52, flexDirection: "row", alignItems: "center" },
   /** Mesma largura do BackCircleButton, para centrar o título. */
   headerSide: { width: 42, height: 42 },

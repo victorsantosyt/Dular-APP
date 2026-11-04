@@ -52,6 +52,8 @@ export async function GET(request: Request) {
         used: solicitacoes.used,
         limit: solicitacoes.limit,
         allowed: solicitacoes.allowed,
+        // Aditivo: a janela da contagem vem do servidor, para o app não fixar periodicidade.
+        periodo: solicitacoes.periodo ?? null,
       },
     },
     // Só LEITURA: quem decide se a apresentação aparece é o POST claim-intro,

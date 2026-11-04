@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { ufValida } from "@/lib/localizacaoBrasil";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/requireAuth";
 import { requireAuthAtivo, respostaDeSessao } from "@/lib/contaAtiva";
@@ -35,7 +36,7 @@ const patchSchema = z.object({
     })
     .optional(),
   cidade: z.string().trim().max(80).nullable().optional(),
-  estado: z.string().trim().min(2).max(2).nullable().optional(),
+  estado: z.string().trim().min(2).max(2).refine(ufValida, "UF inválida.").nullable().optional(),
   bairros: z.array(z.string().trim().min(2).max(80)).max(30).optional(),
   raioAtendimentoKm: z.number().int().min(1).max(200).nullable().optional(),
   atendeTodaCidade: z.boolean().optional(),

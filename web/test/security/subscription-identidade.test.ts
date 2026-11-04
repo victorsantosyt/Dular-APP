@@ -65,7 +65,8 @@ test("endpoint devolve identidade da assinatura que concede o plano e preserva c
   assert.equal(body.subscription.planId, "montador_pro_mensal");
   assert.equal(body.subscription.interval, "month");
   assert.equal(body.subscription.status, "ACTIVE");
-  assert.deepEqual(body.usage.solicitacoesMes, { used: 0, limit: null, allowed: true });
+  // `periodo`: aditivo (janela da contagem); sem limite no plano não há janela.
+  assert.deepEqual(body.usage.solicitacoesMes, { used: 0, limit: null, allowed: true, periodo: null });
   assert.equal(body.premiumIntroShown, false);
 });
 

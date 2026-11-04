@@ -61,3 +61,20 @@ export async function marcarComoLida(id: string): Promise<void> {
 export async function marcarTodasComoLidas(): Promise<void> {
   await api.patch("/api/notificacoes/ler-todas");
 }
+
+export type RelacaoDoAviso = "VIGENTE" | "SUPERADA" | "ENVIO_ANTERIOR" | "INDETERMINADA";
+
+export type ContextoNotificacao = {
+  notificacao: { id: string; type: string; createdAt: string; lida: boolean };
+  /** Só para avisos de verificação: se a decisão do aviso ainda vale. */
+  verificacao: { relacao: RelacaoDoAviso; decisaoDoAviso: "APROVADO" | "REPROVADO" | "REENVIO" | null } | null;
+};
+
+/** GET /api/notificacoes/:id/contexto — o servidor responde 404 para aviso de outra conta. */
+export async function obterContextoNotificacao(id: string, signal?: AbortSignal): Promise<ContextoNotificacao> {
+  const res = await api.get<ContextoNotificacao & { ok?: boolean }>(
+    `/api/notificacoes/${encodeURIComponent(id)}/contexto`,
+    signal ? { signal } : undefined,
+  );
+  return { notificacao: res.data.notificacao, verificacao: res.data.verificacao ?? null };
+}

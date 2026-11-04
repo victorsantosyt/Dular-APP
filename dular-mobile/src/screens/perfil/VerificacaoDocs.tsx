@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Alert, Image, Linking, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useRoute } from "@react-navigation/native";
 import { Screen } from "@/components/Screen";
 import { AppIcon, BackCircleButton } from "@/components/ui";
 import * as DocumentPicker from "expo-document-picker";
@@ -13,6 +13,8 @@ import { useAuth } from "@/stores/authStore";
 import { useAoMudarConta } from "@/hooks/useSincronizacaoConta";
 import { sinalizarMudancaLocal } from "@/lib/sincronizacaoConta";
 import { useProfileTheme } from "@/hooks/useProfileTheme";
+import { obterContextoNotificacao, type RelacaoDoAviso } from "@/api/notificacoesApi";
+import { faixaDoAviso } from "@/lib/avisoVerificacao";
 import type { ProfileTheme } from "@/theme/profileTheme";
 import { colors, radius, shadow, typography } from "@/theme/tokens";
 
@@ -66,6 +68,9 @@ function makeDocumentFile(asset: DocumentPicker.DocumentPickerAsset, fallbackNam
 
 export default function VerificacaoDocs() {
   const nav = useNavigation<any>();
+  // Aberta por um aviso (lista ou push): o id serve só para saber se a decisão
+  // do aviso ainda vale. O estado mostrado vem sempre do backend.
+  const notificacaoId = (useRoute().params as { notificacaoId?: string } | undefined)?.notificacaoId ?? null;
   const currentUser = useAuth((s) => s.user);
   const setUser = useAuth((s) => s.setUser);
   // Mesma fonte de cor por gênero usada no resto do perfil (role + user.genero).
@@ -90,6 +95,10 @@ export default function VerificacaoDocs() {
   const faltaNomeCompleto = !currentUser?.nomeCompleto;
   const [nomeCompleto, setNomeCompleto] = useState("");
   const [toast, setToast] = useState<string | null>(null);
+  // Nenhuma ação antes da primeira leitura do backend: o cache local pode ser
+  // de antes da decisão (ex.: mostrar envio a quem já foi aprovado).
+  const [estadoLido, setEstadoLido] = useState<"carregando" | "ok" | "falhou">("carregando");
+  const [relacaoDoAviso, setRelacaoDoAviso] = useState<RelacaoDoAviso | null>(null);
   const busyRef = useRef(false);
   // T-18.7: garante que goBack/navigate só rode uma vez após sucesso,
   // mesmo se o usuário tocar OK várias vezes durante a animação.
@@ -117,10 +126,27 @@ export default function VerificacaoDocs() {
       setDocEnviado(Boolean(me.docEnviado));
       setMotivo(me.motivoVerificacao ?? null);
       setReenvio(me.decisaoVerificacao === "REENVIO");
+      setEstadoLido("ok");
     } catch {
-      // Mantém o estado local atual se não conseguir atualizar agora.
+      // Já lido antes: mantém. Primeira leitura falhou: não apresenta ações.
+      if (montada.current) setEstadoLido((atual) => (atual === "ok" ? "ok" : "falhou"));
     }
   }, []);
+
+  useEffect(() => {
+    setRelacaoDoAviso(null);
+    if (!notificacaoId) return;
+    const conta = useAuth.getState().user?.id;
+    const controle = new AbortController();
+    obterContextoNotificacao(notificacaoId, controle.signal)
+      .then((ctx) => {
+        // Desmontada, outro aviso ou outra conta: descarta.
+        if (controle.signal.aborted || !montada.current || useAuth.getState().user?.id !== conta) return;
+        setRelacaoDoAviso(ctx.verificacao?.relacao ?? null);
+      })
+      .catch(() => undefined); // sem contexto, a tela mostra só o estado atual
+    return () => controle.abort();
+  }, [notificacaoId]);
 
   useEffect(() => {
     void loadStatus();
@@ -450,7 +476,33 @@ export default function VerificacaoDocs() {
           </View>
         ) : null}
 
-        {verificacao === "APROVADO" ? (
+        {estadoLido === "ok" && faixaDoAviso(relacaoDoAviso) ? (
+          <View style={st.avisoHistorico}>
+            <AppIcon name="Info" size={16} color={theme.textAccent} strokeWidth={2.3} />
+            <Text style={st.avisoHistoricoTexto}>{faixaDoAviso(relacaoDoAviso)}</Text>
+          </View>
+        ) : null}
+
+        {estadoLido === "carregando" ? (
+          <View style={st.statusBlock}>
+            <ActivityIndicator color={theme.primary} />
+            <Text style={st.statusText}>Consultando a situação da sua verificação…</Text>
+          </View>
+        ) : estadoLido === "falhou" ? (
+          <View style={st.statusBlock}>
+            <Text style={st.statusTitle}>Não foi possível consultar a verificação</Text>
+            <Text style={st.statusText}>Confira sua conexão e tente novamente.</Text>
+            <Pressable
+              onPress={() => {
+                setEstadoLido("carregando");
+                void loadStatus();
+              }}
+              style={st.submitBtn}
+            >
+              <Text style={st.submitBtnText}>Tentar novamente</Text>
+            </Pressable>
+          </View>
+        ) : verificacao === "APROVADO" ? (
           // Estado APROVADO: tela de status com escudo + selo de verificado.
           <View style={st.statusBlock}>
             <View style={st.statusCircle}>
@@ -556,6 +608,8 @@ function makeStyles(theme: ProfileTheme) {
   return StyleSheet.create({
     dimmed: { opacity: 0.65 },
 
+    avisoHistorico: { flexDirection: "row", gap: 8, alignItems: "flex-start", padding: 12, borderRadius: radius.md, backgroundColor: theme.primarySoft },
+    avisoHistoricoTexto: { flex: 1, color: theme.textAccent, ...typography.bodySm, fontWeight: "600" },
     motivoBox: { padding: 12, borderRadius: radius.md, backgroundColor: "#FEF2F2", borderWidth: 1, borderColor: "#FCA5A5", gap: 4 },
     motivoTitulo: { color: "#991B1B", ...typography.bodySm, fontWeight: "800" },
     motivoTexto: { color: "#7F1D1D", ...typography.bodySm, fontWeight: "600" },

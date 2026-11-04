@@ -5,6 +5,7 @@ import { getGuardianStatusForUser } from "@/lib/safeScoreGuardian";
 import { getDiaristaProfileCompleteness } from "@/lib/diaristaProfile";
 import { getMontadorProfileCompleteness } from "@/lib/montadorProfile";
 import { camposAlterados, dadosCadastraisAtuais, lerDadosEnviados } from "@/lib/dadosVerificacao";
+import { sinaisDaLocalizacaoAtual } from "@/lib/localizacaoBrasil";
 import { decisaoVigente } from "@/lib/decisaoVerificacao";
 import { selfieExigida } from "@/lib/verificacaoSelfie";
 
@@ -53,6 +54,16 @@ function profileLocation(...values: Array<string | null | undefined>) {
   return values.find((value) => value?.trim())?.trim() ?? null;
 }
 
+/** Sinais de localização atual gravada errada (lib/localizacaoBrasil). Só diagnóstico. */
+function sinaisDoPerfil(user: any, profile: any) {
+  if (!profile) return [];
+  return sinaisDaLocalizacaoAtual({
+    atual: { cidade: profile.cidadeAtual ?? null, estado: profile.estadoAtual ?? null },
+    area: { cidade: profile.cidade ?? null, estado: profile.estado ?? null },
+    endereco: user.enderecos?.[0] ?? null,
+  });
+}
+
 function buildProfileSummary(user: any) {
   if (user.role === "EMPREGADOR") {
     const profile = user.empregadorPerfil;
@@ -61,6 +72,7 @@ function buildProfileSummary(user: any) {
       cidade: profileLocation(profile?.cidadeAtual, profile?.cidade),
       estado: profileLocation(profile?.estadoAtual, profile?.estado),
       bairro: profileLocation(profile?.bairroAtual),
+      sinaisLocalizacao: sinaisDoPerfil(user, profile),
       servicosOferecidos: [] as string[],
       especialidades: [] as string[],
       ativo: profile?.ativo ?? true,
@@ -91,9 +103,12 @@ function buildProfileSummary(user: any) {
       : { completo: false };
     return {
       cadastroCompleto: completude.completo,
-      cidade: profileLocation(profile?.cidadeAtual, profile?.cidade),
-      estado: profileLocation(profile?.estadoAtual, profile?.estado),
-      bairro: profileLocation(profile?.bairroAtual, profile?.bairros?.[0]?.bairro?.nome),
+      // Área de atendimento: é o que a busca filtra. A localização atual do
+      // aparelho aparece à parte, com a data em que foi gravada.
+      cidade: profileLocation(profile?.cidade, profile?.bairros?.[0]?.bairro?.cidade),
+      estado: profileLocation(profile?.estado, profile?.bairros?.[0]?.bairro?.uf),
+      bairro: profileLocation(profile?.bairros?.[0]?.bairro?.nome),
+      sinaisLocalizacao: sinaisDoPerfil(user, profile),
       servicosOferecidos: profile?.servicosOferecidos ?? [],
       especialidades: [] as string[],
       ativo: profile?.ativo ?? false,
@@ -117,9 +132,10 @@ function buildProfileSummary(user: any) {
       : { completo: false };
     return {
       cadastroCompleto: completude.completo,
-      cidade: profileLocation(profile?.cidadeAtual, profile?.cidade),
-      estado: profileLocation(profile?.estadoAtual, profile?.estado),
-      bairro: profileLocation(profile?.bairroAtual, profile?.bairros?.[0]),
+      cidade: profileLocation(profile?.cidade),
+      estado: profileLocation(profile?.estado),
+      bairro: profileLocation(profile?.bairros?.[0]),
+      sinaisLocalizacao: sinaisDoPerfil(user, profile),
       servicosOferecidos: [] as string[],
       especialidades: profile?.especialidades ?? [],
       ativo: profile?.ativo ?? false,
@@ -131,6 +147,7 @@ function buildProfileSummary(user: any) {
     cidade: null,
     estado: null,
     bairro: null,
+    sinaisLocalizacao: [] as string[],
     servicosOferecidos: [] as string[],
     especialidades: [] as string[],
     ativo: false,
@@ -155,8 +172,10 @@ function userSelect() {
         bairroAtual: true,
         ativo: true,
         localizacaoPermitida: true,
+        localizacaoAtualizadaEm: true,
       },
     },
+    enderecos: { orderBy: { updatedAt: "desc" as const }, take: 1, select: { cidade: true, uf: true } },
     diaristaProfile: {
       select: {
         verificacao: true,
@@ -181,6 +200,7 @@ function userSelect() {
         valorACombinar: true,
         observacaoPreco: true,
         localizacaoPermitida: true,
+        localizacaoAtualizadaEm: true,
         bairros: { select: { id: true, bairro: { select: { nome: true, cidade: true, uf: true } } } },
       },
     },
@@ -205,6 +225,7 @@ function userSelect() {
         observacaoPreco: true,
         valorACombinar: true,
         localizacaoPermitida: true,
+        localizacaoAtualizadaEm: true,
       },
     },
   } as const;

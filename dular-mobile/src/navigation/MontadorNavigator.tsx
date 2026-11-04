@@ -46,7 +46,7 @@ export type MontadorTabParamList = {
   MontadorChat: ChatAbertoParams;
   Carteira: { from?: keyof MontadorTabParamList } | undefined;
   Paywall: PaywallParams;
-  VerificacaoDocs: undefined;
+  VerificacaoDocs: { notificacaoId?: string } | undefined;
   SafeScore: undefined;
   SafeScoreGuide: undefined;
   SosFlow: undefined;

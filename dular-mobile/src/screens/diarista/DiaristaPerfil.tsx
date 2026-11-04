@@ -40,7 +40,9 @@ import { useBottomTabBarHeight, type BottomTabNavigationProp } from "@react-navi
 import * as ImagePicker from "expo-image-picker";
 
 import { api } from "@/lib/api";
-import { requestLocationWithAddress } from "@/lib/location";
+import { obterMunicipioAtual } from "@/lib/location";
+import { criarConsultaDescartavel, mensagemSemMunicipio } from "@/lib/municipioAtual";
+import { epocaSessao } from "@/lib/sessaoAtual";
 import {
   getMe,
   uploadAvatarDataUrl,
@@ -87,6 +89,7 @@ import type { ServicoOferecido } from "@/types/diarista";
 import { OFERTAS_DIARISTA } from "@/constants/categorias";
 import { useAssinaturaPlano } from "@/hooks/useAssinaturaPlano";
 import { MotivoPaywall } from "@/lib/paywall";
+import { atuacaoDoPerfil, subtituloMeuPlano } from "@/lib/franquiaPlano";
 import { deveMostrarProgresso, estadoDaCompletude } from "@/lib/profileProgress";
 import { estadoDeVisibilidadeDiarista } from "@/lib/diaristaVisibilidade";
 import { mascaraTelefone, plural, somenteDigitos } from "@/utils/formatters";
@@ -389,6 +392,17 @@ export default function DiaristaPerfil({ onLogout }: Props) {
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [localizacaoLoading, setLocalizacaoLoading] = useState(false);
+  // "Usar localização atual": só a última consulta vale; editar os campos,
+  // fechar o formulário ou trocar de conta descarta a que estiver em curso.
+  const consultaLocalizacao = useRef(criarConsultaDescartavel()).current;
+  // O que veio da localização. As coordenadas só são gravadas ao "Salvar
+  // área", e só se cidade e UF continuarem as preenchidas por ela.
+  const localizacaoPreenchidaRef = useRef<{
+    cidade: string;
+    uf: string;
+    bairro: string | null;
+    coords: { latitude: number; longitude: number };
+  } | null>(null);
 
   // Formulários
   const [dadosForm, setDadosForm] = useState({ nome: "", telefone: "", bio: "", anosExperiencia: "" });
@@ -541,11 +555,9 @@ export default function DiaristaPerfil({ onLogout }: Props) {
     if (total > 0) {
       return `${total} ${total === 1 ? "serviço realizado" : "serviços realizados"}`;
     }
-    const servs = profile?.servicosOferecidos ?? [];
-    if (servs.length > 0) {
-      return `Oferece ${servs.length} ${servs.length === 1 ? "serviço" : "serviços"}`;
-    }
-    return "";
+    // Categorias de atuação, não contagem: "Oferece 1 serviço" ao lado do
+    // plano com franquia de serviços parecia consumo (lib/franquiaPlano).
+    return atuacaoDoPerfil(profile?.servicosOferecidos) ?? "";
   }, [profile?.totalServicos, profile?.servicosOferecidos]);
   const bairroNomes = useMemo(
     () => (profile?.bairros ?? []).map((b) => b.bairro.nome).filter(Boolean),
@@ -816,9 +828,11 @@ export default function DiaristaPerfil({ onLogout }: Props) {
 
   const closeModal = useCallback(() => {
     if (saving) return;
+    consultaLocalizacao.invalidar();
+    setLocalizacaoLoading(false);
     setModal(null);
     setFormError(null);
-  }, [saving]);
+  }, [saving, consultaLocalizacao]);
 
   // ── Avatar ───────────────────────────────────────────────────────────────
   const pickAvatar = async () => {
@@ -1003,6 +1017,26 @@ export default function DiaristaPerfil({ onLogout }: Props) {
             }
           : prev,
       );
+      // Coordenadas da localização usada, gravadas só agora (confirmação
+      // explícita) e só se cidade e UF salvas forem as que ela preencheu.
+      const preenchida = localizacaoPreenchidaRef.current;
+      localizacaoPreenchidaRef.current = null;
+      if (preenchida && preenchida.cidade === cidade && preenchida.uf === uf) {
+        void api
+          .patch(
+            "/api/me/localizacao",
+            {
+              latitude: preenchida.coords.latitude,
+              longitude: preenchida.coords.longitude,
+              cidade,
+              estado: uf,
+              bairro: preenchida.bairro,
+              localizacaoPermitida: true,
+            },
+            { timeout: 45000 } as any,
+          )
+          .catch(() => undefined);
+      }
       setModal(null);
       setToast("Área de atendimento salva.");
     } catch (e: any) {
@@ -1207,27 +1241,25 @@ export default function DiaristaPerfil({ onLogout }: Props) {
     }
   };
 
-  // Preenche cidade/UF/bairro do formulário Área usando a localização atual
-  // do dispositivo. Não bloqueia a tela: loading só no botão.
+  // Preenche cidade/UF (juntas) do formulário Área pela localização atual. Só
+  // preenche: quem confirma é "Salvar área". Resultado impreciso, antigo,
+  // ambíguo ou com estado não reconhecido não toca nos campos.
   const usarLocalizacaoAtual = async () => {
     if (localizacaoLoading) return;
+    const valida = consultaLocalizacao.iniciar();
+    const epoca = epocaSessao();
+    const vigente = () => valida() && mountedRef.current && epocaSessao() === epoca;
     setLocalizacaoLoading(true);
     setFormError(null);
     try {
-      const { coords, address } = await requestLocationWithAddress();
-      if (!mountedRef.current) return;
-
-      const cidade = address?.city || address?.subregion || "";
-      const ufRaw = (address as any)?.region_code || address?.region || "";
-      const uf = (ufRaw || "").trim().toUpperCase().slice(0, 2);
-      const bairro = address?.district || (address as any)?.neighborhood || "";
-
-      if (!cidade || !uf) {
-        setToast("Não foi possível identificar cidade/UF da sua localização.");
+      const r = await obterMunicipioAtual();
+      if (!vigente()) return;
+      if (!r.ok) {
+        setToast(mensagemSemMunicipio(r.motivo));
         return;
       }
-
-      // Preenche o formulário do modal (sem fechar/recarregar a tela)
+      const { cidade, uf, bairro } = r.municipio;
+      localizacaoPreenchidaRef.current = { cidade, uf, bairro, coords: r.coords };
       setAreaForm((cur) => ({
         ...cur,
         cidade,
@@ -1238,61 +1270,26 @@ export default function DiaristaPerfil({ onLogout }: Props) {
               ? `${cur.bairros}, ${bairro}`
               : bairro),
       }));
-
-      // Toast imediato — UX não espera nenhum PATCH.
-      setToast("Localização carregada. Confira e salve a área.");
-
-      // Persiste no backend em BACKGROUND (fire-and-forget). O upsert pode
-      // levar segundos via ngrok/Railway, mas isso não pode travar a UI nem
-      // bloquear o axios timeout do client (20s). Se falhar, o usuário ainda
-      // salva via "Salvar área" depois.
-      void (async () => {
-        try {
-          await api.patch(
-            "/api/me/localizacao",
-            {
-              latitude: coords?.latitude ?? null,
-              longitude: coords?.longitude ?? null,
-              cidade,
-              estado: uf,
-              bairro: bairro || null,
-              localizacaoPermitida: true,
-            },
-            // Timeout maior só para este request, já que upsert é write pesado
-            // em rede lenta. Sem isso o axios default (20s) corta antes do
-            // banco responder.
-            { timeout: 45000 } as any,
-          );
-        } catch {
-          // Silencioso — o salvar manual ainda funciona.
-        }
-      })();
-    } catch (e: any) {
-      if (!mountedRef.current) return;
-      const msg = e?.message ?? "Não foi possível obter localização.";
-      setToast(msg.includes("denied") || msg.includes("permission")
-        ? "Permissão de localização negada. Preencha manualmente."
-        : "Falha ao obter localização. Tente novamente.");
+      setToast(`Localização: ${cidade} • ${uf}. Confira e toque em "Salvar área".`);
     } finally {
-      if (mountedRef.current) setLocalizacaoLoading(false);
+      if (vigente()) setLocalizacaoLoading(false);
     }
   };
 
   const handleGeoToggle = async (value: boolean) => {
     setGeoEnabled(value);
     AsyncStorage.setItem(GEO_KEY, value ? "1" : "0").catch(() => undefined);
-    if (value) {
-      try {
-        const { coords, address } = await requestLocationWithAddress();
-        const cidade = address?.city || address?.subregion || "Cidade não encontrada";
-        const uf = (address as any)?.region_code || address?.region || "";
-        Alert.alert("Localização ativada", `${cidade}${uf ? "/" + uf : ""}`);
-        void coords;
-      } catch (e: any) {
-        Alert.alert("Localização", e?.message ?? "Não foi possível obter sua localização.");
-        setGeoEnabled(false);
-        AsyncStorage.setItem(GEO_KEY, "0").catch(() => undefined);
-      }
+    if (!value) return;
+    const r = await obterMunicipioAtual();
+    if (!mountedRef.current) return;
+    if (r.ok) {
+      Alert.alert("Localização ativada", `${r.municipio.cidade}/${r.municipio.uf}`);
+      return;
+    }
+    Alert.alert("Localização", mensagemSemMunicipio(r.motivo));
+    if (r.motivo === "permissao-negada") {
+      setGeoEnabled(false);
+      AsyncStorage.setItem(GEO_KEY, "0").catch(() => undefined);
     }
   };
 
@@ -1557,7 +1554,7 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                   accentSoft={theme.primarySoft}
                   icon={assinatura.apresentacao?.icone ?? "Sparkles"}
                   title="Meu plano"
-                  subtitle={assinatura.apresentacao?.nome ?? (assinatura.erro ? "Não foi possível consultar seu plano" : "Consultando seu plano…")}
+                  subtitle={subtituloMeuPlano(assinatura.apresentacao?.nome, assinatura.data?.usage?.solicitacoesMes, assinatura.erro)}
                   onPress={() => navigation.navigate("Paywall", { motivo: MotivoPaywall.USER_REQUESTED })}
                 />
                 <ProfileRow
@@ -1948,7 +1945,10 @@ export default function DiaristaPerfil({ onLogout }: Props) {
               <Text style={s.modalLabel}>Cidade</Text>
               <TextInput
                 value={areaForm.cidade}
-                onChangeText={(v) => setAreaForm((cur) => ({ ...cur, cidade: v }))}
+                onChangeText={(v) => {
+                  consultaLocalizacao.invalidar();
+                  setAreaForm((cur) => ({ ...cur, cidade: v }));
+                }}
                 placeholder="Cidade"
                 placeholderTextColor={colors.textMuted}
                 style={s.modalInput}
@@ -1958,9 +1958,10 @@ export default function DiaristaPerfil({ onLogout }: Props) {
               <Text style={s.modalLabel}>UF</Text>
               <TextInput
                 value={areaForm.uf}
-                onChangeText={(v) =>
-                  setAreaForm((cur) => ({ ...cur, uf: v.toUpperCase().slice(0, 2) }))
-                }
+                onChangeText={(v) => {
+                  consultaLocalizacao.invalidar();
+                  setAreaForm((cur) => ({ ...cur, uf: v.toUpperCase().slice(0, 2) }));
+                }}
                 placeholder="Ex.: SP"
                 placeholderTextColor={colors.textMuted}
                 style={s.modalInput}
@@ -2024,7 +2025,10 @@ export default function DiaristaPerfil({ onLogout }: Props) {
                   <Text style={s.modalLabel}>Bairros atendidos</Text>
                   <TextInput
                     value={areaForm.bairros}
-                    onChangeText={(v) => setAreaForm((cur) => ({ ...cur, bairros: v }))}
+                    onChangeText={(v) => {
+                      consultaLocalizacao.invalidar();
+                      setAreaForm((cur) => ({ ...cur, bairros: v }));
+                    }}
                     placeholder="Ex.: Centro, Jardim América, Vila Nova"
                     placeholderTextColor={colors.textMuted}
                     style={[s.modalInput, s.modalInputMulti]}

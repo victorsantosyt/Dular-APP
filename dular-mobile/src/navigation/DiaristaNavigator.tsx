@@ -49,7 +49,7 @@ export type DiaristaTabParamList = {
   Paywall: PaywallParams;
   Seguranca: { servicoId: string; enderecoServico?: string };
   Carteira: { from?: keyof DiaristaTabParamList } | undefined;
-  VerificacaoDocs: undefined;
+  VerificacaoDocs: { notificacaoId?: string } | undefined;
   SafeScore: undefined;
   SafeScoreGuide: undefined;
   SosFlow: undefined;

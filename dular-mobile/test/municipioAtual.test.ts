@@ -111,3 +111,29 @@ test("'Usar localização atual' só preenche; as coordenadas vão ao servidor n
   const salvar = fonte.slice(fonte.indexOf("const salvarArea = async"), fonte.indexOf("const salvarArea = async") + 4000);
   assert.match(salvar, /preenchida\.cidade === cidade && preenchida\.uf === uf/);
 });
+
+test("município errado: nome do estado nunca vira cidade (antigo fallback para `region`)", () => {
+  assert.deepEqual(interpretarGeocodificacao([{ city: null, subregion: null, region: "Mato Grosso", isoCountryCode: "BR" }]), {
+    ok: false,
+    motivo: "sem-endereco",
+  });
+});
+
+test("município e UF incorretos: mesmo nome em outra UF não é aceito como o par certo", () => {
+  // Geocodificador que devolve o par certo e um homônimo de outro estado: ambíguo, não MA.
+  const r = interpretarGeocodificacao([
+    { subregion: "Água Boa", region: "Mato Grosso", isoCountryCode: "BR" },
+    { subregion: "Água Boa", region: "Maranhão", isoCountryCode: "BR" },
+  ]);
+  assert.deepEqual(r, { ok: false, motivo: "ambigua" });
+  // Par certo sozinho: Água Boa / MT — nunca Água Boa / MA.
+  const certo = interpretarGeocodificacao([{ subregion: "Água Boa", region: "Mato Grosso", isoCountryCode: "BR" }]);
+  assert.ok(certo.ok && certo.municipio.uf === "MT" && certo.municipio.cidade === "Água Boa");
+});
+
+test("montador: localização atual só é gravada com a cidade/UF que o aparelho detectou", () => {
+  const fonte = ler("screens", "montador", "MontadorPerfil.tsx");
+  const salvar = fonte.slice(fonte.indexOf("const saveArea = async"), fonte.indexOf("const saveArea = async") + 1500);
+  assert.match(salvar, /areaCoords && detectada && detectada\.cidade === areaForm\.cidade && detectada\.uf === areaForm\.estado/);
+  assert.match(fonte, /onManual=\{\(\) => \{\n\s*setAreaCoords\(null\);\n\s*areaDetectadaRef\.current = null;/);
+});

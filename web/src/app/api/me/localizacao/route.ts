@@ -3,14 +3,17 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/requireAuth";
 import { requireAuthAtivo, respostaDeSessao } from "@/lib/contaAtiva";
+import { cidadeEhNomeDeEstado, ufValida } from "@/lib/localizacaoBrasil";
 
 export const dynamic = "force-dynamic";
 
 const locationSchema = z.object({
   latitude: z.number().min(-90).max(90).nullable().optional(),
   longitude: z.number().min(-180).max(180).nullable().optional(),
-  cidade: z.string().trim().min(2).max(80),
-  estado: z.string().trim().min(2).max(2),
+  // Nome de estado no lugar da cidade e UF que não existe são recusados: eram
+  // as gravações erradas do app até a vc14 (lib/localizacaoBrasil).
+  cidade: z.string().trim().min(2).max(80).refine((c) => !cidadeEhNomeDeEstado(c), "Cidade inválida."),
+  estado: z.string().trim().min(2).max(2).refine(ufValida, "UF inválida."),
   bairro: z.string().trim().min(2).max(80).nullable().optional(),
   localizacaoPermitida: z.boolean(),
 });

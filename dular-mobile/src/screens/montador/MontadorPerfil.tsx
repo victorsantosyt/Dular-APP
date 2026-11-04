@@ -431,6 +431,11 @@ export default function MontadorPerfil() {
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
   const [modal, setModal] = useState<ModalType>(null);
   const [areaCoords, setAreaCoords] = useState<{ latitude: number; longitude: number } | null>(null);
+  // Cidade/UF que a localização detectou junto com `areaCoords`. A localização
+  // atual só é gravada se o formulário ainda tiver exatamente essas: cidade
+  // editada à mão com as coordenadas antigas gravava um par cidade/UF que o
+  // aparelho nunca esteve.
+  const areaDetectadaRef = useRef<{ cidade: string; uf: string } | null>(null);
   const [avatarLocal, setAvatarLocal] = useState<string | null>(null);
   const [avatarRemote, setAvatarRemote] = useState<string | null>(null);
   const [avatarUploading, setAvatarUploading] = useState(false);
@@ -550,6 +555,7 @@ export default function MontadorPerfil() {
       atendeTodaCidade: next.perfil.atendeTodaCidade,
     });
     setAreaCoords(null);
+    areaDetectadaRef.current = null;
     setPrecosForm(buildPrecosForm(next.perfil.especialidades ?? [], next.perfil.precosEspecialidades));
   };
 
@@ -806,7 +812,8 @@ export default function MontadorPerfil() {
     try {
       setSaving(true);
       setFormError(null);
-      if (areaCoords) {
+      const detectada = areaDetectadaRef.current;
+      if (areaCoords && detectada && detectada.cidade === areaForm.cidade && detectada.uf === areaForm.estado) {
         await salvarLocalizacaoAtual({
           latitude: areaCoords.latitude,
           longitude: areaCoords.longitude,
@@ -857,6 +864,7 @@ export default function MontadorPerfil() {
       estado: detected.uf,
       bairros: bairros.join(", "),
     }));
+    areaDetectadaRef.current = { cidade: detected.cidade, uf: detected.uf };
     setAreaCoords(
       detected.latitude != null && detected.longitude != null
         ? { latitude: detected.latitude, longitude: detected.longitude }
@@ -1224,6 +1232,7 @@ export default function MontadorPerfil() {
                 estado: next.uf,
                 bairros: next.bairro || prev.bairros,
               }));
+              areaDetectadaRef.current = next.latitude != null && next.longitude != null ? { cidade: next.cidade, uf: next.uf } : null;
               setAreaCoords(
                 next.latitude != null && next.longitude != null
                   ? { latitude: next.latitude, longitude: next.longitude }
@@ -1232,7 +1241,10 @@ export default function MontadorPerfil() {
             }}
             onRequestLocation={requestAreaLocation}
             onDetected={handleAreaDetected}
-            onManual={() => setAreaCoords(null)}
+            onManual={() => {
+              setAreaCoords(null);
+              areaDetectadaRef.current = null;
+            }}
             onConfirm={() => { void saveArea(); }}
           />
           <Field label="Cidade" value={areaForm.cidade} onChangeText={(cidade) => setAreaForm((prev) => ({ ...prev, cidade }))} />

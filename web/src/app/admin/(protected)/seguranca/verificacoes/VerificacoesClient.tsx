@@ -45,6 +45,8 @@ type VerificationItem = {
     cidade?: string | null;
     estado?: string | null;
     bairro?: string | null;
+    /** Sinais de localização atual gravada errada (lib/localizacaoBrasil). */
+    sinaisLocalizacao?: string[];
     servicosOferecidos: string[];
     especialidades: string[];
     ativo: boolean;
@@ -60,6 +62,7 @@ type ProfileDetails = {
     bairroAtual?: string | null;
     ativo?: boolean | null;
     localizacaoPermitida?: boolean | null;
+    localizacaoAtualizadaEm?: string | null;
   } | null;
   diarista?: {
     verificacao?: string | null;
@@ -74,6 +77,7 @@ type ProfileDetails = {
     atendeTodaCidade?: boolean | null;
     raioAtendimentoKm?: number | null;
     localizacaoPermitida?: boolean | null;
+    localizacaoAtualizadaEm?: string | null;
     anosExperiencia?: number | null;
     precoBabaHora?: string | number | null;
     precoCozinheiraBase?: string | number | null;
@@ -96,6 +100,7 @@ type ProfileDetails = {
     atendeTodaCidade?: boolean | null;
     raioAtendimentoKm?: number | null;
     localizacaoPermitida?: boolean | null;
+    localizacaoAtualizadaEm?: string | null;
     anosExperiencia?: number | null;
     precoBase?: string | number | null;
     taxaMinima?: string | number | null;
@@ -201,7 +206,7 @@ const CAMPOS_CADASTRAIS: Array<{ chave: keyof DadosCadastrais; rotulo: string }>
   { chave: "dataNascimento", rotulo: "Nascimento" },
   { chave: "email", rotulo: "E-mail" },
   { chave: "telefone", rotulo: "Telefone" },
-  { chave: "endereco", rotulo: "Endereço" },
+  { chave: "endereco", rotulo: "Endereço cadastrado" },
   { chave: "perfil", rotulo: "Perfil" },
 ];
 
@@ -335,6 +340,24 @@ function moneyLabel(value?: string | number | null) {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) return String(value);
   return numeric.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+const ROTULO_SINAL: Record<string, string> = {
+  UF_INVALIDA: "UF inexistente",
+  CIDADE_E_NOME_DE_ESTADO: "cidade é nome de estado",
+  MESMA_CIDADE_OUTRA_UF: "mesma cidade da área/endereço com outra UF",
+  UF_DE_CORTE_DIVERGENTE: "UF que o app gravava por corte do nome do estado",
+};
+
+function sinaisLabel(sinais?: string[]) {
+  if (!sinais?.length) return null;
+  return `Possível gravação incorreta: ${sinais.map((s) => ROTULO_SINAL[s] ?? s).join("; ")}`;
+}
+
+function atualizadaEm(iso?: string | null) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  return Number.isFinite(d.getTime()) ? d.toLocaleString("pt-BR") : "—";
 }
 
 function joinLocation(cidade?: string | null, estado?: string | null) {
@@ -809,9 +832,11 @@ function RoleProfileBlock({ detail }: { detail: Detail }) {
         <Line label="Conta ativa" value={boolLabel(profile?.ativo ?? detail.profileSummary.ativo)} />
         <AdvancedProfileDetails>
           <Line label="Permissão loc." value={boolLabel(profile?.localizacaoPermitida)} />
-          <Line label="Cidade base" value={joinLocation(profile?.cidade, profile?.estado)} />
-          <Line label="Cidade atual" value={joinLocation(profile?.cidadeAtual, profile?.estadoAtual)} />
-          <Line label="Bairro atual" value={profile?.bairroAtual ?? "—"} />
+          <Line label="Cidade do perfil" value={joinLocation(profile?.cidade, profile?.estado)} />
+          <Line label="Localização atual (aparelho)" value={joinLocation(profile?.cidadeAtual, profile?.estadoAtual)} />
+          <Line label="Gravada em" value={atualizadaEm(profile?.localizacaoAtualizadaEm)} />
+          {sinaisLabel(detail.profileSummary.sinaisLocalizacao) ? <Line label="Atenção" value={sinaisLabel(detail.profileSummary.sinaisLocalizacao)!} /> : null}
+          <Line label="Bairro (localização atual)" value={profile?.bairroAtual ?? "—"} />
         </AdvancedProfileDetails>
       </InfoBlock>
     );
@@ -826,14 +851,16 @@ function RoleProfileBlock({ detail }: { detail: Detail }) {
     return (
       <InfoBlock title="Resumo do perfil">
         <Line label="Serviços" value={listLabel(profile?.servicosOferecidos) === "—" ? "Não informado" : listLabel(profile?.servicosOferecidos)} />
-        <Line label="Localização" value={location} />
+        <Line label="Área de atendimento" value={location} />
         <Line label="Perfil ativo" value={boolLabel(profile?.ativo ?? detail.profileSummary.ativo)} />
         <AdvancedProfileDetails>
           <Line label="Verificação" value={guardianStatusText(profile?.verificacao ?? "")} />
           <Line label="Permissão loc." value={boolLabel(profile?.localizacaoPermitida)} />
-          <Line label="Cidade base" value={joinLocation(profile?.cidade, profile?.estado)} />
-          <Line label="Cidade atual" value={joinLocation(profile?.cidadeAtual, profile?.estadoAtual)} />
-          <Line label="Bairro atual" value={profile?.bairroAtual ?? "—"} />
+          <Line label="Área de atendimento" value={joinLocation(profile?.cidade, profile?.estado)} />
+          <Line label="Localização atual (aparelho)" value={joinLocation(profile?.cidadeAtual, profile?.estadoAtual)} />
+          <Line label="Gravada em" value={atualizadaEm(profile?.localizacaoAtualizadaEm)} />
+          {sinaisLabel(detail.profileSummary.sinaisLocalizacao) ? <Line label="Atenção" value={sinaisLabel(detail.profileSummary.sinaisLocalizacao)!} /> : null}
+          <Line label="Bairro (localização atual)" value={profile?.bairroAtual ?? "—"} />
           <Line label="Toda cidade" value={boolLabel(profile?.atendeTodaCidade)} />
           <Line label="Raio" value={profile?.raioAtendimentoKm ? `${profile.raioAtendimentoKm} km` : "—"} />
           <Line label="Bairros" value={bairros || "—"} />
@@ -851,14 +878,16 @@ function RoleProfileBlock({ detail }: { detail: Detail }) {
   return (
     <InfoBlock title="Resumo do perfil">
       <Line label="Especialidades" value={listLabel(profile?.especialidades) === "—" ? "Não informado" : listLabel(profile?.especialidades)} />
-      <Line label="Localização" value={location} />
+      <Line label="Área de atendimento" value={location} />
       <Line label="Perfil ativo" value={boolLabel(profile?.ativo ?? detail.profileSummary.ativo)} />
       <AdvancedProfileDetails>
         <Line label="Verificado" value={boolLabel(profile?.verificado)} />
         <Line label="Permissão loc." value={boolLabel(profile?.localizacaoPermitida)} />
-        <Line label="Cidade base" value={joinLocation(profile?.cidade, profile?.estado)} />
-        <Line label="Cidade atual" value={joinLocation(profile?.cidadeAtual, profile?.estadoAtual)} />
-        <Line label="Bairro atual" value={profile?.bairroAtual ?? "—"} />
+        <Line label="Área de atendimento" value={joinLocation(profile?.cidade, profile?.estado)} />
+        <Line label="Localização atual (aparelho)" value={joinLocation(profile?.cidadeAtual, profile?.estadoAtual)} />
+          <Line label="Gravada em" value={atualizadaEm(profile?.localizacaoAtualizadaEm)} />
+          {sinaisLabel(detail.profileSummary.sinaisLocalizacao) ? <Line label="Atenção" value={sinaisLabel(detail.profileSummary.sinaisLocalizacao)!} /> : null}
+        <Line label="Bairro (localização atual)" value={profile?.bairroAtual ?? "—"} />
         <Line label="Toda cidade" value={boolLabel(profile?.atendeTodaCidade)} />
         <Line label="Raio" value={profile?.raioAtendimentoKm ? `${profile.raioAtendimentoKm} km` : "—"} />
         <Line label="Bairros" value={listLabel(profile?.bairros)} />

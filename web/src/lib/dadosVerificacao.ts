@@ -46,11 +46,6 @@ function enderecoEmTexto(e: {
     .join(" · ");
 }
 
-function local(bairro: string | null | undefined, cidade: string | null | undefined, uf: string | null | undefined) {
-  const partes = [texto(bairro), [texto(cidade), texto(uf)].filter(Boolean).join("/") || null].filter(Boolean);
-  return partes.length ? partes.join(" · ") : null;
-}
-
 /** Cadastro de agora, direto do banco. */
 export async function dadosCadastraisAtuais(db: Db, userId: string): Promise<DadosCadastrais | null> {
   const u = await db.user.findUnique({
@@ -58,13 +53,9 @@ export async function dadosCadastraisAtuais(db: Db, userId: string): Promise<Dad
     select: {
       role: true, nome: true, nomeCompleto: true, cpf: true, dataNascimento: true, email: true, telefone: true,
       enderecos: { orderBy: { updatedAt: "desc" }, take: 1, select: { rua: true, numero: true, complemento: true, bairro: true, cidade: true, uf: true, cep: true } },
-      diaristaProfile: { select: { cidade: true, estado: true, bairroAtual: true } },
-      montadorPerfil: { select: { cidade: true, estado: true, bairroAtual: true } },
-      empregadorPerfil: { select: { cidade: true, estado: true, bairroAtual: true } },
     },
   });
   if (!u) return null;
-  const perfil = u.diaristaProfile ?? u.montadorPerfil ?? u.empregadorPerfil;
   return {
     perfil: u.role ?? null,
     nomeExibicao: texto(u.nome),
@@ -73,7 +64,11 @@ export async function dadosCadastraisAtuais(db: Db, userId: string): Promise<Dad
     dataNascimento: u.dataNascimento ? u.dataNascimento.toISOString().slice(0, 10) : null,
     email: texto(u.email),
     telefone: texto(u.telefone),
-    endereco: u.enderecos[0] ? enderecoEmTexto(u.enderecos[0]) : local(perfil?.bairroAtual, perfil?.cidade, perfil?.estado),
+    // Só o endereço CADASTRADO. Antes, sem endereço, caía numa mistura do
+    // bairro da localização atual do aparelho com a cidade da área de
+    // atendimento — dois dados diferentes que o painel mostrava como um
+    // "endereço" (lib/localizacaoBrasil).
+    endereco: u.enderecos[0] ? enderecoEmTexto(u.enderecos[0]) : null,
   };
 }
 

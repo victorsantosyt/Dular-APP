@@ -15,48 +15,57 @@ function envio(id: string, criado: string, decisoes: Array<[string, string, stri
   };
 }
 
-describe("relacaoDoAviso — a decisão do aviso ainda vale?", () => {
-  it("pedido de reenvio antigo, aberto depois da aprovação do novo envio: ENVIO_ANTERIOR", () => {
-    const envios = [
-      envio("e1", "2026-10-01T10:00:00Z", [["d1", "REENVIO", "2026-10-02T10:00:00.000Z"]]),
-      envio("e2", "2026-10-03T10:00:00Z", [["d2", "APROVADO", "2026-10-04T10:00:00.000Z"]]),
-    ];
-    const r = relacaoDoAviso({ type: "VERIFICACAO_REPROVADA", createdAt: t("2026-10-02T10:00:00.120Z") }, envios);
-    assert.deepEqual(r, { relacao: "ENVIO_ANTERIOR", decisaoDoAviso: "REENVIO" });
-  });
+describe("relacaoDoAviso — vínculo explícito e avisos antigos", () => {
+  const envios = () => [
+    envio("e1", "2026-10-01T10:00:00Z", [["d1", "REENVIO", "2026-10-02T10:00:00.000Z"]]),
+    envio("e2", "2026-10-03T10:00:00Z", [
+      ["d2", "APROVADO", "2026-10-04T10:00:00.000Z"],
+      ["d3", "REPROVADO", "2026-10-04T10:00:00.300Z"], // revisão 300 ms depois
+    ]),
+  ];
 
-  it("aprovação revisada depois para reprovação: o aviso de aprovação é SUPERADA, o de reprovação é VIGENTE", () => {
-    const envios = [
-      envio("e1", "2026-10-01T10:00:00Z", [
-        ["d1", "APROVADO", "2026-10-02T10:00:00.000Z"],
-        ["d2", "REPROVADO", "2026-10-05T10:00:00.000Z"],
-      ]),
-    ];
-    assert.equal(relacaoDoAviso({ type: "VERIFICACAO_APROVADA", createdAt: t("2026-10-02T10:00:00.050Z") }, envios).relacao, "SUPERADA");
-    assert.equal(relacaoDoAviso({ type: "VERIFICACAO_REPROVADA", createdAt: t("2026-10-05T10:00:00.050Z") }, envios).relacao, "VIGENTE");
-  });
-
-  it("decisão atual: VIGENTE", () => {
-    const envios = [envio("e1", "2026-10-01T10:00:00Z", [["d1", "APROVADO", "2026-10-02T10:00:00.000Z"]])];
-    assert.deepEqual(relacaoDoAviso({ type: "VERIFICACAO_APROVADA", createdAt: t("2026-10-02T10:00:01Z") }, envios), {
-      relacao: "VIGENTE",
-      decisaoDoAviso: "APROVADO",
+  it("vínculo explícito: envio anterior, decisão superada (revisão rápida) e vigente", () => {
+    const t0 = t("2026-10-04T10:00:00.400Z");
+    assert.deepEqual(relacaoDoAviso({ type: "VERIFICACAO_REPROVADA", createdAt: t0, verificacaoId: "e1", decisaoVerificacaoId: "d1" }, envios()), {
+      relacao: "ENVIO_ANTERIOR", vinculo: "EXPLICITO", decisaoDoAviso: "REENVIO",
+    });
+    assert.deepEqual(relacaoDoAviso({ type: "VERIFICACAO_APROVADA", createdAt: t0, verificacaoId: "e2", decisaoVerificacaoId: "d2" }, envios()), {
+      relacao: "SUPERADA", vinculo: "EXPLICITO", decisaoDoAviso: "APROVADO",
+    });
+    assert.deepEqual(relacaoDoAviso({ type: "VERIFICACAO_REPROVADA", createdAt: t0, verificacaoId: "e2", decisaoVerificacaoId: "d3" }, envios()), {
+      relacao: "VIGENTE", vinculo: "EXPLICITO", decisaoDoAviso: "REPROVADO",
     });
   });
 
-  it("tipo não bate com a decisão do mesmo instante: não liga (aviso de aprovação não vira a reprovação)", () => {
-    const envios = [envio("e1", "2026-10-01T10:00:00Z", [["d1", "REPROVADO", "2026-10-02T10:00:00.000Z"]])];
-    assert.equal(relacaoDoAviso({ type: "VERIFICACAO_APROVADA", createdAt: t("2026-10-02T10:00:00.100Z") }, envios).relacao, "INDETERMINADA");
+  it("vínculo para envio/decisão que não é da conta (fora da lista): indeterminada, sem revelar nada", () => {
+    assert.deepEqual(relacaoDoAviso({ type: "VERIFICACAO_APROVADA", createdAt: t("2026-10-05T00:00:00Z"), verificacaoId: "e-alheio", decisaoVerificacaoId: "d-alheia" }, envios()), {
+      relacao: "INDETERMINADA", vinculo: "SEM_VINCULO", decisaoDoAviso: null,
+    });
+    // Decisão de um envio da conta, mas id de decisão que não é dele.
+    assert.equal(relacaoDoAviso({ type: "VERIFICACAO_APROVADA", createdAt: t("2026-10-05T00:00:00Z"), verificacaoId: "e2", decisaoVerificacaoId: "d1" }, envios()).relacao, "INDETERMINADA");
   });
 
-  it("aviso sem decisão no histórico, anterior ao envio atual: ENVIO_ANTERIOR (pelo tempo)", () => {
-    const envios = [envio("e2", "2026-10-03T10:00:00Z", [])];
-    assert.equal(relacaoDoAviso({ type: "VERIFICACAO_REPROVADA", createdAt: t("2026-10-01T09:00:00Z") }, envios).relacao, "ENVIO_ANTERIOR");
+  it("aviso antigo sem vínculo no mesmo instante de uma decisão: NÃO é casado com ela", () => {
+    const r = relacaoDoAviso({ type: "VERIFICACAO_REPROVADA", createdAt: t("2026-10-04T10:00:00.350Z") }, envios());
+    assert.deepEqual(r, { relacao: "INDETERMINADA", vinculo: "SEM_VINCULO", decisaoDoAviso: null });
   });
 
-  it("sem envios ou tipo de outro assunto: INDETERMINADA", () => {
+  it("aviso antigo anterior ao envio atual: envio anterior, sem nomear a decisão", () => {
+    assert.deepEqual(relacaoDoAviso({ type: "VERIFICACAO_REPROVADA", createdAt: t("2026-10-02T10:00:00.100Z") }, envios()), {
+      relacao: "ENVIO_ANTERIOR", vinculo: "SEM_VINCULO", decisaoDoAviso: null,
+    });
+  });
+
+  it("aviso antigo bem anterior à decisão vigente do mesmo envio: superada, sem nomear a decisão", () => {
+    const so = [envio("e1", "2026-10-01T10:00:00Z", [["d1", "APROVADO", "2026-10-01T12:00:00Z"], ["d2", "REPROVADO", "2026-10-05T12:00:00Z"]], "2026-10-05T12:00:00Z")];
+    assert.deepEqual(relacaoDoAviso({ type: "VERIFICACAO_APROVADA", createdAt: t("2026-10-01T12:00:01Z") }, so), {
+      relacao: "SUPERADA", vinculo: "SEM_VINCULO", decisaoDoAviso: null,
+    });
+  });
+
+  it("sem envios ou tipo de outro assunto: indeterminada", () => {
     assert.equal(relacaoDoAviso({ type: "VERIFICACAO_APROVADA", createdAt: t("2026-10-01T09:00:00Z") }, []).relacao, "INDETERMINADA");
-    assert.equal(relacaoDoAviso({ type: "SERVICO_ACEITO", createdAt: t("2026-10-01T09:00:00Z") }, [envio("e1", "2026-10-01T08:00:00Z", [])]).relacao, "INDETERMINADA");
+    assert.equal(relacaoDoAviso({ type: "SERVICO_ACEITO", createdAt: t("2026-10-01T09:00:00Z") }, envios()).relacao, "INDETERMINADA");
   });
 });
 
@@ -97,6 +106,8 @@ describe("GET /api/notificacoes/[id]/contexto", () => {
       type: "VERIFICACAO_REPROVADA",
       createdAt: t("2026-10-02T10:00:00.100Z"),
       readAt: null,
+      verificacaoId: "e1",
+      decisaoVerificacaoId: "d1",
     });
     let where: any = null;
     (mockPrisma.documentVerification as any).findMany = async (args: any) => {
@@ -111,7 +122,7 @@ describe("GET /api/notificacoes/[id]/contexto", () => {
     assert.equal(res.status, 200);
     const body = await res.json();
     assert.equal(where.userId, "u-dono");
-    assert.deepEqual(body.verificacao, { relacao: "ENVIO_ANTERIOR", decisaoDoAviso: "REENVIO" });
+    assert.deepEqual(body.verificacao, { relacao: "ENVIO_ANTERIOR", vinculo: "EXPLICITO", decisaoDoAviso: "REENVIO" });
   });
 
   it("aviso de outro assunto: verificacao nula", async () => {

@@ -7,8 +7,11 @@ import { CATEGORIAS } from "@/constants/categorias";
  * - Atuação: as CATEGORIAS que a conta oferece (`servicosOferecidos`, ex.:
  *   Diarista, Babá). Não é consumo de nada.
  * - Franquia do plano: limite, uso e saldo de `/api/me/subscription`
- *   (`usage.solicitacoesMes`). O backend (lib/featureGate) conta os serviços
- *   ACEITOS no período devolvido em `periodo`; cancelado e recusado não contam.
+ *   (`usage.solicitacoesMes`), o MESMO cálculo que o aceite usa para bloquear.
+ *   O backend (lib/featureGate) conta os pedidos CRIADOS no período devolvido
+ *   em `periodo` que estão aceitos ou adiante; cancelado e recusado não
+ *   contam. Pedido criado antes do período e aceito depois não entra. O texto
+ *   diz isso ("pedidos do período"), sem prometer "aceitos neste mês".
  *   O app não fixa limite nem período: mostra o que o servidor respondeu.
  */
 
@@ -47,14 +50,14 @@ export function resumoFranquia(uso: UsoDaFranquia | null | undefined): ResumoFra
   if (!uso || typeof uso.used !== "number") return null;
   const usados = Math.max(0, uso.used);
   if (uso.limit == null) {
-    return { limite: null, usados, saldo: null, esgotada: false, texto: "Sem limite de serviços aceitos" };
+    return { limite: null, usados, saldo: null, esgotada: false, texto: "Sem limite de pedidos" };
   }
   const limite = Math.max(0, uso.limit);
   const saldo = Math.max(0, limite - usados);
   const renova = dataCurta(uso.periodo?.fim);
-  const parte1 = `${usados} de ${limite} serviços aceitos`;
+  const parte1 = `${usados} de ${limite} pedidos do período aceitos`;
   const parte2 = saldo === 0 ? "limite atingido" : `${saldo} ${saldo === 1 ? "restante" : "restantes"}`;
-  const parte3 = renova ? `renova em ${renova}` : null;
+  const parte3 = renova ? `novo período em ${renova}` : null;
   return { limite, usados, saldo, esgotada: saldo === 0, texto: [parte1, parte2, parte3].filter(Boolean).join(" · ") };
 }
 

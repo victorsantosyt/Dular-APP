@@ -201,7 +201,8 @@ export async function decidirVerificacao(input: {
         reviewNote: `KYC ${decisao === "APROVADO" ? "APROVADO" : decisao === "REENVIO" ? "REENVIO SOLICITADO" : "REPROVADO"}${revisao ? " (revisão)" : ""} por admin ${adminId} em ${agora.toISOString()} - ${motivo}`,
       },
     });
-    await tx.decisaoVerificacao.create({
+    const registro = await tx.decisaoVerificacao.create({
+      select: { id: true },
       data: {
         verificacaoId: id, adminId, de: linha.status, para: alvo, decisao, revisao, motivo: motivo || null,
         motivoCategoria: categoria,
@@ -221,7 +222,8 @@ export async function decidirVerificacao(input: {
     const a = exigente ? AVISO[decisao] : AVISO_SEM_EXIGENCIA[decisao];
     const textoDoAviso = exigente ? (categoria ? CATEGORIAS_DE_MOTIVO[categoria] : "") : motivoUsuario ?? motivo;
     const aviso = await tx.notification.create({
-      data: { userId: linha.userId, type: a.type, title: a.title, body: a.body(textoDoAviso) },
+      // Vínculo explícito: o app sabe exatamente de que envio e decisão é o aviso.
+      data: { userId: linha.userId, type: a.type, title: a.title, body: a.body(textoDoAviso), verificacaoId: id, decisaoVerificacaoId: registro.id },
       select: { id: true, userId: true, type: true, title: true, body: true },
     });
     const verification = await tx.documentVerification.findUniqueOrThrow({ where: { id }, select: SELECT_VERIFICACAO });

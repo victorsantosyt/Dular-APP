@@ -99,6 +99,7 @@ export default function VerificacaoDocs() {
   // de antes da decisão (ex.: mostrar envio a quem já foi aprovado).
   const [estadoLido, setEstadoLido] = useState<"carregando" | "ok" | "falhou">("carregando");
   const [relacaoDoAviso, setRelacaoDoAviso] = useState<RelacaoDoAviso | null>(null);
+  const [vinculoDoAviso, setVinculoDoAviso] = useState<"EXPLICITO" | "SEM_VINCULO" | null>(null);
   const busyRef = useRef(false);
   // T-18.7: garante que goBack/navigate só rode uma vez após sucesso,
   // mesmo se o usuário tocar OK várias vezes durante a animação.
@@ -135,6 +136,7 @@ export default function VerificacaoDocs() {
 
   useEffect(() => {
     setRelacaoDoAviso(null);
+    setVinculoDoAviso(null);
     if (!notificacaoId) return;
     const conta = useAuth.getState().user?.id;
     const controle = new AbortController();
@@ -143,6 +145,7 @@ export default function VerificacaoDocs() {
         // Desmontada, outro aviso ou outra conta: descarta.
         if (controle.signal.aborted || !montada.current || useAuth.getState().user?.id !== conta) return;
         setRelacaoDoAviso(ctx.verificacao?.relacao ?? null);
+        setVinculoDoAviso(ctx.verificacao?.vinculo ?? null);
       })
       .catch(() => undefined); // sem contexto, a tela mostra só o estado atual
     return () => controle.abort();
@@ -476,10 +479,10 @@ export default function VerificacaoDocs() {
           </View>
         ) : null}
 
-        {estadoLido === "ok" && faixaDoAviso(relacaoDoAviso) ? (
+        {estadoLido === "ok" && faixaDoAviso(relacaoDoAviso, vinculoDoAviso) ? (
           <View style={st.avisoHistorico}>
             <AppIcon name="Info" size={16} color={theme.textAccent} strokeWidth={2.3} />
-            <Text style={st.avisoHistoricoTexto}>{faixaDoAviso(relacaoDoAviso)}</Text>
+            <Text style={st.avisoHistoricoTexto}>{faixaDoAviso(relacaoDoAviso, vinculoDoAviso)}</Text>
           </View>
         ) : null}
 

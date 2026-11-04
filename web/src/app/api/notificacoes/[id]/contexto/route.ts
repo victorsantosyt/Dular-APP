@@ -20,7 +20,7 @@ export async function GET(req: Request, { params }: Params) {
 
     const aviso = await prisma.notification.findUnique({
       where: { id },
-      select: { id: true, userId: true, type: true, createdAt: true, readAt: true },
+      select: { id: true, userId: true, type: true, createdAt: true, readAt: true, verificacaoId: true, decisaoVerificacaoId: true },
     });
     if (!aviso || aviso.userId !== auth.userId) {
       return NextResponse.json({ ok: false, error: "Notificação não encontrada." }, { status: 404 });

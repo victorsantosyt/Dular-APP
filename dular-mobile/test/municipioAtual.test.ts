@@ -137,3 +137,26 @@ test("montador: localização atual só é gravada com a cidade/UF que o aparelh
   assert.match(salvar, /areaCoords && detectada && detectada\.cidade === areaForm\.cidade && detectada\.uf === areaForm\.estado/);
   assert.match(fonte, /onManual=\{\(\) => \{\n\s*setAreaCoords\(null\);\n\s*areaDetectadaRef\.current = null;/);
 });
+
+test("edição manual desvincula as coordenadas; a requisição sai sem elas", async () => {
+  const { editarRegiaoManual, payloadLocalizacaoAtual } = await import("../src/lib/municipioAtual");
+  const detectada = { cidade: "Água Boa", uf: "MT", bairro: "Centro", latitude: -14.05, longitude: -52.16 };
+  assert.deepEqual(payloadLocalizacaoAtual(detectada, true), {
+    latitude: -14.05, longitude: -52.16, cidade: "Água Boa", estado: "MT", bairro: "Centro", localizacaoPermitida: true,
+  });
+  for (const alteracao of [{ cidade: "Ribeirãozinho" }, { uf: "GO" }, { bairro: "Outro" }]) {
+    const manual = editarRegiaoManual(detectada, alteracao);
+    assert.equal(manual.latitude, undefined);
+    const corpo = payloadLocalizacaoAtual(manual, true);
+    assert.equal(corpo.latitude, null, JSON.stringify(alteracao));
+    assert.equal(corpo.longitude, null);
+  }
+});
+
+test("cartão de região: edição manual invalida a localização em curso e usa a regra única", () => {
+  const fonte = ler("components", "location", "LocationPermissionCard.tsx");
+  assert.match(fonte, /consulta\.invalidar\(\);\n\s*onRegionChange\(editarRegiaoManual\(region, patch\)\)/);
+  assert.match(fonte, /if \(detected && valida\(\)\)/);
+  const busca = ler("screens", "empregador", "BuscarScreen.tsx");
+  assert.match(busca, /salvarLocalizacaoAtual\(payloadLocalizacaoAtual\(nextRegion/);
+});

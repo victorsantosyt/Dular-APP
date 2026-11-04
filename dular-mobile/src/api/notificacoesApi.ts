@@ -67,7 +67,12 @@ export type RelacaoDoAviso = "VIGENTE" | "SUPERADA" | "ENVIO_ANTERIOR" | "INDETE
 export type ContextoNotificacao = {
   notificacao: { id: string; type: string; createdAt: string; lida: boolean };
   /** Só para avisos de verificação: se a decisão do aviso ainda vale. */
-  verificacao: { relacao: RelacaoDoAviso; decisaoDoAviso: "APROVADO" | "REPROVADO" | "REENVIO" | null } | null;
+  verificacao: {
+    relacao: RelacaoDoAviso;
+    /** EXPLICITO: aviso novo, ligado ao envio/decisão. SEM_VINCULO: aviso antigo; relação só pelo tempo. */
+    vinculo?: "EXPLICITO" | "SEM_VINCULO";
+    decisaoDoAviso: "APROVADO" | "REPROVADO" | "REENVIO" | null;
+  } | null;
 };
 
 /** GET /api/notificacoes/:id/contexto — o servidor responde 404 para aviso de outra conta. */

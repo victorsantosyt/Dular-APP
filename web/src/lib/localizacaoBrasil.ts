@@ -51,6 +51,29 @@ export function ufValida(uf: string | null | undefined): boolean {
   return UFS_DO_BRASIL.has((uf ?? "").trim().toUpperCase());
 }
 
+const SIGLA_DO_NOME: ReadonlyArray<readonly [string, string]> = [
+  ["AC", "Acre"], ["AL", "Alagoas"], ["AP", "Amapá"], ["AM", "Amazonas"], ["BA", "Bahia"], ["CE", "Ceará"],
+  ["DF", "Distrito Federal"], ["ES", "Espírito Santo"], ["GO", "Goiás"], ["MA", "Maranhão"], ["MT", "Mato Grosso"],
+  ["MS", "Mato Grosso do Sul"], ["MG", "Minas Gerais"], ["PA", "Pará"], ["PB", "Paraíba"], ["PR", "Paraná"],
+  ["PE", "Pernambuco"], ["PI", "Piauí"], ["RJ", "Rio de Janeiro"], ["RN", "Rio Grande do Norte"],
+  ["RS", "Rio Grande do Sul"], ["RO", "Rondônia"], ["RR", "Roraima"], ["SC", "Santa Catarina"],
+  ["SP", "São Paulo"], ["SE", "Sergipe"], ["TO", "Tocantins"],
+];
+const UF_DO_NOME = new Map(SIGLA_DO_NOME.map(([uf, nome]) => [normalizar(nome), uf]));
+
+/**
+ * UF canônica de duas letras: a sigla (qualquer caixa) ou o nome COMPLETO do
+ * estado por correspondência exata (sem acento e sem diferença de caixa).
+ * Nada por prefixo nem por aproximação: o que não casar devolve null.
+ */
+export function ufCanonica(valor: string | null | undefined): string | null {
+  const bruto = (valor ?? "").trim();
+  if (!bruto) return null;
+  const sigla = bruto.toUpperCase();
+  if (sigla.length === 2 && UFS_DO_BRASIL.has(sigla)) return sigla;
+  return UF_DO_NOME.get(normalizar(bruto)) ?? null;
+}
+
 /** Cidade que na verdade é nome de estado (geocodificação que caía em `region`). */
 export function cidadeEhNomeDeEstado(cidade: string | null | undefined): boolean {
   return ESTADOS_NORMALIZADOS.has(normalizar(cidade));
@@ -63,7 +86,8 @@ export type SinalDeLocalizacao =
   | "UF_DE_CORTE_DIVERGENTE";
 
 /**
- * Sinais de que a localização atual foi gravada errada. Só sinais: nenhum
+ * Sinais de SUSPEITA de que a localização atual foi gravada errada — não
+ * comprovam erro (a pessoa pode estar viajando). Só sinais: nenhum
  * deles autoriza trocar a localização atual pela área de atendimento.
  *
  * - MESMA_CIDADE_OUTRA_UF: mesmo nome de cidade da área (ou do endereço), UF

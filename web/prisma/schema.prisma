@@ -945,6 +945,11 @@ model Notification {
   body       String
   servicoId  String?
   chatRoomId String?
+  /// Aviso de verificação: envio (DocumentVerification) e decisão
+  /// (DecisaoVerificacao) que o geraram. Nulo nos avisos anteriores ao campo.
+  /// Sem FK: o servidor confere que pertencem ao dono do aviso ao ler.
+  verificacaoId        String?
+  decisaoVerificacaoId String?
   readAt     DateTime?
   createdAt  DateTime  @default(now())
 

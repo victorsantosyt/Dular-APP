@@ -351,7 +351,7 @@ const ROTULO_SINAL: Record<string, string> = {
 
 function sinaisLabel(sinais?: string[]) {
   if (!sinais?.length) return null;
-  return `Possível gravação incorreta: ${sinais.map((s) => ROTULO_SINAL[s] ?? s).join("; ")}`;
+  return `Suspeita, não comprovada (a pessoa pode estar em outra cidade): ${sinais.map((s) => ROTULO_SINAL[s] ?? s).join("; ")}`;
 }
 
 function atualizadaEm(iso?: string | null) {
@@ -833,9 +833,9 @@ function RoleProfileBlock({ detail }: { detail: Detail }) {
         <AdvancedProfileDetails>
           <Line label="Permissão loc." value={boolLabel(profile?.localizacaoPermitida)} />
           <Line label="Cidade do perfil" value={joinLocation(profile?.cidade, profile?.estado)} />
-          <Line label="Localização atual (aparelho)" value={joinLocation(profile?.cidadeAtual, profile?.estadoAtual)} />
+          <Line label="Região de busca salva" value={joinLocation(profile?.cidadeAtual, profile?.estadoAtual)} />
           <Line label="Gravada em" value={atualizadaEm(profile?.localizacaoAtualizadaEm)} />
-          {sinaisLabel(detail.profileSummary.sinaisLocalizacao) ? <Line label="Atenção" value={sinaisLabel(detail.profileSummary.sinaisLocalizacao)!} /> : null}
+          {sinaisLabel(detail.profileSummary.sinaisLocalizacao) ? <Line label="Suspeita" value={sinaisLabel(detail.profileSummary.sinaisLocalizacao)!} /> : null}
           <Line label="Bairro (localização atual)" value={profile?.bairroAtual ?? "—"} />
         </AdvancedProfileDetails>
       </InfoBlock>
@@ -859,7 +859,7 @@ function RoleProfileBlock({ detail }: { detail: Detail }) {
           <Line label="Área de atendimento" value={joinLocation(profile?.cidade, profile?.estado)} />
           <Line label="Localização atual (aparelho)" value={joinLocation(profile?.cidadeAtual, profile?.estadoAtual)} />
           <Line label="Gravada em" value={atualizadaEm(profile?.localizacaoAtualizadaEm)} />
-          {sinaisLabel(detail.profileSummary.sinaisLocalizacao) ? <Line label="Atenção" value={sinaisLabel(detail.profileSummary.sinaisLocalizacao)!} /> : null}
+          {sinaisLabel(detail.profileSummary.sinaisLocalizacao) ? <Line label="Suspeita" value={sinaisLabel(detail.profileSummary.sinaisLocalizacao)!} /> : null}
           <Line label="Bairro (localização atual)" value={profile?.bairroAtual ?? "—"} />
           <Line label="Toda cidade" value={boolLabel(profile?.atendeTodaCidade)} />
           <Line label="Raio" value={profile?.raioAtendimentoKm ? `${profile.raioAtendimentoKm} km` : "—"} />
@@ -886,7 +886,7 @@ function RoleProfileBlock({ detail }: { detail: Detail }) {
         <Line label="Área de atendimento" value={joinLocation(profile?.cidade, profile?.estado)} />
         <Line label="Localização atual (aparelho)" value={joinLocation(profile?.cidadeAtual, profile?.estadoAtual)} />
           <Line label="Gravada em" value={atualizadaEm(profile?.localizacaoAtualizadaEm)} />
-          {sinaisLabel(detail.profileSummary.sinaisLocalizacao) ? <Line label="Atenção" value={sinaisLabel(detail.profileSummary.sinaisLocalizacao)!} /> : null}
+          {sinaisLabel(detail.profileSummary.sinaisLocalizacao) ? <Line label="Suspeita" value={sinaisLabel(detail.profileSummary.sinaisLocalizacao)!} /> : null}
         <Line label="Bairro (localização atual)" value={profile?.bairroAtual ?? "—"} />
         <Line label="Toda cidade" value={boolLabel(profile?.atendeTodaCidade)} />
         <Line label="Raio" value={profile?.raioAtendimentoKm ? `${profile.raioAtendimentoKm} km` : "—"} />

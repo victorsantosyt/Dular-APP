@@ -105,19 +105,20 @@ export function interpretarGeocodificacao(resultados: ReadonlyArray<EnderecoGeoc
       algumForaDoBrasil = true;
       continue;
     }
-    // `city` (localidade) e `subregion` (município, no Android) do MESMO
-    // resultado: se os dois vierem e forem diferentes, não há como saber qual é
-    // o município — entram os dois e a resposta fica ambígua. Município, UF e
-    // bairro saem sempre do mesmo resultado; nunca de resultados misturados.
-    const nomes = Array.from(new Set([r.city, r.subregion].map((v) => (v ?? "").trim()).filter(Boolean)));
-    if (nomes.length === 0) continue;
+    // Município: `subregion` (no Android, a área administrativa de 2º nível,
+    // que no Brasil é o município); `city` só quando ela não vem. A localidade
+    // (`city`) pode ser distrito ou vila do município e NÃO é motivo de recusa;
+    // o bairro vem de `district`. Município, UF e bairro saem sempre do mesmo
+    // resultado; nunca de resultados misturados.
+    const municipio = ((r.subregion ?? "").trim() || (r.city ?? "").trim());
+    if (!municipio) continue;
     const uf = ufDoEstado(r.region);
     if (!uf) {
       algumSemEstado = true;
       continue;
     }
     const bairro = (r.district ?? "").trim() || null;
-    for (const cidade of nomes) candidatos.push({ cidade, uf, bairro });
+    candidatos.push({ cidade: municipio, uf, bairro });
   }
 
   if (candidatos.length === 0) {

@@ -83,3 +83,64 @@ export async function obterContextoNotificacao(id: string, signal?: AbortSignal)
   );
   return { notificacao: res.data.notificacao, verificacao: res.data.verificacao ?? null };
 }
+
+// ── Cards (GET /api/notificacoes/cards) ─────────────────────────────────────
+
+export type EstadoAcionavel = "ACAO_NECESSARIA" | "EM_ANALISE" | "RESOLVIDO" | "SUPERADO" | "AVISO_ANTERIOR";
+export type FiltroCards = "todas" | "nao_lidas" | "lidas";
+
+export type CardNotificacao = {
+  id: string;
+  tipo: "VERIFICACAO" | "SIMPLES";
+  /** Evento original mostrado no card: texto, data e leitura como foram gravados. */
+  principal: { id: string; type: string; title: string; body: string; servicoId: string | null; createdAt: string; readAt: string | null };
+  /** Quantos eventos o card agrupa (o principal + os do histórico). */
+  eventos: number;
+  naoLidos: number;
+  verificacaoId: string | null;
+  /** Estado ATUAL calculado no servidor. Nulo em mensagens, serviços e avisos informativos. */
+  apresentacao: {
+    estado: EstadoAcionavel;
+    rotulo: string;
+    titulo: string;
+    motivo: string | null;
+    acao: "REENVIAR" | "ACOMPANHAR" | "VER_CONTEXTO";
+    estadoAtualizadoEm: string | null;
+  } | null;
+};
+
+export type PaginaDeCards = {
+  filtro: FiltroCards;
+  cards: CardNotificacao[];
+  proximoCursor: string | null;
+  contadores: { naoLidas: number; acoesNecessarias: number; cards: Record<FiltroCards, number> };
+};
+
+export async function listarCards(p: { filtro: FiltroCards; cursor?: string | null; limite?: number }, signal?: AbortSignal): Promise<PaginaDeCards> {
+  const params = new URLSearchParams({ filtro: p.filtro, limite: String(p.limite ?? 30) });
+  if (p.cursor) params.set("cursor", p.cursor);
+  const res = await api.get<PaginaDeCards & { ok?: boolean }>(`/api/notificacoes/cards?${params.toString()}`, signal ? { signal } : undefined);
+  return { filtro: res.data.filtro, cards: res.data.cards ?? [], proximoCursor: res.data.proximoCursor ?? null, contadores: res.data.contadores };
+}
+
+export type HistoricoVerificacao = {
+  envios: Array<{
+    id: string;
+    atual: boolean;
+    enviadoEm: string;
+    status: "PENDING" | "APPROVED" | "REJECTED";
+    decisoes: Array<{ id: string; decisao: string; em: string; avisos: Array<{ id: string; title: string; body: string; createdAt: string; readAt: string | null }> }>;
+  }>;
+  semVinculo: Array<{ id: string; title: string; body: string; createdAt: string; readAt: string | null }>;
+};
+
+export async function obterHistoricoVerificacao(signal?: AbortSignal): Promise<HistoricoVerificacao> {
+  const res = await api.get<HistoricoVerificacao>("/api/notificacoes/historico-verificacao", signal ? { signal } : undefined);
+  return { envios: res.data.envios ?? [], semVinculo: res.data.semVinculo ?? [] };
+}
+
+/** Marca como lidas SÓ as notificações mostradas (o servidor ignora ids de outra conta). */
+export async function marcarLidasEmLote(ids: string[]): Promise<void> {
+  if (ids.length === 0) return;
+  await api.patch("/api/notificacoes/ler-lote", { ids: ids.slice(0, 100) });
+}

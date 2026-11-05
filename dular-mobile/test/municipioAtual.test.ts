@@ -160,3 +160,21 @@ test("cartão de região: edição manual invalida a localização em curso e us
   const busca = ler("screens", "empregador", "BuscarScreen.tsx");
   assert.match(busca, /salvarLocalizacaoAtual\(payloadLocalizacaoAtual\(nextRegion/);
 });
+
+test("distrito ou bairro diferente do município não recusa a localização; vale o município", () => {
+  // Localidade (distrito/vila) diferente do município no mesmo resultado.
+  const distrito = interpretarGeocodificacao([{ city: "Distrito de Serra Nova", subregion: "Água Boa", region: "Mato Grosso", isoCountryCode: "BR", district: "Setor Norte" }]);
+  assert.deepEqual(distrito, { ok: true, municipio: { cidade: "Água Boa", uf: "MT", bairro: "Setor Norte" } });
+  // Bairro com nome de outra cidade não vira município.
+  const bairro = interpretarGeocodificacao([{ city: "Água Boa", subregion: "Água Boa", region: "Mato Grosso", isoCountryCode: "BR", district: "Jardim Cuiabá" }]);
+  assert.deepEqual(bairro, { ok: true, municipio: { cidade: "Água Boa", uf: "MT", bairro: "Jardim Cuiabá" } });
+  // Sem `subregion` (ex.: iOS): usa a localidade.
+  const semSub = interpretarGeocodificacao([{ city: "Água Boa", region: "MT", isoCountryCode: "BR" }]);
+  assert.ok(semSub.ok && semSub.municipio.cidade === "Água Boa");
+});
+
+test("município errado não entra pela localidade quando o município vem no resultado", () => {
+  // Localidade de outro município no `city`, município correto no `subregion`: vale o município.
+  const r = interpretarGeocodificacao([{ city: "Ribeirãozinho", subregion: "Água Boa", region: "Mato Grosso", isoCountryCode: "BR" }]);
+  assert.ok(r.ok && r.municipio.cidade === "Água Boa" && r.municipio.uf === "MT");
+});

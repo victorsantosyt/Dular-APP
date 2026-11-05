@@ -6,6 +6,9 @@ import type { Notificacao } from "@/api/notificacoesApi";
 import type { ProfileTheme } from "@/theme/profileTheme";
 import { CHAT_TYPES, metaDoTipo, tonePalette, type NotificationTone } from "@/constants/notificacoes";
 import { abrirNotificacao } from "@/lib/abrirNotificacaoNoApp";
+import { useCardsNotificacoes } from "@/hooks/useCardsNotificacoes";
+import { NotificacoesCards } from "@/screens/shared/NotificacoesCards";
+import type { CardNotificacao } from "@/api/notificacoesApi";
 import { colors, radius, shadows, spacing, typography } from "@/theme";
 
 /**
@@ -227,6 +230,9 @@ export function NotificacoesView({ theme, onVoltar }: Props) {
   const { notificacoes, loading, error, refetch, marcarTodasComoLidas } = useNotificacoes();
   const [activeTab, setActiveTab] = useState<NotificationTab>("todas");
   const [informativo, setInformativo] = useState<UINotification | null>(null);
+  // Cards com estado atual (servidor). Backend sem a rota → lista antiga abaixo.
+  const cards = useCardsNotificacoes(activeTab);
+  const usarCards = !cards.estado.semSuporte;
 
   // Mensagens de chat NÃO entram na tela de Notificações — elas aparecem como
   // contagem no card da conversa (tela de Mensagens). Aqui filtramos na origem
@@ -252,7 +258,20 @@ export function NotificacoesView({ theme, onVoltar }: Props) {
   );
 
   const markAllAsRead = () => {
-    void marcarTodasComoLidas();
+    void marcarTodasComoLidas().finally(() => { void cards.recarregar(); });
+  };
+
+  // Toque no card: abre o EVENTO principal (o único apresentado) pelo mesmo
+  // caminho do push. A tela de destino relê o estado vigente antes de qualquer ação.
+  const abrirCard = (card: CardNotificacao) => {
+    const r = abrirNotificacao({ tipo: card.principal.type, titulo: card.principal.title, servicoId: card.principal.servicoId, id: card.principal.id });
+    if (r === "repetido") return;
+    if (!card.principal.readAt) cards.refletirLeituraDoPrincipal(card.id);
+    if (r === "informativo") {
+      setInformativo(
+        fromRemote({ id: card.principal.id, type: card.principal.type, title: card.principal.title, body: card.principal.body, readAt: card.principal.readAt, createdAt: card.principal.createdAt, servicoId: card.principal.servicoId }),
+      );
+    }
   };
 
   // Mesmo caminho do push e do aviso do app (lib/abrirNotificacao): marca só
@@ -269,8 +288,8 @@ export function NotificacoesView({ theme, onVoltar }: Props) {
       contentContainerStyle={styles.scroll}
       // Puxar para atualizar: era o único jeito de recarregar depois que o
       // sino saiu do cabeçalho, e é o gesto que se espera numa lista.
-      refreshing={loading}
-      onRefresh={refetch}
+      refreshing={usarCards ? cards.estado.carregando : loading}
+      onRefresh={usarCards ? () => { void cards.recarregar(); } : refetch}
       refreshTintColor={theme.primary}
     >
       {/* Header: voltar (esq) · "Notificações" (centro) · espaçador (dir).
@@ -290,7 +309,9 @@ export function NotificacoesView({ theme, onVoltar }: Props) {
 
       <NotificationTabs
         activeTab={activeTab}
-        unreadCount={unreadCount}
+        // Com cards: quantos cards estão em "Não lidas" (algum evento não lido).
+        // O sino/badge do app continua contando eventos não lidos.
+        unreadCount={usarCards ? cards.estado.contadores?.cards.nao_lidas ?? 0 : unreadCount}
         accent={theme.primary}
         soft={theme.primarySoft}
         onChange={setActiveTab}
@@ -308,7 +329,16 @@ export function NotificacoesView({ theme, onVoltar }: Props) {
 
       <SimuladorDePopup theme={theme} servicoId={notifications.find((n) => n.servicoId)?.servicoId} />
 
-      {loading && notifications.length === 0 ? (
+      {usarCards ? (
+        <NotificacoesCards
+          estado={cards.estado}
+          theme={theme}
+          onAbrir={abrirCard}
+          onRecarregar={() => { void cards.recarregar(); }}
+          onCarregarMais={() => { void cards.carregarMais(); }}
+          onMostradosNoHistorico={(cardId, ids) => { void cards.marcarMostrados(cardId, ids); }}
+        />
+      ) : loading && notifications.length === 0 ? (
         <DLoadingState text="Carregando notificações" color={theme.primary} />
       ) : error && notifications.length === 0 ? (
         // Sem isto, uma falha de rede aparecia como "Sem notificações" — dizia

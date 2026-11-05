@@ -36,7 +36,7 @@ const patchSchema = z.object({
     })
     .optional(),
   cidade: z.string().trim().max(80).nullable().optional(),
-  estado: z.string().trim().min(2).max(2).refine(ufValida, "UF inválida.").nullable().optional(),
+  estado: z.string().trim().min(2).max(2).refine(ufValida, "UF inválida.").transform((v) => v.toUpperCase()).nullable().optional(),
   bairros: z.array(z.string().trim().min(2).max(80)).max(30).optional(),
   raioAtendimentoKm: z.number().int().min(1).max(200).nullable().optional(),
   atendeTodaCidade: z.boolean().optional(),

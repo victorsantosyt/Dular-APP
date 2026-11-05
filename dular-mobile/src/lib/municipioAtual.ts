@@ -105,15 +105,19 @@ export function interpretarGeocodificacao(resultados: ReadonlyArray<EnderecoGeoc
       algumForaDoBrasil = true;
       continue;
     }
-    const cidade = (r.city || r.subregion || "").trim();
-    if (!cidade) continue;
+    // `city` (localidade) e `subregion` (município, no Android) do MESMO
+    // resultado: se os dois vierem e forem diferentes, não há como saber qual é
+    // o município — entram os dois e a resposta fica ambígua. Município, UF e
+    // bairro saem sempre do mesmo resultado; nunca de resultados misturados.
+    const nomes = Array.from(new Set([r.city, r.subregion].map((v) => (v ?? "").trim()).filter(Boolean)));
+    if (nomes.length === 0) continue;
     const uf = ufDoEstado(r.region);
     if (!uf) {
       algumSemEstado = true;
       continue;
     }
     const bairro = (r.district ?? "").trim() || null;
-    candidatos.push({ cidade, uf, bairro });
+    for (const cidade of nomes) candidatos.push({ cidade, uf, bairro });
   }
 
   if (candidatos.length === 0) {
@@ -178,5 +182,34 @@ export function criarConsultaDescartavel() {
     invalidar(): void {
       geracao++;
     },
+  };
+}
+
+/**
+ * Edição manual de cidade, UF ou bairro: as coordenadas que vieram junto com a
+ * localização detectada deixam de valer. Região digitada nunca segue para o
+ * servidor com a coordenada de outra origem.
+ */
+export function editarRegiaoManual<R extends { latitude?: number; longitude?: number }>(regiao: R, alteracao: Partial<R>): R {
+  return { ...regiao, ...alteracao, latitude: undefined, longitude: undefined };
+}
+
+/**
+ * Corpo de PATCH /api/me/localizacao a partir de uma região. As coordenadas
+ * só vão quando a região ainda é a detectada (a edição manual as remove em
+ * `editarRegiaoManual`); região digitada vai sem coordenada.
+ */
+export function payloadLocalizacaoAtual(
+  regiao: { cidade: string; uf: string; bairro: string; latitude?: number; longitude?: number },
+  localizacaoPermitida: boolean,
+) {
+  const comCoordenada = typeof regiao.latitude === "number" && typeof regiao.longitude === "number";
+  return {
+    latitude: comCoordenada ? regiao.latitude! : null,
+    longitude: comCoordenada ? regiao.longitude! : null,
+    cidade: regiao.cidade.trim(),
+    estado: regiao.uf.trim().toUpperCase(),
+    bairro: regiao.bairro.trim() || null,
+    localizacaoPermitida,
   };
 }

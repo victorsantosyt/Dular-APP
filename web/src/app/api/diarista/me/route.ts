@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { ufCanonica } from "@/lib/localizacaoBrasil";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/requireAuth";
@@ -114,6 +115,17 @@ function validateField(
       };
     }
     return { ok: true, value };
+  }
+
+  // Área de atendimento: grava sempre a UF canônica de duas letras. Aceita o
+  // nome completo do estado por correspondência exata (clientes antigos);
+  // qualquer outra coisa é recusada antes de gravar qualquer campo.
+  if (field === "estado") {
+    if (value === null) return { ok: true, value: null };
+    if (typeof value !== "string") return { ok: false, error: "estado deve ser string." };
+    const uf = ufCanonica(value);
+    if (!uf) return { ok: false, error: "UF inválida." };
+    return { ok: true, value: uf };
   }
 
   if (STRING_NULLABLE_FIELDS.has(field)) {

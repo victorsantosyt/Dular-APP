@@ -139,13 +139,24 @@ test("rotaNoEstado encontra rota em navegador aninhado", () => {
 });
 
 test("faixa de aviso histórico nunca instrui reenvio; decisão vigente não tem faixa", () => {
-  for (const r of ["ENVIO_ANTERIOR", "SUPERADA", "INDETERMINADA"] as const) {
-    const t = faixaDoAviso(r)!;
-    assert.ok(t.includes("situação abaixo"), r);
-    assert.doesNotMatch(t, /envie|reenvi|novo envio/i);
+  for (const vinculo of ["EXPLICITO", "SEM_VINCULO", undefined] as const) {
+    for (const r of ["ENVIO_ANTERIOR", "SUPERADA", "INDETERMINADA"] as const) {
+      const t = faixaDoAviso(r, vinculo)!;
+      assert.ok(t.includes("situação abaixo"), `${r}/${vinculo}`);
+      assert.doesNotMatch(t, /envie|reenvi|novo envio/i);
+    }
+    assert.equal(faixaDoAviso("VIGENTE", vinculo), null);
   }
-  assert.equal(faixaDoAviso("VIGENTE"), null);
-  assert.equal(faixaDoAviso(null), null);
+  assert.equal(faixaDoAviso(null, null), null);
+});
+
+test("aviso antigo (sem vínculo) não é atribuído a uma decisão; o vinculado é", () => {
+  assert.match(faixaDoAviso("SUPERADA", "EXPLICITO")!, /decisão deste aviso foi revista/);
+  const legado = faixaDoAviso("SUPERADA", "SEM_VINCULO")!;
+  assert.doesNotMatch(legado, /decisão deste aviso/);
+  assert.match(faixaDoAviso("INDETERMINADA", "SEM_VINCULO")!, /Não é possível relacionar/);
+  // Backend antigo, sem o campo: mesmo tratamento cauteloso.
+  assert.equal(faixaDoAviso("SUPERADA", undefined), legado);
 });
 
 test("lista, aviso do app e push usam o mesmo caminho; lista não abre alerta genérico", () => {

@@ -1,7 +1,8 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { AppIcon } from "@/components/ui";
 import type { CurrentRegion } from "@/hooks/useCurrentRegion";
+import { criarConsultaDescartavel, editarRegiaoManual } from "@/lib/municipioAtual";
 import { colors, radius, spacing, typography } from "@/theme";
 
 type Props = {
@@ -52,10 +53,18 @@ export function LocationPermissionCard({
           ? "Região detectada"
           : "Região pendente";
 
-  const update = (patch: Partial<CurrentRegion>) => onRegionChange({ ...region, ...patch });
+  // Cada edição manual (e o desmonte) invalida a localização que estiver em
+  // curso: resultado que chega depois não sobrescreve o que foi digitado.
+  const consulta = useRef(criarConsultaDescartavel()).current;
+  useEffect(() => () => consulta.invalidar(), [consulta]);
+  const update = (patch: Partial<CurrentRegion>) => {
+    consulta.invalidar();
+    onRegionChange(editarRegiaoManual(region, patch));
+  };
   const handleRequestLocation = async () => {
+    const valida = consulta.iniciar();
     const detected = await onRequestLocation();
-    if (detected) {
+    if (detected && valida()) {
       onDetected?.(detected);
     }
   };

@@ -31,6 +31,7 @@ import { useBuscar, type ApiDiarista } from "@/hooks/useBuscar";
 import { CATEGORIAS as CATEGORIAS_FONTE, CATEGORIAS_DIARISTA, CATEGORIA_BY_KEY, type CategoriaKey } from "@/constants/categorias";
 import { useFavoritos } from "@/hooks/useFavoritos";
 import { salvarLocalizacaoAtual } from "@/api/localizacaoApi";
+import { payloadLocalizacaoAtual } from "@/lib/municipioAtual";
 import { useAuth } from "@/stores/authStore";
 import { useCurrentRegion, type CurrentRegion } from "@/hooks/useCurrentRegion";
 import type { MontadorItem } from "@/types/montador";
@@ -353,14 +354,8 @@ export function BuscarScreen() {
     try {
       setSavingRegion(true);
       setRegionError(null);
-      await salvarLocalizacaoAtual({
-        latitude: nextRegion.latitude ?? null,
-        longitude: nextRegion.longitude ?? null,
-        cidade: nextRegion.cidade.trim(),
-        estado: nextRegion.uf.trim().toUpperCase(),
-        bairro: nextRegion.bairro.trim() || null,
-        localizacaoPermitida: currentRegion.permissionStatus === "granted",
-      });
+      // Região editada à mão vai sem coordenada (lib/municipioAtual).
+      await salvarLocalizacaoAtual(payloadLocalizacaoAtual(nextRegion, currentRegion.permissionStatus === "granted"));
       setUser((prev) => prev ? {
         ...prev,
         cidadeAtual: nextRegion.cidade.trim(),
